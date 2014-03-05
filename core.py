@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Module IMTreatment
+Module IMTreatment.
 
     Auteur : Gaby Launay
 """
@@ -55,8 +55,8 @@ def make_unit(string):
     --------
     >>> make_unit("m/s")
     1 [m/s]
-    >>> make_unit("N/m/s**2")
-    1 [kg/s3]
+    >>> make_unit("N/m/s**3")
+    1 [kg/s4]
     """
     if not isinstance(string, STRINGTYPES):
         raise TypeError("Units should be define by a string, big boy")
