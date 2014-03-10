@@ -38,11 +38,11 @@ Particular warnings
 -------------------
 It is strongly recommended not to use "import *" on this package.
 """
-from .core import make_unit, export_to_file, import_from_file,\
+from .core import make_unit,\
     Profile, Points,\
     ScalarField, VectorField, VelocityField, VelocityFields,\
     TemporalVelocityFields, SpatialVelocityFields
 __all__ = ["boundary_layer", "vortex_detection", "ScalarField", "VectorField",
            "VelocityField", "VelocityFields", "TemporalVelocityFields",
            "SpatialVelocityFields", "Points", "Profile", "make_unit",
-           "export_to_file", "import_from_file"]
+           "io"]

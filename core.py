@@ -10,18 +10,16 @@ except:
     pass
 import scipy.interpolate as spinterp
 import scipy.ndimage.measurements as msr
+import scipy.io as spio
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import numpy as np
 import pdb
-import json
 import sets
 import glob
 import unum
 import unum.units as units
 import os
-import gzip
-from scipy.io import matlab
 try:
     units.counts = unum.Unum.unit('counts')
     units.pixel = unum.Unum.unit('pixel')
@@ -184,176 +182,6 @@ def make_unit(string):
     strlist = spliting(string)
     unity = app_brackets(strlist)
     return unity
-
-
-def export_to_file(obj, filepath, compressed=True, **kw):
-    """
-    Write the object in the specified file usint the JSON format.
-    Additionnals arguments for the JSON encoder may be set with the **kw
-    argument. Such arguments may be 'indent' (for visual indentation in
-    file, default=0) or 'encoding' (to change the file encoding,
-    default='utf-8').
-    If existing, specified file will be truncated. If not, it will
-    be created.
-
-    Parameters
-    ----------
-    obj :
-        Object to store (common objects and IMT objects are supported).
-    filepath : string
-        Path specifiing where to save the object.
-    compressed : boolean, optional
-        If 'True' (default), the json file is compressed using gzip.
-    """
-    # Personnal encoder
-    class MyEncoder(json.JSONEncoder):
-        """
-        Personnal encoder to write module class ass json.
-        """
-        def default(self, obj):
-            """
-            Overwritting the default encoder.
-            """
-            try:
-                obj.__classname__
-            except AttributeError:
-                pass
-            else:
-                dic = obj.__dict__
-                return dic
-            if isinstance(obj, (np.bool, np.bool_)):
-                dic = {'__classname__': 'np.bool', 'value': int(obj)}
-                return dic
-            elif isinstance(obj, unum.Unum):
-                dic = {'value': obj._value, 'unit': obj._unit,
-                       '__classname__': 'Unum'}
-                return dic
-            elif isinstance(obj, np.ma.MaskedArray):
-                dic = {'__classname__': 'MaskedArray', 'values': obj.data,
-                       'dtype': obj.dtype.name, 'mask': obj.mask}
-                return dic
-            elif isinstance(obj, np.ndarray):
-                dic = {'__classname__': 'ndarray', 'values': tuple(obj),
-                       'dtype': obj.dtype.name}
-                return dic
-            return json.JSONEncoder.default(self, obj)
-    # writing the datas
-    if not isinstance(filepath, STRINGTYPES):
-        raise TypeError("I need a string here, son")
-    if not os.path.exists(os.path.dirname(filepath)):
-        raise IOError("I think this kind of path is invalid, buddy")
-    if not isinstance(compressed, bool):
-        raise TypeError("'compressed' must be a boolean")
-    if compressed:
-        if os.path.splitext(filepath)[1] != ".cimt":
-            filepath = filepath + ".cimt"
-        with gzip.GzipFile(filepath, 'w') as outfile:
-            outfile.write(json.dumps(obj, cls=MyEncoder, **kw))
-    else:
-        if os.path.splitext(filepath)[1] != ".imt":
-            filepath = filepath + ".imt"
-        file_h = open(filepath, 'w')
-        json.dump(obj, file_h, cls=MyEncoder, **kw)
-        file_h.close()
-
-
-def import_from_file(filepath, **kw):
-    """
-    Load and return an object from the specified file using the JSON
-    format.
-    Additionnals arguments for the JSON decoder may be set with the **kw
-    argument. Such as'encoding' (to change the file
-    encoding, default='utf-8').
-
-    Parameters
-    ----------
-    filepath : string
-        Path specifiing the file to load.
-    """
-    # Personal encoder
-    class MyDecoder(json.JSONDecoder):
-        """
-        Personnal decoder for module class.
-        """
-        def __init__(self, **kw):
-            """
-            Overwritting constructor.
-            """
-            json.JSONDecoder.__init__(self, object_hook=self.object_hook, **kw)
-
-        def object_hook(self, dic):
-            """
-            Defining object_hook.
-            """
-            if '__classname__' in dic:
-                if dic['__classname__'] == 'Points':
-                    obj = Points(dic['xy'], dic['v'], dic['unit_x'],
-                                 dic['unit_y'], dic['unit_v'])
-                elif dic['__classname__'] == 'Profile':
-                    obj = Profile(dic['x'], dic['y'], dic['unit_x'],
-                                  dic['unit_y'], str(dic['name']))
-                elif dic['__classname__'] == 'ScalarField':
-                    obj = ScalarField()
-                    obj.__dict__ = dic
-                elif dic['__classname__'] == 'VectorField':
-                    obj = VectorField()
-                    obj.__dict__ = dic
-                elif dic['__classname__'] == 'VelocityField':
-                    obj = VelocityField()
-                    obj.__dict__ = dic
-                elif dic['__classname__'] == 'VelocityFields':
-                    obj = VelocityFields()
-                    obj.__dict__ = dic
-                elif dic['__classname__'] == 'SpatialVelocityFields':
-                    obj = SpatialVelocityFields()
-                    obj.__dict__ = dic
-                elif dic['__classname__'] == 'TemporalVelocityFields':
-                    obj = TemporalVelocityFields()
-                    obj.__dict__ = dic
-                elif dic['__classname__'] == 'np.bool':
-                    obj = np.bool(dic['value'])
-                elif dic['__classname__'] == 'Unum':
-                    obj = units.s*1
-                    obj._value = dic['value']
-                    obj._unit = dic['unit']
-                elif dic['__classname__'] == 'ndarray':
-                    obj = np.array(dic['values'], dtype=dic['dtype'])
-                elif dic['__classname__'] == 'MaskedArray':
-                    obj = np.ma.masked_array(dic['values'], dic['mask'],
-                                             dic['dtype'])
-                else:
-                    raise IOError("I think i don't know this kind of "
-                                  "variable yet... "
-                                  "But i'm ready to learn what is a "
-                                  "'{0}', buddy."
-                                  .format(dic["__classname__"]))
-                return obj
-            else:
-                return dic
-    # writing datas
-    if not isinstance(filepath, STRINGTYPES):
-        raise TypeError("I need a string here, son")
-    if not os.path.exists(filepath):
-        if os.path.exists(filepath + ".imt"):
-            filepath += ".imt"
-        elif os.path.exists(filepath + ".cimt"):
-            filepath += ".cimt"
-        else:
-            raise IOError("I think this file doesn't exist, buddy")
-    extension = os.path.splitext(filepath)[1]
-    if extension == ".cimt":
-        with gzip.GzipFile(filepath, 'r') as isfile:
-            json_text = isfile.read()
-            obj = json.loads(json_text, cls=MyDecoder, **kw)
-    elif extension == ".imt":
-        file_h = open(filepath, 'r')
-        obj = json.load(file_h, cls=MyDecoder, **kw)
-        file_h.close()
-    else:
-        raise IOError("File is not readable "
-                      "(unknown extension : {})".format(extension))
-    return obj
-
 
 class Points(object):
     """
@@ -646,7 +474,27 @@ class Points(object):
             grid = pyvtk.UnstructuredGrid(pts, vertex=vertex)
         data = pyvtk.VtkData(grid, 'Scalar Field from python', point_data)
         data.tofile(filepath)
-
+    
+    def export_to_matlab(self, filepath, global_name=None, **kwargs):
+        """
+        Write the point object in a amatlab file.
+        
+        Parameters
+        ----------
+        filepath : string
+        global_name : string, optional
+            If specified, 'x', 'y' and 'v' values are stored in a matlab
+            structure object name 'global_name'.
+        """
+        x = np.zeros((self.xy.shape[0],))
+        y = np.zeros((self.xy.shape[0],))
+        for i in np.arange(self.xy.shape[0]):
+            x[i] = self.xy[i, 0]
+            y[i] = self.xy[i, 1]
+        dic = {'x': x, 'y': y, 'v': self.v}
+        if global_name is not None:
+            dic = {global_name: dic}
+        spio.savemat(filepath, dic, **kwargs)
 
 class Profile(object):
     """
@@ -805,7 +653,8 @@ class Profile(object):
         compressed : boolean, optional
             If 'True' (default), the json file is compressed using gzip.
         """
-        export_to_file(self, filepath, compressed, **kw)
+        import IMTreatment.io.io as imtio
+        imtio.export_to_file(self, filepath, compressed, **kw)
 
     def import_from_file(self, filepath, **kw):
         """
@@ -820,7 +669,8 @@ class Profile(object):
         filepath : string
             Path specifiing the Profile to load.
         """
-        tmp_p = import_from_file(filepath, **kw)
+        import IMTreatment.io.io as imtio
+        tmp_p = imtio.import_from_file(filepath, **kw)
         if tmp_p.__classname__ != self.__classname__:
             raise IOError("This file do not contain a Profile, cabron")
         self.__init__(tmp_p.x, tmp_p.y, tmp_p.unit_x, tmp_p.unit_y, tmp_p.name)
@@ -1638,7 +1488,8 @@ class ScalarField(object):
         filepath : string
             Path specifiing the ScalarField to load.
         """
-        tmp_sf = import_from_file(filepath, **kw)
+        import IMTreatment.io.io as imtio
+        tmp_sf = imtio.import_from_file(filepath, **kw)
         if tmp_sf.__classname__ != self.__classname__:
             raise IOError("This file do not contain a ScalarField, cabron.")
         self.import_from_scalarfield(tmp_sf)
@@ -1660,7 +1511,8 @@ class ScalarField(object):
         compressed : boolean, optional
             If 'True' (default), the json file is compressed using gzip.
         """
-        export_to_file(self, filepath, compressed, **kw)
+        import IMTreatment.io.io as imtio
+        imtio.export_to_file(self, filepath, compressed, **kw)
 
     def export_to_vtk(self, filepath, axis=None):
         """
@@ -3235,7 +3087,8 @@ class VectorField(object):
         filepath : string
             Path specifiing the VectorField to load.
         """
-        tmp_vf = import_from_file(filepath, **kw)
+        import IMTreatment.io.io as imtio
+        tmp_vf = imtio.import_from_file(filepath, **kw)
         if tmp_vf.__classname__ != self.__classname__:
             raise IOError("This file do not contain a VectorField, cabron.")
         self.import_from_vectorfield(tmp_vf)
@@ -3257,7 +3110,8 @@ class VectorField(object):
         compressed : boolean, optional
             If 'True' (default), the json file is compressed using gzip.
         """
-        export_to_file(self, filepath, compressed, **kw)
+        import IMTreatment.io.io as imtio
+        imtio.export_to_file(self, filepath, compressed, **kw)
 
     def export_to_vtk(self, filepath, axis=None):
         """
@@ -4316,8 +4170,9 @@ class VelocityField(object):
             Path specifiing the VelocityField to load.
         """
         # cleaning in case values are already been set
+        import IMTreatment.io.io as imtio
         self._clear_derived()
-        tmp_vf = import_from_file(filepath, **kw)
+        tmp_vf = imtio.import_from_file(filepath, **kw)
         if tmp_vf.__classname__ != self.__classname__:
             raise IOError("This file do not contain a VelocityField, cabron.")
         self.import_from_velocityfield(tmp_vf)
@@ -4339,7 +4194,8 @@ class VelocityField(object):
         compressed : boolean, optional
             If 'True' (default), the json file is compressed using gzip.
         """
-        export_to_file(self, filepath, compressed, **kw)
+        import IMTreatment.io.io as imtio
+        imtio.export_to_file(self, filepath, compressed, **kw)
         
     def _clear_derived(self):
         """
@@ -5147,7 +5003,8 @@ class VelocityFields(object):
         filepath : string
             Path specifiing the VelocityFields to load.
         """
-        tmp_vf = import_from_file(filepath, **kw)
+        import IMTreatment.io.io as imtio
+        tmp_vf = imtio.import_from_file(filepath, **kw)
         if tmp_vf.__classname__ != self.__classname__:
             raise IOError("This file do not contain a {}"
                           ", cabron.".format(self.__classname__))
@@ -5170,7 +5027,8 @@ class VelocityFields(object):
         compressed : boolean, optional
             If 'True' (default), the json file is compressed using gzip.
         """
-        export_to_file(self, filepath, compressed, **kw)
+        import IMTreatment.io.io as imtio
+        imtio.export_to_file(self, filepath, compressed, **kw)
                     
     def remove_field(self, fieldnumber):
         """
@@ -6051,7 +5909,7 @@ class SpatialVelocityFields(VelocityFields):
         Return a copy of the velocityfields
         """
         tmp_svfs = SpatialVelocityFields()
-        tmp_stvfs.import_from_svfs(self)
+        tmp_svfs.import_from_svfs(self)
         return tmp_svfs
 
     def get_bl(self, componentname, direction, value, rel=False,

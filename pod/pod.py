@@ -72,10 +72,10 @@ def pod_decomposition(vfs):
     corr = calc_correlation_matrix(fields_x, fields_y)
     # calcul des valeur propres de la matrice de correlatio
     lambd, vectp = calc_eigenvalues(corr)
-    vectp = np.sort(vectp, )
-    lambd = np.sort(lambd)
+#    vectp = np.sort(vectp)
+#    lambd = np.sort(lambd)
     # calcul des modes propres
-    for 
+    pass
     # retourne val propres et modes propres
-    return corr, lambd, phi
+    return corr, lambd
     
