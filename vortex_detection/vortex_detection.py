@@ -545,9 +545,12 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
         if np.max(dist_x) > np.max(dist_y):
             ind_dist_x_max = np.argmax(dist_x)
             # if struct are to intricate, we can't separate them
+            if ind_dist_x_max == len(ind_x)-1:
+                return None, None
             if np.abs(ind_x[ind_dist_x_max] - ind_x[ind_dist_x_max + 1])\
                     < windows_size:
                 return None, None
+            # else we cut
             cut_ind = round((ind_x[ind_dist_x_max]
                             + ind_x[ind_dist_x_max + 1])/2.)
             x_min = velocityfield.V.comp_x.axe_x[0]
@@ -561,9 +564,12 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
         else:
             ind_dist_y_max = np.argmax(dist_y)
             # if struct are to intricate, we can't separate them
+            if ind_dist_y_max == len(ind_y)-1:
+                return None, None
             if np.abs(ind_y[ind_dist_y_max] - ind_y[ind_dist_y_max + 1])\
                     < windows_size:
                 return None, None
+            #else we cut
             cut_ind = round((ind_y[ind_dist_y_max] - 0.5
                             + ind_y[ind_dist_y_max + 1] - 0.5)/2)
             y_min = velocityfield.V.comp_x.axe_y[0]

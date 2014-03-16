@@ -203,7 +203,7 @@ class Points(object):
     name : string, optional
         Name of the points set
     """
-    def __init__(self, xy, v=None, unit_x=make_unit(''), unit_y=make_unit(''),
+    def __init__(self, xy=[], v=None, unit_x=make_unit(''), unit_y=make_unit(''),
                  unit_v=make_unit(''), name=None):
         """
         Points builder.
@@ -211,7 +211,7 @@ class Points(object):
         if not isinstance(xy, ARRAYTYPES):
             raise TypeError("'xy' must be a tuple of 2x1 arrays")
         xy = np.array(xy, subok=True)
-        if len(xy.shape) != 2 or xy.shape[1] != 2:
+        if xy.shape != (0,) and (len(xy.shape) != 2 or xy.shape[1] != 2):
             raise ValueError("'xy' must be a tuple of 2x1 arrays")
         if v is not None:
             if not isinstance(v, ARRAYTYPES):
@@ -240,6 +240,50 @@ class Points(object):
 
     def __len__(self):
         return self.xy.shape[0]
+
+    def import_from_ascii(self, filename, x_col=1, y_col=2, v_col=None,
+                          unit_x=make_unit(""), unit_y=make_unit(""),
+                          unit_v=make_unit(""), **kwargs):
+        """
+        Import a Points object from an ascii file.
+
+        Parameters
+        ----------
+        x_col, y_col, v_col : integer, optional
+            Colonne numbers for the given variables
+            (begining at 1).
+        unit_x, unit_y, unit_v : Unit objects, optional
+            Unities for the given variables.
+        **kwargs :
+            Possibles additional parameters are the same as those used in the
+            numpy function 'genfromtext()' :
+            'delimiter' to specify the delimiter between colonnes.
+            'skip_header' to specify the number of colonne to skip at file
+                begining
+            ...
+        """
+        # validating parameters
+        if v_col is None:
+            v_col = 0
+        if not isinstance(x_col, int) or not isinstance(y_col, int)\
+                or not isinstance(v_col, int):
+            raise TypeError("'x_col', 'y_col' and 'v_col' must be integers")
+        if x_col < 1 or y_col < 1:
+            raise ValueError("Colonne number out of range")
+        # 'names' deletion, if specified (dangereux pour la suite)
+        if 'names' in kwargs:
+            kwargs.pop('names')
+        # extract data from file
+        data = np.genfromtxt(filename, **kwargs)
+        # get axes
+        x = data[:, x_col-1]
+        y = data[:, y_col-1]
+        self.xy = zip(x, y)
+        if v_col != 0:
+            v = data[:, v_col-1]
+        else:
+            v = None
+        self.__init__(zip(x, y), v, unit_x, unit_y, unit_v)
 
     def __add__(self, another):
         if isinstance(another, Points):
@@ -580,7 +624,7 @@ class Profile(object):
                 raise ValueError("Profiles have not the same length")
             if not all(self.x == otherone.x):
                 raise ValueError("Profiles have not the same x axis")
-            y = self.y + self.unit_y/otherone.unit_y*otherone.y
+            y = self.y + (self.unit_y/otherone.unit_y*otherone.y).asNumber()
             name = ""
         else:
             raise TypeError("You only can substract Profile with "
@@ -1321,7 +1365,14 @@ class ScalarField(object):
         unit_values = unit_values.replace('[', '')
         unit_values = unit_values.replace(']', '')
         self.unit_values = make_unit(unit_values)
-        # Coment appliquer le masque lors de l'importation ?
+        # check if axe are crescent
+        if self.axe_y[-1] < self.axe_y[0]:
+            self.axe_y = self.axe_y[::-1]
+            self.values = self.values[::-1, :]
+        if self.axe_x[-1] < self.axe_x[0]:
+            self.axe_x = self.axe_x[::-1]
+            self.values = self.values[:, ::-1]
+            
 
     def import_from_ascii(self, filename, x_col=1, y_col=2, v_col=3,
                           unit_x=make_unit(""), unit_y=make_unit(""),
@@ -5421,6 +5472,10 @@ class TemporalVelocityFields(VelocityFields):
                     values.append(sf.values[ind_y, ind_x])
                 else:
                     values.append(sf.get_value(x, y, ind=ind))
+            # checking if position is masked
+            for val in values:
+                if hasattr(val, 'mask'):
+                    return None
             # getting spectrum
             n = len(values)
             Y = np.abs(np.fft.rfft(values)/n)
@@ -5479,12 +5534,17 @@ class TemporalVelocityFields(VelocityFields):
         ind_y_max = tmp_sf.get_indice_on_axe(2, intervaly[1])[-1]
         # Averaging ponctual spectrum
         spectrum = 0.
+        nmb_fields = (ind_x_max - ind_x_min + 1)*(ind_y_max - ind_y_min + 1)
+        real_nmb_fields = nmb_fields
         for i in np.arange(ind_x_min, ind_x_max + 1):
             for j in np.arange(ind_y_min, ind_y_max + 1):
                 tmp_spec = self.get_spectrum(component, [i, j], ind=True)
-                spectrum = spectrum + tmp_spec
-        nmb_fields = (ind_x_max - ind_x_min + 1)*(ind_y_max - ind_y_min + 1)
-        spectrum = spectrum/nmb_fields
+                # check if the position is masked
+                if tmp_spec is None:
+                    real_nmb_fields -= 1
+                else:
+                    spectrum = spectrum + tmp_spec
+        spectrum = spectrum/real_nmb_fields
         return spectrum
 
     def calc_mean_vf(self, nmb_min=1):
@@ -5648,12 +5708,12 @@ class TemporalVelocityFields(VelocityFields):
         """
         if not isinstance(nmb_in_interval, int):
             raise TypeError("'nmb_in_interval' must be an integer")
+        if nmb_in_interval == 1:
+            return self.get_copy()
         if nmb_in_interval >= len(self):
             raise ValueError("'nmb_in_interval' is too big")
         if not isinstance(mean, bool):
             raise TypeError("'mean' must be a boolean")
-        if nmb_in_interval == 1:
-            return self.get_copy()
         tmp_TVFS = TemporalVelocityFields()
         i = 0
         while True:
