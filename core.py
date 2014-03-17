@@ -5358,6 +5358,12 @@ class TemporalVelocityFields(VelocityFields):
             except AttributeError:
                 self.calc_reynolds_stress()
                 return self.rs_xy
+        elif componentname == "tke":
+            try:
+                return self.tke
+            except AttributeError:
+                self.calc_tke()
+                return self.tke
         # Velocity Field attributes
         elif len(self.fields) != 0:
             try:
@@ -5620,13 +5626,15 @@ class TemporalVelocityFields(VelocityFields):
         Calculate the turbulent kinetic energy.
         """
         turb_vfs = self.get_comp('turbulent_vf')
-        turb_vfs = turb_vfs**2
-        turb_mean = turb_vfs.get_comp('mean_vf')
-        turb_mean_vx = turb_mean.get_comp('Vx')
-        turb_mean_vy = turb_mean.get_comp('Vy')
-        self.tke = 1./2*(turb_mean_vx + turb_mean_vy)
+        vx_p = turb_vfs.get_comp('Vx')
+        vy_p = turb_vfs.get_comp('Vy')
+        self.tke = []
+        for i in np.arange(len(vx_p)):
+            self.tke.append(1./2*(vx_p[i]**2 + vy_p[i]**2))
+    
+    def calc_mean_tke(self):
 
-    def calc_reynolds_stress(self):
+    def calc_reynolds_stress(self, nmb_val_min=1):
         """
         Calculate the reynolds stress.
         """
@@ -5635,23 +5643,79 @@ class TemporalVelocityFields(VelocityFields):
         u_p = turb_vf.get_comp('Vx')
         v_p = turb_vf.get_comp('Vy')
         # rs_xx
-        rs_xx = u_p[0]**2
-        for i in np.arange(1, len(u_p)):
-            rs_xx = rs_xx + u_p[i]**2
-        rs_xx = rs_xx/len(u_p)
+        rs_xx = np.zeros(u_p[0].values.shape)
+        mask_rs_xx = np.zeros(u_p[0].values.shape)
+        # boucle sur les points du champ
+        for i in np.arange(rs_xx.shape[0]):
+            for j in np.arange(rs_xx.shape[1]):
+                # boucle sur le nombre de champs
+                nmb_val = 0
+                for n in np.arange(len(turb_vf.fields)):
+                    # check if masked
+                    if not u_p[n].values.mask[i, j]:
+                        rs_xx[i, j] += u_p[n].values[i, j]**2
+                        nmb_val += 1
+                if nmb_val > nmb_val_min:
+                    rs_xx[i, j] /= nmb_val
+                else:
+                    rs_xx[i, j] = 0
+                    mask_rs_xx[i, j] = True
         # rs_yy
-        rs_yy = v_p[0]**2
-        for i in np.arange(1, len(v_p)):
-            rs_yy = rs_yy + v_p[i]**2
-        rs_yy = rs_yy/len(v_p)
+        rs_yy = np.zeros(v_p[0].values.shape)
+        mask_rs_yy = np.zeros(v_p[0].values.shape)
+        # boucle sur les points du champ
+        for i in np.arange(rs_yy.shape[0]):
+            for j in np.arange(rs_yy.shape[1]):
+                # boucle sur le nombre de champs
+                nmb_val = 0
+                for n in np.arange(len(turb_vf.fields)):
+                    # check if masked
+                    if not v_p[n].values.mask[i, j]:
+                        rs_yy[i, j] += v_p[n].values[i, j]**2
+                        nmb_val += 1
+                if nmb_val > nmb_val_min:
+                    rs_yy[i, j] /= nmb_val
+                else:
+                    rs_yy[i, j] = 0
+                    mask_rs_yy[i, j] = True
         # rs_xy
-        rs_xy = v_p[0]*u_p[0]
-        for i in np.arange(1, len(u_p)):
-            rs_xy = rs_xy + u_p[i]*v_p[i]
-        rs_xy = rs_xy/len(u_p)
-        self.rs_xx = rs_xx
-        self.rs_yy = rs_yy
-        self.rs_xy = rs_xy
+        rs_xy = np.zeros(u_p[0].values.shape)
+        mask_rs_xy = np.zeros(u_p[0].values.shape)
+        # boucle sur les points du champ
+        for i in np.arange(rs_xy.shape[0]):
+            for j in np.arange(rs_xy.shape[1]):
+                # boucle sur le nombre de champs
+                nmb_val = 0
+                for n in np.arange(len(turb_vf.fields)):
+                    # check if masked
+                    if not (u_p[n].values.mask[i, j]
+                            or v_p[n].values.mask[i, j]):
+                        rs_xy[i, j] += (u_p[n].values[i, j]
+                                        * v_p[n].values[i, j])
+                        nmb_val += 1
+                if nmb_val > nmb_val_min:
+                    rs_xy[i, j] /= nmb_val
+                else:
+                    rs_xy[i, j] = 0
+                    mask_rs_xy[i, j] = True
+        # masking and storing
+        axe_x = self.fields[0].V.comp_x.axe_x
+        axe_y = self.fields[0].V.comp_x.axe_y
+        unit_x = self.fields[0].V.comp_x.unit_x
+        unit_y = self.fields[0].V.comp_x.unit_y
+        unit_values = self.fields[0].V.comp_x.unit_values
+        self.rs_xx = ScalarField()
+        rs_xx = np.ma.masked_array(rs_xx, mask_rs_xx)
+        self.rs_xx.import_from_arrays(axe_x, axe_y, rs_xx,
+                                      unit_x, unit_y, unit_values)
+        self.rs_yy = ScalarField()
+        rs_yy = np.ma.masked_array(rs_yy, mask_rs_yy)
+        self.rs_yy.import_from_arrays(axe_x, axe_y, rs_yy,
+                                      unit_x, unit_y, unit_values)
+        self.rs_xy = ScalarField()
+        rs_xy = np.ma.masked_array(rs_xy, mask_rs_xy)
+        self.rs_xy.import_from_arrays(axe_x, axe_y, rs_xy,
+                                      unit_x, unit_y, unit_values)
 
     def calc_detachment_positions(self, wall_direction=2, wall_position=None,
                                   interval=None):
