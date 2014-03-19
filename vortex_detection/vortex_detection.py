@@ -796,7 +796,7 @@ def get_sigma(vectorfield, radius=None, ortho=True):
     return sigma_sf
 
 
-def get_gamma1(vectorfield, radius=None, mask=None, sigmafilter=False):
+def get_gamma1(vectorfield, radius=None, mask=None):
     """
     Return the gamma1 scalar field. Gamma1 criterion is used in
     vortex analysis.
@@ -814,10 +814,6 @@ def get_gamma1(vectorfield, radius=None, mask=None, sigmafilter=False):
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
         gamma1 will be compute only where mask is 'False'.
-    sigmafilter : boolean, optionnal
-        If true, the 'GetSigma' is used before computation of gamma to
-        determine the zones of interest. Gamma1 is then only compute in
-        these zones.
     """
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
@@ -836,8 +832,6 @@ def get_gamma1(vectorfield, radius=None, mask=None, sigmafilter=False):
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
-    if not isinstance(sigmafilter, bool):
-        raise TypeError("'sigmafilter' must be a boolean")
     axe_x, axe_y = vectorfield.get_axes()
     if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
         Vx = vectorfield.comp_x.values.data
@@ -853,13 +847,7 @@ def get_gamma1(vectorfield, radius=None, mask=None, sigmafilter=False):
         ortho = True
     else:
         ortho = False
-    # application du filtre sigma si nécessaire
-    if sigmafilter:
-        radius_s = ((axe_x[-1] - axe_x[0])/len(axe_x)*6.
-                    + (axe_y[-1] - axe_y[0])/len(axe_y)*6.)/4.
-        sigma_sf = vectorfield.get_sigma(radius_s, ortho).values
-        mask = np.logical_or(mask, sigma_sf.mask)
-        mask = np.logical_or(sigma_sf > .3, mask)
+        raise Warning("Non-orthogonal field detected !")
     # récupération du masque sur les vitesses
     if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
         mask = np.logical_or(mask, vectorfield.comp_x.values.mask)
@@ -917,7 +905,7 @@ def get_gamma1(vectorfield, radius=None, mask=None, sigmafilter=False):
     return gamma_sf
 
 
-def get_gamma2(vectorfield, radius=None, mask=None, sigmafilter=False):
+def get_gamma2(vectorfield, radius=None, mask=None):
     """
     Return the gamma2 scalar field. gamma2 criterion is used in
     vortex analysis.
@@ -935,10 +923,6 @@ def get_gamma2(vectorfield, radius=None, mask=None, sigmafilter=False):
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
         gamma2 will be compute only where mask is 'False'.
-    sigmafilter : boolean, optionnal
-        If true, the 'GetSigma' is used before computation of gamma to
-        determine the zones of interest. gamma2 is then only compute in
-        these zones.
     """
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
@@ -957,8 +941,6 @@ def get_gamma2(vectorfield, radius=None, mask=None, sigmafilter=False):
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
-    if not isinstance(sigmafilter, bool):
-        raise TypeError("'sigmafilter' must be a boolean")
     axe_x, axe_y = vectorfield.get_axes()
     if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
         Vx = vectorfield.comp_x.values.data
@@ -974,13 +956,6 @@ def get_gamma2(vectorfield, radius=None, mask=None, sigmafilter=False):
         ortho = True
     else:
         ortho = False
-    # application du filtre sigma si nécessaire
-    if sigmafilter:
-        radius_s = ((axe_x[-1] - axe_x[0])/len(axe_x)*6.
-                    + (axe_y[-1] - axe_y[0])/len(axe_y)*6.)/4.
-        sigma_sf = vectorfield.get_sigma(radius_s, ortho).values
-        mask = np.logical_or(mask, sigma_sf.mask)
-        mask = np.logical_or(sigma_sf > .3, mask)
     # récupération du masque sur les vitesses
     if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
         mask = np.logical_or(mask, vectorfield.comp_x.values.mask)
@@ -1041,7 +1016,7 @@ def get_gamma2(vectorfield, radius=None, mask=None, sigmafilter=False):
     return gamma_sf
 
 
-def get_kappa1(vectorfield, radius=None, mask=None, sigmafilter=False):
+def get_kappa1(vectorfield, radius=None, mask=None):
     """
     Return the kappa1 scalar field. kappa1 criterion is used in
     vortex analysis.
@@ -1059,10 +1034,6 @@ def get_kappa1(vectorfield, radius=None, mask=None, sigmafilter=False):
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
         kappa1 will be compute only where mask is 'False'.
-    sigmafilter : boolean, optionnal
-        If true, the 'GetSigma' is used before computation of kappa to
-        determine the zones of interest. kappa1 is then only compute in
-        these zones.
     """
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
@@ -1081,8 +1052,6 @@ def get_kappa1(vectorfield, radius=None, mask=None, sigmafilter=False):
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
-    if not isinstance(sigmafilter, bool):
-        raise TypeError("'sigmafilter' must be a boolean")
     axe_x, axe_y = vectorfield.get_axes()
     if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
         Vx = vectorfield.comp_x.values.data
@@ -1098,13 +1067,6 @@ def get_kappa1(vectorfield, radius=None, mask=None, sigmafilter=False):
         ortho = True
     else:
         ortho = False
-    # application du filtre sigma si nécessaire
-    if sigmafilter:
-        radius_s = ((axe_x[-1] - axe_x[0])/len(axe_x)*6.
-                    + (axe_y[-1] - axe_y[0])/len(axe_y)*6.)/4.
-        sigma_sf = vectorfield.get_sigma(radius_s, ortho).values
-        mask = np.logical_or(mask, sigma_sf.mask)
-        mask = np.logical_or(sigma_sf > .3, mask)
     # récupération du masque sur les vitesses
     if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
         mask = np.logical_or(mask, vectorfield.comp_x.values.mask)
@@ -1160,7 +1122,7 @@ def get_kappa1(vectorfield, radius=None, mask=None, sigmafilter=False):
     return kappa_sf
 
 
-def get_kappa2(vectorfield, radius=None, mask=None, sigmafilter=False):
+def get_kappa2(vectorfield, radius=None, mask=None):
     """
     Return the kappa2 scalar field. kappa2 criterion is used in
     vortex analysis.
@@ -1178,10 +1140,6 @@ def get_kappa2(vectorfield, radius=None, mask=None, sigmafilter=False):
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
         kappa2 will be compute only where mask is 'False'.
-    sigmafilter : boolean, optionnal
-        If true, the 'GetSigma' is used before computation of kappa to
-        determine the zones of interest. kappa2 is then only compute in
-        these zones.
     """
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
@@ -1200,8 +1158,6 @@ def get_kappa2(vectorfield, radius=None, mask=None, sigmafilter=False):
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
-    if not isinstance(sigmafilter, bool):
-        raise TypeError("'sigmafilter' must be a boolean")
     axe_x, axe_y = vectorfield.get_axes()
     if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
         Vx = vectorfield.comp_x.values.data
@@ -1217,13 +1173,6 @@ def get_kappa2(vectorfield, radius=None, mask=None, sigmafilter=False):
         ortho = True
     else:
         ortho = False
-    # application du filtre sigma si nécessaire
-    if sigmafilter:
-        radius_s = ((axe_x[-1] - axe_x[0])/len(axe_x)*6.
-                    + (axe_y[-1] - axe_y[0])/len(axe_y)*6.)/4.
-        sigma_sf = vectorfield.get_sigma(radius_s, ortho).values
-        mask = np.logical_or(mask, sigma_sf.mask)
-        mask = np.logical_or(sigma_sf > .3, mask)
     # récupération du masque sur les vitesses
     if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
         mask = np.logical_or(mask, vectorfield.comp_x.values.mask)

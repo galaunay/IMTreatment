@@ -2339,19 +2339,19 @@ class ScalarField(object):
         if intervalx[0] <= self.axe_x[0]:
             indmin_x = 0
         else:
-            indmin_x = self.get_indice_on_axe(1, intervalx[0])[0]
+            indmin_x = self.get_indice_on_axe(1, intervalx[0])[-1]
         if intervalx[1] >= self.axe_x[-1]:
             indmax_x = len(self.axe_x) - 1
         else:
-            indmax_x = self.get_indice_on_axe(1, intervalx[1])[-1]
+            indmax_x = self.get_indice_on_axe(1, intervalx[1])[0]
         if intervaly[0] <= self.axe_y[0]:
             indmin_y = 0
         else:
-            indmin_y = self.get_indice_on_axe(2, intervaly[0])[0]
+            indmin_y = self.get_indice_on_axe(2, intervaly[0])[-1]
         if intervaly[1] >= self.axe_y[-1]:
             indmax_y = len(self.axe_y) - 1
         else:
-            indmax_y = self.get_indice_on_axe(2, intervaly[1])[-1]
+            indmax_y = self.get_indice_on_axe(2, intervaly[1])[0]
         trimfield = ScalarField()
         trimfield.import_from_arrays(self.axe_x[indmin_x:indmax_x + 1],
                                      self.axe_y[indmin_y:indmax_y + 1],
@@ -4588,33 +4588,33 @@ class VelocityField(object):
         from IMTreatment.vortex_detection.vortex_detection import get_sigma
         self.sigma = get_sigma(self.V, radius)
 
-    def calc_gamma1(self, radius=None, mask=None, sigmafilter=False):
+    def calc_gamma1(self, radius=None, mask=None):
         """
         Compute and store the gamma1 criterion for vortex analysis
         """
         from IMTreatment.vortex_detection.vortex_detection import get_gamma1
-        self.gamma1 = get_gamma1(self.V, radius, mask, sigmafilter)
+        self.gamma1 = get_gamma1(self.V, radius, mask)
 
-    def calc_gamma2(self, radius=None, mask=None, sigmafilter=False):
+    def calc_gamma2(self, radius=None, mask=None):
         """
         Compute and store the gamma2 criterion for vortex analysis
         """
         from IMTreatment.vortex_detection.vortex_detection import get_gamma2
-        self.gamma2 = get_gamma2(self.V, radius, mask, sigmafilter)
+        self.gamma2 = get_gamma2(self.V, radius, mask)
 
-    def calc_kappa1(self, radius=None, mask=None, sigmafilter=False):
+    def calc_kappa1(self, radius=None, mask=None):
         """
         Compute and store the kappa1 criterion for vortex analysis
         """
         from IMTreatment.vortex_detection.vortex_detection import get_kappa1
-        self.kappa1 = get_kappa1(self.V, radius, mask, sigmafilter)
+        self.kappa1 = get_kappa1(self.V, radius, mask)
 
-    def calc_kappa2(self, radius=None, mask=None, sigmafilter=False):
+    def calc_kappa2(self, radius=None, mask=None):
         """
         Compute and store the kappa2 criterion for vortex analysis
         """
         from IMTreatment.vortex_detection.vortex_detection import get_kappa2
-        self.kappa2 = get_kappa2(self.V, radius, mask, sigmafilter)
+        self.kappa2 = get_kappa2(self.V, radius, mask)
 
     def calc_iota(self, mask=None, sigmafilter=False):
         """
@@ -5633,6 +5633,7 @@ class TemporalVelocityFields(VelocityFields):
             self.tke.append(1./2*(vx_p[i]**2 + vy_p[i]**2))
     
     def calc_mean_tke(self):
+        pass
 
     def calc_reynolds_stress(self, nmb_val_min=1):
         """
