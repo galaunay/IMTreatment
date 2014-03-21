@@ -152,14 +152,41 @@ def export_to_file(obj, filepath, compressed=True, **kw):
         file_h.close()
 
 
+def matlab_parser(obj, name):
+    classic_types = (int, float, str, unicode)
+    array_types = (list, float)
+    if isinstance(obj, classic_types):
+        return {name: obj}
+    elif isinstance(obj, array_types):
+        simple = True
+        for val in obj:
+            if not isinstance(val, classic_types):
+                simple = False
+        if simple:
+            return {name: obj}
+        else:
+            raise IOError("Matlab can't handle this kind of variable")
+    elif isinstance(obj, Points):
+        x = np.zeros((obj.xy.shape[0],))
+        y = np.zeros((obj.xy.shape[0],))
+        for i in np.arange(obj.xy.shape[0]):
+            x[i] = obj.xy[i, 0]
+            y[i] = obj.xy[i, 1]
+        dic = matlab_parser(list(x), 'x')
+        dic.update(matlab_parser(list(y), 'y'))
+        dic.update(matlab_parser(list(obj.v), 'v'))
+        return {name: dic}
+    else:
+        raise IOError("Can't parser that : \n {}".format(obj))
 
-def export_to_matlab(obj, filepath, **kw):
+
+def export_to_matlab(obj, name, filepath, **kw):
     if not isinstance(filepath, STRINGTYPES):
         raise TypeError("I need a string here, son")
     if not os.path.exists(os.path.dirname(filepath)):
         raise IOError("I think this kind of path is invalid, buddy")
-    # TODO : Pas réussit, peut être besoins d'un parser à lui ...;
-
+    dic = matlab_parser(obj, name)
+    spio.savemat(filepath, dic, **kw)
 
 
 def import_from_file(filepath, **kw):

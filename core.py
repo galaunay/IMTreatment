@@ -183,6 +183,7 @@ def make_unit(string):
     unity = app_brackets(strlist)
     return unity
 
+
 class Points(object):
     """
     Class representing a set of points.
@@ -203,7 +204,8 @@ class Points(object):
     name : string, optional
         Name of the points set
     """
-    def __init__(self, xy=[], v=None, unit_x=make_unit(''), unit_y=make_unit(''),
+    def __init__(self, xy=[], v=None, unit_x=make_unit(''),
+                 unit_y=make_unit(''),
                  unit_v=make_unit(''), name=None):
         """
         Points builder.
@@ -284,6 +286,83 @@ class Points(object):
         else:
             v = None
         self.__init__(zip(x, y), v, unit_x, unit_y, unit_v)
+
+    def export_to_vtk(self, filepath, axis=None, line=False):
+        """
+        Export the scalar field to a .vtk file, for Mayavi use.
+
+        Parameters
+        ----------
+        filepath : string
+            Path where to write the vtk file.
+        axis : tuple of strings, optional
+            By default, points field axe are set to (x,y), if you want
+            different axis, you have to specified them here.
+            For example, "('z', 'y')", put the x points field axis values
+            in vtk z axis, and y points field axis in y vtk axis.
+        line : boolean, optional
+            If 'True', lines between points are writen instead of points.
+        """
+        import pyvtk
+        if not os.path.exists(os.path.dirname(filepath)):
+            raise ValueError("'filepath' is not a valid path")
+        if axis is None:
+            axis = ('x', 'y')
+        if not isinstance(axis, ARRAYTYPES):
+            raise TypeError("'axis' must be a 2x1 tuple")
+        if not isinstance(axis[0], STRINGTYPES) \
+                or not isinstance(axis[1], STRINGTYPES):
+            raise TypeError("'axis' must be a 2x1 tuple of strings")
+        if not axis[0] in ['x', 'y', 'z'] or not axis[1] in ['x', 'y', 'z']:
+            raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
+        if axis[0] == axis[1]:
+            raise ValueError("'axis' strings must be different")
+        if not isinstance(line, bool):
+            raise TypeError("'line' must be a boolean")
+        v = self.v
+        x = self.xy[:, 0]
+        y = self.xy[:, 1]
+        if v is None:
+            v = np.zeros(self.xy.shape[0])
+        point_data = pyvtk.PointData(pyvtk.Scalars(v, 'Points values'))
+        x_vtk = np.zeros(self.xy.shape[0])
+        y_vtk = np.zeros(self.xy.shape[0])
+        z_vtk = np.zeros(self.xy.shape[0])
+        if axis[0] == 'x':
+            x_vtk = x
+        elif axis[0] == 'y':
+            y_vtk = x
+        else:
+            z_vtk = x
+        if axis[1] == 'x':
+            x_vtk = y
+        elif axis[1] == 'y':
+            y_vtk = y
+        else:
+            z_vtk = y
+        pts = zip(x_vtk, y_vtk, z_vtk)
+        vertex = np.arange(x_vtk.shape[0])
+        if line:
+            grid = pyvtk.UnstructuredGrid(pts, line=vertex)
+        else:
+            grid = pyvtk.UnstructuredGrid(pts, vertex=vertex)
+        data = pyvtk.VtkData(grid, 'Scalar Field from python', point_data)
+        data.tofile(filepath)
+
+    def export_to_matlab(self, filepath, name, **kwargs):
+        """
+        Write the point object in a amatlab file.
+
+        Parameters
+        ----------
+        filepath : string
+        global_name : string, optional
+            If specified, 'x', 'y' and 'v' values are stored in a matlab
+            structure object name 'global_name'.
+        """
+        from .file_operation import export_to_matlab
+        dic = export_to_matlab(self, name)
+        spio.savemat(self, filepath, dic, **kwargs)
 
     def __add__(self, another):
         if isinstance(another, Points):
@@ -457,88 +536,6 @@ class Points(object):
             radii, center, alpha = fte.get_parameters(res)
             return radii, center, alpha
 
-    def export_to_vtk(self, filepath, axis=None, line=False):
-        """
-        Export the scalar field to a .vtk file, for Mayavi use.
-
-        Parameters
-        ----------
-        filepath : string
-            Path where to write the vtk file.
-        axis : tuple of strings, optional
-            By default, points field axe are set to (x,y), if you want
-            different axis, you have to specified them here.
-            For example, "('z', 'y')", put the x points field axis values
-            in vtk z axis, and y points field axis in y vtk axis.
-        line : boolean, optional
-            If 'True', lines between points are writen instead of points.
-        """
-        import pyvtk
-        if not os.path.exists(os.path.dirname(filepath)):
-            raise ValueError("'filepath' is not a valid path")
-        if axis is None:
-            axis = ('x', 'y')
-        if not isinstance(axis, ARRAYTYPES):
-            raise TypeError("'axis' must be a 2x1 tuple")
-        if not isinstance(axis[0], STRINGTYPES) \
-                or not isinstance(axis[1], STRINGTYPES):
-            raise TypeError("'axis' must be a 2x1 tuple of strings")
-        if not axis[0] in ['x', 'y', 'z'] or not axis[1] in ['x', 'y', 'z']:
-            raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
-        if axis[0] == axis[1]:
-            raise ValueError("'axis' strings must be different")
-        if not isinstance(line, bool):
-            raise TypeError("'line' must be a boolean")
-        v = self.v
-        x = self.xy[:, 0]
-        y = self.xy[:, 1]
-        if v is None:
-            v = np.zeros(self.xy.shape[0])
-        point_data = pyvtk.PointData(pyvtk.Scalars(v, 'Points values'))
-        x_vtk = np.zeros(self.xy.shape[0])
-        y_vtk = np.zeros(self.xy.shape[0])
-        z_vtk = np.zeros(self.xy.shape[0])
-        if axis[0] == 'x':
-            x_vtk = x
-        elif axis[0] == 'y':
-            y_vtk = x
-        else:
-            z_vtk = x
-        if axis[1] == 'x':
-            x_vtk = y
-        elif axis[1] == 'y':
-            y_vtk = y
-        else:
-            z_vtk = y
-        pts = zip(x_vtk, y_vtk, z_vtk)
-        vertex = np.arange(x_vtk.shape[0])
-        if line:
-            grid = pyvtk.UnstructuredGrid(pts, line=vertex)
-        else:
-            grid = pyvtk.UnstructuredGrid(pts, vertex=vertex)
-        data = pyvtk.VtkData(grid, 'Scalar Field from python', point_data)
-        data.tofile(filepath)
-    
-    def export_to_matlab(self, filepath, global_name=None, **kwargs):
-        """
-        Write the point object in a amatlab file.
-        
-        Parameters
-        ----------
-        filepath : string
-        global_name : string, optional
-            If specified, 'x', 'y' and 'v' values are stored in a matlab
-            structure object name 'global_name'.
-        """
-        x = np.zeros((self.xy.shape[0],))
-        y = np.zeros((self.xy.shape[0],))
-        for i in np.arange(self.xy.shape[0]):
-            x[i] = self.xy[i, 0]
-            y[i] = self.xy[i, 1]
-        dic = {'x': x, 'y': y, 'v': self.v}
-        if global_name is not None:
-            dic = {global_name: dic}
-        spio.savemat(filepath, dic, **kwargs)
 
 class Profile(object):
     """
@@ -1060,7 +1057,7 @@ class ScalarField(object):
     >>> unit_axe = imt.make_unit('cm')
     >>> unit_K = imt.make_unit('K')
     >>> SF.import_from_arrays([1,2], [1,2], [[4,8], [4,8]], unit_axe, unit_axe,
-                              unit_K)
+    ...                       unit_K)
     >>> SF.display()
     """
 
@@ -1372,7 +1369,6 @@ class ScalarField(object):
         if self.axe_x[-1] < self.axe_x[0]:
             self.axe_x = self.axe_x[::-1]
             self.values = self.values[:, ::-1]
-            
 
     def import_from_ascii(self, filename, x_col=1, y_col=2, v_col=3,
                           unit_x=make_unit(""), unit_y=make_unit(""),
@@ -1413,8 +1409,7 @@ class ScalarField(object):
         y_org = np.unique(y)
         v = data[:, v_col-1]
         # Masking all the initial field (to handle missing values)
-        ### XXX:
-        v_org = np.zeros((x_org.shape[0], y_org.shape[0]))  # ATTENTION !
+        v_org = np.zeros((x_org.shape[0], y_org.shape[0]))
         v_org_mask = np.ones(v_org.shape)
         v_org = np.ma.masked_array(v_org, v_org_mask)
         #loop on all 'v' values
@@ -2357,7 +2352,8 @@ class ScalarField(object):
                                      self.axe_y[indmin_y:indmax_y + 1],
                                      self.values[indmin_y:indmax_y + 1,
                                                  indmin_x:indmax_x + 1],
-                                    self.unit_x, self.unit_y, self.unit_values)
+                                     self.unit_x, self.unit_y,
+                                     self.unit_values)
         return trimfield
 
     def smooth(self, iterations=1):
@@ -3568,9 +3564,33 @@ class VectorField(object):
         magn.set_unit(unit_values=unit_values)
         return magn
 
+    def get_shear_stress(self):
+        """
+        Return a vector field with the shear stress
+        """
+        # Getting gradients and axes
+        axe_x, axe_y = self.get_axes()
+        dx = axe_x[1] - axe_x[0]
+        dy = axe_y[1] - axe_y[0]
+        du_dy, _ = np.gradient(self.comp_x.values, dy, dx)
+        _, dv_dx = np.gradient(self.comp_y.values, dy, dx)
+        # swirling vectors matrix
+        comp_x = dv_dx
+        comp_y = du_dy
+        # creating vectorfield object
+        tmp_sfx = ScalarField()
+        tmp_sfx.import_from_arrays(axe_x, axe_y, comp_x, self.comp_x.unit_x,
+                                   self.comp_x.unit_y)
+        tmp_sfy = ScalarField()
+        tmp_sfy.import_from_arrays(axe_x, axe_y, comp_y, self.comp_x.unit_x,
+                                   self.comp_x.unit_y)
+        tmp_vf = VectorField()
+        tmp_vf.import_from_scalarfield(tmp_sfx, tmp_sfy)
+        return tmp_vf
+
     def get_vorticity(self):
         """
-        Return a scalar field with the z composante of the vorticity.
+        Return a scalar field with the z component of the vorticity.
         """
         dx = self.comp_x.axe_x[1] - self.comp_x.axe_x[0]
         dy = self.comp_x.axe_y[1] - self.comp_x.axe_y[0]
@@ -3581,10 +3601,85 @@ class VectorField(object):
         vort_sf.values = vort
         return vort_sf
 
-    def get_helicity(self):
+    def get_swirling_strength(self):
         """
-        Return a scalar field with the helicity.
+        Return a scalar field with the swirling strength
+        (imaginary part of the eigenvalue of the velocity laplacian matrix)
         """
+        # Getting gradients and axes
+        axe_x, axe_y = self.get_axes()
+        dx = axe_x[1] - axe_x[0]
+        dy = axe_y[1] - axe_y[0]
+        du_dy, du_dx = np.gradient(self.comp_x.values, dy, dx)
+        dv_dy, dv_dx = np.gradient(self.comp_y.values, dy, dx)
+        # swirling stregnth matrix
+        swst = np.zeros(self.comp_x.values.shape)
+        mask = np.logical_or(np.logical_or(du_dx.mask, du_dy.mask),
+                             np.logical_or(dv_dx.mask, dv_dy.mask))
+        # loop on  points
+        for i in np.arange(0, len(axe_y)):
+            for j in np.arange(0, len(axe_x)):
+                if not mask[i, j]:
+                    lapl = [[du_dx[i, j], du_dy[i, j]],
+                            [dv_dx[i, j], dv_dy[i, j]]]
+                    eigvals = np.linalg.eigvals(lapl)
+                    swst[i, j] = np.max(np.imag(eigvals))
+        # creating ScalarField object
+        swst = np.ma.masked_array(swst, mask)
+        tmp_sf = ScalarField()
+        ### TODO : implementer unité swst
+        tmp_sf.import_from_arrays(axe_x, axe_y, swst, self.comp_x.unit_x,
+                                  self.comp_x.unit_y)
+        return tmp_sf
+
+    def get_swirling_vector(self):
+        """
+        Return a scalar field with the swirling vectors
+        (eigenvectors of the velocity laplacian matrix
+        ponderated by eigenvalues)
+        (Have to be adjusted : which part of eigenvalues
+        and eigen vectors take ?)
+        """
+        # Getting gradients and axes
+        axe_x, axe_y = self.get_axes()
+        dx = axe_x[1] - axe_x[0]
+        dy = axe_y[1] - axe_y[0]
+        du_dy, du_dx = np.gradient(self.comp_x.values, dy, dx)
+        dv_dy, dv_dx = np.gradient(self.comp_y.values, dy, dx)
+        # swirling vectors matrix
+        comp_x = np.zeros(self.comp_x.values.shape)
+        comp_y = np.zeros(self.comp_x.values.shape)
+        mask = np.logical_or(np.logical_or(du_dx.mask, du_dy.mask),
+                             np.logical_or(dv_dx.mask, dv_dy.mask))
+        # loop on  points
+        for i in np.arange(0, len(axe_y)):
+            for j in np.arange(0, len(axe_x)):
+                if not mask[i, j]:
+                    lapl = [[du_dx[i, j], du_dy[i, j]],
+                            [dv_dx[i, j], dv_dy[i, j]]]
+                    eigvals, eigvect = np.linalg.eig(lapl)
+                    eigvals = np.imag(eigvals)
+                    eigvect = np.imag(eigvect)
+                    if eigvals[0] > eigvals[1]:
+                        comp_x[i, j] = eigvect[0][0]
+                        comp_y[i, j] = eigvect[0][1]
+                    else:
+                        comp_x[i, j] = eigvect[1][0]
+                        comp_y[i, j] = eigvect[1][1]
+        # creating vectorfield object
+        comp_x = np.ma.masked_array(comp_x, mask)
+        comp_y = np.ma.masked_array(comp_y, mask)
+        tmp_sfx = ScalarField()
+        tmp_sfx.import_from_arrays(axe_x, axe_y, comp_x, self.comp_x.unit_x,
+                                   self.comp_x.unit_y)
+        tmp_sfy = ScalarField()
+        tmp_sfy.import_from_arrays(axe_x, axe_y, comp_y, self.comp_x.unit_x,
+                                   self.comp_x.unit_y)
+        tmp_vf = VectorField()
+        tmp_vf.import_from_scalarfield(tmp_sfx, tmp_sfy)
+        return tmp_vf
+
+    def get_spatial_correlation(self, xy):
         pass
 
     def get_theta(self):
@@ -3959,79 +4054,6 @@ class VelocityField(object):
                                          unit_time=self.unit_time)
         return final_vf
 
-
-#    def Import(self, *args):
-#        """
-#        Method fo importing datas in a VelocityField object.
-#
-#        Parameters
-#        ----------
-#        args :
-#            Must have different formats.
-#            For importing from Davis, Ascii or Matlab files, 'args' must be
-#            the path to the file to import.
-#            For importing from VectorField or VelocityField, 'args' is an
-#            object of the respective type.
-#            For importing from a set of scalar fields, 'args' must be two
-#            ScalarField objects.
-#
-#        Examples
-#        --------
-#        From a file
-#
-#        >>> V1 = VelocityField()
-#        >>> V1.Import("/Davis/measure23/velocityfield4.vc7")
-#
-#        From a VectorField
-#
-#        >>> vect1 = VectorField()
-#        >>> time = 0.01
-#        >>> V1.Import(vect1, time)
-#
-#        From a set of scalar fields
-#
-#        >>> comp_x = ScalarField()
-#        >>> comp_y = ScalarField()
-#        >>> V1.Import(comp_x, comp_y, time)
-#        """
-#        if len(args) == 1:
-#            if isinstance(args[0], STRINGTYPES):
-#                extension = args[0].split(".")[-1]
-#                # Davis file
-#                if extension == "VC7":
-#                    self.import_from_davis(args[0])
-#                else:
-#                    raise ValueError("Unknown file extension"
-#                                     " (or maybe you forgot to give me a "
-#                                     "time parameter)")
-#            elif isinstance(args[0], VelocityField):
-#                self.import_from_velocityfield(args)
-#            else:
-#                raise ValueError("Unknown entry format, please refer to the"
-#                                 "method documentation")
-#        elif len(args) == 2:
-#            if isinstance(args[0], STRINGTYPES):
-#                extension = args[0].split(".")[-1]
-#                # Ascii file
-#                if extension == "txt":
-#                    self.import_from_ascii(args)
-#                # Matlab file
-#                elif extension == "m":
-#                    self.import_from_matlab(args)
-#                else:
-#                    raise ValueError("Unknown filename extension : "
-#                                     + extension)
-#            elif isinstance(args[0], VectorField):
-#                self.import_from_vectorfield(args)
-#            else:
-#                raise ValueError("Unknown entry format, please refer to the"
-#                                 "method documentation")
-#        elif len(args) == 3:
-#            self.ImportFromScalarFields(*args)
-#        else:
-#            raise ValueError("Unknown entry format, please refer to the"
-#                             "method documentation")
-
     def import_from_davis(self, filename, time=0, unit_time=make_unit("s")):
         """
         Import a velocity field from a .VC7 file.
@@ -4247,7 +4269,7 @@ class VelocityField(object):
         """
         import IMTreatment.io.io as imtio
         imtio.export_to_file(self, filepath, compressed, **kw)
-        
+
     def _clear_derived(self):
         """
         Delete all the derived fields, in case of changement in the base
@@ -4264,7 +4286,7 @@ class VelocityField(object):
                 # check if the attribute is the base field
                 if attr not in ['V', 'time', 'unit_time']:
                     del self.__dict__[attr]
-        
+
     def get_comp(self, componentname):
         """
         Return a reference to the component designed by 'componentname'.
@@ -4298,7 +4320,7 @@ class VelocityField(object):
                 return self.theta
             except AttributeError:
                 self.theta = self.V.get_theta()
-                return self.theta              
+                return self.theta
         elif componentname == "gamma1":
             try:
                 return self.gamma1
@@ -5080,7 +5102,7 @@ class VelocityFields(object):
         """
         import IMTreatment.io.io as imtio
         imtio.export_to_file(self, filepath, compressed, **kw)
-                    
+
     def remove_field(self, fieldnumber):
         """
         Remove a field of the existing fields.
@@ -5185,7 +5207,7 @@ class TemporalVelocityFields(VelocityFields):
         else:
             raise TypeError("cannot concatenate temporal velocity fields with"
                             " {}.".format(type(other)))
-        
+
     def __mul__(self, other):
         if isinstance(other, (NUMBERTYPES, unum.Unum)):
             final_vfs = TemporalVelocityFields()
@@ -5197,7 +5219,7 @@ class TemporalVelocityFields(VelocityFields):
                             "by numbers")
 
     __rmul__ = __mul__
-    
+
     def __truediv__(self, other):
         if isinstance(other, (NUMBERTYPES, unum.Unum)):
             final_vfs = TemporalVelocityFields()
@@ -5259,7 +5281,7 @@ class TemporalVelocityFields(VelocityFields):
                                 "object (" + str(componentkey) + " : "
                                 + str(type(component)) + ")."
                                 " You must implemente it.")
-        
+
     def _clear_derived(self):
         """
         Delete all the derived fields, in case of changement in the base
@@ -5276,7 +5298,7 @@ class TemporalVelocityFields(VelocityFields):
                 # check if the attribute is the base field
                 if attr not in ['fields']:
                     del self.__dict__[attr]
-                    
+
     def add_field(self, velocityfield):
         """
         Add a field to the existing fields.
@@ -5364,6 +5386,12 @@ class TemporalVelocityFields(VelocityFields):
             except AttributeError:
                 self.calc_tke()
                 return self.tke
+        elif componentname == "mean_tke":
+            try:
+                return self.mean_tke
+            except AttributeError:
+                self.calc_mean_tke()
+                return self.mean_tke
         # Velocity Field attributes
         elif len(self.fields) != 0:
             try:
@@ -5372,11 +5400,11 @@ class TemporalVelocityFields(VelocityFields):
                 pass
             else:
                 tmp_fields = []
-                for field in self.fields:                
+                for field in self.fields:
                     tmp_fields.append(field.get_comp(componentname))
                 return tmp_fields
         raise ValueError("Unknown component : {}".format(componentname))
-                
+
     def get_dim(self):
         """
         Return the fields dimension.
@@ -5434,11 +5462,12 @@ class TemporalVelocityFields(VelocityFields):
         else:
             raise ValueError("Unvalid component for a time profile")
 
-    def get_spectrum(self, component, pt, ind=False, interp=False):
+    def get_spectrum(self, component, pt, ind=False, interp=False,
+                     raw_spec=False):
         """
         Return a Profile object, with the frequential spectrum of 'component',
         on the point 'pt'.
-        It is recommended to use grid points as 'pt' for accuracy.
+
 
         Parameters
         ----------
@@ -5446,10 +5475,15 @@ class TemporalVelocityFields(VelocityFields):
         pt : 2x1 array of numbers
         ind : boolean
             If true, 'pt' is read as indices,
-            else, 'pt' is read as coordinate.
+            else, 'pt' is read as coordinates.
         interp : boolean
-            If True, linear interpolation is used to get component between grid
-            points, else, the nearest point is choosent.
+            If 'True', linear interpolation is used to get component between
+            grid points, else, the nearest point is choosen.
+        raw_spec: boolean
+            If 'False' (default), returned spectrum is
+            'abs(raw_spec)/length_signal' in order to have coherent ordinate
+            axis.
+            Else, raw spectrum is returned.
         """
         x = pt[0]
         y = pt[1]
@@ -5484,12 +5518,13 @@ class TemporalVelocityFields(VelocityFields):
                     return None
             # getting spectrum
             n = len(values)
-            Y = np.abs(np.fft.rfft(values)/n)
-            Y = Y[range(n/2)]
+            if raw_spec:
+                Y = np.fft.rfft(values)
+            else:
+                Y = np.abs(np.fft.rfft(values))/(n/2)
             # getting frequencies
             Ts = time[1] - time[0]
-            frq = np.fft.fftfreq(n, Ts)
-            frq = frq[range(n/2)]
+            frq = np.fft.rfftfreq(n, Ts)
         else:
             raise ValueError("Not implemented yet on {}".format(type(comp[0])))
         return Profile(frq, Y, unit_x=make_unit('Hz'))
@@ -5631,9 +5666,14 @@ class TemporalVelocityFields(VelocityFields):
         self.tke = []
         for i in np.arange(len(vx_p)):
             self.tke.append(1./2*(vx_p[i]**2 + vy_p[i]**2))
-    
+
     def calc_mean_tke(self):
-        pass
+        self.mean_tke = self.get_comp('tke')[0]
+        values = self.tke[0].values
+        for field in self.tke:
+            values += field.values
+        values /= len(self.tke)
+        self.mean_tke.values = values
 
     def calc_reynolds_stress(self, nmb_val_min=1):
         """
@@ -5878,7 +5918,8 @@ class TemporalVelocityFields(VelocityFields):
                 vy = comp[num].comp_y.values
                 magn = comp[num].get_magnitude().values
                 title = "{}, at t={:.3} {}"\
-                    .format(compo, float(self[num].time), self[num].unit_time.strUnit())
+                    .format(compo, float(self[num].time),
+                            self[num].unit_time.strUnit())
                 ttl.set_text(title)
                 ax.set_UVC(vx, vy, magn)
                 return ax
@@ -5907,7 +5948,8 @@ class TemporalVelocityFields(VelocityFields):
                     ax = comp[num]._display(**plotargs)
                     ttl = plt.title('')
                 title = "{}, at t={:.3} {}"\
-                    .format(compo, float(self[num].time), self[num].unit_time.strUnit())
+                    .format(compo, float(self[num].time),
+                            self[num].unit_time.strUnit())
                 ttl.set_text(title)
                 return ax
             anim = animation.FuncAnimation(fig, update,
@@ -5921,8 +5963,8 @@ class TemporalVelocityFields(VelocityFields):
         else:
             raise ValueError("I don't know any '{}' composant".format(compo))
 
-    def record_animation(self, anim, filepath, kind='gif',fps=30, dpi=100, bitrate=50,
-                         imagemagick_path=None):
+    def record_animation(self, anim, filepath, kind='gif', fps=30, dpi=100,
+                         bitrate=50, imagemagick_path=None):
         """
         Record an animation in a gif file.
         You must create an animation (using 'display_animate' for example)
@@ -5945,7 +5987,6 @@ class TemporalVelocityFields(VelocityFields):
         elif kind == 'mp4':
             anim.save(filepath, writer='fmpeg', fps=fps, bitrate=bitrate)
 
-
     def display_time_profiles(self, componentname, direction, positions,
                               **plotargs):
         """
@@ -5967,8 +6008,8 @@ class TemporalVelocityFields(VelocityFields):
                                                    positions)
             if direction == 1:
                 profile._display(label="t={0}".format(field.time *
-                                                         field.unit_time),
-                                    **plotargs)
+                                                      field.unit_time),
+                                 **plotargs)
                 plt.xlabel("{0} {1}".format(componentname, profile.unit_x))
                 plt.ylabel("Y {0}".format(profile.unit_y))
             else:
@@ -6029,6 +6070,7 @@ class SpatialVelocityFields(VelocityFields):
                                 "object (" + str(componentkey) + " : "
                                 + str(type(component)) + ")."
                                 " You must implemente it.")
+
     def get_copy(self):
         """
         Return a copy of the velocityfields
@@ -6067,7 +6109,7 @@ class SpatialVelocityFields(VelocityFields):
         return bl_profile
 
     def _display(self, componentname="V", scale=1, fieldnumber=None,
-                    **plotargs):
+                 **plotargs):
         """
         Display all the velocity fields on a single figure.
         If fieldnumber is precised, only the wanted field is displayed.
@@ -6088,7 +6130,7 @@ class SpatialVelocityFields(VelocityFields):
                 raise ValueError("Field number {0} do not exist"
                                  .format(fieldnumber))
             self.fields[fieldnumber]._display(componentname, scale,
-**plotargs)
+                                              **plotargs)
         elif isinstance(fieldnumber, ARRAYTYPES):
             comp = self.fields[0].get_comp(componentname)
             if isinstance(comp, ScalarField):
@@ -6110,7 +6152,7 @@ class SpatialVelocityFields(VelocityFields):
             elif isinstance(comp, VectorField):
                 pass
             self.fields[fieldnumber[0]]._display(componentname, scale,
-                                                    **plotargs)
+                                                 **plotargs)
             for nmb in fieldnumber[1:]:
                 field = self.fields[nmb]
                 field._display(componentname, scale, **plotargs)

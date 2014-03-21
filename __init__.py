@@ -42,7 +42,6 @@ from .core import make_unit,\
     Profile, Points,\
     ScalarField, VectorField, VelocityField, VelocityFields,\
     TemporalVelocityFields, SpatialVelocityFields
-__all__ = ["boundary_layer", "vortex_detection", "ScalarField", "VectorField",
+__all__ = ["ScalarField", "VectorField",
            "VelocityField", "VelocityFields", "TemporalVelocityFields",
-           "SpatialVelocityFields", "Points", "Profile", "make_unit",
-           "io"]
+           "SpatialVelocityFields", "Points", "Profile", "make_unit"]
