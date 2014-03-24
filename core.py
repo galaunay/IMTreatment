@@ -2205,52 +2205,40 @@ class ScalarField(object):
         coefp = pts.fit(order=order)
         return pts, coefp
 
-    def get_bl(self, direction, value=1, rel=False, kind="default"):
+    def get_bl(self, direction, kind="default", perc=.99):
         """
-        Return the thickness of the boundary layer on the scalar field.
-        Warning : Just return the interpolated position of the first value
-        encontered.
+        Return one of the boundary layer characteristic.
         WARNING : the wall must be at x=0.
 
         Parameters
         ----------
         direction : integer
             Direction of the wall supporting the BL.
-        value : number
-            Relative or absolute limit velocity defining the boundary layer.
-            (Only usable with kind='default')
-        rel : Bool
-            When 'kind' is default, determine if 'value' is absolute or
-            relative to the maxima in each line/column.
-            (Only usable with kind='default')
         kind : string
             Type of boundary layer thickness you want.
             default : For a bl thickness at a given value (typically 90%).
             displacement : For the bl displacement thickness.
             momentum : For the bl momentum thickness.
             H factor : For the shape factor.
+        perc : number
+            Relative limit velocity defining the default boundary layer.
+            (Only usefull with kind='default')
 
         Returns
         -------
         profile : Profile object
             Wanted isocurve.
         """
-        if not isinstance(value, NUMBERTYPES):
+        if not isinstance(perc, NUMBERTYPES):
             raise TypeError("'value' must be a number")
         if not isinstance(direction, int):
             raise TypeError("'direction' must be an integer")
-        if not isinstance(rel, bool):
-            raise TypeError("'rel' must be a boolean")
         if not isinstance(kind, str):
             raise TypeError("'kind' must be a string")
         if not (direction == 1 or direction == 2):
             raise ValueError("'direction' must be '1' or '2'")
-        if rel:
-            if not (value <= 1 and value > 0):
-                raise ValueError("If 'rel' is True, 'value' must be between "
-                                 "0 and 1")
-        else:
-            tmpvalue = value
+        if not (perc <= 1 and perc > 0):
+            raise ValueError("'value' must be between 0 and 1")
         isoc = []
         axec = []
         axe_x, axe_y = self.get_axes()
@@ -2269,20 +2257,16 @@ class ScalarField(object):
                 continue
             if len(profile.y[profile.y.mask]) > 0.5*len(profile.y):
                 continue
+            from .boundary_layer import get_bl_thickness, get_displ_thickness,\
+                get_momentum_thickness, get_shape_factor
             if kind == "default":
-                if rel:
-                    tmpvalue = value*np.max(profile.y)
-                else:
-                    tmpvalue = value
-                vals = profile.get_interpolated_value(y=tmpvalue)
-                if len(vals) >= 1:
-                    val = vals[0]
+                val = get_bl_thickness(profile, perc=perc)
             elif kind == "displacement":
-                val = profile.get_displ_thickness()._value
+                val = get_displ_thickness(profile)
             elif kind == "momentum":
-                val = profile.get_momentum_thickness()._value
+                val = get_momentum_thickness(profile)
             elif kind == "H factor":
-                val = profile.get_shape_factor()._value
+                val = get_shape_factor(profile)
             else:
                 raise ValueError("Unknown value for 'kind'")
             isoc.append(val)
