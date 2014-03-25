@@ -14,10 +14,14 @@ import numpy as np
 import sets
 
 
-def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None):
+def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
+                              treat_others=False):
     """
     For a set of velocity field (TemporalVelocityFields object), return the
     trajectory of critical points.
+    If the number of points returned is low and the number of 'VF_others'
+    field high, you should smooth or filter your field (POD filtering leads to
+    good results).
 
     Parameters
     ----------
@@ -29,6 +33,10 @@ def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None):
     epsilon : float, optional
         Maximum length between two consecutive points in trajectory.
         (default is Inf), extremely usefull to put a correct value here.
+    treat_others : boolean
+        If 'True', zoi with indeterminate PBI are treated using
+        'find_critical_points_on_zoi' (see doc).
+        If 'False' (default), these zoi are returned in 'VF_others'.
 
     Returns
     -------
@@ -50,10 +58,15 @@ def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None):
     nodes_o = []
     saddles = []
     others = []
-    # getting critical points for all fields
+    # getting first critical points for all fields
     for field in TVFS.fields:
         foc, foc_c, nod_i, nod_o, sadd, oth\
-            = find_critical_points(field, windows_size, radius)
+            = find_critical_points(field, windows_size, radius=radius)
+        # if asked, getting secondary critical points (less accurate)
+        if treat_others:
+            foc2, foc_c2, nod_i2, nod_o2, sadd2\
+                = find_critical_points_on_zoi(field, oth, radius=radius)
+        # storing results
         if len(foc) != 0:
             focus += foc
         if len(foc_c) != 0:
@@ -64,8 +77,20 @@ def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None):
             nodes_o += nod_o
         if len(sadd) != 0:
             saddles += sadd
-        if len(oth) != 0:
-            others += oth
+        if treat_others:
+            if len(foc2) != 0:
+                focus += foc2
+            if len(foc_c2) != 0:
+                focus_c += foc_c2
+            if len(nod_i2) != 0:
+                nodes_i += nod_i2
+            if len(nod_o2) != 0:
+                nodes_o += nod_o2
+            if len(sadd2) != 0:
+                saddles += sadd2
+        else:
+            if len(oth) != 0:
+                others += oth
     # getting critical points trajectory
     if len(focus) != 0:
         focus_traj = vortices_evolution(focus, epsilon)
@@ -91,7 +116,7 @@ def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None):
         others
 
 
-def find_critical_points(VF, windows_size=5, radius=None):
+def find_critical_points(VF, windows_size=5, radius=None, expend=True):
     """
     For a velocity field (VelocityField object), return the position of
     critical points.
@@ -106,7 +131,10 @@ def find_critical_points(VF, windows_size=5, radius=None):
     radius : number
         radius for criterion computation (default lead to 8 points zone of
         computation)
-        
+    expend : boolean
+        If 'True' (default), zone of interest computed with PBI are expended
+        by 'radius' in order to have good criterion computation
+
 
     Returns
     -------
@@ -118,10 +146,23 @@ def find_critical_points(VF, windows_size=5, radius=None):
     """
     if not isinstance(VF, VelocityField):
         raise TypeError("'VF' must be a VelocityField")
-    if windows_size < 4:
-        raise ValueError("'windows_size' is too small (minimum 4)")
     # isolating the interesting zones (contening critical points)
     VF_tupl = vortices_zoi(VF, windows_size=windows_size)
+    # expanding the interesting zones where PBI = 1 (for good gamma and kappa
+    # criterion computation)
+    if expend:
+        if radius is None:
+            axe_x, axe_y = VF.get_axes()
+            expend_len = (axe_x[windows_size] - axe_x[0]
+                          + axe_y[windows_size] - axe_y[0])/2.
+        else:
+            expend_len = radius
+        for i in np.arange(len(VF_tupl)):
+            if VF_tupl[i].PBI != 1:
+                continue
+            pbi = VF_tupl[i].PBI
+            VF_tupl[i] = _expend(VF, VF_tupl[i], expend_len)
+            VF_tupl[i].PBI = pbi
     # sorting by critical points type
     VF_focus = []
     VF_nodes = []
@@ -207,8 +248,8 @@ def find_critical_points(VF, windows_size=5, radius=None):
                         pts.v = [VF.time]
                         pts.unit_v = VF.unit_time
                         nodes_o.append(pts)
+            # in nodes
             else:
-                # in nodes
                 pts = tmp_kap.get_zones_centers(bornes=[-1, -0.75], rel=False)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
@@ -216,6 +257,113 @@ def find_critical_points(VF, windows_size=5, radius=None):
                         pts.unit_v = VF.unit_time
                         nodes_i.append(pts)
     return focus, focus_c, nodes_i, nodes_o, saddles, VF_others
+
+
+def find_critical_points_on_zoi(VF, others_VF, radius=None, expend=True):
+    """
+    Return critical points positions on the given set of zoi (give one
+    point per zoi).
+    Contrary to 'find_critical_points', this function do not use informations
+    given by PBI. Determination of the type of the critical point is so
+    less accurate.
+
+    Parameters
+    ----------
+    VF : VelocityField object
+        Complete Velocity field (for expendind purpose)
+    other_VF : tuple of VelocityField objects
+        Zoi where we want to find critical points.
+    radius : number
+        radius for criterion computation (default lead to 8 points zone of
+        computation)
+    expend : boolean
+        If 'True' (default), zone of interest are expended
+        by 'radius' in order to have good criterion results (gamma and kappa)
+
+    Returns
+    -------
+    focus, focus_c, nodes_i, nodes_o, saddles : tuple of points
+        Found points of each type.
+    """
+    # expanding the interesting zones where PBI = 1 (for good gamma and kappa
+    # criterion computation)
+    if expend:
+        axe_x, axe_y = VF.get_axes()
+        if radius is None:
+            expend_len = ((axe_x[-1] - axe_x[0])
+                          / (VF.get_dim()[0] - 1)
+                          + (axe_y[-1] - axe_y[0])
+                          / (VF.get_dim()[1] - 1)
+                          )/2
+        else:
+            expend_len = radius
+        for i in np.arange(len(others_VF)):
+            pbi = others_VF[i].PBI
+            others_VF[i] = _expend(VF, others_VF[i], expend_len, error=False)
+            others_VF[i].PBI = pbi
+    # loop on the velocity fields
+    focus = []
+    focus_c = []
+    saddles = []
+    nodes_i = []
+    nodes_o = []
+    for vf in others_VF:
+        # Computing criterion
+        vf.calc_gamma1(radius)
+        vf.calc_kappa1(radius)
+        vf.calc_iota()
+        # Getting the most adequate criterion
+        gam_prob1 = np.abs(vf.gamma1.get_min())/1.
+        gam_prob2 = np.abs(vf.gamma1.get_max())/1.
+        kap_prob1 = np.abs(vf.kappa1.get_min())/1.
+        kap_prob2 = np.abs(vf.kappa1.get_max())/1.
+        # If no one suits, we consideer it's a saddle
+        if np.max([gam_prob1, gam_prob2, kap_prob1, kap_prob2]) < 0.5:
+            adeq_crit = 4
+        else:
+            adeq_crit = np.argmax([gam_prob1, gam_prob2, kap_prob1, kap_prob2])
+        # Getting the point position using the given criterion
+        if adeq_crit == 0:
+            #focus
+            pts = vf.gamma1.get_zones_centers(bornes=[-1, -.5], rel=False)
+            if pts is not None:
+                if pts.xy[0][0] is not None and len(pts) == 1:
+                    pts.v = [VF.time]
+                    pts.unit_v = VF.unit_time
+                    focus_c.append(pts)
+        elif adeq_crit == 1:
+            #focus contrarotative
+            pts = vf.gamma1.get_zones_centers(bornes=[.5, 1.], rel=False)
+            if pts is not None:
+                if pts.xy[0][0] is not None and len(pts) == 1:
+                    pts.v = [VF.time]
+                    pts.unit_v = VF.unit_time
+                    focus.append(pts)
+        elif adeq_crit == 2:
+            #node in
+            pts = vf.kappa1.get_zones_centers(bornes=[-1, -.5], rel=False)
+            if pts is not None:
+                if pts.xy[0][0] is not None and len(pts) == 1:
+                    pts.v = [VF.time]
+                    pts.unit_v = VF.unit_time
+                    nodes_i.append(pts)
+        elif adeq_crit == 3:
+            #node out
+            pts = vf.kappa1.get_zones_centers(bornes=[.5, 1.], rel=False)
+            if pts is not None:
+                if pts.xy[0][0] is not None and len(pts) == 1:
+                    pts.v = [VF.time]
+                    pts.unit_v = VF.unit_time
+                    nodes_o.append(pts)
+        elif adeq_crit == 4:
+            #saddle
+            pts = vf.iota.get_zones_centers(bornes=[.75, 1])
+            if pts is not None:
+                if pts.xy[0][0] is not None and len(pts) == 1:
+                    pts.v = [VF.time]
+                    pts.unit_v = VF.unit_time
+                    saddles.append(pts)
+    return focus, focus_c, nodes_i, nodes_o, saddles
 
 
 def vortices_evolution(points, epsilon=None):
@@ -252,7 +400,8 @@ def vortices_evolution(points, epsilon=None):
                     raise TypeError("'pts' must be a tuple of Point objects")
                 if not len(pt) == len(pt.v):
                     raise StandardError("v has not the same dimension as xy")
-            # if some Points objects contains more than one point, we decompose them
+            # if some Points objects contains more than one point, we decompose
+            # them
             for i in np.arange(len(pts_tupl)-1, -1, -1):
                 if len(pts_tupl[i]) != 1:
                     pts_tupl[i:i+1] = pts_tupl[i].decompose()
@@ -468,7 +617,7 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
 
     Returns
     -------
-    VFS : tuple of VelocityFields
+    VFS : tuple of VelocityField objects
         Vector fields representing the arrays of interest
         (contening critical points). An additional argument 'PBI' is
         available for each vector field, indicating the PBI value.
@@ -557,9 +706,11 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
             x_max = velocityfield.V.comp_x.axe_x[-1]
             cut_position = velocityfield.V.comp_x.axe_x[cut_ind]
             a = velocityfield.trim_area(intervalx=[x_min, cut_position])
-            a.theta = velocityfield.theta.trim_area(intervalx=[x_min, cut_position])
+            a.theta = velocityfield.theta.trim_area(intervalx=[x_min,
+                                                               cut_position])
             b = velocityfield.trim_area(intervalx=[cut_position, x_max])
-            b.theta = velocityfield.theta.trim_area(intervalx=[cut_position, x_max])
+            b.theta = velocityfield.theta.trim_area(intervalx=[cut_position,
+                                                               x_max])
             return a, b
         else:
             ind_dist_y_max = np.argmax(dist_y)
@@ -576,9 +727,11 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
             y_max = velocityfield.V.comp_x.axe_y[-1]
             cut_position = velocityfield.V.comp_x.axe_y[cut_ind]
             a = velocityfield.trim_area(intervaly=[y_min, cut_position])
-            a.theta = velocityfield.theta.trim_area(intervaly=[y_min, cut_position])
+            a.theta = velocityfield.theta.trim_area(intervaly=[y_min,
+                                                               cut_position])
             b = velocityfield.trim_area(intervaly=[cut_position, y_max])
-            b.theta = velocityfield.theta.trim_area(intervaly=[cut_position, y_max])
+            b.theta = velocityfield.theta.trim_area(intervaly=[cut_position,
+                                                               y_max])
             return a, b
 
     def final_triming(velocityfield, pbi_x, pbi_y):
@@ -664,6 +817,7 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
                 vf_tmp = final_triming(vf_tmp, pbi_x, pbi_y)
                 vf_tmp.PBI = 0
                 vf_treated.append(vf_tmp)
+
                 vf_pending[0:1] = []
                 continue
             # we divide the field
@@ -699,6 +853,42 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
         return indices
     else:
         raise ValueError("Unknown output value : {}".format(output))
+
+
+def _expend(VF, vf, expend, error=True):
+    """
+    Return an extended version of vf in VF.
+    """
+    if not isinstance(expend, NUMBERTYPES):
+        raise TypeError("expend must be a number")
+    if expend <= 0:
+        raise ValueError("'expend' must be positive")
+    axe_x_g, axe_y_g = VF.get_axes()
+    axe_x, axe_y = vf.get_axes()
+    len_x = axe_x[-1] - axe_x[0]
+    len_y = axe_y[-1] - axe_y[0]
+    # x axis determination
+    if axe_x[0] - expend < axe_x_g[0] and axe_x[-1] + expend > axe_x_g[-1]:
+        if error:
+            raise ValueError("'expend' is too big")
+    if axe_x[0] - expend < axe_x_g[0]:
+        lim_x = [axe_x_g[0], axe_x_g[0] + 2*expend + len_x]
+    elif axe_x[-1] + expend > axe_x_g[-1]:
+        lim_x = [axe_x_g[-1] - 2*expend - len_x, axe_x_g[-1]]
+    else:
+        lim_x = [axe_x[0] - expend, axe_x[-1] + expend]
+    # y axis determination
+    if axe_y[0] - expend < axe_y_g[0] and axe_y[-1] + expend > axe_y_g[-1]:
+        if error:
+            raise ValueError("'expend' is too big")
+    if axe_y[0] - expend < axe_y_g[0]:
+        lim_y = [axe_y_g[0], axe_y_g[0] + 2*expend + len_y]
+    elif axe_y[-1] + expend > axe_y_g[-1]:
+        lim_y = [axe_y_g[-1] - 2*expend - len_y, axe_y_g[-1]]
+    else:
+        lim_y = [axe_y[0] - expend, axe_y[-1] + expend]
+    # trim area
+    return VF.trim_area(lim_x, lim_y)
 
 
 def get_sigma(vectorfield, radius=None, ortho=True):
@@ -809,7 +999,7 @@ def get_gamma1(vectorfield, radius=None, mask=None):
     radius : number, optionnal
         The radius used to choose the zone where to compute
         gamma1 for each point. If not mentionned, a value is choosen in
-        ordre to have about 50 points in the circle. It allow to get good
+        ordre to have about 8 points in the circle. It allow to get good
         result, without big computation cost.
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
@@ -817,11 +1007,11 @@ def get_gamma1(vectorfield, radius=None, mask=None):
     """
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
+    axe_x, axe_y = vectorfield.get_axes()
     if radius is None:
-        radius = ((vectorfield.comp_x.axe_x[-1] - vectorfield.comp_x.axe_x[0])
+        radius = ((axe_x[-1] - axe_x[0])
                   / (vectorfield.get_dim()[0] - 1)
-                  + (vectorfield.comp_x.axe_y[-1]
-                     - vectorfield.comp_x.axe_y[0])
+                  + (axe_y[-1] - axe_y[0])
                   / (vectorfield.get_dim()[1] - 1)
                   )/2
     if not isinstance(radius, NUMBERTYPES):
@@ -832,7 +1022,6 @@ def get_gamma1(vectorfield, radius=None, mask=None):
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
-    axe_x, axe_y = vectorfield.get_axes()
     if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
         Vx = vectorfield.comp_x.values.data
         Vy = vectorfield.comp_y.values.data
@@ -918,7 +1107,7 @@ def get_gamma2(vectorfield, radius=None, mask=None):
     radius : number, optionnal
         The radius used to choose the zone where to compute
         gamma1 for each point. If not mentionned, a value is choosen in
-        ordre to have about 50 poins in the circle. It allow to get good
+        ordre to have about 8 poins in the circle. It allow to get good
         result, without big computation cost.
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
@@ -1029,7 +1218,7 @@ def get_kappa1(vectorfield, radius=None, mask=None):
     radius : number, optionnal
         The radius used to choose the zone where to compute
         gamma1 for each point. If not mentionned, a value is choosen in
-        ordre to have about 50 poins in the circle. It allow to get good
+        ordre to have about 8 poins in the circle. It allow to get good
         result, without big computation cost.
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
@@ -1135,7 +1324,7 @@ def get_kappa2(vectorfield, radius=None, mask=None):
     radius : number, optionnal
         The radius used to choose the zone where to compute
         gamma1 for each point. If not mentionned, a value is choosen in
-        ordre to have about 50 poins in the circle. It allow to get good
+        ordre to have about 8 poins in the circle. It allow to get good
         result, without big computation cost.
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,

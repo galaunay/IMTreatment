@@ -1747,7 +1747,7 @@ class ScalarField(object):
         Returns
         -------
         mini : float
-            Minima on the fieldprint(Detachment point extraction...Done)
+            Minima on the field
         """
         return np.min(self.values)
 

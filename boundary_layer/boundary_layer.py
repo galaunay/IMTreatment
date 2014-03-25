@@ -8,6 +8,7 @@ Created on Sun Feb 23 18:21:52 2014
 import numpy as np
 import matplotlib.pyplot as plt
 from .. import Profile, make_unit
+import pdb
 
 NumberTypes = (int, float, long)
 ArrayTypes = (list, np.ndarray)
@@ -265,14 +266,18 @@ def get_displ_thickness(profile):
     # cut the profile in order to only keep the BL
     bl_thick = get_bl_thickness(profile, perc=bl_perc)
     profile = profile.trim([0, bl_thick])
-    # adding a x(0) value
+    # removing negative and masked points
+    mask = np.logical_and(profile.y.mask, profile.x < 0)
+    profile.x = profile.x[~mask]
+    profile.y = profile.y._data[~mask]
+    # adding a x(0) value if necessary
     if profile.x[0] != 0:
         pos_x = np.append([0], profile.x)
         pos_y = np.append([0], profile.y)
     else:
         pos_x = profile.x
         pos_y = profile.y
-    fonct = 1 - np.abs(pos_y)/(np.max(np.abs(pos_y)))
+    fonct = 1 - pos_y/np.max(pos_y)
     delta = np.trapz(fonct, pos_x)
     return delta
 
@@ -295,6 +300,10 @@ def get_momentum_thickness(profile):
     # cut the profile in order to only keep the BL
     bl_thick = get_bl_thickness(profile, perc=bl_perc)
     profile = profile.trim([0, bl_thick])
+    # removing negative and masked points
+    mask = np.logical_and(profile.y.mask, profile.x < 0)
+    profile.x = profile.x[~mask]
+    profile.y = profile.y._data[~mask]
     # adding a x(0) value
     if profile.x[0] != 0:
         pos_x = np.append([0], profile.x)
@@ -302,8 +311,7 @@ def get_momentum_thickness(profile):
     else:
         pos_x = profile.x
         pos_y = profile.y
-    fonct = np.abs(pos_y)/np.max(np.abs(pos_y))*(1 - np.abs(pos_y)
-                                                 / np.max(np.abs(pos_y)))
+    fonct = pos_y/np.max(pos_y)*(1 - pos_y/np.max(pos_y))
     delta = np.trapz(fonct, pos_x)
     return delta
 
@@ -324,5 +332,4 @@ def get_shape_factor(profile):
     """
     shape_factor = get_displ_thickness(profile)\
         / get_momentum_thickness(profile)
-    profile.display(reverse=True)
     return shape_factor
