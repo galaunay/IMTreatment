@@ -19,6 +19,7 @@ import sets
 import glob
 import unum
 import unum.units as units
+import copy
 import os
 try:
     units.counts = unum.Unum.unit('counts')
@@ -230,8 +231,7 @@ class Points(object):
         self.__classname__ = 'Points'
         self.xy = xy
         self.v = v
-        if v is not None:
-            self.unit_v = unit_v
+        self.unit_v = unit_v
         self.unit_x = unit_x
         self.unit_y = unit_y
 
@@ -364,6 +364,15 @@ class Points(object):
         dic = export_to_matlab(self, name)
         spio.savemat(self, filepath, dic, **kwargs)
 
+    def copy(self):
+        """
+        Return a copy of the Points object.
+        """
+        tmp_pts = Points(copy.copy(self.xy), copy.copy(self.v),
+                         unit_x=self.unit_x.copy(), unit_y=self.unit_y.copy(),
+                         unit_v=self.unit_v.copy(), name=self.name)
+        return tmp_pts
+
     def __add__(self, another):
         if isinstance(another, Points):
             try:
@@ -432,50 +441,125 @@ class Points(object):
         else:
             plt.title(self.name)
 
-    def simplify(self, axe=0):
+    def trim(self, interv_x=None, interv_y=None):
         """
-        Simplify a group of points, on order to make the cloud look
-        like a curve.
-        On each row or column (according to axe), this algorithm take
-        the two extremal points, and determine the intermediate points.
-        A list of these intermediate points is returned.
-        (It is obvious that this algorithm only work with orthogonal points
-        fields)
+        Return a trimmed point cloud.
+
+        Parameters
+        ----------
+        interv_x : 2x1 tuple
+            Interval on x axis
+        interv_y : 2x1 tuple
+            Interval on y axis
+
+        Returns
+        -------
+        tmp_pts : Points object
+            Trimmed version of the point cloud.
         """
-        if not isinstance(axe, int):
-            raise TypeError("'axe' must be 0 or 1")
-        if axe != 0 and axe != 1:
-            raise ValueError("'axe' must be 0 or 1")
-        # récupération de la grille orthonormée
-        axe_y = sets.Set(self.xy[:, 1])
-        axe_y = list(axe_y)
-        axe_y.sort()
-        # calcul des positions moyennes sur chaque axe_x
-        if axe == 0:
-            axe_x = sets.Set(self.xy[:, 0])
-            axe_x = list(axe_x)
-            axe_x.sort()
-            xyf = None
-            for x in axe_x:
-                xytmp = self.xy[self.xy[:, 0] == x]
-                if xyf is None:
-                    xyf = [[x, np.mean(xytmp[:, 1])]]
-                else:
-                    xyf = np.append(xyf, [[x, np.mean(xytmp[:, 1])]], axis=0)
-        else:
-            axe_y = sets.Set(self.xy[:, 1])
-            axe_y = list(axe_y)
-            axe_y.sort()
-            xyf = None
-            for y in axe_y:
-                xytmp = self.xy[self.xy[:, 1] == y]
-                if xyf is None:
-                    xyf = [[y, np.mean(xytmp[:, 0])]]
-                else:
-                    xyf = np.append(xyf, [[np.mean(xytmp[:, 0]), y]], axis=0)
-        pts = Points(xyf, unit_x=self.unit_x, unit_y=self.unit_y,
-                     name=self.name)
-        return pts
+        tmp_pts = self.copy()
+        mask = np.zeros(len(self.xy))
+        if interv_x is not None:
+            out_zone = np.logical_or(self.xy[:, 0] < interv_x[0],
+                                     self.xy[:, 0] > interv_x[1])
+            mask = np.logical_or(mask, out_zone)
+        if interv_y is not None:
+            out_zone = np.logical_or(self.xy[:, 1] < interv_y[0],
+                                     self.xy[:, 1] > interv_y[1])
+            mask = np.logical_or(mask, out_zone)
+        tmp_pts.xy = tmp_pts.xy[~mask, :]
+        if tmp_pts.v is not None:
+            tmp_pts.v = tmp_pts.v[~mask]
+        return tmp_pts
+
+    def cut(self, interv_x=None, interv_y=None):
+        """
+        Return a point cloud where the given area has been removed.
+
+        Parameters
+        ----------
+        interv_x : 2x1 tuple
+            Interval on x axis
+        interv_y : 2x1 tuple
+            Interval on y axis
+
+        Returns
+        -------
+        tmp_pts : Points object
+            Cutted version of the point cloud.
+        """
+        tmp_pts = self.copy()
+        mask = np.ones(len(self.xy))
+        if interv_x is not None:
+            out_zone = np.logical_and(self.xy[:, 0] > interv_x[0],
+                                     self.xy[:, 0] < interv_x[1])
+            mask = np.logical_and(mask, out_zone)
+        if interv_y is not None:
+            out_zone = np.logical_and(self.xy[:, 1] > interv_y[0],
+                                     self.xy[:, 1] < interv_y[1])
+            mask = np.logical_and(mask, out_zone)
+        tmp_pts.xy = tmp_pts.xy[~mask, :]
+        if tmp_pts.v is not None:
+            tmp_pts.v = tmp_pts.v[~mask]
+        return tmp_pts
+
+    def reverse(self):
+        """
+        Return a Points object where x and y axis are swaped.
+        """
+        tmp_pt = self.copy()
+        xy_tmp = tmp_pt.xy*0
+        xy_tmp[:, 0] = tmp_pt.xy[:, 1]
+        xy_tmp[:, 1] = tmp_pt.xy[:, 0]
+        tmp_pt.xy = xy_tmp
+        return tmp_pt
+
+
+#    def simplify(self, axe=0):
+#        """
+#        Simplify a group of points, on order to make the cloud look
+#        like a curve.
+#        On each row or column (according to axe), this algorithm take
+#        the two extremal points, and determine the intermediate points.
+#        A list of these intermediate points is returned.
+#        (It is obvious that this algorithm only work with orthogonal points
+#        fields)
+#        """
+#        if not isinstance(axe, int):
+#            raise TypeError("'axe' must be 0 or 1")
+#        if axe != 0 and axe != 1:
+#            raise ValueError("'axe' must be 0 or 1")
+#        # récupération de la grille orthonormée
+#        axe_y = sets.Set(self.xy[:, 1])
+#        axe_y = list(axe_y)
+#        axe_y.sort()
+#        # calcul des positions moyennes sur chaque axe_x
+#        if axe == 0:
+#            axe_x = sets.Set(self.xy[:, 0])
+#            axe_x = list(axe_x)
+#            axe_x.sort()
+#            xyf = None
+#            for x in axe_x:
+#                xytmp = self.xy[self.xy[:, 0] == x]
+#                if xyf is None:
+#                    xyf = [[x, np.mean(xytmp[:, 1])]]
+#                else:
+#                    xyf = np.append(xyf, [[x, np.mean(xytmp[:, 1])]], axis=0)
+#        else:
+#            axe_y = sets.Set(self.xy[:, 1])
+#            axe_y = list(axe_y)
+#            axe_y.sort()
+#            xyf = None
+#            for y in axe_y:
+#                xytmp = self.xy[self.xy[:, 1] == y]
+#                if xyf is None:
+#                    xyf = [[y, np.mean(xytmp[:, 0])]]
+#                else:
+#                    xyf = np.append(xyf, [[np.mean(xytmp[:, 0]), y]], axis=0)
+#        pts = Points(xyf, v, unit_x=self.unit_x, unit_y=self.unit_y,
+#                     unit_v=self.unit_v,
+#                     name=self.name)
+#        return pts
 
     def decompose(self):
         """
@@ -536,6 +620,82 @@ class Points(object):
             radii, center, alpha = fte.get_parameters(res)
             return radii, center, alpha
 
+
+class Parametric_curve(object):
+    """
+    Class representing a parametric curve.
+    Supporting curve type are : polynome and ellipsoide
+
+    Parameters
+    ----------
+    kind : string
+        Kind of curve ('polynomial' or 'ellipse')
+    param : tuple of parameters
+        If 'polynomial', 'param' is ('polynomial coef', 'base_direction')
+        (highest order first for coefficients)
+        If 'ellipse', 'param' is ('radii', 'center', 'angle')
+        ('angle' is optional)
+    """
+    def __init__(self, kind, param):
+        """
+        Class constructor.
+        """
+        if not isinstance(kind, STRINGTYPES):
+            raise TypeError()
+        self.kind = kind
+        if kind == 'polynomial':
+            self.p = param[0]
+            self.order = len(p) - 1
+            self.base_dir = param[1]
+        elif kind == 'ellipse':
+            self.radii = param[0]
+            self.center = param[1]
+            if len(param) == 2:
+                self.angle = np.pi/2.
+            else:
+                self.angle = param[2]
+        else:
+            raise ValueError()
+
+    def get_points(self, x=None, nmb_points=100):
+        """
+        Return the curve points.
+
+        Parameters
+        ----------
+        x : tuple, only for 'polynomial'
+            x values where we want the curve.
+        nmb_points : integer, only for 'ellipse'
+            Number of points on the ellipse.
+
+        Returns
+        -------
+        x, y : coordinates of curve points
+        """
+        if not isinstance(x, ARRAYTYPES):
+            raise TypeError()
+        if self.kind == 'ellipse':
+            import fit_ellipse as fte
+            xy =fte.create_ellipse(self.radii, self.center, self.angle,
+                                   nmb_points)
+            return xy[:, 0], xy[:, 1]
+        elif self.kind == 'polynomial':
+            if self.base_dir == 0:
+                y = x*0
+                for i in np.arange(self.order + 1):
+                    y += self.p[i]*x**(self.order - i)
+            else:
+                y = x
+                x = y*0
+                for i in np.arange(self.order + 1):
+                    x += self.p[i]*y**(self.order - i)
+            return  x, y
+
+    def display(self):
+        """
+        display the curve.
+        """
+        pass
 
 class Profile(object):
     """
@@ -3483,6 +3643,130 @@ class VectorField(object):
                 dx = tmp_vx/norm*deltaabs
                 dy = tmp_vy/norm*deltaabs
                 stream[i, :] = [stream[i-1, 0] + dx, stream[i-1, 1] + dy]
+                i += 1
+            stream = stream[:i-1]
+            pts = Points(stream, unit_x=self.comp_x.unit_x,
+                         unit_y=self.comp_y.unit_y,
+                         name='streamline at x={:.3f}, y={:.3f}'.format(x, y))
+            streams.append(pts)
+        if len(streams) == 0:
+            return None
+        elif len(streams) == 1:
+            return streams[0]
+        else:
+            return streams
+
+    def get_tracklines(self, xy, delta=.25, interp='linear',
+                       reverse_direction=False):
+        """
+        Return a tuples of Points object representing the trackline begining
+        at the points specified in xy.
+        A trackline follow the general direction of the vectorfield
+        (as a streamline), but favor the small velocity. This behavior allow
+        the track following.
+
+        Parameters
+        ----------
+        xy : tuple
+            Tuple containing each starting point for streamline.
+        delta : number, optional
+            Spatial discretization of the tracklines,
+            relative to a the spatial discretization of the field.
+        interp : string, optional
+            Used interpolation for trackline computation.
+            Can be 'linear'(default) or 'cubic'
+        """
+        if not isinstance(xy, ARRAYTYPES):
+            raise TypeError("'xy' must be a tuple of arrays")
+        xy = np.array(xy)
+        if xy.shape == (2,):
+            xy = [xy]
+        elif len(xy.shape) == 2 and xy.shape[1] == 2:
+            pass
+        else:
+            raise ValueError("'xy' must be a tuple of arrays")
+        axe_x = self.comp_x.axe_x
+        axe_y = self.comp_x.axe_y
+        Vx = self.comp_x.values.flatten()
+        Vy = self.comp_y.values.flatten()
+        Magn = self.get_magnitude().values.flatten()
+        if not isinstance(delta, NUMBERTYPES):
+            raise TypeError("'delta' must be a number")
+        if delta <= 0:
+            raise ValueError("'delta' must be positive")
+        if delta > len(axe_x) or delta > len(axe_y):
+            raise ValueError("'delta' is too big !")
+        deltaabs = delta * ((axe_x[-1]-axe_x[0])/len(axe_x)
+                            + (axe_y[-1]-axe_y[0])/len(axe_y))/2
+        deltaabs2 = deltaabs**2
+        if not isinstance(interp, STRINGTYPES):
+            raise TypeError("'interp' must be a string")
+        if not (interp == 'linear' or interp == 'cubic'):
+            raise ValueError("Unknown interpolation method")
+        # interpolation lineaire du champ de vitesse
+        a, b = np.meshgrid(axe_x, axe_y)
+        a = a.flatten()
+        b = b.flatten()
+        pts = zip(a, b)
+        if interp == 'linear':
+            interp_vx = spinterp.LinearNDInterpolator(pts, Vx.flatten())
+            interp_vy = spinterp.LinearNDInterpolator(pts, Vy.flatten())
+            interp_magn = spinterp.LinearNDInterpolator(pts, Magn.flatten())
+        elif interp == 'cubic':
+            interp_vx = spinterp.CloughTocher2DInterpolator(pts, Vx.flatten())
+            interp_vy = spinterp.CloughTocher2DInterpolator(pts, Vy.flatten())
+            interp_magn = spinterp.CloughTocher2DInterpolator(pts,
+                                                              Magn.flatten())
+        # Calcul des streamlines
+        streams = []
+        longmax = (len(axe_x)+len(axe_y))/delta
+        for coord in xy:
+            x = coord[0]
+            y = coord[1]
+            x = float(x)
+            y = float(y)
+            # si le points est en dehors, on ne fait rien
+            if x < axe_x[0] or x > axe_x[-1] or y < axe_y[0] or y > axe_y[-1]:
+                continue
+            # calcul d'une streamline
+            stream = np.zeros((longmax, 2))
+            stream[0, :] = [x, y]
+            i = 1
+            while True:
+                tmp_vx = interp_vx(stream[i-1, 0], stream[i-1, 1])
+                tmp_vy = interp_vy(stream[i-1, 0], stream[i-1, 1])
+                # tests d'arret
+                if np.isnan(tmp_vx) or np.isnan(tmp_vy):
+                    break
+                if i >= longmax-1:
+                    break
+                if i > 15:
+                    norm = [stream[0:i-10, 0] - stream[i-1, 0],
+                            stream[0:i-10, 1] - stream[i-1, 1]]
+                    norm = norm[0]**2 + norm[1]**2
+                    if any(norm < deltaabs2/2):
+                        break
+                # searching the lower velocity in an angle of pi/2 in the
+                # flow direction
+                x_tmp = stream[i-1, 0]
+                y_tmp = stream[i-1, 1]
+                norm = (tmp_vx**2 + tmp_vy**2)**(.5)
+                #    finding 10 possibles positions in the flow direction
+                angle_op = np.pi/4
+                theta = np.linspace(-angle_op/2, angle_op/2, 10)
+                e_x = tmp_vx/norm
+                e_y = tmp_vy/norm
+                dx = deltaabs*(e_x*np.cos(theta) - e_y*np.sin(theta))
+                dy = deltaabs*(e_x*np.sin(theta) + e_y*np.cos(theta))
+                #    finding the step giving the lower velocity
+                magn = interp_magn(x_tmp + dx, y_tmp + dy)
+                ind_low_magn = np.argmin(magn)
+                #    getting the final steps (ponderated)
+                theta = theta[ind_low_magn]/2.
+                dx = deltaabs*(e_x*np.cos(theta) - e_y*np.sin(theta))
+                dy = deltaabs*(e_x*np.sin(theta) + e_y*np.cos(theta))
+                # calcul des dx et dy
+                stream[i, :] = [x_tmp + dx, y_tmp + dy]
                 i += 1
             stream = stream[:i-1]
             pts = Points(stream, unit_x=self.comp_x.unit_x,

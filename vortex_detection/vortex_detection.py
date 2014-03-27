@@ -6,14 +6,16 @@ Created on Sun Feb 23 18:07:07 2014
 """
 
 import pdb
+import time
 import IMTreatment as imt
 from ..core import Points, ScalarField, VectorField, make_unit,\
-    ARRAYTYPES, NUMBERTYPES, VelocityField, TemporalVelocityFields
+    ARRAYTYPES, NUMBERTYPES, STRINGTYPES, VelocityField, TemporalVelocityFields
 import matplotlib.pyplot as plt
 import numpy as np
 import sets
 
 
+### Critical points detection algorithm ###
 def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
                               treat_others=False):
     """
@@ -61,11 +63,8 @@ def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
     # getting first critical points for all fields
     for field in TVFS.fields:
         foc, foc_c, nod_i, nod_o, sadd, oth\
-            = find_critical_points(field, windows_size, radius=radius)
-        # if asked, getting secondary critical points (less accurate)
-        if treat_others:
-            foc2, foc_c2, nod_i2, nod_o2, sadd2\
-                = find_critical_points_on_zoi(field, oth, radius=radius)
+            = find_critical_points(field, windows_size, radius=radius,
+                                   treat_others=treat_others)
         # storing results
         if len(foc) != 0:
             focus += foc
@@ -77,20 +76,8 @@ def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
             nodes_o += nod_o
         if len(sadd) != 0:
             saddles += sadd
-        if treat_others:
-            if len(foc2) != 0:
-                focus += foc2
-            if len(foc_c2) != 0:
-                focus_c += foc_c2
-            if len(nod_i2) != 0:
-                nodes_i += nod_i2
-            if len(nod_o2) != 0:
-                nodes_o += nod_o2
-            if len(sadd2) != 0:
-                saddles += sadd2
-        else:
-            if len(oth) != 0:
-                others += oth
+        if len(oth) != 0:
+            others += oth
     # getting critical points trajectory
     if len(focus) != 0:
         focus_traj = vortices_evolution(focus, epsilon)
@@ -116,7 +103,8 @@ def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
         others
 
 
-def find_critical_points(VF, windows_size=5, radius=None, expend=True):
+def find_critical_points(VF, windows_size=5, radius=None, expend=True,
+                         treat_others=False):
     """
     For a velocity field (VelocityField object), return the position of
     critical points.
@@ -134,7 +122,10 @@ def find_critical_points(VF, windows_size=5, radius=None, expend=True):
     expend : boolean
         If 'True' (default), zone of interest computed with PBI are expended
         by 'radius' in order to have good criterion computation
-
+    treat_others : boolean
+        If 'True', zoi with indeterminate PBI are treated using
+        'find_critical_points_on_zoi' (see doc).
+        If 'False' (default), these zoi are returned in 'VF_others'.
 
     Returns
     -------
@@ -256,6 +247,22 @@ def find_critical_points(VF, windows_size=5, radius=None, expend=True):
                         pts.v = [VF.time]
                         pts.unit_v = VF.unit_time
                         nodes_i.append(pts)
+    # If necessary, treat ambiguous zoi
+    if treat_others:
+        foc2, foc_c2, nod_i2, nod_o2, sadd2\
+            = find_critical_points_on_zoi(VF, VF_others, radius=radius,
+                                          expend=False)
+        if len(foc2) != 0:
+            focus += foc2
+        if len(foc_c2) != 0:
+            focus_c += foc_c2
+        if len(nod_i2) != 0:
+            nodes_i += nod_i2
+        if len(nod_o2) != 0:
+            nodes_o += nod_o2
+        if len(sadd2) != 0:
+            saddles += sadd2
+        VF_others = []
     return focus, focus_c, nodes_i, nodes_o, saddles, VF_others
 
 
@@ -425,19 +432,6 @@ def vortices_evolution(points, epsilon=None):
             self.unit_v = pts_tupl[0].unit_v
             self.time_step = np.size(self.points, 0)
 
-#        def __sort_by_time__(self):
-#            points_f = []
-#            times = []
-#            for i in np.arange(self.time_step):
-#                times.append(self.points[i][0].v)
-#            while True:
-#                ind_min = np.argmin(times)
-#                if times[ind_min] == 1e99:
-#                    break
-#                points_f.append(self.points[ind_min])
-#                times[ind_min] = 1e99
-#            self.points = points_f
-
         def make_point_useless(self, i, j):
             """
             Make a point of the field useless (None).
@@ -452,10 +446,6 @@ def vortices_evolution(points, epsilon=None):
             """
             if not isinstance(time, int):
                 raise TypeError()
-#            pts = []
-#            for point in self.points[time]:
-#                pts.append(point)
-#            return pts
             return self.points[time]
 
     # local class line to store vortex center evolution line
@@ -784,10 +774,11 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
         """
         if not isinstance(velocityfield, VelocityField):
             raise TypeError("'velocityfield' must be a VelocityField")
-        #removing useless array around critical points
-        pbi_x = make_PBI_sweep(velocityfield, 1)
-        pbi_y = make_PBI_sweep(velocityfield, 2)
-        velocityfield = final_triming(velocityfield, pbi_x, pbi_y)
+        ## removing useless array around critical points
+        ## (dangerous if aligned critical points )
+        #pbi_x = make_PBI_sweep(velocityfield, 1)
+        #pbi_y = make_PBI_sweep(velocityfield, 2)
+        #velocityfield = final_triming(velocityfield, pbi_x, pbi_y)
         vf_pending = [velocityfield]
         vf_treated = []
         while True:
@@ -817,7 +808,6 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
                 vf_tmp = final_triming(vf_tmp, pbi_x, pbi_y)
                 vf_tmp.PBI = 0
                 vf_treated.append(vf_tmp)
-
                 vf_pending[0:1] = []
                 continue
             # we divide the field
@@ -891,6 +881,116 @@ def _expend(VF, vf, expend, error=True):
     return VF.trim_area(lim_x, lim_y)
 
 
+### Critical lines detection algorithm ###
+
+def get_critical_line(VF, source_point, direction, kol='stream',
+                      delta=1, fit='None', order=2):
+    """
+    Return a parametric curve fitting the virtual streamlines expanding from
+    the 'source_point' critical point on the 'VF' field.
+
+    Parameters
+    ----------
+    VF : VelocityField object
+        Base field for streamline
+    source_point : Point object
+        Source critical point.
+    direction : integer
+        Direction in which the streamline should go.
+        (0 for x axis, 1 for y axis)
+    kol : string
+        Kind of line to use (can be 'stream' for streamlines (default)
+        or 'track' for tracklines).
+    delta : integer, optional
+        Range (in axis step) in where searching for expanding streamlines.
+        (Default is 1)
+    fit : string, optional
+        Kind of fitting. Can be 'polynomial' or 'ellipse' or 'none'.
+    order : integer, optional
+        Order for the polynomial fitting (Default is 2).
+
+    Returns
+    -------
+    If 'None' :
+        return a Points object representing the curve.
+    If 'polynomial' :
+        return the polynomial coefficient in a tuple.
+        (warning, these coefficient are to apply on the axis given by
+        'direction')
+    If 'ellipse' :
+        return 'radii' (ellipse semi-radii),
+        'center' (ellipse center) and
+        'angle' (angle between the semi-axis)
+    """
+    # check parameters coherence
+    if not isinstance(VF, VelocityField):
+        raise TypeError("'VF' must be a VelocityField object")
+    if not isinstance(source_point, Points):
+        raise TypeError("'source_point' must be a Point object")
+    if not isinstance(direction, int):
+        raise TypeError("'direction' must be an integer")
+    if not direction in [0, 1]:
+        raise ValueError("'direction' must be 0 or 1")
+    if not isinstance(delta, int):
+        raise TypeError("'delta' must be an integer")
+    if delta < 0:
+        raise ValueError("'delta' must be positive")
+    if not isinstance(fit, STRINGTYPES):
+        raise TypeError("'fit' must be a string")
+    if not isinstance(order, int):
+        raise TypeError("'order' must be an integer")
+    if order < 0:
+        raise ValueError("'order' must be positive")
+    # get initial position and axis steps
+    x_pt = source_point.xy[0, 0]
+    y_pt = source_point.xy[0, 1]
+    axe_x, axe_y = VF.get_axes()
+    dx = axe_x[1] - axe_x[0]
+    dy = axe_y[1] - axe_y[0]
+    # get around positions
+    # TODO : may be optimize
+    if direction == 0:
+        xs = [x_pt - dx*delta, x_pt + dx*delta]
+        ys = [y_pt]  # [y_pt - dy, y_pt, y_pt + dy]
+    else:
+        xs = [x_pt]  # [x_pt - dx, x_pt, x_pt + dx]
+        ys = [y_pt - dy*delta, y_pt + dy*delta]
+    xs, ys = np.meshgrid(xs, ys)
+    pts = zip(xs.flatten(), ys.flatten())
+    # get stream or track lines on around positions
+    if kol == 'stream':
+        lines = VF.V.get_streamlines(pts)
+    elif kol == 'track':
+        lines = VF.V.get_tracklines(pts)
+    else:
+        raise ValueError("Unknown value for 'kol' (see documentation)")
+    # remove streamline near the critical point
+    for i in np.arange(len(lines)):
+        if direction == 0:
+            lines[i] = lines[i].cut(interv_x=[x_pt - 3*delta*dx,
+                                              x_pt + 3*delta*dx])
+        else:
+            lines[i] = lines[i].cut(interv_y=[y_pt - 3*delta*dy,
+                                              y_pt + 3*delta*dy])
+    # concatenating streamlines
+    line_t = lines[0]
+    for sl in lines[1::]:
+        line_t += sl
+    # fitting
+    if fit == 'none':
+        return line_t
+    elif fit == 'polynomial':
+        if direction == 1:
+            return line_t.reverse().fit(fit, order=order)
+        else:
+            return line_t.fit(fit, order=order)
+    elif fit == 'ellipse':
+        return line_t.fit(fit)
+    else:
+        raise ValueError("Unknown kind of fitting")
+
+
+### Criterion computation ###
 def get_sigma(vectorfield, radius=None, ortho=True):
     """
     Return the sigma scalar field, reprensenting the homogeneity of the
