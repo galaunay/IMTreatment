@@ -2189,7 +2189,7 @@ class ScalarField(object):
                                                     labeledzones,
                                                     np.arange(nmbzones) + 1)
             for i in np.arange(len(mins)):
-                if True:
+                if bornes[np.argmax(np.abs(bornes))] < 0:
                     inds.append(ind_min[i])
                 else:
                     inds.append(ind_max[i])

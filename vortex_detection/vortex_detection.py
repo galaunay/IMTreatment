@@ -6,7 +6,6 @@ Created on Sun Feb 23 18:07:07 2014
 """
 
 import pdb
-import time
 import IMTreatment as imt
 from ..core import Points, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, VelocityField, TemporalVelocityFields
@@ -78,25 +77,27 @@ def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
             saddles += sadd
         if len(oth) != 0:
             others += oth
+    # getting times
+    times = TVFS.get_comp('times')
     # getting critical points trajectory
     if len(focus) != 0:
-        focus_traj = vortices_evolution(focus, epsilon)
+        focus_traj = vortices_evolution(focus, times, epsilon)
     else:
         focus_traj = []
     if len(focus_c) != 0:
-        focus_c_traj = vortices_evolution(focus_c, epsilon)
+        focus_c_traj = vortices_evolution(focus_c, times, epsilon)
     else:
         focus_c_traj = []
     if len(nodes_i) != 0:
-        nodes_i_traj = vortices_evolution(nodes_i, epsilon)
+        nodes_i_traj = vortices_evolution(nodes_i, times, epsilon)
     else:
         nodes_i_traj = []
     if len(nodes_o) != 0:
-        nodes_o_traj = vortices_evolution(nodes_o, epsilon)
+        nodes_o_traj = vortices_evolution(nodes_o, times, epsilon)
     else:
         nodes_o_traj = []
     if len(saddles) != 0:
-        saddles_traj = vortices_evolution(saddles, epsilon)
+        saddles_traj = vortices_evolution(saddles, times, epsilon)
     else:
         saddles_traj = []
     return focus_traj, focus_c_traj, nodes_i_traj, nodes_o_traj, saddles_traj,\
@@ -192,7 +193,7 @@ def find_critical_points(VF, windows_size=5, radius=None, expend=True,
             # getting iota
             V_tmp = VF.V
             tmp_iota = get_iota(V_tmp)
-            pts = tmp_iota.get_zones_centers(bornes=[.75, 1])
+            pts = tmp_iota.get_zones_centers(bornes=[.75, 1], kind='extremum')
             if pts is not None:
                 if pts.xy[0][0] is not None and len(pts) == 1:
                     pts.v = [VF.time]
@@ -373,7 +374,7 @@ def find_critical_points_on_zoi(VF, others_VF, radius=None, expend=True):
     return focus, focus_c, nodes_i, nodes_o, saddles
 
 
-def vortices_evolution(points, epsilon=None):
+def vortices_evolution(points, times=None, epsilon=None):
     """
     Compute the temporal evolution of each vortex centers from a set of points
     at different times. (Points objects must contain only one point)
@@ -382,6 +383,9 @@ def vortices_evolution(points, epsilon=None):
     Parameters:
     -----------
     pts : tuple of Points objects.
+    times : array of numbers
+        Times. If 'None' (default), only times represented by at least one
+        point are taken into account (can create fake link between points).
     epsilon : number, optional
         Maximal distance between two successive points.
         default value is Inf.
@@ -390,6 +394,9 @@ def vortices_evolution(points, epsilon=None):
         return None
     if not isinstance(points, ARRAYTYPES):
         raise TypeError("'points' must be an array of Points objects")
+    if times is not None:
+        if not isinstance(times, ARRAYTYPES):
+            raise TypeError("'times' must be an array of numbers")
     if not isinstance(points[0], Points):
         raise TypeError("'points' must be an array of Points objects")
 
@@ -399,7 +406,7 @@ def vortices_evolution(points, epsilon=None):
         Class representing an orthogonal set of points, defined by a position
         and a time.
         """
-        def __init__(self, pts_tupl):
+        def __init__(self, pts_tupl, times):
             if not isinstance(pts_tupl, ARRAYTYPES):
                 raise TypeError("'pts' must be a tuple of Point objects")
             for pt in pts_tupl:
@@ -414,12 +421,14 @@ def vortices_evolution(points, epsilon=None):
                     pts_tupl[i:i+1] = pts_tupl[i].decompose()
             self.points = []
             # possible times determination
-            times = []
-            for pt in pts_tupl:
-                times.append(pt.v[0])
-            times = list(sets.Set(times))
-            times.sort()
-            self.times = times
+            if times is None:
+                times = []
+                for pt in pts_tupl:
+                    times.append(pt.v[0])
+                times = list(sets.Set(times))
+                times.sort()
+                self.times = times
+            # Sorting points by times
             for time in times:
                 tmp_points = []
                 for pt in pts_tupl:
@@ -504,6 +513,8 @@ def vortices_evolution(points, epsilon=None):
             """
             if not isinstance(ext_pt_tupl, ARRAYTYPES):
                 raise TypeError()
+            if len(ext_pt_tupl) == 0:
+                return None
             if ext_pt_tupl[0] is not None:
                 if not isinstance(ext_pt_tupl[0], Point):
                     raise TypeError()
@@ -571,7 +582,7 @@ def vortices_evolution(points, epsilon=None):
         else:
             return (pts2.x - pts1.x)**2 + (pts2.y - pts1.y)**2
     # Getting the vortex centers trajectory
-    PF = PointField(points)
+    PF = PointField(points, times)
     if len(PF.points) == 0:
         return []
     points_f = []
