@@ -7,7 +7,7 @@ Created on Sun Feb 23 18:21:52 2014
 
 import numpy as np
 import matplotlib.pyplot as plt
-from .. import Profile, make_unit
+from .. import Profile, make_unit, ScalarField
 import pdb
 
 NumberTypes = (int, float, long)
@@ -228,108 +228,151 @@ class DefectLaw:
         return np.trapz(y, x)
 
 
-def get_bl_thickness(profile, perc=0.95):
+def get_bl_thickness(obj, direction=1, perc=0.95):
     """
-    Return the profile boundary layer thickness.
+    Return a boundary layer thickness if 'obj' is a Profile.
+    Return a profile of boundary layer thicknesses if 'obj' is a ScalarField.
     WARNING : the wall must be at x=0.
 
     Parameters
     ----------
-    profile : Profile object
+    obj : Profile or ScalarField object
+    direction : integer, optional
+        If 'obj' is a ScalarField, determine the swept axis
+        (1 for x and 2 for y).
     perc : float, optionnal
         Percentage used in the bl calculation (90% per default).
 
     Returns
     -------
-    BLT : float
+    BLT : float or profile
         Boundary layer thickness, in axe x unit.
     """
-    value = profile.get_interpolated_value(y=profile.get_max()*perc)
-    return value[0]
+    if isinstance(obj, Profile):
+        value = obj.get_interpolated_value(y=obj.get_max()*perc)
+        return value[0]
+    elif isinstance(obj, ScalarField):
+        axe = obj.get_axes()[direction - 1]
+        profiles = [obj.get_profile(direction, x) for x in axe]
+        values = [get_bl_thickness(prof) for prof in profiles]
+        return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
+    else:
+        raise TypeError("Can't compute (yet ?) BL thickness on this kind of"
+                        "data")
 
 
-def get_displ_thickness(profile):
+def get_displ_thickness(obj, direction=1):
     """
-    Return the profile displacement thickness.
+    Return a displacement thickness if 'obj' is a Profile.
+    Return a profile of displacement thicknesses if 'obj' is a Scalarfield.
     WARNING : the wall must be at x=0.
 
     Parameters
     ----------
-    profile : Profile object
+    obj : Profile or ScalarField object
+    direction : integer, optional
+        If 'obj' is a ScalarField, determine the swept axis
+        (1 for x and 2 for y).
 
     Returns
     -------
-    delta : float
+    delta : float or Profile
         Boundary layer displacement thickness, in axe x unit.
     """
-    bl_perc = 0.95
-    # cut the profile in order to only keep the BL
-    bl_thick = get_bl_thickness(profile, perc=bl_perc)
-    profile = profile.trim([0, bl_thick])
-    # removing negative and masked points
-    mask = np.logical_and(profile.y.mask, profile.x < 0)
-    profile.x = profile.x[~mask]
-    profile.y = profile.y._data[~mask]
-    # adding a x(0) value if necessary
-    if profile.x[0] != 0:
-        pos_x = np.append([0], profile.x)
-        pos_y = np.append([0], profile.y)
+    if isinstance(obj, Profile):
+        bl_perc = 0.95
+        # cut the profile in order to only keep the BL
+        bl_thick = get_bl_thickness(obj, perc=bl_perc)
+        obj = obj.trim([0, bl_thick])
+        # removing negative and masked points
+        mask = np.logical_and(obj.y.mask, obj.x < 0)
+        obj.x = obj.x[~mask]
+        obj.y = obj.y._data[~mask]
+        # adding a x(0) value if necessary
+        if obj.x[0] != 0:
+            pos_x = np.append([0], obj.x)
+            pos_y = np.append([0], obj.y)
+        else:
+            pos_x = obj.x
+            pos_y = obj.y
+        fonct = 1 - pos_y/np.max(pos_y)
+        delta = np.trapz(fonct, pos_x)
+        return delta
+    elif isinstance(obj, ScalarField):
+        axe = obj.get_axes()[direction - 1]
+        profiles = [obj.get_profile(direction, x) for x in axe]
+        values = [get_displ_thickness(prof) for prof in profiles]
+        return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
     else:
-        pos_x = profile.x
-        pos_y = profile.y
-    fonct = 1 - pos_y/np.max(pos_y)
-    delta = np.trapz(fonct, pos_x)
-    return delta
+        raise TypeError("Can't compute (yet ?) BL displacement thickness on"
+                        "this kind of data")
 
 
-def get_momentum_thickness(profile):
+def get_momentum_thickness(obj, direction=1):
     """
-    Return the profile momentum thickness.
+    Return a momentum thickness if 'obj' is a Profile.
+    Return a profile of momentum thicknesses if 'obj' is a Scalarfield.
     WARNING : the wall must be at x=0.
 
     Parameters
     ----------
-    profile : Profile object
+    obj : Profile or ScalarField object
+    direction : integer, optional
+        If 'obj' is a ScalarField, determine the swept axis
+        (1 for x and 2 for y).
 
     Returns
     -------
-   delta : float
+    delta : float or Profile
         Boundary layer momentum thickness, in axe x unit.
     """
-    bl_perc = 0.95
-    # cut the profile in order to only keep the BL
-    bl_thick = get_bl_thickness(profile, perc=bl_perc)
-    profile = profile.trim([0, bl_thick])
-    # removing negative and masked points
-    mask = np.logical_and(profile.y.mask, profile.x < 0)
-    profile.x = profile.x[~mask]
-    profile.y = profile.y._data[~mask]
-    # adding a x(0) value
-    if profile.x[0] != 0:
-        pos_x = np.append([0], profile.x)
-        pos_y = np.append([0], profile.y)
+    if isinstance(obj, Profile):
+        bl_perc = 0.95
+        # cut the profile in order to only keep the BL
+        bl_thick = get_bl_thickness(obj, perc=bl_perc)
+        obj = obj.trim([0, bl_thick])
+        # removing negative and masked points
+        mask = np.logical_and(obj.y.mask, obj.x < 0)
+        obj.x = obj.x[~mask]
+        obj.y = obj.y._data[~mask]
+        # adding a x(0) value
+        if obj.x[0] != 0:
+            pos_x = np.append([0], obj.x)
+            pos_y = np.append([0], obj.y)
+        else:
+            pos_x = obj.x
+            pos_y = obj.y
+        fonct = pos_y/np.max(pos_y)*(1 - pos_y/np.max(pos_y))
+        delta = np.trapz(fonct, pos_x)
+        return delta
+    elif isinstance(obj, ScalarField):
+        axe = obj.get_axes()[direction - 1]
+        profiles = [obj.get_profile(direction, x) for x in axe]
+        values = [get_momentum_thickness(prof) for prof in profiles]
+        return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
     else:
-        pos_x = profile.x
-        pos_y = profile.y
-    fonct = pos_y/np.max(pos_y)*(1 - pos_y/np.max(pos_y))
-    delta = np.trapz(fonct, pos_x)
-    return delta
+        raise TypeError("Can't compute (yet ?) BL momentum thickness on"
+                        "this kind of data")
 
 
-def get_shape_factor(profile):
+def get_shape_factor(obj, direction=1):
     """
-    Return the profile shape factor.
+    Return a shape factor if 'obj' is a Profile.
+    Return a profile of shape factors if 'obj' is a Scalarfield.
     WARNING : the wall must be at x=0.
 
     Parameters
     ----------
-    profile : Profile object
+    obj : Profile or ScalarField object
+    direction : integer, optional
+        If 'obj' is a ScalarField, determine the swept axis
+        (1 for x and 2 for y).
 
     Returns
     -------
-    shape_factor : float
+    delta : float or Profile
         Boundary layer shape factor, in axe x unit.
     """
-    shape_factor = get_displ_thickness(profile)\
-        / get_momentum_thickness(profile)
+    shape_factor = get_displ_thickness(obj, direction)\
+        / get_momentum_thickness(obj, directions)
     return shape_factor

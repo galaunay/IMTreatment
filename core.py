@@ -5691,8 +5691,7 @@ class TemporalVelocityFields(VelocityFields):
 
     def get_time_profile(self, component, x, y):
         """
-        Return a profile contening the time evolution of the given component
-        in time.
+        Return a profile contening the time evolution of the given component.
 
         Parameters
         ----------
@@ -6208,8 +6207,8 @@ class TemporalVelocityFields(VelocityFields):
 
             def update(num, ax, ttl):
                 if kind is None:
-                    v = comp[num].values
-                    ax.set_data(v)
+                    val = comp[num].values
+                    ax.set_data(val)
                 else:
                     ### TODO: suffit pas !
                     ax.ax.cla()
@@ -6366,14 +6365,14 @@ class SpatialVelocityFields(VelocityFields):
         conc = zip(axe, bl)
         conc = np.array(conc, dtype=[('x', float), ('y', float)])
         conc = np.sort(conc, axis=0, order='x')
-        axe, bl = zip(*conc)
+        axe, blayer = zip(*conc)
         if direction == 1:
             unit_x = self.fields[0].V.comp_x.unit_x
             unit_y = self.fields[0].V.comp_x.unit_y
         else:
             unit_x = self.fields[0].V.comp_x.unit_y
             unit_y = self.fields[0].V.comp_x.unit_x
-        bl_profile = Profile(axe, bl, unit_x, unit_y, "Boundary Layer")
+        bl_profile = Profile(axe, blayer, unit_x, unit_y, "Boundary Layer")
         return bl_profile
 
     def _display(self, componentname="V", scale=1, fieldnumber=None,
@@ -6434,7 +6433,7 @@ class SpatialVelocityFields(VelocityFields):
         Display the spatial velocity fields.
         """
         self._display(componentname, scale, fieldnumber, **plotargs)
-        cb = plt.colorbar()
+        cbar = plt.colorbar()
         compo = self.fields[0].get_comp(componentname)
         if isinstance(compo, ScalarField):
             unit = compo.unit_values.Getunit()
@@ -6442,7 +6441,7 @@ class SpatialVelocityFields(VelocityFields):
             unit = compo.comp_x.unit_value.Getunit()
         else:
             unit = compo.V.comp_x.unit_values.Getunit()
-        cb.set_label("{0} {1}".format(componentname, unit))
+        cbar.set_label("{0} {1}".format(componentname, unit))
 
     def display_profile(self, componentname, direction, position, **plotargs):
         """
