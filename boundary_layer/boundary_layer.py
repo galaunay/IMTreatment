@@ -37,6 +37,24 @@ class BlasiusBL:
         self.Uinf = Uinf
         self.nu = nu
 
+    def display(self, intervx, allturbulent=False, **plotargs):
+        """
+        Display the Blasius boundray layer.
+
+        Parameters
+        ----------
+        intervx : array of numbers
+            x values where we want the BL.
+        allturbulent : boolean, optional
+            if True, the all boundary layer is considered turbulent.
+        """
+        x = np.linspace(intervx[0], intervx[1], 1000)
+        delta, _, _ = self.get_thickness(x, allturbulent)
+        if not "label" in plotargs:
+            plotargs["label"] = "Blasius theorical BL"
+        fig = delta.display(**plotargs)
+        return fig
+
     def get_thickness(self, x, allTurbulent=False):
         """
         Return the boundary layer thickness and the friction coefficient
@@ -60,6 +78,8 @@ class BlasiusBL:
             Boundary layer thickness profile (m)
         Cf : Profile object
             Friction coefficient profile (s.u)
+        Rex : Profile object
+            Reynolds number on the distance from the border.
         """
         if not isinstance(x, (NumberTypes, ArrayTypes)):
             raise TypeError("x is not a number or a list")
@@ -67,23 +87,27 @@ class BlasiusBL:
             raise TypeError("'allTurbulent' has to be a boolean")
         delta = []
         Cf = []
+        Rex = []
         for xpos in x:
             if xpos == 0:
                 delta.append(0)
                 Cf.append(0)
+                Rex.append(0)
             else:
-                Rex = self.Uinf*xpos/self.nu
-                if Rex < 5e5 and not allTurbulent:
-                    delta.append(xpos*4.92/np.power(Rex, 0.5))
-                    Cf.append(0.664/np.power(Rex, 0.5))
+                Rex.append(self.Uinf*xpos/self.nu)
+                if Rex[-1] < 5e5 and not allTurbulent:
+                    delta.append(xpos*4.92/np.power(Rex[-1], 0.5))
+                    Cf.append(0.664/np.power(Rex[-1], 0.5))
                 else:
-                    delta.append(xpos*0.3806/np.power(Rex, 0.2))
-                    Cf.append(0.0592/np.power(Rex, 0.2))
+                    delta.append(xpos*0.3806/np.power(Rex[-1], 0.2))
+                    Cf.append(0.0592/np.power(Rex[-1], 0.2))
         delta = Profile(x, delta, unit_x=make_unit('m'),
                         unit_y=make_unit('m'))
         Cf = Profile(x, Cf, unit_x=make_unit('m'),
                      unit_y=make_unit(''))
-        return delta, Cf
+        Rex = Profile(x, Rex, unit_x=make_unit('m'),
+                      unit_y=make_unit(''))
+        return delta, Cf, Rex
 
 
 class DefectLaw:
@@ -249,16 +273,19 @@ def get_bl_thickness(obj, direction=1, perc=0.95):
         Boundary layer thickness, in axe x unit.
     """
     if isinstance(obj, Profile):
-        value = obj.get_interpolated_value(y=obj.get_max()*perc)
+        maxi = obj.get_max()
+        if maxi is None:
+            return 0
+        value = obj.get_interpolated_value(y=maxi*perc)
         return value[0]
     elif isinstance(obj, ScalarField):
         axe = obj.get_axes()[direction - 1]
         profiles = [obj.get_profile(direction, x) for x in axe]
-        values = [get_bl_thickness(prof) for prof in profiles]
+        values = [get_bl_thickness(prof) for prof, _ in profiles]
         return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
     else:
         raise TypeError("Can't compute (yet ?) BL thickness on this kind of"
-                        "data")
+                        " data : {}".format(type(obj)))
 
 
 def get_displ_thickness(obj, direction=1):
@@ -283,6 +310,8 @@ def get_displ_thickness(obj, direction=1):
         bl_perc = 0.95
         # cut the profile in order to only keep the BL
         bl_thick = get_bl_thickness(obj, perc=bl_perc)
+        if bl_thick == 0:
+            return 0
         obj = obj.trim([0, bl_thick])
         # removing negative and masked points
         mask = np.logical_and(obj.y.mask, obj.x < 0)
@@ -301,11 +330,11 @@ def get_displ_thickness(obj, direction=1):
     elif isinstance(obj, ScalarField):
         axe = obj.get_axes()[direction - 1]
         profiles = [obj.get_profile(direction, x) for x in axe]
-        values = [get_displ_thickness(prof) for prof in profiles]
+        values = [get_displ_thickness(prof) for prof, _ in profiles]
         return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
     else:
         raise TypeError("Can't compute (yet ?) BL displacement thickness on"
-                        "this kind of data")
+                        "this kind of data : {}".format(type(obj)))
 
 
 def get_momentum_thickness(obj, direction=1):
@@ -330,6 +359,8 @@ def get_momentum_thickness(obj, direction=1):
         bl_perc = 0.95
         # cut the profile in order to only keep the BL
         bl_thick = get_bl_thickness(obj, perc=bl_perc)
+        if bl_thick == 0:
+            return 0
         obj = obj.trim([0, bl_thick])
         # removing negative and masked points
         mask = np.logical_and(obj.y.mask, obj.x < 0)
@@ -348,7 +379,7 @@ def get_momentum_thickness(obj, direction=1):
     elif isinstance(obj, ScalarField):
         axe = obj.get_axes()[direction - 1]
         profiles = [obj.get_profile(direction, x) for x in axe]
-        values = [get_momentum_thickness(prof) for prof in profiles]
+        values = [get_momentum_thickness(prof) for prof, _ in profiles]
         return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
     else:
         raise TypeError("Can't compute (yet ?) BL momentum thickness on"
@@ -374,5 +405,5 @@ def get_shape_factor(obj, direction=1):
         Boundary layer shape factor, in axe x unit.
     """
     shape_factor = get_displ_thickness(obj, direction)\
-        / get_momentum_thickness(obj, directions)
+        / get_momentum_thickness(obj, direction)
     return shape_factor

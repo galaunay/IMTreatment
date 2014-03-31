@@ -15,6 +15,7 @@ from matplotlib import cm
 import matplotlib.pyplot as plt
 import numpy as np
 import pdb
+import timeit
 import sets
 import glob
 import unum
@@ -492,11 +493,11 @@ class Points(object):
         mask = np.ones(len(self.xy))
         if interv_x is not None:
             out_zone = np.logical_and(self.xy[:, 0] > interv_x[0],
-                                     self.xy[:, 0] < interv_x[1])
+                                      self.xy[:, 0] < interv_x[1])
             mask = np.logical_and(mask, out_zone)
         if interv_y is not None:
             out_zone = np.logical_and(self.xy[:, 1] > interv_y[0],
-                                     self.xy[:, 1] < interv_y[1])
+                                      self.xy[:, 1] < interv_y[1])
             mask = np.logical_and(mask, out_zone)
         tmp_pts.xy = tmp_pts.xy[~mask, :]
         if tmp_pts.v is not None:
@@ -645,7 +646,7 @@ class Parametric_curve(object):
         self.kind = kind
         if kind == 'polynomial':
             self.p = param[0]
-            self.order = len(p) - 1
+            self.order = len(self.p) - 1
             self.base_dir = param[1]
         elif kind == 'ellipse':
             self.radii = param[0]
@@ -676,8 +677,8 @@ class Parametric_curve(object):
             raise TypeError()
         if self.kind == 'ellipse':
             import fit_ellipse as fte
-            xy =fte.create_ellipse(self.radii, self.center, self.angle,
-                                   nmb_points)
+            xy = fte.create_ellipse(self.radii, self.center, self.angle,
+                                    nmb_points)
             return xy[:, 0], xy[:, 1]
         elif self.kind == 'polynomial':
             if self.base_dir == 0:
@@ -689,13 +690,14 @@ class Parametric_curve(object):
                 x = y*0
                 for i in np.arange(self.order + 1):
                     x += self.p[i]*y**(self.order - i)
-            return  x, y
+            return x, y
 
     def display(self):
         """
         display the curve.
         """
         pass
+
 
 class Profile(object):
     """
@@ -812,10 +814,22 @@ class Profile(object):
             name = self.name
             unit_y = self.unit_y
         elif isinstance(otherone, unum.Unum):
-            tmpunit = otherone/self.unit_y
-            y = self.y/tmpunit.asunit()
+            tmpunit = self.unit_y/otherone
+            y = self.y*(tmpunit.asNumber())
             name = self.name
-            unit_y = self.unit_y/(tmpunit/tmpunit.asNumber())
+            unit_y = tmpunit/tmpunit.asNumber()
+        elif isinstance(otherone, Profile):
+            if not np.all(self.x == otherone.x):
+                raise ValueError("Profile has to have identical x axis in "
+                                 "order to divide them")
+            else:
+                tmp_unit = self.unit_y/otherone.unit_y
+                y_tmp = self.y.copy()
+                y_tmp[otherone.y == 0] = 0
+                otherone.y[otherone.y == 0] = 1
+                y = y_tmp/otherone.y*tmp_unit.asNumber()
+                name = ""
+                unit_y = tmp_unit/tmp_unit.asNumber()
         else:
             raise TypeError("You only can divide Profile with number")
         return Profile(self.x, y, self.unit_x, unit_y, name=name)
@@ -921,6 +935,24 @@ class Profile(object):
 #                    or (axe[i] < value and axe[i+1] > value)):
 #                return [i, i+1]
 #
+
+    def get_comp(self, comp):
+        """
+        Give access to the selected Profile component.
+        """
+        if not isinstance(comp, STRINGTYPES):
+            raise TypeError("'comp' must be a string")
+        if comp == "x":
+            return self.x
+        elif comp == 'y':
+            return self.y
+        elif comp == 'unit_y':
+            return self.unit_y
+        elif comp == 'unit_x':
+            return self.unit_x
+        else:
+            raise ValueError("Unknown component : {}".format(comp))
+
     def get_interpolated_value(self, x=None, y=None):
         """
         Get the interpolated (or not) value for a given 'x' or 'y' value.
@@ -950,32 +982,29 @@ class Profile(object):
             raise Warning("Ok, but i'll do nothing if i don't have a 'x' "
                           "or a 'y' value")
         if y is not None and x is not None:
-            raise ValueError("And i thought it was obvious, "
-                             "(maybe you would like to look at the help "
-                             "one more time)")
+            raise ValueError("Maybe you would like to look at the help "
+                             "one more time...")
         if x is not None:
             value = x
-            values = self.x
-            values2 = self.y
+            values = np.array(self.x)
+            values2 = np.array(self.y)
         else:
             value = y
-            values = self.y
-            values2 = self.x
-        i_values = np.array([])
-        for ind in np.arange(0, len(values)-1):
-            if (values[ind] >= value and values[ind+1] < value) \
-                    or (values[ind] <= value and values[ind+1] > value):
-                i_value = ((values2[ind]*np.abs(values[ind+1] - value)
-                           + values2[ind+1]*np.abs(values[ind] - value))
-                           / np.abs(values[ind] - values[ind+1]))
-                i_values = np.append(i_values, i_value)
+            values = np.array(self.y)
+            values2 = np.array(self.x)
+        i_values = []
+        for ind in np.arange(0, len(values) - 1):
+            val_i = values[ind]
+            val_ipp = values[ind + 1]
+            val2_i = values2[ind]
+            val2_ipp = values2[ind + 1]
+            if (val_i >= value and val_ipp < value) \
+                    or (val_i <= value and val_ipp > value):
+                i_value = ((val2_i*np.abs(val_ipp - value)
+                           + val2_ipp*np.abs(values[ind] - value))
+                           / np.abs(values[ind] - val_ipp))
+                i_values.append(i_value)
         return i_values
-
-#    def get_length(self):
-#        """
-#        Return the lenght of the profile.
-#        """
-#        return len(self.x)
 
     def get_copy(self):
         """
@@ -1002,8 +1031,18 @@ class Profile(object):
         if not (axe == 1 or axe == 2):
             raise ValueError("'axe' must be 1 or 2")
         if axe == 1:
+            try:
+                if np.all(self.x.mask):
+                    return None
+            except AttributeError:
+                pass
             return np.max(self.x)
         if axe == 2:
+            try:
+                if np.all(self.y.mask):
+                    return None
+            except AttributeError:
+                pass
             return np.max(self.y)
 
     def get_min(self, axe=2):
@@ -1036,6 +1075,32 @@ class Profile(object):
         """
         return np.trapz(self.y, self.x), self.unit_y*self.unit_x
 
+    def set_unit(self, comp, unity):
+        """
+        Write the selected component in the given unity (if possible).
+
+        Parameters
+        ----------
+        comp : string
+            Profile component to change.
+        unity : Unum.unit object
+            Unity (you can use make_unit to make one).
+        """
+        if not isinstance(comp, STRINGTYPES):
+            raise TypeError("'comp' must be a string")
+        if not isinstance(unity, unum.Unum):
+            raise TypeError("'unity' must be a Unum object")
+        if comp == "x":
+            unit_tmp = self.unit_x.asUnit(unity)
+            self.x = self.x*unit_tmp.asNumber()
+            self.unit_x = unit_tmp/unit_tmp.asNumber()
+        elif comp == 'y':
+            unit_tmp = self.unit_y.asUnit(unity)
+            self.y = self.y*unit_tmp.asNumber()
+            self.unit_y = unit_tmp/unit_tmp.asNumber()
+        else:
+            raise ValueError("Unknown component : {}".format(comp))
+
     def trim(self, interval, ind=False):
         """
         Return a trimed copy of the profile along x with respect to 'interval'.
@@ -1048,6 +1113,7 @@ class Profile(object):
             If 'False' (Default), 'interval' are values along x axis,
             if 'True', 'interval' are indices of values along x.
         """
+        # checking parameters coherence
         if not isinstance(interval, ARRAYTYPES):
             raise TypeError("'interval' must be an array")
         interval = np.array(interval)
@@ -1056,6 +1122,7 @@ class Profile(object):
                              "values")
         if interval[0] >= interval[1]:
             raise ValueError("'interval' values must be crescent")
+        # given position is not an indice
         if not ind:
             if all(interval < np.min(self.x))\
                     or all(interval > np.max(self.x)):
@@ -1085,6 +1152,7 @@ class Profile(object):
             indices.sort()
             x_new = self.x[indices[0]:indices[1]]
             y_new = self.y[indices[0]:indices[1]]
+        # given position is an indice
         else:
             if any(interval < 0) or any(interval > len(self.x) - 1):
                 raise ValueError("'interval' indices are out of profile")
@@ -2034,15 +2102,12 @@ class ScalarField(object):
             axe = self.axe_y
             if value < self.axe_y[0] or value > self.axe_y[-1]:
                 raise ValueError("'value' is out of bound.")
-
-        ind = None
-        for i in np.arange(len(axe)):
-            if axe[i] == value:
-                inds = [i]
-                break
-            if axe[i] < value and axe[i + 1] > value:
-                inds = [i, i + 1]
-                break
+        # getting the borning indices
+        ind = np.searchsorted(axe, value)
+        if axe[ind] == value:
+            inds = [ind]
+        else:
+            inds = [ind - 1, ind]
         if not nearest:
             return inds
         # getting the nearest indice
