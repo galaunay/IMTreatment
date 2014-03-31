@@ -1127,27 +1127,21 @@ class Profile(object):
             if all(interval < np.min(self.x))\
                     or all(interval > np.max(self.x)):
                 raise ValueError("'interval' values are out of profile")
-            for i in np.arange(len(self.x)-1, -1, -1):
+            ind1 = 0
+            ind2 = -1
+            for i in np.arange(len(self.x)-1, 0, -1):
                 if self.x[i] == interval[0]:
                     ind1 = i
                 elif self.x[i] == interval[1]:
-                    ind2 = i
+                    ind2 = i + 1
                 elif (self.x[i] > interval[0] and self.x[i-1] < interval[0]) \
                         or (self.x[i] < interval[0]
                             and self.x[i-1] > interval[0]):
-                    if abs(interval[0] - self.x[i]) < abs(interval[0]
-                                                          - self.x[i + 1]):
-                        ind1 = i
-                    else:
-                        ind1 = i + 1
+                    ind1 = i + 1
                 elif (self.x[i] > interval[1] and self.x[i-1] < interval[1]) \
                         or (self.x[i] < interval[1]
                             and self.x[i-1] > interval[1]):
-                    if abs(interval[1] - self.x[i]) < abs(interval[1]
-                                                          - self.x[i + 1]):
-                        ind2 = i
-                    else:
-                        ind2 = i + 1
+                    ind2 = i
             indices = [ind1, ind2]
             indices.sort()
             x_new = self.x[indices[0]:indices[1]]

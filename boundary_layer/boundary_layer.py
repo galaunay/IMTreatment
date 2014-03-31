@@ -317,6 +317,9 @@ def get_displ_thickness(obj, direction=1):
         mask = np.logical_and(obj.y.mask, obj.x < 0)
         obj.x = obj.x[~mask]
         obj.y = obj.y._data[~mask]
+        # if there is no more value in the profile (all masked)
+        if len(obj.x) == 0:
+            return 0
         # adding a x(0) value if necessary
         if obj.x[0] != 0:
             pos_x = np.append([0], obj.x)
@@ -324,6 +327,7 @@ def get_displ_thickness(obj, direction=1):
         else:
             pos_x = obj.x
             pos_y = obj.y
+        # computing bl displacement thickness
         fonct = 1 - pos_y/np.max(pos_y)
         delta = np.trapz(fonct, pos_x)
         return delta
@@ -366,6 +370,9 @@ def get_momentum_thickness(obj, direction=1):
         mask = np.logical_and(obj.y.mask, obj.x < 0)
         obj.x = obj.x[~mask]
         obj.y = obj.y._data[~mask]
+        # if there is no more profile (all masked)
+        if len(obj.x) == 0:
+            return 0
         # adding a x(0) value
         if obj.x[0] != 0:
             pos_x = np.append([0], obj.x)
@@ -373,6 +380,7 @@ def get_momentum_thickness(obj, direction=1):
         else:
             pos_x = obj.x
             pos_y = obj.y
+        # computing bl momentum thickness
         fonct = pos_y/np.max(pos_y)*(1 - pos_y/np.max(pos_y))
         delta = np.trapz(fonct, pos_x)
         return delta
