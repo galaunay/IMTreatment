@@ -1310,8 +1310,15 @@ class ScalarField(object):
             final_sf = ScalarField()
             final_sf.import_from_scalarfield(self)
             final_sf.values += otherone.values
-            final_sf.values.mask = np.logical_or(self.values.mask,
-                                                 otherone.values.mask)
+            if isinstance(self.values, np.ma.MaskedArray) or\
+                    isinstance(otherone.values, np.ma.MaskedArray):
+                mask_self = np.zeros(self.values.shape)
+                mask_other = np.zeros(otherone.values.shape)
+                if isinstance(self.values, np.ma.MaskedArray):
+                    mask_self = self.values.mask
+                if isinstance(otherone.values, np.ma.MaskedArray):
+                    mask_other = otherone.values.mask
+                final_sf.values.mask = np.logical_or(mask_self, mask_other)
             return final_sf
         elif isinstance(otherone, NUMBERTYPES):
             final_sf = ScalarField()
