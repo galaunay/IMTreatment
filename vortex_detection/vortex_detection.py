@@ -1167,8 +1167,6 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
         ortho = False
         raise Warning("Non-orthogonal field detected !")
     # creating near-border zone mask
-    print(axe_x[0:5])
-    print(radius)
     border_x = np.logical_or(axe_x < axe_x[0] + radius,
                              axe_x > axe_x[-1] - radius)
     border_y = np.logical_or(axe_y < axe_y[0] + radius,
@@ -1309,8 +1307,6 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
         ortho = False
         raise Warning("Non-orthogonal field detected !")
     # creating near-border zone mask
-    print(axe_x[0:5])
-    print(radius)
     border_x = np.logical_or(axe_x < axe_x[0] + radius,
                              axe_x > axe_x[-1] - radius)
     border_y = np.logical_or(axe_y < axe_y[0] + radius,

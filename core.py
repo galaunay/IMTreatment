@@ -239,7 +239,12 @@ class Points(object):
         self.name = name
 
     def __iter__(self):
-        return self.xy.__iter__()
+        if self.v is None:
+            for i in np.arange(len(self.xy)):
+                yield self.xy[i]
+        else:
+            for i in np.arange(len(self.xy)):
+                yield self.xy[i], self.v[i]
 
     def __len__(self):
         return self.xy.shape[0]
@@ -420,6 +425,27 @@ class Points(object):
         elif kind == 'plot':
             fig = plt.plot(self.xy[:, 0], self.xy[:, 1], **plotargs)
         return fig
+
+    def remove(self, ind):
+        """
+        Remove the point number 'ind' of the points cloud.
+        In place.
+
+        Parameters
+        ----------
+        ind : integer or array of integer
+        """
+        if isinstance(ind, int):
+            ind = [ind]
+        elif isinstance(ind, ARRAYTYPES):
+            if not np.all([isinstance(val, int) for val in ind]):
+                raise TypeError("'ind' must be an integer or an array of"
+                                " integer")
+            ind = np.array(ind)
+        else:
+            raise TypeError("'ind' must be an integer or an array of integer")
+        self.xy = np.delete(self.xy, ind, axis=0)
+        self.v = np.delete(self.v, ind, axis=0)
 
     def display(self, kind=None, **plotargs):
         """
@@ -4944,33 +4970,37 @@ class VelocityField(object):
         from IMTreatment.vortex_detection.vortex_detection import get_sigma
         self.sigma = get_sigma(self.V, radius)
 
-    def calc_gamma1(self, radius=None, mask=None):
+    def calc_gamma1(self, radius=None, ind=False, mask=None):
         """
         Compute and store the gamma1 criterion for vortex analysis
         """
-        from IMTreatment.vortex_detection.vortex_detection import get_gamma1
-        self.gamma1 = get_gamma1(self.V, radius, mask)
+        from IMTreatment.vortex_detection.vortex_detection import get_gamma
+        self.gamma1 = get_gamma(self.V, radius=radius, ind=ind,
+                                kind='gamma1', mask=mask)
 
-    def calc_gamma2(self, radius=None, mask=None):
+    def calc_gamma2(self, radius=None, ind=False, mask=None):
         """
         Compute and store the gamma2 criterion for vortex analysis
         """
-        from IMTreatment.vortex_detection.vortex_detection import get_gamma2
-        self.gamma2 = get_gamma2(self.V, radius, mask)
+        from IMTreatment.vortex_detection.vortex_detection import get_gamma
+        self.gamma2 = get_gamma(self.V, radius=radius, ind=ind,
+                                kind='gamma2', mask=mask)
 
-    def calc_kappa1(self, radius=None, mask=None):
+    def calc_kappa1(self, radius=None, ind=False, mask=None):
         """
         Compute and store the kappa1 criterion for vortex analysis
         """
-        from IMTreatment.vortex_detection.vortex_detection import get_kappa1
-        self.kappa1 = get_kappa1(self.V, radius, mask)
+        from IMTreatment.vortex_detection.vortex_detection import get_kappa
+        self.kappa1 = get_kappa(self.V, radius=radius, ind=ind,
+                                kind='kappa1', mask=mask)
 
-    def calc_kappa2(self, radius=None, mask=None):
+    def calc_kappa2(self, radius=None, ind=False, mask=None):
         """
         Compute and store the kappa2 criterion for vortex analysis
         """
-        from IMTreatment.vortex_detection.vortex_detection import get_kappa2
-        self.kappa2 = get_kappa2(self.V, radius, mask)
+        from IMTreatment.vortex_detection.vortex_detection import get_kappa
+        self.kappa2 = get_kappa(self.V, radius=radius, ind=ind,
+                                kind='kappa2', mask=mask)
 
     def calc_iota(self, mask=None, sigmafilter=False):
         """

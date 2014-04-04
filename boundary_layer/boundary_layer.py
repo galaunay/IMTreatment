@@ -109,6 +109,23 @@ class BlasiusBL:
                       unit_y=make_unit(''))
         return delta, Cf, Rex
 
+    def get_profile(x, allTurbulent=False):
+        """
+        Return a Blasius-like profile at the given position
+
+        Parameters
+        ----------
+        x : number
+            Position of the profile along x axis
+        allTurbulent : bool, optional
+            if True, all the boundary layer is considered turbulent.
+
+        Returns
+        -------
+        prof : Profile Object
+            Wanted Blasius-like profile.
+        """
+        pass
 
 class DefectLaw:
     """
