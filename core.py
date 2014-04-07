@@ -5847,7 +5847,26 @@ class TemporalVelocityFields(VelocityFields):
             'abs(raw_spec)/length_signal' in order to have coherent ordinate
             axis.
             Else, raw spectrum is returned.
+
+        Returns
+        -------
+        magn_prof : Profile object
+            Magnitude spectrum.
+        phase_prof : Profile object
+            Phase spectrum
         """
+        # checking parameters coherence
+        if not isinstance(pt, ARRAYTYPES):
+            raise TypeError("'pt' must be a 2x1 array")
+        pt = np.array(pt)
+        if not pt.shape == (2,):
+            raise ValueError("'pt' must be a 2x1 array")
+        if not isinstance(ind, bool):
+            raise TypeError("'ind' must be a boolean")
+        if not isinstance(interp, bool):
+            raise TypeError("'interp' must be a boolean")
+        if not isinstance(raw_spec, bool):
+            raise TypeError("'raw_spec' must be a boolean")
         x = pt[0]
         y = pt[1]
         comp = self.get_comp(component)
@@ -5881,18 +5900,26 @@ class TemporalVelocityFields(VelocityFields):
                     return None
             # getting spectrum
             n = len(values)
+            Y = np.fft.rfft(values)
+            print(Y)
             if raw_spec:
-                Y = np.fft.rfft(values)
+                magn = np.abs(Y)
             else:
-                Y = np.abs(np.fft.rfft(values))/(n/2)
+                magn = np.abs(Y)/(n/2)
+            phase = np.angle(Y)
             # getting frequencies
             Ts = time[1] - time[0]
             frq = np.fft.rfftfreq(n, Ts)
         else:
             raise ValueError("Not implemented yet on {}".format(type(comp[0])))
-        return Profile(frq, Y, unit_x=make_unit('Hz'))
+        magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
+                            unit_y=comp[0].unit_values)
+        phase_prof = Profile(frq, phase, unit_x=make_unit('Hz'),
+                             unit_y=make_unit('rad'))
+        return magn_prof, phase_prof
 
-    def get_spectrum_over_area(self, component, intervalx, intervaly):
+    def get_spectrum_over_area(self, component, intervalx, intervaly,
+                               ind=False, interp=False, raw_spec=False):
         """
         Return a Profile object, contening a mean spectrum of the given
         component, on all the points included in the given intervals.
@@ -5904,12 +5931,26 @@ class TemporalVelocityFields(VelocityFields):
         intervalx, intervaly : 2x1 arrays of numbers
             Defining the square on which averaging the spectrum.
             (in axes values)
+        ind : boolean
+            If true, 'pt' is read as indices,
+            else, 'pt' is read as coordinates.
+        interp : boolean
+            If 'True', linear interpolation is used to get component between
+            grid points, else, the nearest point is choosen.
+        raw_spec: boolean
+            If 'False' (default), returned spectrum is
+            'abs(raw_spec)/length_signal' in order to have coherent ordinate
+            axis.
+            Else, raw spectrum is returned.
 
         Returns
         -------
-        Spectrum : Profile object
-            Averaged spectrum.
+        magn_prof : Profile object
+            Averaged magnitude spectrum.
+        phase_prof : Profile object
+            Averaged phase spectrum
         """
+        # checking parameters coherence
         if not isinstance(component, STRINGTYPES):
             raise TypeError("'component' must be a string")
         if not isinstance(intervalx, ARRAYTYPES):
@@ -5921,35 +5962,59 @@ class TemporalVelocityFields(VelocityFields):
         if not isinstance(intervaly[0], NUMBERTYPES):
             raise TypeError("'intervaly' must be an array of numbers")
         axe_x, axe_y = self[0].get_axes()
-        axe_x_min = np.min(axe_x)
-        axe_x_max = np.max(axe_x)
-        axe_y_min = np.min(axe_y)
-        axe_y_max = np.max(axe_y)
-        if np.min(intervalx) < axe_x_min\
-                or np.max(intervalx) > axe_x_max\
-                or np.min(intervaly) < axe_y_min\
-                or np.max(intervaly) > axe_y_max:
-            raise ValueError("intervals are out of bounds")
+        # checking interval values
+        if ind:
+            if not isinstance(intervalx[0], int)\
+                    or not isinstance(intervalx[1], int)\
+                    or not isinstance(intervaly[0], int)\
+                    or not isinstance(intervaly[1], int):
+                raise TypeError("'intervalx' and 'intervaly' must be arrays of"
+                                " integer if 'ind' is 'True'")
+            if intervalx[0] < 0 or intervaly[0] < 0\
+                    or intervalx[-1] >= len(axe_x)\
+                    or intervaly[-1] >= len(axe_y):
+                raise ValueError("intervals are out of bounds")
+        else:
+            axe_x_min = np.min(axe_x)
+            axe_x_max = np.max(axe_x)
+            axe_y_min = np.min(axe_y)
+            axe_y_max = np.max(axe_y)
+            if np.min(intervalx) < axe_x_min\
+                    or np.max(intervalx) > axe_x_max\
+                    or np.min(intervaly) < axe_y_min\
+                    or np.max(intervaly) > axe_y_max:
+                raise ValueError("intervals are out of bounds")
         # Getting indices bounds
-        tmp_sf = self.fields[0].V.comp_x
-        ind_x_min = tmp_sf.get_indice_on_axe(1, intervalx[0])[0]
-        ind_x_max = tmp_sf.get_indice_on_axe(1, intervalx[1])[-1]
-        ind_y_min = tmp_sf.get_indice_on_axe(2, intervaly[0])[0]
-        ind_y_max = tmp_sf.get_indice_on_axe(2, intervaly[1])[-1]
-        # Averaging ponctual spectrum
-        spectrum = 0.
+        if not ind:
+            tmp_sf = self.fields[0].V.comp_x
+            ind_x_min = tmp_sf.get_indice_on_axe(1, intervalx[0])[0]
+            ind_x_max = tmp_sf.get_indice_on_axe(1, intervalx[1])[-1]
+            ind_y_min = tmp_sf.get_indice_on_axe(2, intervaly[0])[0]
+            ind_y_max = tmp_sf.get_indice_on_axe(2, intervaly[1])[-1]
+        else:
+            ind_x_min = intervalx[0]
+            ind_x_max = intervalx[1]
+            ind_y_min = intervaly[0]
+            ind_y_max = intervaly[1]
+        # Averaging ponctual spectrums
+        magn = 0.
+        phase = 0.
         nmb_fields = (ind_x_max - ind_x_min + 1)*(ind_y_max - ind_y_min + 1)
         real_nmb_fields = nmb_fields
         for i in np.arange(ind_x_min, ind_x_max + 1):
             for j in np.arange(ind_y_min, ind_y_max + 1):
-                tmp_spec = self.get_spectrum(component, [i, j], ind=True)
+                tmp_m, tmp_p = self.get_spectrum(component, [i, j], ind=True,
+                                                 interp=interp,
+                                                 raw_spec=raw_spec)
                 # check if the position is masked
-                if tmp_spec is None:
+                if tmp_m is None:
                     real_nmb_fields -= 1
                 else:
-                    spectrum = spectrum + tmp_spec
-        spectrum = spectrum/real_nmb_fields
-        return spectrum
+                    magn = magn + tmp_m
+                    phase = phase + tmp_p
+        magn = magn/real_nmb_fields
+        phase = phase/real_nmb_fields
+        return magn, phase
 
     def calc_mean_vf(self, nmb_min=1):
         """
