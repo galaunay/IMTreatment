@@ -5,16 +5,19 @@ Created on Sun Feb 23 18:07:07 2014
 @author: muahah
 """
 
+
 import pdb
 import IMTreatment as imt
-from ..core import Points, ScalarField, VectorField, make_unit,\
+from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, VelocityField, TemporalVelocityFields
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.interpolate import UnivariateSpline
+import warnings
 import sets
 
 
-### Critical points detection algorithm ###
+
 def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
                               treat_others=False):
     """
@@ -41,10 +44,14 @@ def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
 
     Returns
     -------
-    rot_vc_traj : tuple of Points objects
-        Rotative vortex centers trajectories
-    contrarot_vc : tuple of Points objects
-        Contrarotative vortex centers trajectories
+    focus_traj : tuple of Points objects
+        Rotative focus trajectories
+    focus_c_traj : tuple of Points objects
+        Contrarotative focus trajectories
+    nodes_i_traj : tuple of Points objects
+        In nodes trajectories
+    nodes_o_traj : tuple of Points objects
+        Out nodes trajectories
     saddle_pts : tuple of Points objects
         Saddle points trajectories
     VF_others : tuple of VelocityField
@@ -78,7 +85,7 @@ def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
         if len(oth) != 0:
             others += oth
     # getting times
-    times = TVFS.get_comp('times')
+    times = TVFS.get_comp('time')
     # getting critical points trajectory
     if len(focus) != 0:
         focus_traj = vortices_evolution(focus, times, epsilon)
@@ -168,8 +175,8 @@ def find_critical_points(VF, windows_size=5, radius=None, expend=True,
         # test if node or focus
         if VF.PBI == 1:
             # checking if node or focus
-            VF.gamma1 = get_gamma1(VF.V, radius)
-            VF.kappa1 = get_kappa1(VF.V, radius)
+            VF.gamma1 = get_gamma(VF.V, radius)
+            VF.kappa1 = get_kappa(VF.V, radius)
             max_gam = np.max([abs(VF.gamma1.get_max()),
                              abs(VF.gamma1.get_min())])
             max_kap = np.max([abs(VF.kappa1.get_max()),
@@ -890,6 +897,125 @@ def _expend(VF, vf, expend, error=True):
         lim_y = [axe_y[0] - expend, axe_y[-1] + expend]
     # trim area
     return VF.trim_area(lim_x, lim_y)
+
+
+### Separation point detection algorithm ###
+def get_separation_position(obj, wall_direction, wall_position,
+                            interval=None):
+    """
+    Compute and return the separation points position.
+    Separation points position is computed by searching zero streamwise
+    velocities on surrounding field lines (4 of them) and by interpolating at
+    the wanted 'wall_position'.
+    'interval' must include separation points on the 4 nearest field line.
+
+    Parameters
+    ----------
+    obj : ScalarField, VectorField, VelocityField or TemporalVelocityField
+        If 'VectorField' or 'VelocityField', wall_direction is used to
+        determine the interesting velocity component.
+    wall_direction : integer
+        1 for a wall at a given value of x,
+        2 for a wall at a given value of y.
+    wall_position : number
+        Position of the wall.
+    interval : 2x1 array of numbers, optional
+        Optional interval in which search for the detachment points.
+
+    """
+    # checking parameters coherence
+    if not isinstance(obj, (ScalarField, VectorField, VelocityField,
+                            TemporalVelocityFields)):
+        raise TypeError("Unknown type for 'obj'")
+    if not isinstance(wall_direction, NUMBERTYPES):
+        raise TypeError("'wall_direction' must be a number")
+    if wall_direction != 1 and wall_direction != 2:
+        raise ValueError("'wall_direction' must be 1 or 2")
+    if not isinstance(wall_position, NUMBERTYPES):
+        raise ValueError("'wall_position' must be a number")
+    axe_x, axe_y = obj.get_axes()
+    if interval is None:
+        if wall_direction == 2:
+            interval = [np.min(axe_x), np.max(axe_x)]
+        else:
+            interval = [np.min(axe_y), np.max(axe_y)]
+    if not isinstance(interval, ARRAYTYPES):
+        raise TypeError("'interval' must be a array")
+    # checking 'obj' type
+    if isinstance(obj, ScalarField):
+        V = obj.values
+        if wall_direction == 1:
+            axe = axe_x
+        else:
+            axe = axe_y
+    elif isinstance(obj, VectorField):
+        if wall_direction == 1:
+            V = obj.comp_y
+            axe = axe_x
+        else:
+            V = obj.comp_x
+            axe = axe_y
+    elif isinstance(obj, VelocityField):
+        if wall_direction == 1:
+            V = obj.V.comp_y
+            axe = axe_x
+        else:
+            V = obj.V.comp_x
+            axe = axe_y
+    elif isinstance(obj, TemporalVelocityFields):
+        pts = []
+        times = obj.get_comp('time')
+        if wall_direction == 1:
+            unit_axe = obj[0].V.comp_x.unit_y
+        else:
+            unit_axe = obj[0].V.comp_x.unit_x
+        for field in obj:
+            pts.append(get_separation_position(field,
+                                               wall_direction=wall_direction,
+                                               wall_position=wall_position,
+                                               interval=interval))
+        return Profile(times, pts, unit_x=obj.get_comp('unit_time')[0],
+                       unit_y=unit_axe)
+    else:
+        raise ValueError("Unknown type for 'obj'")
+    # Getting separation position ( We get separation points on adjacents
+    # lines, and we interpolate.)
+    #    Getting lines around wall
+    nmb_lines = 4
+    if wall_position < axe[0]:
+        lines_pos = axe[0:nmb_lines]
+    elif wall_position > axe[-1]:
+        lines_pos = axe[-nmb_lines-1:-1]
+    else:
+        inds = V.get_indice_on_axe(wall_direction, wall_position)
+        if len(inds) == 1:
+            inds = [inds[0], inds[0] + 1]
+        if inds[0] - nmb_lines/2 < 0:
+            lines_pos = axe[0:nmb_lines]
+        elif inds[-1] + nmb_lines/2 > len(axe):
+            lines_pos = axe[-nmb_lines-1:-1]
+        else:
+            lines_pos = axe[inds[0] - nmb_lines/2:inds[1] + nmb_lines/2]
+    #    Getting separation points on surrounding lines
+    seps = np.array([])
+    for lp in lines_pos:
+        # extraction one line
+        tmp_profile, _ = V.get_profile(wall_direction, lp)
+        # getting the velocity sign changment on the line
+        values = tmp_profile.get_interpolated_value(y=0)
+        values = np.array(values)
+        # masking with 'interval'
+        values = values[np.logical_and(values > interval[0],
+                                       values < interval[1])]
+        seps = np.append(seps, np.mean(values))
+    # deleting lines where no separation points were found
+    if np.any(np.isnan(seps)):
+        warnings.warn("I can't find a separation points on one (or more)"
+                      " line(s). You may want to change 'interval' values")
+        seps = seps[~np.isnan(seps)]
+        lines_pos = lines_pos[~np.isnan(seps)]
+    interp = UnivariateSpline(lines_pos, seps, k=1)
+    return interp(wall_position)
 
 
 ### Critical lines detection algorithm ###

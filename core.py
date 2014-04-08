@@ -2123,11 +2123,12 @@ class ScalarField(object):
             raise TypeError("'value' must be a number.")
         if direction == 1:
             axe = self.axe_x
-            if value < self.axe_x[0] or value > self.axe_x[-1]:
+            if value < axe[0] or value > axe[-1]:
+                print(axe)
                 raise ValueError("'value' is out of bound.")
         else:
             axe = self.axe_y
-            if value < self.axe_y[0] or value > self.axe_y[-1]:
+            if value < axe[0] or value > axe[-1]:
                 raise ValueError("'value' is out of bound.")
         # getting the borning indices
         ind = np.searchsorted(axe, value)
@@ -4717,6 +4718,12 @@ class VelocityField(object):
             except AttributeError:
                 self.calc_q_criterion()
                 return self.qcrit
+        elif componentname == "swirling_strength":
+            try:
+                return self.swirling_strength
+            except AttributeError:
+                self.calc_swirling_strength()
+                return self.swirling_strength
         elif componentname == "sigma":
             try:
                 return self.sigma
@@ -4934,23 +4941,6 @@ class VelocityField(object):
         copy.import_from_velocityfield(self)
         return copy
 
-#    def GetComp(self, componentname):
-#        """
-#        Get the velocity field component.
-#
-#        Parameters
-#        ----------
-#        componentname : string
-#            Name of the component to get.
-#
-#        Returns
-#        -------
-#        Component : ScalarField, VectorField
-#            Asked velocity field component.
-#        """
-#        compo = self.get_comp(componentname)
-#        return compo.get_copy()
-
     def calc_magnitude(self):
         """
         Compute and store the velocity field magnitude.
@@ -5017,56 +5007,11 @@ class VelocityField(object):
             import get_q_criterion
         self.qcrit = get_q_criterion(self.V, mask)
 
-    def calc_detachment_position(self, wall_direction=2, wall_position=None,
-                                 interval=None):
+    def calc_swirling_strength(self):
         """
-        Compute and return the detachment points positions.
-
-        Parameters
-        ----------
-        wall_direction : integer
-            1 for a wall at a given value of x,
-            2 for a wall at a given value of y.
-        wall_position : number, optional
-            Position of the wall. The default position is the minimum value
-            on the axe.
-        interval : 2x1 array of numbers, optional
-            Optional interval in which search for the detachment points.
-
+        Compute and store the swirling strength for vortex analysis.
         """
-        if not isinstance(wall_direction, NUMBERTYPES):
-            raise TypeError("'wall_direction' must be a number")
-        if wall_direction != 1 and wall_direction != 2:
-            raise ValueError("'wall_direction' must be 1 or 2")
-        axe_x, axe_y = self.get_axes()
-        if interval is None:
-            if wall_direction == 2:
-                interval = [np.min(axe_x), np.max(axe_x)]
-            else:
-                interval = [np.min(axe_y), np.max(axe_y)]
-        if not isinstance(interval, ARRAYTYPES):
-            raise TypeError("'interval' must be a array")
-        if wall_direction == 1:
-            V = self.V.comp_y
-            axe = axe_x
-            #axe2 = axe_y
-        else:
-            V = self.V.comp_x
-            axe = axe_y
-            #axe2 = axe_x
-        if wall_position is None:
-            wall_position = axe.min()
-        if not isinstance(wall_position, NUMBERTYPES):
-            raise ValueError("'wall_position' must be a number")
-        if wall_position > axe[-1] or wall_position < axe[0]:
-            raise StandardError("not implemented yet...")
-        else:
-            tmp_profile, _ = V.get_profile(wall_direction, wall_position)
-            #tmp_profile = tmp_profile.smooth(10)
-            values = tmp_profile.get_interpolated_value(y=0)
-            values = values[np.logical_and(values > interval[0],
-                                           values < interval[1])]
-            return np.mean(values)
+        self.swirling_strength = self.V.get_swirling_strength()
 
     def trim_area(self, intervalx=None, intervaly=None):
         """
@@ -5269,7 +5214,7 @@ class VelocityFields(object):
             Incrementation between fields to take. Default is 1, meaning all
             fields are taken.
         dt : number
-            interval of time between field.
+            interval of time between fields.
         """
         self.fields = []
         if fieldnumbers is not None:
@@ -5769,6 +5714,12 @@ class TemporalVelocityFields(VelocityFields):
                 return tmp_fields
         raise ValueError("Unknown component : {}".format(componentname))
 
+    def get_axes(self):
+        """
+        Return fields axis
+        """
+        return self[0].V.get_axes()
+
     def get_dim(self):
         """
         Return the fields dimension.
@@ -5798,7 +5749,9 @@ class TemporalVelocityFields(VelocityFields):
         Returns
         -------
         profile : Profile object
+
         """
+        # check parameters coherence
         if not isinstance(component, STRINGTYPES):
             raise TypeError("'component' must be a string")
         if not isinstance(x, NUMBERTYPES) or not isinstance(y, NUMBERTYPES):
@@ -5810,17 +5763,18 @@ class TemporalVelocityFields(VelocityFields):
         compo = self.get_comp(component)
         if not isinstance(compo, ARRAYTYPES):
             raise ValueError("Unvalid component for a time profile")
+        # if the given object is a ScalarField
         if isinstance(compo[0], ScalarField):
             time = []
             unit_time = self[0].unit_time
-            values = []
+            values = np.array([])
             unit_values = compo[0].unit_values
             # getting position indices
             ind_x = compo[0].get_indice_on_axe(1, x, nearest=True)
-            ind_y = compo[0].get_indice_on_axe(1, y, nearest=True)
+            ind_y = compo[0].get_indice_on_axe(2, y, nearest=True)
             for i in np.arange(len(compo)):
                 time.append(self[i].time)
-                values.append(compo[i].values[ind_y, ind_x])
+                values= np.append(values, compo[i].values[ind_y, ind_x])
             return Profile(time, values, unit_x=unit_time, unit_y=unit_values)
         else:
             raise ValueError("Unvalid component for a time profile")
@@ -5897,11 +5851,10 @@ class TemporalVelocityFields(VelocityFields):
             # checking if position is masked
             for val in values:
                 if hasattr(val, 'mask'):
-                    return None
+                    return None, None
             # getting spectrum
             n = len(values)
             Y = np.fft.rfft(values)
-            print(Y)
             if raw_spec:
                 magn = np.abs(Y)
             else:

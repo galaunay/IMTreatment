@@ -7,6 +7,7 @@ Created on Sun Feb 23 18:21:52 2014
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.integrate import odeint
 from .. import Profile, make_unit, ScalarField
 import pdb
 
@@ -109,9 +110,9 @@ class BlasiusBL:
                       unit_y=make_unit(''))
         return delta, Cf, Rex
 
-    def get_profile(x, allTurbulent=False):
+    def get_profile(self, x, allTurbulent=False):
         """
-        Return a Blasius-like profile at the given position
+        Return a Blasius-like (laminar) profile at the given position.
 
         Parameters
         ----------
@@ -125,7 +126,28 @@ class BlasiusBL:
         prof : Profile Object
             Wanted Blasius-like profile.
         """
-        pass
+        # derivate function
+        def f_deriv(F, theta):
+            """
+            y' = dy/dx
+            y'' = dy'/dx
+            dy''/dx = -1/2*y*dy'/dx
+            """
+            return [F[1], F[2], -1./2.*F[0]*F[2]]
+        # profile initial values
+        f0 = [0, 0, 0.332]
+        # x values
+        theta = np.linspace(0, 10, 1000)
+        # solving with scipy ode solver
+        sol = odeint(f_deriv, f0, theta)
+        #getting adimensionnale velocity
+        u_over_U = sol[:, 1]
+        # getting dimensionnal values
+        u = u_over_U*self.Uinf
+        y = theta*np.sqrt(x)*np.sqrt(self.nu/self.Uinf)
+        # return
+        return Profile(y, u, unit_x=make_unit('m'), unit_y=make_unit('m/s'))
+
 
 class DefectLaw:
     """
@@ -278,11 +300,12 @@ def get_bl_thickness(obj, direction=1, perc=0.95):
     Parameters
     ----------
     obj : Profile or ScalarField object
+        Vx field.
     direction : integer, optional
         If 'obj' is a ScalarField, determine the swept axis
         (1 for x and 2 for y).
     perc : float, optionnal
-        Percentage used in the bl calculation (90% per default).
+        Percentage used in the bl calculation (95% per default).
 
     Returns
     -------
@@ -331,9 +354,10 @@ def get_displ_thickness(obj, direction=1):
             return 0
         obj = obj.trim([0, bl_thick])
         # removing negative and masked points
-        mask = np.logical_and(obj.y.mask, obj.x < 0)
-        obj.x = obj.x[~mask]
-        obj.y = obj.y._data[~mask]
+        if isinstance(obj.y, np.ma.MaskedArray):
+            mask = np.logical_and(obj.y.mask, obj.x < 0)
+            obj.x = obj.x[~mask]
+            obj.y = obj.y._data[~mask]
         # if there is no more value in the profile (all masked)
         if len(obj.x) == 0:
             return 0
@@ -384,9 +408,10 @@ def get_momentum_thickness(obj, direction=1):
             return 0
         obj = obj.trim([0, bl_thick])
         # removing negative and masked points
-        mask = np.logical_and(obj.y.mask, obj.x < 0)
-        obj.x = obj.x[~mask]
-        obj.y = obj.y._data[~mask]
+        if isinstance(obj.y, np.ma.MaskedArray):
+            mask = np.logical_and(obj.y.mask, obj.x < 0)
+            obj.x = obj.x[~mask]
+            obj.y = obj.y._data[~mask]
         # if there is no more profile (all masked)
         if len(obj.x) == 0:
             return 0
