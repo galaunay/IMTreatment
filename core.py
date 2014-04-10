@@ -4666,6 +4666,13 @@ class VelocityField(object):
             raise TypeError("'componentname' must be a string")
         if componentname == "V":
             return self.V
+        if componentname == "mask":
+            tmp_mask = self.V.comp_x.get_copy()
+            if isinstance(self.V.comp_x.values, np.ma.MaskedArray):
+                tmp_mask.values = self.V.comp_x.values.mask
+            else:
+                tmp_mask.values = np.zeros(tmp_mask.values.shape)
+            return tmp_mask
         elif componentname == "Vx":
             return self.V.comp_x
         elif componentname == "Vy":
@@ -5779,8 +5786,8 @@ class TemporalVelocityFields(VelocityFields):
         else:
             raise ValueError("Unvalid component for a time profile")
 
-    def get_spectrum(self, component, pt, ind=False, interp=False,
-                     raw_spec=False):
+    def get_spectrum(self, component, pt, ind=False, zero_fill=False,
+                     interp=False, raw_spec=False, mask_error=True):
         """
         Return a Profile object, with the frequential spectrum of 'component',
         on the point 'pt'.
@@ -5793,6 +5800,8 @@ class TemporalVelocityFields(VelocityFields):
         ind : boolean
             If true, 'pt' is read as indices,
             else, 'pt' is read as coordinates.
+        zero_fill : boolean
+            If True, field masked values are filled by zeros.
         interp : boolean
             If 'True', linear interpolation is used to get component between
             grid points, else, the nearest point is choosen.
@@ -5801,6 +5810,9 @@ class TemporalVelocityFields(VelocityFields):
             'abs(raw_spec)/length_signal' in order to have coherent ordinate
             axis.
             Else, raw spectrum is returned.
+        mask_error : boolean
+            If 'False', instead of raising an error when masked value appear on
+            time profile, '(None, None)' is returned.
 
         Returns
         -------
@@ -5823,6 +5835,7 @@ class TemporalVelocityFields(VelocityFields):
             raise TypeError("'raw_spec' must be a boolean")
         x = pt[0]
         y = pt[1]
+        axe_x, axe_y = self.get_axes()
         comp = self.get_comp(component)
         if isinstance(comp[0], ScalarField):
             # getting indices points
@@ -5831,27 +5844,41 @@ class TemporalVelocityFields(VelocityFields):
             if ind:
                 ind_x = x
                 ind_y = y
-            else:
+            elif not interp:
                 inds_x = self.fields[0].V.comp_x.get_indice_on_axe(1, pt[0])
                 if len(inds_x) == 1:
                     ind_x = inds_x[0]
+                else:
+                    vals = [axe_x[inds_x[0]], axe_x[inds_x[1]]] - x
+                    ind_x = inds_x[np.argmin(vals)]
                 inds_y = self.fields[0].V.comp_x.get_indice_on_axe(2, pt[1])
                 if len(inds_y) == 1:
                     ind_y = inds_y[0]
+                else:
+                    vals = [axe_y[inds_y[0]], axe_y[inds_y[1]]] - y
+                    ind_y = inds_y[np.argmin(vals)]
             # getting temporal evolution
             time = []
             values = []
             for i in np.arange(len(comp)):
                 sf = comp[i]
                 time.append(self[i].time)
-                if ind_x is not None and ind_y is not None:
-                    values.append(sf.values[ind_y, ind_x])
-                else:
+                if interp:
                     values.append(sf.get_value(x, y, ind=ind))
+                else:
+                    values.append(sf.values[ind_y, ind_x])
             # checking if position is masked
-            for val in values:
-                if hasattr(val, 'mask'):
-                    return None, None
+            for i, val in enumerate(values):
+                if np.ma.is_masked(val):
+                    if zero_fill:
+                        values[i]=0
+                    else:
+                        if mask_error:
+                            raise StandardError("Masked values on time "
+                                                "profile")
+                        else:
+                            return None, None
+
             # getting spectrum
             n = len(values)
             Y = np.fft.rfft(values)
@@ -5872,7 +5899,8 @@ class TemporalVelocityFields(VelocityFields):
         return magn_prof, phase_prof
 
     def get_spectrum_over_area(self, component, intervalx, intervaly,
-                               ind=False, interp=False, raw_spec=False):
+                               ind=False, zero_fill=False, interp=False,
+                               raw_spec=False):
         """
         Return a Profile object, contening a mean spectrum of the given
         component, on all the points included in the given intervals.
@@ -5887,6 +5915,8 @@ class TemporalVelocityFields(VelocityFields):
         ind : boolean
             If true, 'pt' is read as indices,
             else, 'pt' is read as coordinates.
+        zero_fill : boolean
+            If True, field masked values are filled by zeros.
         interp : boolean
             If 'True', linear interpolation is used to get component between
             grid points, else, the nearest point is choosen.
@@ -5957,14 +5987,19 @@ class TemporalVelocityFields(VelocityFields):
         for i in np.arange(ind_x_min, ind_x_max + 1):
             for j in np.arange(ind_y_min, ind_y_max + 1):
                 tmp_m, tmp_p = self.get_spectrum(component, [i, j], ind=True,
+                                                 zero_fill=zero_fill,
                                                  interp=interp,
-                                                 raw_spec=raw_spec)
+                                                 raw_spec=raw_spec,
+                                                 mask_error=False)
                 # check if the position is masked
                 if tmp_m is None:
                     real_nmb_fields -= 1
                 else:
                     magn = magn + tmp_m
                     phase = phase + tmp_p
+        if real_nmb_fields == 0:
+            raise StandardError("I can't find a single non-masked time profile"
+            ", maybe you will want to try 'zero_fill' option")
         magn = magn/real_nmb_fields
         phase = phase/real_nmb_fields
         return magn, phase
@@ -6139,40 +6174,40 @@ class TemporalVelocityFields(VelocityFields):
         self.rs_xy.import_from_arrays(axe_x, axe_y, rs_xy,
                                       unit_x, unit_y, unit_values)
 
-    def calc_detachment_positions(self, wall_direction=2, wall_position=None,
-                                  interval=None):
-        """
-        Return a Profile object of the temporal evolution of the detachment
-        point, using the 'calc_detachment_position' fonction of
-        VelocityField objects.
-
-        Parameters
-        ----------
-        wall_direction : integer, optional
-            1 for a wall at a given value of x,
-            2 for a wall at a given value of y (default).
-        wall_position : number, optional
-            Position of the wall. The default position is the minimum value
-            on the axe.
-        interval : 2x1 array of numbers, optional
-            Optional interval in which search for the detachment points.
-
-        """
-        x = np.zeros(len(self.fields))
-        time = np.zeros(len(self.fields))
-        i = 0
-        for field in self.fields:
-            x[i] = field.calc_detachment_position(wall_direction=
-                                                  wall_direction,
-                                                  wall_position=wall_position,
-                                                  interval=interval)
-            time[i] = field.time
-            i += 1
-        if wall_direction == 1:
-            unit_x = self.fields[0].V.comp_x.unit_y
-        else:
-            unit_x = self.fields[0].V.comp_x.unit_x
-        return Profile(time, x, self.fields[0].unit_time, unit_x)
+#    def calc_detachment_positions(self, wall_direction=2, wall_position=None,
+#                                  interval=None):
+#        """
+#        Return a Profile object of the temporal evolution of the detachment
+#        point, using the 'calc_detachment_position' fonction of
+#        VelocityField objects.
+#
+#        Parameters
+#        ----------
+#        wall_direction : integer, optional
+#            1 for a wall at a given value of x,
+#            2 for a wall at a given value of y (default).
+#        wall_position : number, optional
+#            Position of the wall. The default position is the minimum value
+#            on the axe.
+#        interval : 2x1 array of numbers, optional
+#            Optional interval in which search for the detachment points.
+#
+#        """
+#        x = np.zeros(len(self.fields))
+#        time = np.zeros(len(self.fields))
+#        i = 0
+#        for field in self.fields:
+#            x[i] = field.calc_detachment_position(wall_direction=
+#                                                  wall_direction,
+#                                                  wall_position=wall_position,
+#                                                  interval=interval)
+#            time[i] = field.time
+#            i += 1
+#        if wall_direction == 1:
+#            unit_x = self.fields[0].V.comp_x.unit_y
+#        else:
+#            unit_x = self.fields[0].V.comp_x.unit_x
+#        return Profile(time, x, self.fields[0].unit_time, unit_x)
 
     def reduce_temporal_resolution(self, nmb_in_interval, mean=True):
         """

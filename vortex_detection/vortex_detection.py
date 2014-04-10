@@ -30,8 +30,9 @@ def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
     Parameters
     ----------
     TVFS : TemporalVelocityFields object
+        Sets of fields on which detect vortex
     windows_size : int, optional
-        Size of the windows for isolating structures.
+        Size of the windows for isolating structures (default is 5).
         (a small value gave less VF_others, but can lead to errors because of
         critical points no-finding).
     epsilon : float, optional
@@ -197,10 +198,21 @@ def find_critical_points(VF, windows_size=5, radius=None, expend=True,
     saddles = []
     if len(VF_saddle) != 0:
         for VF in VF_saddle:
-            # getting iota
+# TODO : determiner lequel est le mieux !
+#            # getting iota
+#            V_tmp = VF.V
+#            tmp_iota = get_iota(V_tmp)
+#            pts = tmp_iota.get_zones_centers(bornes=[.75, 1], kind='extremum')
+#            if pts is not None:
+#                if pts.xy[0][0] is not None and len(pts) == 1:
+#                    pts.v = [VF.time]
+#                    pts.unit_v = VF.unit_time
+#                    saddles.append(pts)
+            # trying with sigma instead of iota
             V_tmp = VF.V
-            tmp_iota = get_iota(V_tmp)
-            pts = tmp_iota.get_zones_centers(bornes=[.75, 1], kind='extremum')
+            tmp_sigma = get_sigma(V_tmp, 1, ind=True)
+            pts = tmp_sigma.get_zones_centers(bornes=[0, .25], rel=False,
+                                              kind='center')
             if pts is not None:
                 if pts.xy[0][0] is not None and len(pts) == 1:
                     pts.v = [VF.time]
@@ -326,7 +338,7 @@ def find_critical_points_on_zoi(VF, others_VF, radius=None, expend=True):
         # Computing criterion
         vf.calc_gamma1(radius)
         vf.calc_kappa1(radius)
-        vf.calc_iota()
+        vf.calc_sigma(radius)
         # Getting the most adequate criterion
         gam_prob1 = np.abs(vf.gamma1.get_min())/1.
         gam_prob2 = np.abs(vf.gamma1.get_max())/1.
@@ -372,7 +384,8 @@ def find_critical_points_on_zoi(VF, others_VF, radius=None, expend=True):
                     nodes_o.append(pts)
         elif adeq_crit == 4:
             #saddle
-            pts = vf.iota.get_zones_centers(bornes=[.75, 1])
+        # TOD0 : determiner si iota est mieux que sigma ou non
+            pts = vf.sigma.get_zones_centers(bornes=[0, .25], rel=False)
             if pts is not None:
                 if pts.xy[0][0] is not None and len(pts) == 1:
                     pts.v = [VF.time]
@@ -1128,45 +1141,58 @@ def get_critical_line(VF, source_point, direction, kol='stream',
 
 
 ### Criterion computation ###
-def get_sigma(vectorfield, radius=None, ortho=True):
+def get_sigma(vectorfield, radius=None, ind=False, mask=None):
     """
     Return the sigma scalar field, reprensenting the homogeneity of the
     VectorField. Values of 1 mean homogeneous velocity field  and 0 mean
     heterogeneous velocity field. Heterogeneous velocity zone are
-    representative of zone with crirical points.
+    representative of zone with critical points.
     In details, Sigma is calculated as the variance of the 'ecart' between
     velocity angles of points surrounding the point of interest.
 
     Parameters
     ----------
     vectorfield : VectorField object
-    radius : float
-        Radius used to compute sigma. for one value of sigma, the algorithm
-        take account of all the points present in a circle of this radius
-        around it.
-    ortho : Bool, optionnal
-        Specify if the field is orthonormed (if axes values are
-        homogeneous). If True, the algorithm is faster.
+    radius : number, optionnal
+        The radius used to choose the zone where to compute
+        sigma for each point. If not mentionned, a value is choosen in
+        order to have about 8 points in the circle. It allow to get good
+        result, without big computation cost.
+    ind : boolean
+        If 'True', radius is expressed on number of vectors.
+        If 'False' (default), radius is expressed on axis unit.
+    mask : array of boolean, optionnal
+        Has to be an array of the same size of the vector field object,
+        gamma will be compute only where mask is 'False'.
 
     Returns
     -------
     Sigma : ScalarField
         Sigma scalar field
     """
-    if radius is None:
-        radius = ((vectorfield.comp_x.axe_x[-1] - vectorfield.comp_x.axe_x[0])
-                  / (vectorfield.get_dim()[0] - 1)
-                  + (vectorfield.comp_x.axe_y[-1]
-                     - vectorfield.comp_x.axe_y[0])
-                  / (vectorfield.get_dim()[1] - 1)
-                  )/2
+    # parameters constitency
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
+    if radius is None:
+        radius = 1.9
+        ind = True
     if not isinstance(radius, NUMBERTYPES):
         raise TypeError("'radius' must be a number")
-    if not ortho:
-        raise StandardError("Not implemented yet")
+    if not isinstance(ind, bool):
+        raise TypeError("'ind' must be a boolean")
     axe_x, axe_y = vectorfield.get_axes()
+    if ind:
+        # transforming into axis unit
+        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2.
+        radius = radius*delta
+        ind = False
+    if mask is None:
+        mask = np.zeros(vectorfield.get_dim())
+    elif not isinstance(mask, ARRAYTYPES):
+        raise TypeError("'zone' must be an array of boolean")
+    else:
+        mask = np.array(mask)
+    # Getting vector angles
     theta = vectorfield.get_theta().values.data
     # Calcul du motif determinant les points voisins
     ptcentral = [axe_x[int(len(axe_x)/2)], axe_y[int(len(axe_y)/2)]]
@@ -1175,26 +1201,30 @@ def get_sigma(vectorfield, radius=None, ortho=True):
     nmbpts = len(motif)
     # récupération du masque du champ de vitesse
     if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
-        mask = vectorfield.comp_x.values.mask
-    else:
-        mask = np.zeros(vectorfield.get_dim())
+        mask = np.logical_or(mask, vectorfield.comp_x.values.mask)
     # Ajout au masque des valeurs sur le bord
-    for inds, pos, _ in vectorfield:
-        min_x = axe_x[0] + radius
-        max_x = axe_x[-1] - radius
-        min_y = axe_y[0] + radius
-        max_y = axe_y[-1] - radius
-        if (pos[0] < min_x or pos[1] < min_y or
-                pos[0] > max_x or
-                pos[1] > max_y):
-            mask[inds[1], inds[0]] = True
+    border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
+                             axe_x >= axe_x[-1] - (radius - delta))
+    border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
+                             axe_y >= axe_y[-1] - (radius - delta))
+    border_x, border_y = np.meshgrid(border_x, border_y)
+    mask1 = np.logical_or(border_x, border_y)
     # calcul de delta moyen
     deltamoy = 2.*np.pi/(nmbpts)
     # boucle sur les points
     sigmas = np.zeros(vectorfield.get_dim())
+    mask2 = np.zeros(mask.shape)
     for inds, pos, _ in vectorfield:
         # On ne fait rien si la valeur est masquée
         if mask[inds[1], inds[0]]:
+            continue
+        # stop if on border
+        if mask1[inds[1], inds[0]]:
+            continue
+        # stop if one surrounding point is masked
+        skip = [mask[i[1], i[0]] for i in motif + inds]
+        if np.any(skip):
+            mask2[inds[1], inds[0]] = True
             continue
         # Extraction des thetas interessants
         theta_nei = np.zeros((len(motif),))
@@ -1215,6 +1245,9 @@ def get_sigma(vectorfield, radius=None, ortho=True):
                  + (nmbpts - 1)*(0 - deltamoy)**2)/nmbpts
     # normalisation analytique
     sigmas /= sigma_max
+    # masking
+    mask = np.logical_or(mask, mask1)
+    mask = np.logical_or(mask, mask2)
     sigmas = np.ma.masked_array(sigmas, mask)
     sigma_sf = ScalarField()
     sigma_sf.import_from_arrays(axe_x, axe_y, sigmas,
@@ -1293,10 +1326,10 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
         ortho = False
         raise Warning("Non-orthogonal field detected !")
     # creating near-border zone mask
-    border_x = np.logical_or(axe_x < axe_x[0] + radius,
-                             axe_x > axe_x[-1] - radius)
-    border_y = np.logical_or(axe_y < axe_y[0] + radius,
-                             axe_y > axe_y[-1] - radius)
+    border_x = np.logical_or(axe_x < axe_x[0] + (radius - delta),
+                             axe_x > axe_x[-1] - (radius - delta))
+    border_y = np.logical_or(axe_y < axe_y[0] + (radius - delta),
+                             axe_y > axe_y[-1] - (radius - delta))
     border_x, border_y = np.meshgrid(border_x, border_y)
     mask1 = np.logical_or(border_x, border_y)
     # norm computation
@@ -1433,10 +1466,10 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
         ortho = False
         raise Warning("Non-orthogonal field detected !")
     # creating near-border zone mask
-    border_x = np.logical_or(axe_x < axe_x[0] + radius,
-                             axe_x > axe_x[-1] - radius)
-    border_y = np.logical_or(axe_y < axe_y[0] + radius,
-                             axe_y > axe_y[-1] - radius)
+    border_x = np.logical_or(axe_x < axe_x[0] + (radius - delta),
+                             axe_x > axe_x[-1] - (radius - delta))
+    border_y = np.logical_or(axe_y < axe_y[0] + (radius - delta),
+                             axe_y > axe_y[-1] - (radius - delta))
     border_x, border_y = np.meshgrid(border_x, border_y)
     mask1 = np.logical_or(border_x, border_y)
     # if on orthogonal field, compute scheme (motif)
@@ -1607,10 +1640,11 @@ def get_iota(vectorfield, mask=None):
     iota_sf.import_from_arrays(axe_x, axe_y, grad_theta_m,
                                unit_x=vectorfield.comp_x.unit_x,
                                unit_y=vectorfield.comp_x.unit_y)
-    ### XXX : Alternate calculation for iota !
-    mean = iota_sf.integrate_over_surface().asNumber()
-    mean = mean/len(iota_sf.axe_x)/len(iota_sf.axe_y)
-    iota_sf = iota_sf - mean
-    iota_sf = iota_sf**2
+    iota_sf.smooth(1)
+#    ### XXX : Alternate calculation for iota !
+#    mean = iota_sf.integrate_over_surface().asNumber()
+#    mean = mean/len(iota_sf.axe_x)/len(iota_sf.axe_y)
+#    iota_sf = iota_sf - mean
+#    iota_sf = iota_sf**2
     ###
     return iota_sf

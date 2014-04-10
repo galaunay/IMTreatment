@@ -84,6 +84,8 @@ class BlasiusBL:
         """
         if not isinstance(x, (NumberTypes, ArrayTypes)):
             raise TypeError("x is not a number or a list")
+        if isinstance(x, NumberTypes):
+            x = np.array([x])
         if not isinstance(allTurbulent, bool):
             raise TypeError("'allTurbulent' has to be a boolean")
         delta = []
@@ -110,7 +112,7 @@ class BlasiusBL:
                       unit_y=make_unit(''))
         return delta, Cf, Rex
 
-    def get_profile(self, x, allTurbulent=False):
+    def get_profile(self, x, turbulent=False):
         """
         Return a Blasius-like (laminar) profile at the given position.
 
@@ -118,8 +120,8 @@ class BlasiusBL:
         ----------
         x : number
             Position of the profile along x axis
-        allTurbulent : bool, optional
-            if True, all the boundary layer is considered turbulent.
+        turbulent : bool, optional
+            if True, the boundary layer is considered turbulent.
 
         Returns
         -------
@@ -127,25 +129,32 @@ class BlasiusBL:
             Wanted Blasius-like profile.
         """
         # derivate function
-        def f_deriv(F, theta):
-            """
-            y' = dy/dx
-            y'' = dy'/dx
-            dy''/dx = -1/2*y*dy'/dx
-            """
-            return [F[1], F[2], -1./2.*F[0]*F[2]]
-        # profile initial values
-        f0 = [0, 0, 0.332]
-        # x values
-        theta = np.linspace(0, 10, 1000)
-        # solving with scipy ode solver
-        sol = odeint(f_deriv, f0, theta)
-        #getting adimensionnale velocity
-        u_over_U = sol[:, 1]
-        # getting dimensionnal values
-        u = u_over_U*self.Uinf
-        y = theta*np.sqrt(x)*np.sqrt(self.nu/self.Uinf)
-        # return
+        if not turbulent:
+            def f_deriv(F, theta):
+                """
+                y' = dy/dx
+                y'' = dy'/dx
+                dy''/dx = -1/2*y*dy'/dx
+                """
+                return [F[1], F[2], -1./2.*F[0]*F[2]]
+            # profile initial values
+            f0 = [0, 0, 0.332]
+            # x values
+            theta = np.linspace(0, 10, 1000)
+            # solving with scipy ode solver
+            sol = odeint(f_deriv, f0, theta)
+            #getting adimensionnale velocity
+            u_over_U = sol[:, 1]
+            # getting dimensionnal values
+            u = u_over_U*self.Uinf
+            y = theta*np.sqrt(x)*np.sqrt(self.nu/self.Uinf)
+        else:
+            delta, _, _ = self.get_thickness(x, allTurbulent=True)
+            theta = np.linspace(0, 2, 200)
+            u_over_U = np.power(theta, 1./7.)
+            u_over_U[theta>1] = 1.
+            y = theta*delta.y[0]
+            u = u_over_U*self.Uinf
         return Profile(y, u, unit_x=make_unit('m'), unit_y=make_unit('m/s'))
 
 
