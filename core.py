@@ -22,6 +22,7 @@ import unum
 import unum.units as units
 import copy
 import os
+from scipy import ndimage
 try:
     units.counts = unum.Unum.unit('counts')
     units.pixel = unum.Unum.unit('pixel')
@@ -1602,28 +1603,31 @@ class ScalarField(object):
         if not (ext == ".im7" or ext == ".IM7"):
             raise ValueError("I need the file to be an IM7 file")
         v = IM.IM7(filename)
-        self.axe_x = v.Px[0, :]
-        self.axe_y = v.Py[:, 0]
-        self.values = v.getmaI().data[0]*v.buffer['scaleI']['factor']
+        axe_x = v.Px[0, :]
+        axe_y = v.Py[:, 0]
+        values = v.getmaI().data[0]*v.buffer['scaleI']['factor']
         unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
         unit_x = unit_x.replace('[', '')
         unit_x = unit_x.replace(']', '')
-        self.unit_x = make_unit(unit_x)
+        unit_x = make_unit(unit_x)
         unit_y = v.buffer['scaleY']['unit'].split("\x00")[0]
         unit_y = unit_y.replace('[', '')
         unit_y = unit_y.replace(']', '')
-        self.unit_y = make_unit(unit_y)
+        unit_y = make_unit(unit_y)
         unit_values = v.buffer['scaleI']['unit'].split("\x00")[0]
         unit_values = unit_values.replace('[', '')
         unit_values = unit_values.replace(']', '')
-        self.unit_values = make_unit(unit_values)
+        unit_values = make_unit(unit_values)
         # check if axe are crescent
-        if self.axe_y[-1] < self.axe_y[0]:
-            self.axe_y = self.axe_y[::-1]
-            self.values = self.values[::-1, :]
-        if self.axe_x[-1] < self.axe_x[0]:
-            self.axe_x = self.axe_x[::-1]
-            self.values = self.values[:, ::-1]
+        if axe_y[-1] < axe_y[0]:
+            axe_y = axe_y[::-1]
+            values = values[::-1, :]
+        if axe_x[-1] < axe_x[0]:
+            axe_x = axe_x[::-1]
+            values = values[:, ::-1]
+        self.import_from_arrays(axe_x=axe_x, axe_y=axe_y, values=values,
+                                unit_x=unit_x, unit_y=unit_y,
+                                unit_values=unit_values)
 
     def import_from_ascii(self, filename, x_col=1, y_col=2, v_col=3,
                           unit_x=make_unit(""), unit_y=make_unit(""),
@@ -1685,12 +1689,9 @@ class ScalarField(object):
         # treating 'nan' values
         v_org.mask = np.logical_and(v_org.mask, np.isnan(v_org.data))
         #store field in attributes
-        self.axe_x = x_org
-        self.axe_y = y_org
-        self.values = v_org
-        self.unit_x = unit_x
-        self.unit_y = unit_y
-        self.unit_values = unit_values
+        self.import_from_arrays(axe_x=x_org, axe_y=y_org, values=v_org,
+                                unit_x=unit_x, unit_y=unit_y,
+                                unit_values=make_unit(''))
 
     def import_from_matlab(self, filename):
         """
@@ -1718,6 +1719,7 @@ class ScalarField(object):
         unit_values : Unit object, optionnal
             Unit for the scalar field
         """
+        # checking parameters coherence
         if not isinstance(axe_x, ARRAYTYPES):
             raise TypeError("'axe_x' must be an array")
         else:
@@ -1749,6 +1751,7 @@ class ScalarField(object):
                 values.shape[1] != axe_x.shape[0]):
             raise ValueError("Dimensions of 'axe_x', 'axe_y' and 'values' must"
                              " be consistents")
+        # storing datas
         self.axe_x = axe_x.copy()*unit_x.asNumber()
         self.axe_y = axe_y.copy()*unit_y.asNumber()
         if not isinstance(values, np.ma.MaskedArray):
@@ -1757,6 +1760,8 @@ class ScalarField(object):
         self.unit_x = unit_x.copy()/unit_x.asNumber()
         self.unit_y = unit_y.copy()/unit_y.asNumber()
         self.unit_values = unit_values.copy()/unit_values.asNumber()
+        # deleting useless datas
+        self.crop_masked_border()
 
     def import_from_scalarfield(self, scalarfield):
         """
@@ -1769,12 +1774,15 @@ class ScalarField(object):
         """
         if not isinstance(scalarfield, ScalarField):
             raise TypeError("'scalarfield' must be a ScalarField object")
-        self.axe_x = scalarfield.axe_x.copy()    # np.array is here to cut
-        self.axe_y = scalarfield.axe_y.copy()     # the link between variables
-        self.values = scalarfield.values.copy()
-        self.unit_x = scalarfield.unit_x.copy()
-        self.unit_y = scalarfield.unit_y.copy()
-        self.unit_values = scalarfield.unit_values.copy()
+        axe_x = scalarfield.axe_x.copy()    # np.array is here to cut
+        axe_y = scalarfield.axe_y.copy()     # the link between variables
+        values = scalarfield.values.copy()
+        unit_x = scalarfield.unit_x.copy()
+        unit_y = scalarfield.unit_y.copy()
+        unit_values = scalarfield.unit_values.copy()
+        self.import_from_arrays(axe_x=axe_x, axe_y=axe_y, values=values,
+                                unit_x=unit_x, unit_y=unit_y,
+                                unit_values=unit_values)
 
     def import_from_file(self, filepath, **kw):
         """
@@ -2124,7 +2132,6 @@ class ScalarField(object):
         if direction == 1:
             axe = self.axe_x
             if value < axe[0] or value > axe[-1]:
-                print(axe)
                 raise ValueError("'value' is out of bound.")
         else:
             axe = self.axe_y
@@ -2593,47 +2600,117 @@ class ScalarField(object):
                                      self.unit_values)
         return trimfield
 
-    def smooth(self, iterations=1):
+    def crop_masked_border(self):
         """
-        Smooth the scalarfield in place, using a mean on surrounding points.
+        Crop the masked border of the field in place.
+        """
+        values = self.values.data
+        mask = self.values.mask
+        # crop values
+        axe_y_m = ~np.all(mask, axis=1)
+        values = values[axe_y_m, :]
+        mask = mask[axe_y_m, :]
+        axe_x_m = ~np.all(mask, axis=0)
+        values = values[:, axe_x_m]
+        mask = mask[:, axe_x_m]
+        self.values = np.ma.masked_array(values, mask)
+        # crop axis
+        self.axe_x = self.axe_x[axe_x_m]
+        self.axe_y = self.axe_y[axe_y_m]
+
+    def fill(self, tof='interplin', value=0., crop_border=True):
+        """
+        Fill the masked part of the array in place.
+
+        Parameters
+        ----------
+        tof : string, optional
+            Type of algorithm used to fill.
+            'value' : fill with a given value
+            'interplin' : fill using linear interpolation
+            'interpcub' : fill using cubic interpolation
+        value : number
+            Value for filling (only usefull with tof='value')
+        crop_border : boolean
+            If 'True' (default), masked borders of the field are cropped
+            before filling. Else, values on border are extrapolated (poorly).
+        """
+        # check parameters coherence
+        if not isinstance(tof, STRINGTYPES):
+            raise TypeError("'tof' must be a string")
+        if not isinstance(value, NUMBERTYPES):
+            raise TypeError("'value' must be a number")
+        # if there is nothing to do...
+        mask = self.values.mask
+        if not np.any(mask):
+            pass
+        elif tof == 'interplin':
+            inds_x = np.arange(self.values.shape[1])
+            inds_y = np.arange(self.values.shape[0])
+            values = self.values.data
+            f = spinterp.interp2d(inds_y, inds_x, self.values)
+            for inds, masked in np.ndenumerate(mask):
+                if masked:
+                    values[inds[0], inds[1]] = f(inds[0], inds[1])
+            mask = np.zeros(values.shape)
+            self.values = np.ma.masked_array(values, mask)
+        elif tof == 'interpcub':
+            inds_x = np.arange(self.values.shape[1])
+            inds_y = np.arange(self.values.shape[0])
+            values = self.values.data
+            f = spinterp.interp2d(inds_y, inds_x, self.values, kind='cubic')
+            for inds, masked in np.ndenumerate(mask):
+                if masked:
+                    values[inds[0], inds[1]] = f(inds[0], inds[1])
+            mask = np.zeros(values.shape)
+            self.values = np.ma.masked_array(values, mask)
+        elif tof == 'value':
+            self.values[self.values.mask] = value
+        else:
+            raise ValueError("unknown 'tof' value")
+
+    def smooth(self, tos='uniform', size=None, **kw):
+        """
+        Smooth the scalarfield in place.
+        Warning : fill up the field (should be used carefully with masked field
+        borders)
 
         Parameters :
         ------------
-        iterations : integer, optional
-            Number of smoothing iteration on field (1 by default).
+        tos : string, optional
+            Type of smoothing, can be 'uniform' (default) or 'gaussian'
+            (See ndimage module documentation for more details)
+        size : number, optional
+            Size of the smoothing (is radius for 'uniform' and
+            sigma for 'gaussian').
+            Default is 3 for 'uniform' and 1 for 'gaussian'.
+        kw : dic
+            Additional parameters for ndimage methods
+            (See ndimage documentation)
         """
-        if not isinstance(iterations, int):
-            raise TypeError("'iterations' must be an integer")
-        values = self.values
-        dim_x, dim_y = self.get_dim()
-        tmp_values = np.zeros((dim_x, dim_y))
-        tmp_mask = np.ma.getmaskarray(values).copy()
-        # boucle sur le nombre d'iterations
-        for n in np.arange(iterations):
-            # loop on
-            for i in np.arange(dim_x):
-                if i == 0:
-                    interv_x = slice(0, 1)
-                elif i == dim_x - 1:
-                    interv_x = slice(dim_x - 1, dim_x)
-                else:
-                    interv_x = slice(i-1, i+2)
-                for j in np.arange(dim_y):
-                    if j == 0:
-                        interv_y = slice(0, 1)
-                    elif j == dim_y - 1:
-                        interv_y = slice(dim_y - 1, dim_y)
-                    else:
-                        interv_y = slice(j-1, j+2)
-                    mask = np.ma.getmaskarray(values)
-                    if mask[interv_x, interv_y].all():
-                        tmp_mask[i, j] = True
-                        continue
-                    tmp_values[i, j] = np.mean(values[interv_x, interv_y])
-            values = np.ma.masked_array(tmp_values, tmp_mask)
-            tmp_values = np.zeros((dim_x, dim_y))
-            tmp_mask = np.ma.getmaskarray(values).copy()
-        self.values = values
+        if not isinstance(tos, STRINGTYPES):
+            raise TypeError("'tos' must be a string")
+        if size is None and tos == 'uniform':
+            size = 3
+        elif size is None and tos == 'gaussian':
+            size = 1
+        # filling up the field before smoothing
+        self.fill()
+        # mask treatment
+        if isinstance(self.values, np.ma.MaskedArray):
+            values = self.values.data
+        else:
+            values = self.values
+        mask = np.zeros(values.shape)
+        # smoothing
+        if tos == "uniform":
+            values = ndimage.uniform_filter(values, size)
+        elif tos == "gaussian":
+            values = ndimage.gaussian_filter(values, size)
+        else:
+            raise ValueError("'tos' must be 'uniform' or 'gaussian'")
+        # storing
+        self.values = np.ma.masked_array(values, mask)
 
     def integrate_over_line(self, direction, interval):
         """
@@ -5582,16 +5659,16 @@ class TemporalVelocityFields(VelocityFields):
                     = component.get_copy()
             elif isinstance(component, NUMBERTYPES):
                 self.__dict__[componentkey] \
-                    = component*1
+                    = copy.deepcopy(component)
             elif isinstance(component, STRINGTYPES):
                 self.__dict__[componentkey] \
-                    = component
+                    = copy.deepcopy(component)
             elif isinstance(component, unum.Unum):
                 self.__dict__[componentkey] \
                     = component.copy()
             elif isinstance(component, ARRAYTYPES):
                 self.__dict__[componentkey] \
-                    = component[:]
+                    = copy.deepcopy(component)
             else:
                 raise TypeError("Unknown attribute type in VelocityFields "
                                 "object (" + str(componentkey) + " : "

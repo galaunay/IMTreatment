@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+s# -*- coding: utf-8 -*-
 """
 Created on Sun Feb 23 18:07:07 2014
 
@@ -15,7 +15,6 @@ import numpy as np
 from scipy.interpolate import UnivariateSpline
 import warnings
 import sets
-
 
 
 def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
