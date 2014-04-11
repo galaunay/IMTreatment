@@ -15,6 +15,11 @@ from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
     VelocityField, VelocityFields,\
     TemporalVelocityFields, SpatialVelocityFields
 import numpy as np
+try:
+    import cPickle as pickle
+except:
+    import pickle
+
 import scipy.io as spio
 
 
@@ -113,45 +118,6 @@ class MyDecoder(json.JSONDecoder):
             return dic
 
 
-def export_to_file(obj, filepath, compressed=True, **kw):
-    """
-    Write the object in the specified file usint the JSON format.
-    Additionnals arguments for the JSON encoder may be set with the **kw
-    argument. Such arguments may be 'indent' (for visual indentation in
-    file, default=0) or 'encoding' (to change the file encoding,
-    default='utf-8').
-    If existing, specified file will be truncated. If not, it will
-    be created.
-
-    Parameters
-    ----------
-    obj :
-        Object to store (common objects and IMT objects are supported).
-    filepath : string
-        Path specifiing where to save the object.
-    compressed : boolean, optional
-        If 'True' (default), the json file is compressed using gzip.
-    """
-    # writing the datas
-    if not isinstance(filepath, STRINGTYPES):
-        raise TypeError("I need a string here, son")
-    if not os.path.exists(os.path.dirname(filepath)):
-        raise IOError("I think this kind of path is invalid, buddy")
-    if not isinstance(compressed, bool):
-        raise TypeError("'compressed' must be a boolean")
-    if compressed:
-        if os.path.splitext(filepath)[1] != ".cimt":
-            filepath = filepath + ".cimt"
-        with gzip.GzipFile(filepath, 'w') as outfile:
-            outfile.write(json.dumps(obj, cls=MyEncoder, **kw))
-    else:
-        if os.path.splitext(filepath)[1] != ".imt":
-            filepath = filepath + ".imt"
-        file_h = open(filepath, 'w')
-        json.dump(obj, file_h, cls=MyEncoder, **kw)
-        file_h.close()
-
-
 def matlab_parser(obj, name):
     classic_types = (int, float, str, unicode)
     array_types = (list, float)
@@ -180,6 +146,65 @@ def matlab_parser(obj, name):
         raise IOError("Can't parser that : \n {}".format(obj))
 
 
+def export_to_file(obj, filepath, tof='pickle', compressed=True, **kw):
+    """
+    Write the object in the specified file.
+    Additionnals arguments for the JSON encoder may be set with the **kw
+    argument.
+    If existing, specified file will be truncated. If not, it will
+    be created.
+
+    Parameters
+    ----------
+    obj :
+        Object to store (common and IMT objects are supported).
+    filepath : string
+        Path specifiing where to save the object.
+    tof : string
+        Type of resulting file, can be :
+        'pickle' (default) : create a binary file
+        'json' : create a readable xml-like file (but less efficient)
+    compressed : boolean, optional
+        If 'True' (default), the file is compressed using gzip.
+    """
+    # checking parameters coherence
+    if not isinstance(filepath, STRINGTYPES):
+        raise TypeError("I need a string here, son")
+    if not os.path.exists(os.path.dirname(filepath)):
+        raise IOError("I think this kind of path is invalid, buddy")
+    if not isinstance(tof, STRINGTYPES):
+        raise TypeError("'tof' must be 'pickle' or 'json'")
+    if not isinstance(compressed, bool):
+        raise TypeError("'compressed' must be a boolean")
+    # creating/filling up the file
+    if tof == 'pickle' and compressed:
+        if os.path.splitext(filepath)[1] != ".cimt":
+            filepath = filepath + ".cimt"
+        f = gzip.open(filepath, 'wb')
+        pickle.dump(obj, f, protocol=-1)
+        f.close()
+    elif tof == 'pickle' and not compressed:
+        if os.path.splitext(filepath)[1] != ".imt":
+            filepath = filepath + ".imt"
+        f = open(filepath, 'wb')
+        pickle.dump(obj, f, protocol=-1)
+        f.close()
+    elif tof == 'json' and compressed:
+        if os.path.splitext(filepath)[1] != ".cjimt":
+            filepath = filepath + ".cjimt"
+        f = gzip.open(filepath, 'w')
+        json.dump(obj, f, cls=MyEncoder, **kw)
+        f.close()
+    elif tof == 'json' and not compressed:
+        if os.path.splitext(filepath)[1] != ".jimt":
+            filepath = filepath + ".jimt"
+        f = open(filepath, 'w')
+        json.dump(obj, f, cls=MyEncoder, **kw)
+        f.close()
+    else:
+        raise ValueError("I don't even know how you get here...")
+
+
 def export_to_matlab(obj, name, filepath, **kw):
     if not isinstance(filepath, STRINGTYPES):
         raise TypeError("I need a string here, son")
@@ -202,7 +227,7 @@ def import_from_file(filepath, **kw):
     filepath : string
         Path specifiing the file to load.
     """
-    # writing datas
+    # getting/guessing wanted files
     if not isinstance(filepath, STRINGTYPES):
         raise TypeError("I need a string here, son")
     if not os.path.exists(filepath):
@@ -210,17 +235,27 @@ def import_from_file(filepath, **kw):
             filepath += ".imt"
         elif os.path.exists(filepath + ".cimt"):
             filepath += ".cimt"
+        elif os.path.exists(filepath + ".jimt"):
+            filepath += ".jimt"
+        elif os.path.exists(filepath + ".cjimt"):
+            filepath += ".cjimt"
         else:
             raise IOError("I think this file doesn't exist, buddy")
     extension = os.path.splitext(filepath)[1]
-    if extension == ".cimt":
-        with gzip.GzipFile(filepath, 'r') as isfile:
-            json_text = isfile.read()
-            obj = json.loads(json_text, cls=MyDecoder, **kw)
-    elif extension == ".imt":
-        file_h = open(filepath, 'r')
-        obj = json.load(file_h, cls=MyDecoder, **kw)
-        file_h.close()
+    # importing file
+    if extension == ".imt":
+        with open(filepath, 'rb') as f:
+            obj = pickle.load(f)
+    elif extension == ".cimt":
+        with gzip.open(filepath, 'rb') as f:
+            obj = pickle.load(f)
+    elif extension == ".jimt":
+        f = open(filepath, 'r')
+        obj = json.load(f, cls=MyDecoder, **kw)
+        f.close()
+    elif extension == ".cjimt":
+        with gzip.GzipFile(filepath, 'r') as f:
+            obj = json.load(f, cls=MyDecoder, **kw)
     else:
         raise IOError("File is not readable "
                       "(unknown extension : {})".format(extension))
