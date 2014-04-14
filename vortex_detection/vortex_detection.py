@@ -654,29 +654,28 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
         """
         if not isinstance(velocityfield, VelocityField):
             raise TypeError()
+        if not direction in [1, 2]:
+            raise ValueError()
         thetas = velocityfield.get_comp('theta').values.filled(0)
-        pbi = []
         if direction == 2:
             thetas = np.rot90(thetas, 3)
-        prof1 = thetas[:, 0]
+        pbi = np.zeros(thetas.shape[1])
         for i in np.arange(thetas.shape[1]):
-            # récupération des profiles et concatenation
-            prof2 = thetas[0, 0:i]
-            prof3 = thetas[:, i]
-            prof4 = thetas[-1, 0:i]
-            thetas_border = np.array(prof1[::-1])
-            thetas_border = np.append(thetas_border, prof2)
-            thetas_border = np.append(thetas_border, prof3)
-            thetas_border = np.append(thetas_border, prof4[::-1])
-            #calcul des différence de theta
-            delta_thetas = thetas_border[1::] - thetas_border[0:-1]
-            delta_thetas = np.append(delta_thetas,
-                                     thetas_border[0] - thetas_border[-1])
-            # traitement des points particuliers (passage 0 à 2 pi)
+            # getting and concatening profiles
+            thetas_border = np.concatenate((thetas[::-1, 0],
+                                            thetas[0, 0:i],
+                                            thetas[:, i],
+                                            thetas[-1, i:0:-1]),
+                                           axis=0)
+            delta_thetas = np.concatenate((thetas_border[1::]
+                                           - thetas_border[0:-1],
+                                           thetas_border[0:1]
+                                           - thetas_border[-1::]), axis=0)
+            # particular points treatment
             delta_thetas[delta_thetas > np.pi] -= 2*np.pi
             delta_thetas[delta_thetas < -np.pi] += 2*np.pi
             # Stockage
-            pbi.append(np.sum(delta_thetas)/(2.*np.pi))
+            pbi[i] = np.sum(delta_thetas)/(2.*np.pi)
         if direction == 2:
             pbi = pbi[::-1]
         return np.array(np.round(pbi))
@@ -812,10 +811,12 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
         vf_pending = [velocityfield]
         vf_treated = []
         while True:
-            # condition of breaking the loop
+            # If all the field has been treated, break the infinite loop
             if len(vf_pending) == 0:
                 break
+            # getting a field to treat
             vf_tmp = vf_pending[0]
+            # getting PBI along x and y
             pbi_x = make_PBI_sweep(vf_tmp, 1)
             pbi_y = make_PBI_sweep(vf_tmp, 2)
             nmb_struct = check_struc_number(pbi_x, pbi_y)
@@ -829,8 +830,9 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
                 continue
             # if there is no structure of interest in the field
             # (seems useless with te use of final_triming)
-            if np.all(nmb_struct == 0):
+            if np.all(np.array(nmb_struct) == 0):
                 vf_pending[0:1] = []
+                continue
             vf1, vf2 = divide_zone(vf_tmp, pbi_x, pbi_y)
             # if we can't divide again
             if vf1 is None:
