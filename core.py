@@ -1752,15 +1752,22 @@ class ScalarField(object):
             raise ValueError("Dimensions of 'axe_x', 'axe_y' and 'values' must"
                              " be consistents")
         # storing datas
-        self.axe_x = axe_x.copy()*unit_x.asNumber()
-        self.axe_y = axe_y.copy()*unit_y.asNumber()
-        if not isinstance(values, np.ma.MaskedArray):
-            values = np.ma.masked_array(values, np.zeros(values.shape))
-        self.values = values.copy()*unit_values.asNumber()
-        self.unit_x = unit_x.copy()/unit_x.asNumber()
-        self.unit_y = unit_y.copy()/unit_y.asNumber()
-        self.unit_values = unit_values.copy()/unit_values.asNumber()
-        # deleting useless datas
+        unit_x_value = unit_x._value
+        unit_y_value = unit_y._value
+        unit_values_value = unit_values._value
+        self.axe_x = axe_x.copy()*unit_x_value
+        self.axe_y = axe_y.copy()*unit_y_value
+        if isinstance(values, np.ma.MaskedArray):
+            mask = values.mask
+            values = values.data
+        else:
+            values = np.array(values)
+            mask = np.zeros(values.shape)
+        values = values*unit_values_value
+        self.values = np.ma.masked_array(values, mask, copy=True)
+        self.unit_x = unit_x.copy()/unit_x_value
+        self.unit_y = unit_y.copy()/unit_y_value
+        self.unit_values = unit_values.copy()/unit_values_value
         self.crop_masked_border()
 
     def import_from_scalarfield(self, scalarfield):
