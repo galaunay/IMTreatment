@@ -1280,7 +1280,9 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
         Has to be an array of the same size of the vector field object,
         gamma will be compute only where mask is 'False'.
     """
-    # parameters constitency
+# TODO :
+#    +++ verifier coherence gamma avec truc nathalie
+    ### Checking parameters coherence ###
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
     if radius is None:
@@ -1291,9 +1293,9 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
     if not isinstance(ind, bool):
         raise TypeError("'ind' must be a boolean")
     axe_x, axe_y = vectorfield.get_axes()
+    delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
     if ind:
         # transforming into axis unit
-        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
         radius = radius*delta
         ind = False
     if not isinstance(kind, STRINGTYPES):
@@ -1306,88 +1308,85 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
-    # importing data from vectorfield (velocity, axis and mask)
-    if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
-        Vx = vectorfield.comp_x.values.data
-        Vy = vectorfield.comp_y.values.data
-        mask = np.logical_or(mask, vectorfield.comp_x.values.mask)
-        mask = np.logical_or(mask, vectorfield.comp_y.values.mask)
-    else:
-        Vx = vectorfield.comp_x.values
-        Vy = vectorfield.comp_y.values
-    # orthogonality check
-    gridx = axe_x[1:-1] - axe_x[0:-2]
-    gridy = axe_y[1:-1] - axe_y[0:-2]
-    if (all(gridx - gridx[0] < 1e-5*gridx[0])
-            and all(gridy - gridy[0] < 1e-5*gridy[0])):
-        ortho = True
-    else:
-        ortho = False
-        raise Warning("Non-orthogonal field detected !")
-    # creating near-border zone mask
-    border_x = np.logical_or(axe_x < axe_x[0] + (radius - delta),
-                             axe_x > axe_x[-1] - (radius - delta))
-    border_y = np.logical_or(axe_y < axe_y[0] + (radius - delta),
-                             axe_y > axe_y[-1] - (radius - delta))
-    border_x, border_y = np.meshgrid(border_x, border_y)
-    mask1 = np.logical_or(border_x, border_y)
-    # norm computation
+    ### Importing data from vectorfield (velocity, axis and mask) ###
+    Vx = vectorfield.comp_x.values.data
+    Vy = vectorfield.comp_y.values.data
+    mask = np.logical_or(mask, vectorfield.comp_x.values.mask)
+    mask = np.logical_or(mask, vectorfield.comp_y.values.mask)
     norm_v = np.sqrt(Vx**2 + Vy**2)
-    # if on orthogonal field, compute scheme (motif)
-    if ortho:
-        ptcentral = [axe_x[int(len(axe_x)/2)], axe_y[int(len(axe_y)/2)]]
-        motif = np.array(vectorfield.comp_x.get_points_around(ptcentral,
-                                                              radius))
-        motif = motif - np.array([int(len(axe_x)/2), int(len(axe_y)/2)])
-    # Loop on points
+    ### Compute motif and motif angles on an arbitrary point ###
+    ptcentral = [axe_x[int(len(axe_x)/2)], axe_y[int(len(axe_y)/2)]]
+    motif = np.array(vectorfield.comp_x.get_points_around(ptcentral, radius))
+    vector_a_x = np.zeros(motif.shape[0])
+    vector_a_y = np.zeros(motif.shape[0])
+    for i, indaround in enumerate(motif):
+        vector_a_x[i] = axe_x[indaround[0]] - ptcentral[0]
+        vector_a_y[i] = axe_y[indaround[1]] - ptcentral[1]
+    norm_vect_a = (vector_a_x**2 + vector_a_y**2)**(1./2.)
+    motif = motif - np.array([int(len(axe_x)/2), int(len(axe_y)/2)])
+    ### Generating masks ###
+    # creating surrounding masked point zone mask
+    mask_surr = np.zeros(mask.shape)
+    inds_masked = np.transpose(np.where(mask))
+    for ind_masked in inds_masked:
+        for i, j in motif + ind_masked:
+            # continue if outside the field
+            if i < 0 or j < 0 or i >= mask_surr.shape[0]\
+                    or j >= mask_surr.shape[1]:
+                continue
+            mask_surr[i, j] = True
+    # creating near-border zone mask
+    radius_m_delta = radius - delta
+    border_x = np.logical_or(axe_x <= axe_x[0] + radius_m_delta,
+                             axe_x >= axe_x[-1] - radius_m_delta)
+    border_y = np.logical_or(axe_y <= axe_y[0] + radius_m_delta,
+                             axe_y >= axe_y[-1] - radius_m_delta)
+    border_x, border_y = np.meshgrid(border_x, border_y)
+    mask_border = np.logical_or(border_x, border_y)
+    ### Loop on points ###
     gammas = np.zeros(vectorfield.comp_x.get_dim())
-    mask2 = np.zeros(mask.shape)
     for inds, pos, _ in vectorfield:
-        # stop if masked
-        if mask[inds[1], inds[0]]:
-            continue
-         # stop if on border
-        if mask1[inds[1], inds[0]]:
+        ind_x = inds[0]
+        ind_y = inds[1]
+        # stop if masked or on border or with a masked surrouinding point
+        if mask[ind_y, ind_x] or mask_surr[ind_y, ind_x]\
+                or mask_border[ind_y, ind_x]:
             continue
         # getting neighbour points
         indsaround = motif + np.array(inds)
-        # stop if one surrounding point is masked
-        skip = [mask[i[1], i[0]] for i in indsaround]
-        if np.any(skip):
-            mask2[inds[1], inds[0]] = True
-            continue
         # If necessary, compute mean velocity on points (gamma2)
         v_mean = [0., 0.]
         if kind == 'gamma2':
             nmbpts = len(indsaround)
             for indaround in indsaround:
-                v_mean[0] += Vx[inds[1], inds[0]]
-                v_mean[1] += Vy[inds[1], inds[0]]
+                v_mean[0] += Vx[ind_y, ind_x]
+                v_mean[1] += Vy[ind_y, ind_x]
             v_mean[0] /= nmbpts
             v_mean[1] /= nmbpts
-        # Loop on neighbouring points
+        ### Loop on neighbouring points ###
         gamma = 0.
         nmbpts = len(indsaround)
-        for indaround in indsaround:
+        for i, indaround in enumerate(indsaround):
+            inda_x = indaround[0]
+            inda_y = indaround[1]
             # getting vectors for scalar product
-            vector_a = [axe_x[indaround[0]] - axe_x[inds[0]],
-                        axe_y[indaround[1]] - axe_y[inds[1]]]
-            vector_b = [Vx[indaround[1], indaround[0]] - v_mean[0],
-                        Vy[indaround[1], indaround[0]] - v_mean[1]]
-            denom = norm_v[indaround[1],
-                           indaround[0]]*((vector_a[0]**2
-                                           + vector_a[1]**2)**(1./2))
+            vector_b_x = Vx[inda_y, inda_x] - v_mean[0]
+            vector_b_y = Vy[inda_y, inda_x] - v_mean[1]
+            if kind == 'gamma1':
+                denom = norm_v[inda_y, inda_x]*norm_vect_a[i]
+            else:
+                denom = (vector_b_x**2 + vector_b_y**2)**.5*norm_vect_a[i]
             # getting scalar product
             if denom != 0:
-                gamma += (vector_a[0]*vector_b[1]
-                          - vector_a[1]*vector_b[0])/denom
+                gamma += (vector_a_x[i]*vector_b_y
+                          - vector_a_y[i]*vector_b_x)/denom
         # storing computed gamma value
-        gammas[inds[1], inds[0]] = gamma/nmbpts
-    # applying masks
-    mask = np.logical_or(mask, mask1)
-    mask = np.logical_or(mask, mask2)
+        gammas[ind_y, ind_x] = gamma/nmbpts
+    ### Applying masks ###
+    mask = np.logical_or(mask, mask_border)
+    mask = np.logical_or(mask, mask_surr)
     gammas = np.ma.masked_array(gammas, mask)
-    # creating gamma ScalarField
+    ### Creating gamma ScalarField ###
     gamma_sf = ScalarField()
     gamma_sf.import_from_arrays(axe_x, axe_y, gammas,
                                 unit_x=vectorfield.comp_x.unit_x,
@@ -1398,7 +1397,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
 def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
     """
     Return the kappa scalar field. Kappa criterion is used in
-    critical points analysis.
+    vortex analysis.
     The fonction recognize if the field is ortogonal, and use an
     apropriate algorithm.
 
@@ -1420,7 +1419,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
         Has to be an array of the same size of the vector field object,
         kappa will be compute only where mask is 'False'.
     """
-    # parameters constitency
+    ### Checking parameters coherence ###
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
     if radius is None:
@@ -1431,9 +1430,9 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
     if not isinstance(ind, bool):
         raise TypeError("'ind' must be a boolean")
     axe_x, axe_y = vectorfield.get_axes()
+    delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
     if ind:
         # transforming into axis unit
-        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
         radius = radius*delta
         ind = False
     if not isinstance(kind, STRINGTYPES):
@@ -1446,86 +1445,85 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
-    # importing data from vectorfield (velocity, axis and mask)
-    if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
-        Vx = vectorfield.comp_x.values.data
-        Vy = vectorfield.comp_y.values.data
-        mask = np.logical_or(mask, vectorfield.comp_x.values.mask)
-        mask = np.logical_or(mask, vectorfield.comp_y.values.mask)
-    else:
-        Vx = vectorfield.comp_x.values
-        Vy = vectorfield.comp_y.values
-    # orthogonality check
-    gridx = axe_x[1:-1] - axe_x[0:-2]
-    gridy = axe_y[1:-1] - axe_y[0:-2]
-    if (all(gridx - gridx[0] < 1e-5*gridx[0])
-            and all(gridy - gridy[0] < 1e-5*gridy[0])):
-        ortho = True
-    else:
-        ortho = False
-        raise Warning("Non-orthogonal field detected !")
+    ### Importing data from vectorfield (velocity, axis and mask) ###
+    Vx = vectorfield.comp_x.values.data
+    Vy = vectorfield.comp_y.values.data
+    mask = np.logical_or(mask, vectorfield.comp_x.values.mask)
+    mask = np.logical_or(mask, vectorfield.comp_y.values.mask)
+    norm_v = np.sqrt(Vx**2 + Vy**2)
+    ### Compute motif and motif angles on an arbitrary point ###
+    ptcentral = [axe_x[int(len(axe_x)/2)], axe_y[int(len(axe_y)/2)]]
+    motif = np.array(vectorfield.comp_x.get_points_around(ptcentral, radius))
+    vector_a_x = np.zeros(motif.shape[0])
+    vector_a_y = np.zeros(motif.shape[0])
+    for i, indaround in enumerate(motif):
+        vector_a_x[i] = axe_x[indaround[0]] - ptcentral[0]
+        vector_a_y[i] = axe_y[indaround[1]] - ptcentral[1]
+    norm_vect_a = (vector_a_x**2 + vector_a_y**2)**(1./2.)
+    motif = motif - np.array([int(len(axe_x)/2), int(len(axe_y)/2)])
+    ### Generating masks ###
+    # creating surrounding masked point zone mask
+    mask_surr = np.zeros(mask.shape)
+    inds_masked = np.transpose(np.where(mask))
+    for ind_masked in inds_masked:
+        for i, j in motif + ind_masked:
+            # continue if outside the field
+            if i < 0 or j < 0 or i >= mask_surr.shape[0]\
+                    or j >= mask_surr.shape[1]:
+                continue
+            mask_surr[i, j] = True
     # creating near-border zone mask
-    border_x = np.logical_or(axe_x < axe_x[0] + (radius - delta),
-                             axe_x > axe_x[-1] - (radius - delta))
-    border_y = np.logical_or(axe_y < axe_y[0] + (radius - delta),
-                             axe_y > axe_y[-1] - (radius - delta))
+    radius_m_delta = radius - delta
+    border_x = np.logical_or(axe_x <= axe_x[0] + radius_m_delta,
+                             axe_x >= axe_x[-1] - radius_m_delta)
+    border_y = np.logical_or(axe_y <= axe_y[0] + radius_m_delta,
+                             axe_y >= axe_y[-1] - radius_m_delta)
     border_x, border_y = np.meshgrid(border_x, border_y)
-    mask1 = np.logical_or(border_x, border_y)
-    # if on orthogonal field, compute scheme (motif)
-    if ortho:
-        ptcentral = [axe_x[int(len(axe_x)/2)], axe_y[int(len(axe_y)/2)]]
-        motif = np.array(vectorfield.comp_x.get_points_around(ptcentral,
-                                                              radius))
-        motif = motif - np.array([int(len(axe_x)/2), int(len(axe_y)/2)])
-    # Loop on points
+    mask_border = np.logical_or(border_x, border_y)
+    ### Loop on points ###
     kappas = np.zeros(vectorfield.comp_x.get_dim())
-    mask2 = np.zeros(mask.shape)
     for inds, pos, _ in vectorfield:
-        # stop if masked
-        if mask[inds[1], inds[0]]:
-            continue
-         # stop if on border
-        if mask1[inds[1], inds[0]]:
+        ind_x = inds[0]
+        ind_y = inds[1]
+        # stop if masked or on border or with a masked surrouinding point
+        if mask[ind_y, ind_x] or mask_surr[ind_y, ind_x]\
+                or mask_border[ind_y, ind_x]:
             continue
         # getting neighbour points
         indsaround = motif + np.array(inds)
-        # stop if one surrounding point is masked
-        skip = [mask[i[1], i[0]] for i in indsaround]
-        if np.any(skip):
-            mask2[inds[1], inds[0]] = True
-            continue
         # If necessary, compute mean velocity on points (kappa2)
         v_mean = [0., 0.]
         if kind == 'kappa2':
             nmbpts = len(indsaround)
             for indaround in indsaround:
-                v_mean[0] += Vx[inds[1], inds[0]]
-                v_mean[1] += Vy[inds[1], inds[0]]
+                v_mean[0] += Vx[ind_y, ind_x]
+                v_mean[1] += Vy[ind_y, ind_x]
             v_mean[0] /= nmbpts
             v_mean[1] /= nmbpts
-        # Loop on neighbouring points
+        ### Loop on neighbouring points ###
         kappa = 0.
         nmbpts = len(indsaround)
-        for indaround in indsaround:
+        for i, indaround in enumerate(indsaround):
+            inda_x = indaround[0]
+            inda_y = indaround[1]
             # getting vectors for scalar product
-            vector_a = [axe_x[indaround[0]] - axe_x[inds[0]],
-                        axe_y[indaround[1]] - axe_y[inds[1]]]
-            vector_b = [Vx[indaround[1], indaround[0]] - v_mean[0],
-                        Vy[indaround[1], indaround[0]] - v_mean[1]]
-            denom = (((vector_b[0]**2 + vector_b[1]**2)**(1./2))
-                     * ((vector_a[0]**2 + vector_a[1]**2)**(1./2)))
+            vector_b_x = Vx[inda_y, inda_x] - v_mean[0]
+            vector_b_y = Vy[inda_y, inda_x] - v_mean[1]
+            if kind == 'kappa1':
+                denom = norm_v[inda_y, inda_x]*norm_vect_a[i]
+            else:
+                denom = (vector_b_x**2 + vector_b_y**2)**.5*norm_vect_a[i]
             # getting scalar product
             if denom != 0:
-                kappa += (vector_a[0]*vector_b[0]
-                          + vector_a[1]*vector_b[1])/denom
-
+                kappa += (vector_a_x[i]*vector_b_x
+                          + vector_a_y[i]*vector_b_y)/denom
         # storing computed kappa value
-        kappas[inds[1], inds[0]] = kappa/nmbpts
-    # applying masks
-    mask = np.logical_or(mask, mask1)
-    mask = np.logical_or(mask, mask2)
+        kappas[ind_y, ind_x] = kappa/nmbpts
+    ### Applying masks ###
+    mask = np.logical_or(mask, mask_border)
+    mask = np.logical_or(mask, mask_surr)
     kappas = np.ma.masked_array(kappas, mask)
-    # creating kappa ScalarField
+    ### Creating kappa ScalarField ###
     kappa_sf = ScalarField()
     kappa_sf.import_from_arrays(axe_x, axe_y, kappas,
                                 unit_x=vectorfield.comp_x.unit_x,
