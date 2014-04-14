@@ -654,7 +654,7 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
             raise TypeError()
         if not direction in [1, 2]:
             raise ValueError()
-        thetas = velocityfield.get_comp('theta').values.filled(0)
+        thetas = velocityfield.get_comp('theta').fill()
         if direction == 2:
             thetas = np.rot90(thetas, 3)
         pbi = np.zeros(thetas.shape[1])
