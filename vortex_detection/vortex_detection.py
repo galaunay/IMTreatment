@@ -1288,7 +1288,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
     if radius is None:
-        radius = 1.9
+        radius = 2.
         ind = True
     if not isinstance(radius, NUMBERTYPES):
         raise TypeError("'radius' must be a number")
@@ -1425,7 +1425,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
     if radius is None:
-        radius = 1.9
+        radius = 2.
         ind = True
     if not isinstance(radius, NUMBERTYPES):
         raise TypeError("'radius' must be a number")

@@ -1768,6 +1768,7 @@ class ScalarField(object):
         self.unit_x = unit_x.copy()/unit_x_value
         self.unit_y = unit_y.copy()/unit_y_value
         self.unit_values = unit_values.copy()/unit_values_value
+        # deleting useless datas
         self.crop_masked_border()
 
     def import_from_scalarfield(self, scalarfield):
@@ -2192,6 +2193,7 @@ class ScalarField(object):
         if not radius > 0:
             raise ValueError("'radius' must be positive")
         radius2 = radius**2
+        radius_int = radius/np.sqrt(2)
         inds = []
         for indices, coord, _ in self:
             # test if the point is not in the square surrounding the cercle
@@ -2201,10 +2203,10 @@ class ScalarField(object):
                     and coord[1] <= center[1] - radius:
                 pass
             # test if the point is in the square 'compris' in the cercle
-            elif coord[0] <= center[0] + radius \
-                    and coord[0] >= center[0] - radius \
-                    and coord[1] <= center[1] + radius \
-                    and coord[1] >= center[1] - radius:
+            elif coord[0] <= center[0] + radius_int \
+                    and coord[0] >= center[0] - radius_int \
+                    and coord[1] <= center[1] + radius_int \
+                    and coord[1] >= center[1] - radius_int:
                 inds.append(indices)
             # test if the point is the center
             elif all(coord == center):
@@ -2611,15 +2613,23 @@ class ScalarField(object):
         """
         Crop the masked border of the field in place.
         """
+        # checking masked values presence
+        if ~np.ma.is_masked(self.values):
+            return None
+        # getting datas
         values = self.values.data
         mask = self.values.mask
-        # crop values
+        # crop border along y
         axe_y_m = ~np.all(mask, axis=1)
-        values = values[axe_y_m, :]
-        mask = mask[axe_y_m, :]
+        if np.any(axe_y_m):
+            values = values[axe_y_m, :]
+            mask = mask[axe_y_m, :]
+        # crop values along x
         axe_x_m = ~np.all(mask, axis=0)
-        values = values[:, axe_x_m]
-        mask = mask[:, axe_x_m]
+        if np.any(axe_x_m):
+            values = values[:, axe_x_m]
+            mask = mask[:, axe_x_m]
+        # storing cropped values
         self.values = np.ma.masked_array(values, mask)
         # crop axis
         self.axe_x = self.axe_x[axe_x_m]
@@ -4132,17 +4142,14 @@ class VectorField(object):
         Return a scalar field with the vector angle (in reference of the unit_y
         vector [1, 0]).
         """
+        # get data
+        Vx = self.comp_x.values.data
+        Vy = self.comp_y.values.data
+        mask = self.comp_x.values.mask
         theta = np.zeros(self.get_dim())
-        mask = np.ma.getmaskarray(self.comp_x.values)
-        for inds, _, values in self:
-            if mask[inds[1], inds[0]]:
-                continue
-            norm = (values[0]**2 + values[1]**2)**(1./2)
-            #norm = np.linalg.norm(values)
-            if norm == 0:
-                continue
-            else:
-                theta[inds[1], inds[0]] = values[0]/norm
+        # getting angle
+        norm = np.sqrt(Vx**2 + Vy**2)
+        theta[norm != 0] = Vx[norm != 0]/norm[norm != 0]
         theta = np.arccos(theta)
         theta[self.comp_y.values < 0] = 2*np.pi - theta[self.comp_y.values < 0]
         theta = np.ma.masked_array(theta, mask)
@@ -4155,9 +4162,26 @@ class VectorField(object):
                                     make_unit("rad"))
         return theta_sf
 
-    def smooth(self, iteration=1):
-        self.comp_x.smooth(iteration)
-        self.comp_y.smooth(iteration)
+    def smooth(self, tos='uniform', size=None, **kw):
+        """
+        Smooth the vectorfield in place.
+        Warning : fill up the field (should be used carefully with masked field
+        borders)
+        Parameters :
+        ------------
+        tos : string, optional
+            Type of smoothing, can be 'uniform' (default) or 'gaussian'
+            (See ndimage module documentation for more details)
+        size : number, optional
+            Size of the smoothing (is radius for 'uniform' and
+            sigma for 'gaussian').
+            Default is 3 for 'uniform' and 1 for 'gaussian'.
+        kw : dic
+            Additional parameters for ndimage methods
+            (See ndimage documentation)
+        """
+        self.comp_x.smooth(tos=tos, size=size, **kw)
+        self.comp_y.smooth(tos=tos, size=size, **kw)
 
     def trim_area(self, intervalx=None, intervaly=None):
         """
