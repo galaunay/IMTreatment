@@ -4137,10 +4137,20 @@ class VectorField(object):
     def get_spatial_correlation(self, xy):
         pass
 
-    def get_theta(self):
+    def get_theta(self, low_velocity_filter=0.):
         """
         Return a scalar field with the vector angle (in reference of the unit_y
         vector [1, 0]).
+
+        Parameters:
+        -----------
+        low_velocity_filter : number
+            If not zero, points where V < Vmax*low_velocity_filter are masked.
+
+        Returns:
+        --------
+        theta_sf : ScalarField object
+            Contening theta field.
         """
         # get data
         Vx = self.comp_x.values.data
@@ -4149,8 +4159,12 @@ class VectorField(object):
         theta = np.zeros(self.get_dim())
         # getting angle
         norm = np.sqrt(Vx**2 + Vy**2)
-        theta[norm != 0] = Vx[norm != 0]/norm[norm != 0]
-        theta = np.arccos(theta)
+        if low_velocity_filter != 0:
+            mask_lvf = norm < np.max(norm)*low_velocity_filter
+            mask = np.logical_or(mask, mask_lvf)
+        tmp_mask = np.logical_and(norm != 0, ~mask)
+        theta[tmp_mask] = Vx[tmp_mask]/norm[tmp_mask]
+        theta[tmp_mask] = np.arccos(theta[tmp_mask])
         theta[self.comp_y.values < 0] = 2*np.pi - theta[self.comp_y.values < 0]
         theta = np.ma.masked_array(theta, mask)
         theta_sf = ScalarField()
@@ -5061,6 +5075,12 @@ class VelocityField(object):
         Compute and store the velocity field magnitude.
         """
         self.magnitude = self.V.get_magnitude()
+
+    def calc_theta(self, *args):
+        """
+        Compute and store velocity field vector angles.
+        """
+        self.theta = self.V.get_theta(*args)
 
     def calc_vorticity(self):
         """

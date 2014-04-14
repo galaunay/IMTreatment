@@ -189,10 +189,8 @@ def find_critical_points(VF, windows_size=5, radius=None, expend=True,
         elif VF.PBI == -1:
             VF_saddle.append(VF)
         # complicated
-        elif VF.PBI == 0:
-            VF_others.append(VF)
         else:
-            raise StandardError("Uncorrect PBI value : {}".format(VF.PBI))
+            VF_others.append(VF)
     # computing saddle points positions
     saddles = []
     if len(VF_saddle) != 0:
@@ -865,6 +863,8 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
         ind_y_max = velocityfield.V.comp_x.get_indice_on_axe(2, ymax)[-1]
         return [ind_x_min, ind_x_max], [ind_y_min, ind_y_max]
 
+    # computing theta on the all field
+    velocityfield.calc_theta(0.01)
     vf_treated = make_steps(velocityfield)
     if output == 'vf':
         return vf_treated
