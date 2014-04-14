@@ -2248,6 +2248,7 @@ class ScalarField(object):
         # correcting python's problem with egality...
         bornes[0] -= 0.00001*abs(bornes[0])
         bornes[1] += 0.00001*abs(bornes[1])
+        # checking parameters coherence
         if not isinstance(bornes, ARRAYTYPES):
             raise TypeError("'bornes' must be an array")
         if not isinstance(bornes, np.ndarray):
@@ -2260,6 +2261,7 @@ class ScalarField(object):
             raise TypeError("'rel' must be a boolean")
         if not isinstance(kind, STRINGTYPES):
             raise TypeError("'kind' must be a string")
+        # compute minimum and maximum if 'rel=True'
         if rel:
             if bornes[0]*bornes[1] < 0:
                 raise ValueError("In relative 'bornes' must have the same"
@@ -2315,10 +2317,16 @@ class ScalarField(object):
         for ind in inds:
             indx = ind[1]
             indy = ind[0]
-            dx = self.axe_x[1] - self.axe_x[0]
-            dy = self.axe_y[1] - self.axe_y[0]
-            x = self.axe_x[int(indx)] + dx*(indx % 1)
-            y = self.axe_y[int(indy)] + dy*(indy % 1)
+            if indx%1 == 0:
+                x = self.axe_x[indx]
+            else:
+                dx = self.axe_x[1] - self.axe_x[0]
+                x = self.axe_x[int(indx)] + dx*(indx % 1)
+            if indy%1 == 0:
+                y = self.axe_y[indy]
+            else:
+                dy = self.axe_y[1] - self.axe_y[0]
+                y = self.axe_y[int(indy)] + dy*(indy % 1)
             coords.append([x, y])
         coords = np.array(coords)
         if len(coords) == 0:
@@ -2614,7 +2622,7 @@ class ScalarField(object):
         Crop the masked border of the field in place.
         """
         # checking masked values presence
-        if ~np.ma.is_masked(self.values):
+        if not np.ma.is_masked(self.values):
             return None
         # getting datas
         values = self.values.data
@@ -2659,6 +2667,8 @@ class ScalarField(object):
             raise TypeError("'value' must be a number")
         # if there is nothing to do...
         mask = self.values.mask
+        if crop_border:
+            self.crop_masked_border()
         if not np.any(mask):
             pass
         elif tof == 'interplin':
