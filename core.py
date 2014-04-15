@@ -2674,22 +2674,32 @@ class ScalarField(object):
         elif tof == 'interplin':
             inds_x = np.arange(self.values.shape[1])
             inds_y = np.arange(self.values.shape[0])
+            grid_x, grid_y = np.meshgrid(inds_x, inds_y)
+            mask = self.values.mask
             values = self.values.data
-            f = spinterp.interp2d(inds_y, inds_x, self.values)
+            f = spinterp.interp2d(grid_y[~mask],
+                                  grid_x[~mask],
+                                  self.values[~mask])
             for inds, masked in np.ndenumerate(mask):
                 if masked:
-                    values[inds[0], inds[1]] = f(inds[0], inds[1])
+                    values[inds[1], inds[0]] = f(inds[1], inds[0])
             mask = np.zeros(values.shape)
             self.values = np.ma.masked_array(values, mask)
         elif tof == 'interpcub':
             inds_x = np.arange(self.values.shape[1])
             inds_y = np.arange(self.values.shape[0])
+            grid_x, grid_y = np.meshgrid(inds_x, inds_y)
+            mask = self.values.mask
             values = self.values.data
-            f = spinterp.interp2d(inds_y, inds_x, self.values, kind='cubic')
+            f = spinterp.interp2d(grid_y[~mask],
+                                  grid_x[~mask],
+                                  self.values[~mask],
+                                  kind='cubic')
             for inds, masked in np.ndenumerate(mask):
                 if masked:
-                    values[inds[0], inds[1]] = f(inds[0], inds[1])
+                    values[inds[1], inds[0]] = f(inds[1], inds[0])
             mask = np.zeros(values.shape)
+            self.values = np.ma.masked_array(values, mask)
             self.values = np.ma.masked_array(values, mask)
         elif tof == 'value':
             self.values[self.values.mask] = value
