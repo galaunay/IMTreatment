@@ -642,57 +642,178 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
         A PBI of 1 indicate a vortex, a PBI of -1 a saddle point ans a PBI
         of 0 two or more indivising structures.
     """
+    # checking parameters coherence
     if not isinstance(velocityfield, VelocityField):
         raise TypeError("'velocityfield' must be a VelocityField")
+    # extracting data
+    VX = velocityfield.V.comp_x.values.data
+    VY= velocityfield.V.comp_y.values.data
+    MASK = velocityfield.V.comp_x.values.mask
+    THETA = velocityfield.get_theta()
+    THETA.fill()
+    THETA = THETA.values.data
 
-    # local fonction for doing x PB sweep
-    def make_PBI_sweep(velocityfield, direction):
-        """
-        Compute the PBI along the given axis, for the given vector field.
-        """
-        if not isinstance(velocityfield, VelocityField):
-            raise TypeError()
-        if not direction in [1, 2]:
-            raise ValueError()
-        thetas = velocityfield.get_comp('theta')
-        thetas.fill()
-        thetas = thetas.values.data
-        if direction == 2:
-            thetas = np.rot90(thetas, 3)
-        pbi = np.zeros(thetas.shape[1])
-        for i in np.arange(thetas.shape[1]):
-            # getting and concatening profiles
-            thetas_border = np.concatenate((thetas[::-1, 0],
-                                            thetas[0, 0:i],
-                                            thetas[:, i],
-                                            thetas[-1, i:0:-1]),
-                                           axis=0)
-            delta_thetas = np.concatenate((thetas_border[1::]
-                                           - thetas_border[0:-1],
-                                           thetas_border[0:1]
-                                           - thetas_border[-1::]), axis=0)
-            # particular points treatment
-            delta_thetas[delta_thetas > np.pi] -= 2*np.pi
-            delta_thetas[delta_thetas < -np.pi] += 2*np.pi
-            # Stockage
-            pbi[i] = np.sum(delta_thetas)/(2.*np.pi)
-        if direction == 2:
-            pbi = pbi[::-1]
-        return np.array(np.round(pbi))
+    # Local class representing a velocityfield
+    class VF(object):
 
-    def check_struc_number(pbi_x, pbi_y):
-        """
-        Return the possible number of structure in the vector field.
-        """
-        # finding points of interest (where pbi change)
-        poi_x = pbi_x[1::] - pbi_x[0:-1]
-        poi_y = pbi_y[1::] - pbi_y[0:-1]
-        # computing number of structures
-        num_x = len(poi_x[poi_x != 0])
-        num_y = len(poi_y[poi_y != 0])
-        return num_x, num_y
+        def __init__(vx, vy, mask, theta, min_win_size=5):
+            self.vx = np.array(vx)
+            self.vy = np.array(vy)
+            self.mask = np.array(mask)
+            self.theta = np.array(theta)
+            self.min_win_size = min_win_size
+            self.shape = self.vx.shape
+            self.calc_pbi()
 
-    def divide_zone(velocityfield, pbi_x, pbi_y):
+        def divide(self, direction, position):
+            """
+            Divide the field in two, just before the given position on the axis
+            given by 'direction' (1 for x and 2 for y).
+            """
+            if direction == 1:
+                vx1 = self.vx[:, :position:]
+                vx2 = self.vx[:, position::]
+                vy1 = self.vy[:, :position:]
+                vy2 = self.vy[:, position::]
+                mask1 = self.mask[:, :position:]
+                mask2 = self.mask[:, position::]
+                theta1 = self.theta[:, :position:]
+                theta2 = self.theta[:, position::]
+            elif direction == 2:
+                vx1 = self.vx[:position:, :]
+                vx2 = self.vx[position::, :]
+                vy1 = self.vy[:position:, :]
+                vy2 = self.vy[position::, :]
+                mask1 = self.mask[:position:, :]
+                mask2 = self.mask[position::, :]
+                theta1 = self.theta[:position:, :]
+                theta2 = self.theta[position::, :]
+            else:
+                raise ValueError()
+            vf1 = VF(vx1, vy1, mask1, theta1)
+            vf2 = VF(vx2, vy2, mask2, theta2)
+            return vf1, vf2
+
+        def divide_between_struct(self):
+            """
+            Divide the field between two structures.
+            Return two fields.
+            """
+            # if the field is too small for dividing
+            if not np.any(self.shape >= 2*min_win_size):
+                raise StandardError()
+
+            # Getting point of interest position
+            poi_x = pbi_x[1::] - pbi_x[0:-1]
+            poi_y = pbi_y[1::] - pbi_y[0:-1]
+            ind_x = np.where(poi_x != 0)[0]
+            ind_y = np.where(poi_y != 0)[0]
+            # If there is no two or more distinct structures
+            if ind_x.shape[0] <= 1 and ind_y.shape[0] <= 1:
+                    raise StandardError()
+            # finding the longest useless zone to cut the field
+            dist_x = np.abs(ind_x[1::] - ind_x[0:-1])
+            dist_y = np.abs(ind_y[1::] - ind_y[0:-1])
+            cut_pos_x = ind_x[0:-1] + np.ceil(dist_x/2)
+            cut_pos_y = ind_y[0:-1] + np.ceil(dist_y/2)
+            # deleting poi too close to the border
+            mask_x = np.logical_and(cut_pos_x > min_win_size,
+                                    cut_pos_x < self.shape[1] - min_win_size + 1)
+            dist_x = dist_x[mask_x]
+            cut_pos_x = cut_pos_x[mask_x]
+            mask_y = np.logical_and(cut_pos_y > min_win_size,
+                                    cut_pos_y < self.shape[0] - min_win_size + 1)
+            dist_y = dist_y[mask_y]
+            cut_pos_y = cut_pos_y[mask_y]
+            # if there is no ideal point cut (field begin to be to small),
+            # we raise an error
+            if len(mask_x) == 0 and mask_y == 0:
+                raise StandardError()
+            # setting direction and position for the dividing
+            if np.max(dist_x) > np.max(dist_y):
+                direction = 1
+                position = cut_pos_x[np.argmax(dist_x)]
+            else:
+                direction = 2
+                position = cut_pos_y[np.argmax(dist_y)]
+            # dividing and returning
+            return self.divide(direction=direction, position=position)
+
+        def divide_around_struct(self):
+            """
+            Divide the field near the point of interst to detect if points are
+            hidding each others.
+            Can only be used on a field with a pbi detecting one struct.
+            """
+            # getting structure point position
+            poi_x, poi_y = self.get_poi_position()
+            # getting the best including box of size 'min_win_size'
+            ++++
+
+
+        def get_pbi(self, direction):
+            """
+            Return the PBI along the given axe.
+            """
+            theta = self.theta.copy()
+            if direction == 2:
+                theta = np.rot90(theta, 3)
+            pbi = np.zeros(theta.shape[1])
+            for i in np.arange(theta.shape[1]):
+                # getting and concatening profiles
+                thetas_border = np.concatenate((theta[::-1, 0],
+                                                theta[0, 0:i],
+                                                theta[:, i],
+                                                theta[-1, i:0:-1]),
+                                               axis=0)
+                delta_thetas = np.concatenate((thetas_border[1::]
+                                               - thetas_border[0:-1],
+                                               thetas_border[0:1]
+                                               - thetas_border[-1::]), axis=0)
+                # particular points treatment
+                delta_thetas[delta_thetas > np.pi] -= 2*np.pi
+                delta_thetas[delta_thetas < -np.pi] += 2*np.pi
+                # Stockage
+                pbi[i] = np.sum(delta_thetas)/(2.*np.pi)
+            if direction == 2:
+                pbi = pbi[::-1]
+            return np.array(np.round(pbi))
+
+        def calc_pbi(self):
+            """
+            Compute the pbi along the two axis and store them.
+            """
+            self.pbi_x = get_pbi(direction=1)
+            self.pbi_y = get_pbi(direction=2)
+
+        def get_poi_position(self):
+            """
+            On a field with only one structure detected by PBI, return the
+            position of this structure.
+            """
+            poi_x = pbi_x[1::] - pbi_x[0:-1]
+            poi_y = pbi_y[1::] - pbi_y[0:-1]
+            ind_x = np.where(poi_x != 0)[0]
+            ind_y = np.where(poi_y != 0)[0]
+            if len(ind_x) > 1 or len(ind_y) > 1:
+                raise StandardError()
+            return ind_x[0], ind_y[0]
+
+        def check_struct_number(self):
+            """
+            Return the possible number of structure in the field along each axis.
+            """
+            # finding points of interest (where pbi change)
+            poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
+            poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
+            # computing number of structures
+            num_x = len(poi_x[poi_x != 0])
+            num_y = len(poi_y[poi_y != 0])
+            return num_x, num_y
+
+
+
+    def divide_zone(vx, vy, mask, theta, pbi_x, pbi_y):
         """
         Divide the velocityfield in two velocityfields.
         (According to the present structures)
@@ -803,11 +924,6 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
         """
         if not isinstance(velocityfield, VelocityField):
             raise TypeError("'velocityfield' must be a VelocityField")
-        ## removing useless array around critical points
-        ## (dangerous if aligned critical points )
-        #pbi_x = make_PBI_sweep(velocityfield, 1)
-        #pbi_y = make_PBI_sweep(velocityfield, 2)
-        #velocityfield = final_triming(velocityfield, pbi_x, pbi_y)
         vf_pending = [velocityfield]
         vf_treated = []
         while True:
@@ -831,7 +947,7 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
             # if there is no structure of interest in the field
             # (seems useless with te use of final_triming)
             if np.all(np.array(nmb_struct) == 0):
-                vf_pending[0:1] = []
+                vf_pending[0:1] = []velocityfield.calc_theta()
                 continue
             vf1, vf2 = divide_zone(vf_tmp, pbi_x, pbi_y)
             # if we can't divide again
@@ -865,8 +981,7 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
         ind_y_max = velocityfield.V.comp_x.get_indice_on_axe(2, ymax)[-1]
         return [ind_x_min, ind_x_max], [ind_y_min, ind_y_max]
 
-    # computing theta on the all field
-    velocityfield.calc_theta()
+    #getting vfs
     vf_treated = make_steps(velocityfield)
     if output == 'vf':
         return vf_treated
