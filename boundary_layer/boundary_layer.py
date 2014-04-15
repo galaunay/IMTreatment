@@ -15,7 +15,7 @@ NumberTypes = (int, float, long)
 ArrayTypes = (list, np.ndarray)
 
 
-class BlasiusBL:
+class BlasiusBL(object):
     """
     Class representing a Blasius-like boundary layer.
 
@@ -157,10 +157,9 @@ class BlasiusBL:
             u = u_over_U*self.Uinf
         return Profile(y, u, unit_x=make_unit('m'), unit_y=make_unit('m/s'))
 
-
-class DefectLaw:
+class WallLaw(object):
     """
-    Class representing the log-defect law profile using Coles theory.
+    Class representing a law of the wall profile.
     By default, the used liquid is water.
 
     Parameters
@@ -169,15 +168,13 @@ class DefectLaw:
         Water depth (m)
     tau : number
         The wall shear stress (Pa)
-    Cc : number, optional
-        The Coles parameters (n.u) (0.45 by default)
     visc_c : number, optional
         Kinematic viscosity (m²/s)
     rho : number, optional
         liquid density (kg/m^3)
     """
 
-    def __init__(self, h, tau, Cc=0.45, visc_c=1e-6, rho=1000):
+    def __init__(self, h, tau, visc_c=1e-6, rho=1000):
         """
         Class constructor.
         """
@@ -189,21 +186,18 @@ class DefectLaw:
             raise TypeError("'tau' has to be a number")
         if tau < 0:
             raise ValueError("'tau' has to be a positive number")
-        if not isinstance(Cc, NumberTypes):
-            raise TypeError("'Cc' has to be a number")
         self.k = 0.4
         self.A = 5.5
         self.rho = rho
         self.tau = tau
         self.Utau = np.sqrt(self.tau/self.rho)
-        self.Cc = Cc
         self.visc_c = visc_c
         self.visc_d = self.visc_c*self.rho
         self.h = h
 
     def display(self, dy, **plotArgs):
         """
-        Display a velocity profile according to the log-defect law.
+        Display the velocity profile.
 
         Parameters
         ----------
@@ -223,10 +217,10 @@ class DefectLaw:
         if dy > self.h:
             raise ValueError("'dy' has to be smaller than the water depth")
         y = np.arange(0, self.h, dy)
-        prof = self.GetProfile(y)
-        Umoy = prof.get_integral()
-        fig = prof.display(reverse=True, label="tau={0:.4f} et Cc={2:.2f}: "
-                           "Umoyen = {1:.4f}".format(self.tau, Umoy, self.Cc))
+        prof = self.get_profile(y)
+        Umoy, _ = prof.get_integral()
+        fig = prof.display(reverse=True, label=("tau={0:.4f} : "
+                           "Umoyen = {1:.4f}").format(self.tau, Umoy))
         y5 = 5.*self.visc_c*np.sqrt(self.rho/self.tau)
         y30 = 30.*self.visc_c*np.sqrt(self.rho/self.tau)
         mini = prof.get_min()
@@ -238,17 +232,21 @@ class DefectLaw:
         plt.title("velocity profile according to the log-defect law")
         return fig
 
-    def _defect_law(self, y):
+    def _log_law(self, yp):
         """
-        Calculate the defect composante of the law.
+        Calculate the log component of the law.
+        Take y+.
+        Return u/Utau.
         """
-        return 2.*self.Cc/self.k*np.sin(np.pi*y/(2.*self.h))**2.
+        return 1./self.k*np.log(yp)
 
-    def _log_law(self, y):
+    def _linear_law(self, yp):
         """
-        Calculate the log composante of the law.
+        Calculate the linear component of the law.
+        Take y+.
+        Return u/Utau.
         """
-        return 1./self.k*np.log(y*self.Utau/self.visc_c)
+        return yp
 
     def get_profile(self, y):
         """
@@ -271,33 +269,83 @@ class DefectLaw:
         if any(y > self.h):
             raise ValueError("'y' has to be smaller than the water depth")
         y = np.array(y)
+        yplus = y*self.Utau/self.visc_c
+        ylimscv = 11.63
+        ylimlog = 11.63
         Ufin = []
-        for y1 in y:
-            y1plus = y1*self.Utau/self.visc_c
-            ylimscv = 11.63
-            ylimlog = 11.63
-            if y1plus == 0:
+        for yp in yplus:
+            if yp < 0:
                 Utmp = 0
-            elif y1plus <= ylimscv:
-                Utmp = y1plus*self.Utau
-            elif y1plus <= ylimlog:
-                Utmp1 = y1plus*self.Utau
-                ll = self._LogLaw(y1, self.Utau)
-                dl = self._DefectLaw(y1, self.Utau, self.Cc)
-                Utmp2 = self.Utau*(ll - dl + self.A)
-                Utmp = ((abs(ylimlog - y1plus)*Utmp1
-                         + abs(ylimscv - y1plus)*Utmp2)
-                        / abs(ylimlog - ylimscv))
+            elif yp <= ylimscv:
+                Utmp = self._linear_law(yp)*self.Utau
+            elif yp <= ylimlog:
+                raise StandardError("Not implemented yet")
+#                Utmp1 = y1plus*self.Utau
+#                ll = self._LogLaw(y1, self.Utau)
+#                dl = self._DefectLaw(y1, self.Utau, self.Cc)
+#                Utmp2 = self.Utau*(ll - dl + self.A)
+#                Utmp = ((abs(ylimlog - y1plus)*Utmp1
+#                         + abs(ylimscv - y1plus)*Utmp2)
+#                        / abs(ylimlog - ylimscv))
             else:
-                ll = self._log_law(y1)
-                dl = self._defect_law(y1)
-                Utmp = self.Utau*(ll - dl + self.A)
+                Utmp = self._log_law(yp)*self.Utau
             Ufin.append(Utmp)
         Ufin = Profile(y, Ufin, make_unit("m"), make_unit("m/s"))
         return Ufin
 
     def integral(self, x, y):
         return np.trapz(y, x)
+
+
+class DefectLaw(WallLaw):
+    """
+    Class representing the log-defect law profile using Coles theory.
+    By default, the used liquid is water.
+
+    Parameters
+    ----------
+    h : number
+        Water depth (m)
+    tau : number
+        The wall shear stress (Pa)
+    delta : number
+        The boundary layer thickness (m)
+    Cc : number, optional
+        The Coles parameters (n.u) (0.45 by default)
+    visc_c : number, optional
+        Kinematic viscosity (m²/s)
+    rho : number, optional
+        liquid density (kg/m^3)
+    """
+
+    def __init__(self, h, tau, delta, Cc=0.5, visc_c=1e-6, rho=1000):
+        """
+        Class constructor.
+        """
+        if not isinstance(Cc, NumberTypes):
+            raise TypeError("'Cc' has to be a number")
+        if not isinstance(delta, NumberTypes):
+            raise TypeError("'delta' has to be a number")
+        WallLaw.__init__(self, h, tau, visc_c=visc_c, rho=rho)
+        self.Cc = Cc
+        self.delta = delta
+
+    def _defect_law(self, yp):
+        """
+        Calculate the defect composante of the law.
+        Take yp.
+        Return u/Utau.
+        """
+        y = yp/self.Utau*self.visc_c
+        return 2.*self.Cc/self.k*np.sin(np.pi*y/(2.*self.delta))**2.
+
+    def _log_law(self, yp):
+        """
+        Calculate the log component of the law.
+        Take yp.
+        Return u/Utau.
+        """
+        return 1./self.k*np.log(yp) + self._defect_law(yp)
 
 
 def get_bl_thickness(obj, direction=1, perc=0.95):
