@@ -2666,9 +2666,9 @@ class ScalarField(object):
         if not isinstance(value, NUMBERTYPES):
             raise TypeError("'value' must be a number")
         # if there is nothing to do...
-        mask = self.values.mask
         if crop_border:
             self.crop_masked_border()
+        mask = self.values.mask
         if not np.any(mask):
             pass
         elif tof == 'interplin':

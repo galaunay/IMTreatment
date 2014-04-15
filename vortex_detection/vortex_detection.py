@@ -883,7 +883,15 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
             positions = []
             # first splitting
             grid_x, grid_y = self.find_cut_positions()
-            pool = self.split_the_field(grid_x, grid_y)
+            # If there is nothing or we really don't have luck...
+            # just a split in the middle to see
+            if grid_x is None:
+                len_x = self.shape[1]
+                len_y = self.shape[0]
+                pool = self.split_the_field([0, np.round(len_x/2.), len_x],
+                                            [0, np.round(len_y/2.), len_y])
+            else:
+                pool = self.split_the_field(grid_x, grid_y)
             while True:
                 # if the pool is empty we have finish !
                 if len(pool) == 0:
@@ -900,8 +908,8 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
                 else:
                     tmp_grid_x, tmp_grid_y = tmp_vf.find_cut_positions()
                     tmp_pool = tmp_vf.split_the_field(tmp_grid_x, tmp_grid_y)
-                    pool.append(tmp_pool[:])
-                pool.pop(0)
+                    pool = np.append(pool, tmp_pool[:])
+                pool = np.delete(pool, 0)
             return positions
 
     ### test
