@@ -653,7 +653,6 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
     MASK = velocityfield.V.comp_x.values.mask
     THETA = velocityfield.V.get_theta()
     THETA.fill()
-    THETA.display(interpolation='nearest')
     THETA = THETA.values.data
 
     # Local class representing a velocityfield
@@ -916,7 +915,7 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
     field = VF(VX, VY, IND_X, IND_Y, MASK, THETA)
     pos = field.get_cp_position()
     # text truc
-    print(pos)
+    return pos
 
 
 

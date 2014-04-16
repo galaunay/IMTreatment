@@ -2682,7 +2682,7 @@ class ScalarField(object):
                                   self.values[~mask])
             for inds, masked in np.ndenumerate(mask):
                 if masked:
-                    values[inds[1], inds[0]] = f(inds[1], inds[0])
+                    values[inds[0], inds[1]] = f(inds[0], inds[1])
             mask = np.zeros(values.shape)
             self.values = np.ma.masked_array(values, mask)
         elif tof == 'interpcub':
