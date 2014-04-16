@@ -2665,10 +2665,11 @@ class ScalarField(object):
             raise TypeError("'tof' must be a string")
         if not isinstance(value, NUMBERTYPES):
             raise TypeError("'value' must be a number")
-        # if there is nothing to do...
+        # deleting the masked border (useless field part)
         if crop_border:
             self.crop_masked_border()
         mask = self.values.mask
+        # if there is nothing to do...
         if not np.any(mask):
             pass
         elif tof == 'interplin':

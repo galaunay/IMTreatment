@@ -617,30 +617,29 @@ def vortices_evolution(points, times=None, epsilon=None):
     return points_f
 
 
-def vortices_zoi(velocityfield, windows_size=5, output='vf'):
+def vortices_zoi(velocityfield, min_win_size=3):
     """
-    For a velocity field, return a set of boxes, defined by axe intervals.
-    These boxes represent zones where critical points are present.
-    According to the Poincarre-Bendixon theorem.
+    For a velocity field, return the critical points positions and their PBI.
+    (PBI : Poincarre_Bendixson indice)
 
     Parameters
     ----------
     velocityfield : VelocityField object
-    window_size : integer, optional
-        Size of the windows returned by the function, in number of field
-        points.
-    output : string, optional
-        If 'vf', tuple of velocityfields are returned,
-        If 'ind', tuple of indices intervals are returned.
+    min_win_size : integer, optional
+       Detection distance, points separated by less than this number are not
+       detected.
 
     Returns
     -------
-    VFS : tuple of VelocityField objects
+    pos : 2xN array
+        position (x, y) of the detected critical points.
         Vector fields representing the arrays of interest
         (contening critical points). An additional argument 'PBI' is
         available for each vector field, indicating the PBI value.
         A PBI of 1 indicate a vortex, a PBI of -1 a saddle point ans a PBI
         of 0 two or more indivising structures.
+    pbis : 1xN array
+        PBI (1 indicate a node, -1 a saddle point)
     """
     # checking parameters coherence
     if not isinstance(velocityfield, VelocityField):
@@ -652,13 +651,14 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
     IND_Y = velocityfield.V.comp_x.axe_y
     MASK = velocityfield.V.comp_x.values.mask
     THETA = velocityfield.V.get_theta()
-    THETA.fill()
+    # TODO : add the following when fill will be optimized
+    #THETA.fill()
     THETA = THETA.values.data
 
     # Local class representing a velocityfield
     class VF(object):
 
-        def __init__(self, vx, vy, axe_x, axe_y, mask, theta, min_win_size=5):
+        def __init__(self, vx, vy, axe_x, axe_y, mask, theta, min_win_size=3):
             self.vx = np.array(vx)
             self.vy = np.array(vy)
             self.mask = np.array(mask)
@@ -668,35 +668,54 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
             self.calc_pbi()
             self.axe_x = axe_x
             self.axe_y = axe_y
-#
-#        def divide(self, direction, position):
-#            """
-#            Divide the field in two, just before the given position on the axis
-#            given by 'direction' (1 for x and 2 for y).
-#            """
-#            if direction == 1:
-#                vx1 = self.vx[:, :position:]
-#                vx2 = self.vx[:, position::]
-#                vy1 = self.vy[:, :position:]
-#                vy2 = self.vy[:, position::]
-#                mask1 = self.mask[:, :position:]
-#                mask2 = self.mask[:, position::]
-#                theta1 = self.theta[:, :position:]
-#                theta2 = self.theta[:, position::]
-#            elif direction == 2:
-#                vx1 = self.vx[:position:, :]
-#                vx2 = self.vx[position::, :]
-#                vy1 = self.vy[:position:, :]
-#                vy2 = self.vy[position::, :]
-#                mask1 = self.mask[:position:, :]
-#                mask2 = self.mask[position::, :]
-#                theta1 = self.theta[:position:, :]
-#                theta2 = self.theta[position::, :]
-#            else:
-#                raise ValueError()
-#            vf1 = VF(vx1, vy1, mask1, theta1)
-#            vf2 = VF(vx2, vy2, mask2, theta2)
-#            return vf1, vf2
+
+        def get_cp_position(self):
+            """
+            Return the position of the field critical point, using
+            'find_cut_position' and 'split_field'.
+            """
+            positions = []
+            pbis = []
+            # first splitting
+            grid_x, grid_y = self.find_cut_positions()
+            plt.figure()
+            plt.plot(self.pbi_x)
+            plt.figure()
+            plt.plot(self.pbi_y, np.arange(len(self.pbi_y)))
+            print(grid_x)
+            print(grid_y)
+            # If there is nothing or we really don't have luck...
+            # just a split in the middle to see
+            if grid_x is None:
+                len_x = self.shape[1]
+                len_y = self.shape[0]
+                pool = self.split_the_field([0, np.round(len_x/2.), len_x],
+                                            [0, np.round(len_y/2.), len_y])
+            else:
+                pool = self.split_the_field(grid_x, grid_y)
+            while True:
+                # if the pool is empty we have finish !
+                if len(pool) == 0:
+                    break
+                # get a field
+                tmp_vf = pool[0]
+                # check if there is something in it
+                if tmp_vf.check_struct_number() == (0, 0):
+                    pass
+                # check if there is only one critical point in it
+                elif tmp_vf.check_struct_number() == (1, 1):
+                    positions.append(tmp_vf.get_poi_position())
+                    pbis.append(tmp_vf.pbi_x[-1])
+                # Else, we split again the field
+                else:
+                    tmp_grid_x, tmp_grid_y = tmp_vf.find_cut_positions()
+                    # if there is possible cutting, we do it
+                    if len(tmp_grid_x) != 2 or len(tmp_grid_y) != 2:
+                        tmp_pool = tmp_vf.split_the_field(tmp_grid_x, tmp_grid_y)
+                        pool = np.append(pool, tmp_pool[:])
+                    #else we just delete the field
+                pool = np.delete(pool, 0)
+            return positions, pbis
 
         def find_cut_positions(self):
             """
@@ -717,7 +736,8 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
             cut_pos_x = ind_x[0:-1] + np.ceil(dist_x/2)
             cut_pos_y = ind_y[0:-1] + np.ceil(dist_y/2)
             # eliminating cutting creating too small fields
-                # TODO : maybe later
+            cut_pos_x = cut_pos_x[dist_x > self.min_win_size]
+            cut_pos_y = cut_pos_y[dist_y > self.min_win_size]
             # adding borders
             grid_x = np.concatenate(([0], cut_pos_x + 1, [len(self.pbi_x)]))
             grid_y = np.concatenate(([0], cut_pos_y + 1, [len(self.pbi_y)]))
@@ -727,12 +747,20 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
             """
             Return a set of fields, resulting of cutting the field at the
             given positions.
+            Resulting fields are a little bigger than if we do a basic cutting,
+            in order to not lose cp.
             """
             fields = []
             for i in np.arange(len(grid_x) - 1):
                 for j in np.arange(len(grid_y) - 1):
-                    slic_x = slice(grid_x[i], grid_x[i + 1])
-                    slic_y = slice(grid_y[j], grid_y[j + 1])
+                    if grid_x[i] == 0:
+                        slic_x = slice(grid_x[i], grid_x[i + 1] + 1)
+                    else:
+                        slic_x = slice(grid_x[i] - 1, grid_x[i + 1] + 1)
+                    if grid_y[j] == 0:
+                        slic_y = slice(grid_y[j], grid_y[j + 1] + 1)
+                    else:
+                        slic_y = slice(grid_y[j] - 1, grid_y[j + 1] + 1)
                     vx_tmp = self.vx[slic_y, slic_x]
                     vy_tmp = self.vy[slic_y, slic_x]
                     mask_tmp = self.mask[slic_y, slic_x]
@@ -743,61 +771,6 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
                                 mask_tmp, theta_tmp, self.min_win_size)
                     fields.append(vf_tmp)
             return fields
-
-#        def divide_between_struct(self):
-#            """
-#            Divide the field between two structures.
-#            Return two fields.
-#            """
-#            # if the field is too small for dividing
-#            if not np.any(self.shape >= 2*self.min_win_size):
-#                raise StandardError()
-#            # Getting point of interest position
-#            poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
-#            poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
-#            ind_x = np.where(poi_x != 0)[0]
-#            ind_y = np.where(poi_y != 0)[0]
-#            # If there is no two or more distinct structures
-#            if ind_x.shape[0] <= 1 and ind_y.shape[0] <= 1:
-#                    raise StandardError()
-#            # finding the longest useless zone to cut the field
-#            dist_x = np.abs(ind_x[1::] - ind_x[0:-1])
-#            dist_y = np.abs(ind_y[1::] - ind_y[0:-1])
-#            cut_pos_x = ind_x[0:-1] + np.ceil(dist_x/2)
-#            cut_pos_y = ind_y[0:-1] + np.ceil(dist_y/2)
-#            # deleting poi too close to the border
-#            mask_x = np.logical_and(cut_pos_x > min_win_size,
-#                                    cut_pos_x < self.shape[1] - min_win_size + 1)
-#            dist_x = dist_x[mask_x]
-#            cut_pos_x = cut_pos_x[mask_x]
-#            mask_y = np.logical_and(cut_pos_y > min_win_size,
-#                                    cut_pos_y < self.shape[0] - min_win_size + 1)
-#            dist_y = dist_y[mask_y]
-#            cut_pos_y = cut_pos_y[mask_y]
-#            # if there is no ideal point cut (field begin to be to small),
-#            # we raise an error
-#            if len(mask_x) == 0 and mask_y == 0:
-#                raise StandardError()
-#            # setting direction and position for the dividing
-#            if np.max(dist_x) > np.max(dist_y):
-#                direction = 1
-#                position = cut_pos_x[np.argmax(dist_x)]
-#            else:
-#                direction = 2
-#                position = cut_pos_y[np.argmax(dist_y)]
-#            # dividing and returning
-#            return self.divide(direction=direction, position=position)
-
-#        def divide_around_struct(self):
-#            """
-#            Divide the field near the point of interst to detect if points are
-#            hidding each others.
-#            Can only be used on a field with a pbi detecting one struct.
-#            """
-#            # getting structure point position
-#            poi_x, poi_y = self.get_poi_position()
-#            # getting the best including box of size 'min_win_size'
-#            ++++
 
         def get_pbi(self, direction):
             """
@@ -834,17 +807,17 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
             self.pbi_x = self.get_pbi(direction=1)
             self.pbi_y = self.get_pbi(direction=2)
 
-        def export_to_velocityfield(self):
-            """
-            Return a velocityfield with the information on the field
-            """
-            compx = ScalarField()
-            compx.import_from_arrays(self.axe_x, self.axe_y, self.vx)
-            compy = ScalarField()
-            compy.import_from_arrays(self.axe_x, self.axe_y, self.vy)
-            tmp_vf = VelocityField()
-            tmp_vf.import_from_scalarfield(compx, compy, 0)
-            return tmp_vf
+#        def export_to_velocityfield(self):
+#            """
+#            Return a velocityfield with the information on the field
+#            """
+#            compx = ScalarField()
+#            compx.import_from_arrays(self.axe_x, self.axe_y, self.vx)
+#            compy = ScalarField()
+#            compy.import_from_arrays(self.axe_x, self.axe_y, self.vy)
+#            tmp_vf = VelocityField()
+#            tmp_vf.import_from_scalarfield(compx, compy, 0)
+#            return tmp_vf
 
         def get_poi_position(self):
             """
@@ -874,220 +847,8 @@ def vortices_zoi(velocityfield, windows_size=5, output='vf'):
             num_y = len(poi_y[poi_y != 0])
             return num_x, num_y
 
-        def get_cp_position(self):
-            """
-            Return the position of the field critical point, using
-            'find_cut_position' and 'split_field'.
-            """
-            positions = []
-            # first splitting
-            grid_x, grid_y = self.find_cut_positions()
-            # If there is nothing or we really don't have luck...
-            # just a split in the middle to see
-            if grid_x is None:
-                len_x = self.shape[1]
-                len_y = self.shape[0]
-                pool = self.split_the_field([0, np.round(len_x/2.), len_x],
-                                            [0, np.round(len_y/2.), len_y])
-            else:
-                pool = self.split_the_field(grid_x, grid_y)
-            while True:
-                # if the pool is empty we have finish !
-                if len(pool) == 0:
-                    break
-                # get a field
-                tmp_vf = pool[0]
-                # check if there is something in it
-                if tmp_vf.check_struct_number() == (0, 0):
-                    pass
-                # check if there is only one critical point in it
-                elif tmp_vf.check_struct_number() == (1, 1):
-                    positions.append(tmp_vf.get_poi_position())
-                # Else, we split again the field
-                else:
-                    tmp_grid_x, tmp_grid_y = tmp_vf.find_cut_positions()
-                    tmp_pool = tmp_vf.split_the_field(tmp_grid_x, tmp_grid_y)
-                    pool = np.append(pool, tmp_pool[:])
-                pool = np.delete(pool, 0)
-            return positions
-
-    ### test
     field = VF(VX, VY, IND_X, IND_Y, MASK, THETA)
-    pos = field.get_cp_position()
-    # text truc
-    return pos
-
-
-
-#    def divide_zone(vx, vy, mask, theta, pbi_x, pbi_y):
-#        """
-#        Divide the velocityfield in two velocityfields.
-#        (According to the present structures)
-#        """
-#        poi_x = pbi_x[1::] - pbi_x[0:-1]
-#        poi_y = pbi_y[1::] - pbi_y[0:-1]
-#        ind_x = np.where(poi_x != 0)[0]
-#        ind_y = np.where(poi_y != 0)[0]
-#        if ind_x.shape[0] == 1 and ind_y.shape[0] == 1:
-#            return None, None
-#        # finding the longest useless zone to cut the field
-#        dist_x = np.abs(ind_x[1::] - ind_x[0:-1])
-#        dist_y = np.abs(ind_y[1::] - ind_y[0:-1])
-#        if len(dist_x) == 0:
-#            dist_x = [0]
-#        if len(dist_y) == 0:
-#            dist_y = [0]
-#        if np.max(dist_x) > np.max(dist_y):
-#            ind_dist_x_max = np.argmax(dist_x)
-#            # if struct are to intricate, we can't separate them
-#            if ind_dist_x_max == len(ind_x)-1:
-#                return None, None
-#            if np.abs(ind_x[ind_dist_x_max] - ind_x[ind_dist_x_max + 1])\
-#                    < windows_size:
-#                return None, None
-#            # else we cut
-#            cut_ind = round((ind_x[ind_dist_x_max]
-#                            + ind_x[ind_dist_x_max + 1])/2.)
-#            x_min = velocityfield.V.comp_x.axe_x[0]
-#            x_max = velocityfield.V.comp_x.axe_x[-1]
-#            cut_position = velocityfield.V.comp_x.axe_x[cut_ind]
-#            a = velocityfield.trim_area(intervalx=[x_min, cut_position])
-#            a.theta = velocityfield.theta.trim_area(intervalx=[x_min,
-#                                                               cut_position])
-#            b = velocityfield.trim_area(intervalx=[cut_position, x_max])
-#            b.theta = velocityfield.theta.trim_area(intervalx=[cut_position,
-#                                                               x_max])
-#            return a, b
-#        else:
-#            ind_dist_y_max = np.argmax(dist_y)
-#            # if struct are to intricate, we can't separate them
-#            if ind_dist_y_max == len(ind_y)-1:
-#                return None, None
-#            if np.abs(ind_y[ind_dist_y_max] - ind_y[ind_dist_y_max + 1])\
-#                    < windows_size:
-#                return None, None
-#            #else we cut
-#            cut_ind = round((ind_y[ind_dist_y_max] - 0.5
-#                            + ind_y[ind_dist_y_max + 1] - 0.5)/2)
-#            y_min = velocityfield.V.comp_x.axe_y[0]
-#            y_max = velocityfield.V.comp_x.axe_y[-1]
-#            cut_position = velocityfield.V.comp_x.axe_y[cut_ind]
-#            a = velocityfield.trim_area(intervaly=[y_min, cut_position])
-#            a.theta = velocityfield.theta.trim_area(intervaly=[y_min,
-#                                                               cut_position])
-#            b = velocityfield.trim_area(intervaly=[cut_position, y_max])
-#            b.theta = velocityfield.theta.trim_area(intervaly=[cut_position,
-#                                                               y_max])
-#            return a, b
-#
-#    def final_triming(velocityfield, pbi_x, pbi_y):
-#        """
-#        Trim the velocityfield, according to the windows size.
-#        """
-#        demi_ws = round(windows_size*1./2)
-#        axe_x = velocityfield.V.comp_x.axe_x
-#        axe_y = velocityfield.V.comp_x.axe_y
-#        poi_x = pbi_x[1::] - pbi_x[0:-1]
-#        poi_y = pbi_y[1::] - pbi_y[0:-1]
-#        # getting the rectangle around points of interest
-#        if np.all(poi_x == 0) and np.all(poi_y == 0):
-#            raise ValueError()
-#        if np.all(poi_x == 0):
-#            ind_x_min = 0
-#            ind_x_max = len(poi_x)
-#        else:
-#            ind_x_min = np.where(poi_x != 0)[0][0]
-#            ind_x_max = np.where(poi_x != 0)[0][-1]
-#        if np.all(poi_y == 0):
-#            ind_y_min = 0
-#            ind_y_max = len(poi_y)
-#        else:
-#            ind_y_min = np.where(poi_y != 0)[0][0]
-#            ind_y_max = np.where(poi_y != 0)[0][-1]
-#        if ind_x_min - demi_ws >= 0:
-#            x_min = axe_x[ind_x_min - demi_ws]
-#        else:
-#            x_min = axe_x[0]
-#        if ind_x_max + demi_ws <= len(axe_x) - 1:
-#            x_max = axe_x[ind_x_max + demi_ws]
-#        else:
-#            x_max = axe_x[-1]
-#        if ind_y_min - demi_ws >= 0:
-#            y_min = axe_y[ind_y_min - demi_ws]
-#        else:
-#            y_min = axe_y[0]
-#        if ind_y_max + demi_ws <= len(axe_y) - 1:
-#            y_max = axe_y[ind_y_max + demi_ws]
-#        else:
-#            y_max = axe_y[-1]
-#        tmp_vf = velocityfield.trim_area([x_min, x_max], [y_min, y_max])
-#        return tmp_vf
-#
-#    def make_steps(velocityfield):
-#        """
-#        Divide the velocityfield, and return small velocityfields contening all
-#        the interesting structures.
-#        """
-#        if not isinstance(velocityfield, VelocityField):
-#            raise TypeError("'velocityfield' must be a VelocityField")
-#        vf_pending = [velocityfield]
-#        vf_treated = []
-#        while True:
-#            # If all the field has been treated, break the infinite loop
-#            if len(vf_pending) == 0:
-#                break
-#            # getting a field to treat
-#            vf_tmp = vf_pending[0]
-#            # getting PBI along x and y
-#            pbi_x = make_PBI_sweep(vf_tmp, 1)
-#            pbi_y = make_PBI_sweep(vf_tmp, 2)
-#            nmb_struct = check_struc_number(pbi_x, pbi_y)
-#            # if there is only one structure in the field
-#            if np.all(np.array(nmb_struct) == 1):
-#                # adding PBI value to object
-#                vf_tmp = final_triming(vf_tmp, pbi_x, pbi_y)
-#                vf_tmp.PBI = make_PBI_sweep(vf_tmp, 1)[-1]
-#                vf_treated.append(vf_tmp)
-#                vf_pending[0:1] = []
-#                continue
-#            # if there is no structure of interest in the field
-#            # (seems useless with te use of final_triming)
-#            if np.all(np.array(nmb_struct) == 0):
-#                vf_pending[0:1] = []velocityfield.calc_theta()
-#                continue
-#            vf1, vf2 = divide_zone(vf_tmp, pbi_x, pbi_y)
-#            # if we can't divide again
-#            if vf1 is None:
-#                # adding PBI info (non-conclusive)
-#                vf_tmp = final_triming(vf_tmp, pbi_x, pbi_y)
-#                vf_tmp.PBI = 0
-#                vf_treated.append(vf_tmp)
-#                vf_pending[0:1] = []
-#                continue
-#            # we divide the field
-#            vf_pending[0:1] = []
-#            vf_pending.append(vf1)
-#            vf_pending.append(vf2)
-#        return vf_treated
-#
-#    def get_linked_indices(vf, velocityfield):
-#        """
-#        Return the indices interval on each axis that describe vf
-#        on velocityfield.
-#        """
-#        axe_x, axe_y = velocityfield.get_axes()
-#        vf_axe_x, vf_axe_y = vf.get_axes()
-#        xmin = vf_axe_x[0]
-#        xmax = vf_axe_x[-1]
-#        ymin = vf_axe_y[0]
-#        ymax = vf_axe_y[-1]
-#        ind_x_min = velocityfield.V.comp_x.get_indice_on_axe(1, xmin)[0]
-#        ind_x_max = velocityfield.V.comp_x.get_indice_on_axe(1, xmax)[-1]
-#        ind_y_min = velocityfield.V.comp_x.get_indice_on_axe(2, ymin)[0]
-#        ind_y_max = velocityfield.V.comp_x.get_indice_on_axe(2, ymax)[-1]
-#        return [ind_x_min, ind_x_max], [ind_y_min, ind_y_max]
-
-
+    return field.get_cp_position()
 
 
 def _expend(VF, vf, expend, error=True):
