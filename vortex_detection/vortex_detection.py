@@ -100,6 +100,7 @@ class VF(object):
                                          [0, np.round(len_y/2.), len_y])
         else:
             pool = self._split_the_field(grid_x, grid_y)
+        # loop on the pool (funny no ?)
         while True:
             # if the pool is empty we have finish !
             if len(pool) == 0:
@@ -109,10 +110,19 @@ class VF(object):
             # check if there is something in it
             if tmp_vf._check_struct_number() == (0, 0):
                 pass
-            # check if there is only one critical point in it
-            elif tmp_vf._check_struct_number() == (1, 1):
-                positions.append(tmp_vf._get_poi_position())
+            # if there is only one critical point and the field is as
+            # small as possible, we store the cd position, the end !
+            elif tmp_vf._check_struct_number() == (1, 1)\
+                    and np.all(self.shape[0] < (2*self.min_win_size,
+                                                2*self.min_win_size)):
+                cp_pos = tmp_vf._get_poi_position()
+                positions.append((tmp_vf.axe_x[cp_pos[0]],
+                                  tmp_vf.axe_y[cp_pos[1]]))
                 pbis.append(tmp_vf.pbi_x[-1])
+            # if there is only one critical point in it, we cut around
+            # this point
+            elif tmp_vf._check_struct_number() == (1, 1):
+                pass
             # Else, we split again the field
             else:
                 tmp_grid_x, tmp_grid_y = tmp_vf._find_cut_positions()
@@ -161,7 +171,9 @@ class VF(object):
         poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
         poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
         ind_x = np.where(poi_x != 0)[0]
+        #ind_x = np.concatenate(([0], ind_x, [len(self.pbi_x) - 1]))
         ind_y = np.where(poi_y != 0)[0]
+        #ind_y = np.concatenate(([0], ind_y, [len(self.pbi_y) - 1]))
         # If there is only one or none distinct structure
         if ind_x.shape[0] <= 1 and ind_y.shape[0] <= 1:
             return None, None
@@ -173,10 +185,77 @@ class VF(object):
         # eliminating cutting creating too small fields
         cut_pos_x = cut_pos_x[dist_x > self.min_win_size]
         cut_pos_y = cut_pos_y[dist_y > self.min_win_size]
+        # adding trimming and the border (allow to get ggod result even if some
+        # points are on the same lines/columns)
+        if len(ind_x) == 0:
+            trim_x_1 = []
+        elif ind_x[0] > self.min_win_size:
+            trim_x_1 = [ind_x[0] - self.min_win_size + 1]
+        else:
+            trim_x_1 = []
+        if len(ind_x) == 0:
+            trim_x_2 = []
+        elif len(self.pbi_x) - ind_x[-1] > self.min_win_size:
+            trim_x_2 = [ind_x[-1] + self.min_win_size - 1]
+        else:
+            trim_x_2 = []
+        if len(ind_y) == 0:
+            trim_y_1 = []
+        elif ind_y[0] > self.min_win_size:
+            trim_y_1 = [ind_y[0] - self.min_win_size + 1]
+        else:
+            trim_y_1 = []
+        if len(ind_y) == 0:
+            trim_y_2 = []
+        elif len(self.pbi_y) - ind_y[-1] > self.min_win_size:
+            trim_y_2 = [ind_y[-1] + self.min_win_size - 1]
+        else:
+            trim_y_2 = []
         # adding borders
-        grid_x = np.concatenate(([0], cut_pos_x + 1, [len(self.pbi_x)]))
-        grid_y = np.concatenate(([0], cut_pos_y + 1, [len(self.pbi_y)]))
+        grid_x = np.concatenate(([0], trim_x_1, cut_pos_x + 1, trim_x_2,
+                                 [len(self.pbi_x)]))
+        grid_y = np.concatenate(([0], trim_y_1,cut_pos_y + 1, trim_y_2,
+                                 [len(self.pbi_y)]))
+#        # display (debug)
+#        plt.figure()
+#        plt.subplot(2, 2, 1)
+#        plt.streamplot(self.axe_x, self.axe_y, self.vx, self.vy,
+#                   color = np.sqrt(self.vx**2 + self.vy**2))
+#        for x in grid_x[1:-1]:
+#            plt.plot(np.ones(len(self.axe_y))*self.axe_x[x], self.axe_y, 'r')
+#        for y in grid_y[1:-1]:
+#            plt.plot(self.axe_x, np.ones(len(self.axe_x))*self.axe_y[y], 'r')
+#        plt.subplot(2, 2, 2)
+#        plt.plot(self.pbi_y, self.axe_y)
+#        for y in grid_y[1:-1]:
+#            plt.plot([np.min(self.pbi_y), np.max(self.pbi_y)],
+#                     np.ones(2)*self.axe_y[y],
+#                     'r')
+#        plt.subplot(2, 2, 3)
+#        plt.plot(self.axe_x, self.pbi_x)
+#        for x in grid_x[1:-1]:
+#            plt.plot(np.ones(2)*self.axe_x[x],
+#                     [np.min(self.pbi_x), np.max(self.pbi_x)],
+#                     'r')
         return grid_x, grid_y
+
+    def _cut_around_cp(self):
+        """
+        Cut around a cp in order to get a field of 'min_win_size' size.
+        """
+        pass
+#        # getting datas
+#        min_radius = round(self.min_win_size/2)
+#        cp_pos = tmp_vf._get_poi_position()
+#        # grid_x
+#        x1 = cp_pos[0] - min_radius
+#        x2 = cp_pos[0] + min_radius
+#        if x1 <
+#        tmp_grid_x = [0, cp_pos[0] - min_radius,
+#                      cp_pos[0] + min_radius, len(self.pbi_x)]
+#        tmp_grid_y = [0, cp_pos[1] - min_radius,
+#                      cp_pos[1] + min_radius, len(self.pbi_y)]
+#        # TO FINISHHHHH
 
     def _split_the_field(self, grid_x, grid_y):
         """
@@ -217,8 +296,7 @@ class VF(object):
     def _get_poi_position(self):
         """
         On a field with only one structure detected by PBI, return the
-        position of this structure (position is not given in indice, but
-        by using 'axe_x' and 'axe_y').
+        position of this structure (position is given in indice).
         """
         poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
         poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
@@ -228,7 +306,7 @@ class VF(object):
             raise StandardError()
         if len(ind_x) == 0 and len(ind_y) == 0:
             raise StandardError("empty field")
-        return self.axe_x[ind_x[0]], self.axe_y[ind_y[0]]
+        return ind_x[0], ind_y[0]
 
     def _check_struct_number(self):
         """
