@@ -3,6 +3,8 @@
 Created on Sun Feb 23 18:07:07 2014
 
 @author: muahah
+
+For performance
 """
 
 
@@ -15,6 +17,230 @@ import numpy as np
 from scipy.interpolate import UnivariateSpline
 import warnings
 import sets
+
+
+def velocityfield_to_vf(velocityfield):
+    """
+    Create a VF object from a VelocityField object.
+    """
+    # extracting data
+    VX = velocityfield.V.comp_x.values.data
+    VY = velocityfield.V.comp_y.values.data
+    IND_X = velocityfield.V.comp_x.axe_x
+    IND_Y = velocityfield.V.comp_x.axe_y
+    MASK = velocityfield.V.comp_x.values.mask
+    THETA = velocityfield.V.get_theta()
+    # TODO : add the following when fill will be optimized
+    #THETA.fill()
+    THETA = THETA.values.data
+    # using VF methods to get cp position
+    vf = VF(VX, VY, IND_X, IND_Y, MASK, THETA)
+    return vf
+
+
+class VF(object):
+
+    def __init__(self, vx, vy, axe_x, axe_y, mask, theta, min_win_size=3):
+        self.vx = np.array(vx)
+        self.vy = np.array(vy)
+        self.mask = np.array(mask)
+        self.theta = np.array(theta)
+        self.min_win_size = min_win_size
+        self.shape = self.vx.shape
+        self._calc_pbi()
+        self.axe_x = axe_x
+        self.axe_y = axe_y
+
+    def export_to_velocityfield(self):
+        """
+        Return a velocityfield with the information on the field
+        """
+        compx = ScalarField()
+        compx.import_from_arrays(self.axe_x, self.axe_y, self.vx)
+        compy = ScalarField()
+        compy.import_from_arrays(self.axe_x, self.axe_y, self.vy)
+        tmp_vf = VelocityField()
+        tmp_vf.import_from_scalarfield(compx, compy, 0)
+        return tmp_vf
+
+    def get_cp_position(self, min_win_size=3):
+        """
+        Return the critical points positions and their PBI.
+        (PBI : Poincarre_Bendixson indice)
+
+        Parameters
+        ----------
+        min_win_size : integer, optional
+           Detection distance, points separated by less than this number are
+           not detected.
+
+        Returns
+        -------
+        pos : 2xN array
+            position (x, y) of the detected critical points.
+            Vector fields representing the arrays of interest
+            (contening critical points). An additional argument 'PBI' is
+            available for each vector field, indicating the PBI value.
+            A PBI of 1 indicate a vortex, a PBI of -1 a saddle point ans a PBI
+            of 0 two or more indivising structures.
+        pbis : 1xN array
+            PBI (1 indicate a node, -1 a saddle point)
+        """
+        self.min_win_size = min_win_size
+        positions = []
+        pbis = []
+        # first splitting
+        grid_x, grid_y = self._find_cut_positions()
+        # If there is nothing or we really don't have luck...
+        # just a split in the middle to see
+        if grid_x is None:
+            len_x = self.shape[1]
+            len_y = self.shape[0]
+            pool = self._split_the_field([0, np.round(len_x/2.), len_x],
+                                         [0, np.round(len_y/2.), len_y])
+        else:
+            pool = self._split_the_field(grid_x, grid_y)
+        while True:
+            # if the pool is empty we have finish !
+            if len(pool) == 0:
+                break
+            # get a field
+            tmp_vf = pool[0]
+            # check if there is something in it
+            if tmp_vf._check_struct_number() == (0, 0):
+                pass
+            # check if there is only one critical point in it
+            elif tmp_vf._check_struct_number() == (1, 1):
+                positions.append(tmp_vf._get_poi_position())
+                pbis.append(tmp_vf.pbi_x[-1])
+            # Else, we split again the field
+            else:
+                tmp_grid_x, tmp_grid_y = tmp_vf._find_cut_positions()
+                # if there is possible cutting, we do it
+                if len(tmp_grid_x) != 2 or len(tmp_grid_y) != 2:
+                    tmp_pool = tmp_vf._split_the_field(tmp_grid_x, tmp_grid_y)
+                    pool = np.append(pool, tmp_pool[:])
+                #else we just delete the field
+            pool = np.delete(pool, 0)
+        return positions, pbis
+
+    def get_pbi(self, direction):
+        """
+        Return the PBI along the given axe.
+        """
+        theta = self.theta.copy()
+        if direction == 2:
+            theta = np.rot90(theta, 3)
+        pbi = np.zeros(theta.shape[1])
+        for i in np.arange(theta.shape[1]):
+            # getting and concatening profiles
+            thetas_border = np.concatenate((theta[::-1, 0],
+                                            theta[0, 0:i],
+                                            theta[:, i],
+                                            theta[-1, i:0:-1]),
+                                           axis=0)
+            delta_thetas = np.concatenate((thetas_border[1::]
+                                           - thetas_border[0:-1],
+                                           thetas_border[0:1]
+                                           - thetas_border[-1::]), axis=0)
+            # particular points treatment
+            delta_thetas[delta_thetas > np.pi] -= 2*np.pi
+            delta_thetas[delta_thetas < -np.pi] += 2*np.pi
+            # Stockage
+            pbi[i] = np.sum(delta_thetas)/(2.*np.pi)
+        if direction == 2:
+            pbi = pbi[::-1]
+        return np.array(np.round(pbi))
+
+    def _find_cut_positions(self):
+        """
+        Return the position along x ans y where we can cut the field.
+        Return None if there is no possible cut position.
+        """
+        # Getting point of interest position
+        poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
+        poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
+        ind_x = np.where(poi_x != 0)[0]
+        ind_y = np.where(poi_y != 0)[0]
+        # If there is only one or none distinct structure
+        if ind_x.shape[0] <= 1 and ind_y.shape[0] <= 1:
+            return None, None
+        # finding all possible cutting positions
+        dist_x = np.abs(ind_x[1::] - ind_x[0:-1])
+        dist_y = np.abs(ind_y[1::] - ind_y[0:-1])
+        cut_pos_x = ind_x[0:-1] + np.ceil(dist_x/2)
+        cut_pos_y = ind_y[0:-1] + np.ceil(dist_y/2)
+        # eliminating cutting creating too small fields
+        cut_pos_x = cut_pos_x[dist_x > self.min_win_size]
+        cut_pos_y = cut_pos_y[dist_y > self.min_win_size]
+        # adding borders
+        grid_x = np.concatenate(([0], cut_pos_x + 1, [len(self.pbi_x)]))
+        grid_y = np.concatenate(([0], cut_pos_y + 1, [len(self.pbi_y)]))
+        return grid_x, grid_y
+
+    def _split_the_field(self, grid_x, grid_y):
+        """
+        Return a set of fields, resulting of cutting the field at the
+        given positions.
+        Resulting fields are a little bigger than if we do a basic cutting,
+        in order to not lose cp.
+        """
+        fields = []
+        for i in np.arange(len(grid_x) - 1):
+            for j in np.arange(len(grid_y) - 1):
+                if grid_x[i] == 0:
+                    slic_x = slice(grid_x[i], grid_x[i + 1] + 1)
+                else:
+                    slic_x = slice(grid_x[i] - 1, grid_x[i + 1] + 1)
+                if grid_y[j] == 0:
+                    slic_y = slice(grid_y[j], grid_y[j + 1] + 1)
+                else:
+                    slic_y = slice(grid_y[j] - 1, grid_y[j + 1] + 1)
+                vx_tmp = self.vx[slic_y, slic_x]
+                vy_tmp = self.vy[slic_y, slic_x]
+                mask_tmp = self.mask[slic_y, slic_x]
+                theta_tmp = self.theta[slic_y, slic_x]
+                axe_x_tmp = self.axe_x[slic_x]
+                axe_y_tmp = self.axe_y[slic_y]
+                vf_tmp = VF(vx_tmp, vy_tmp, axe_x_tmp, axe_y_tmp,
+                            mask_tmp, theta_tmp, self.min_win_size)
+                fields.append(vf_tmp)
+        return fields
+
+    def _calc_pbi(self):
+        """
+        Compute the pbi along the two axis and store them.
+        """
+        self.pbi_x = self.get_pbi(direction=1)
+        self.pbi_y = self.get_pbi(direction=2)
+
+    def _get_poi_position(self):
+        """
+        On a field with only one structure detected by PBI, return the
+        position of this structure (position is not given in indice, but
+        by using 'axe_x' and 'axe_y').
+        """
+        poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
+        poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
+        ind_x = np.where(poi_x != 0)[0]
+        ind_y = np.where(poi_y != 0)[0]
+        if len(ind_x) > 1 or len(ind_y) > 1:
+            raise StandardError()
+        if len(ind_x) == 0 and len(ind_y) == 0:
+            raise StandardError("empty field")
+        return self.axe_x[ind_x[0]], self.axe_y[ind_y[0]]
+
+    def _check_struct_number(self):
+        """
+        Return the possible number of structure in the field along each axis.
+        """
+        # finding points of interest (where pbi change)
+        poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
+        poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
+        # computing number of structures
+        num_x = len(poi_x[poi_x != 0])
+        num_y = len(poi_y[poi_y != 0])
+        return num_x, num_y
 
 
 def find_critical_points_traj(TVFS, windows_size=5, radius=None, epsilon=None,
@@ -644,210 +870,8 @@ def vortices_zoi(velocityfield, min_win_size=3):
     # checking parameters coherence
     if not isinstance(velocityfield, VelocityField):
         raise TypeError("'velocityfield' must be a VelocityField")
-    # extracting data
-    VX = velocityfield.V.comp_x.values.data
-    VY= velocityfield.V.comp_y.values.data
-    IND_X = velocityfield.V.comp_x.axe_x
-    IND_Y = velocityfield.V.comp_x.axe_y
-    MASK = velocityfield.V.comp_x.values.mask
-    THETA = velocityfield.V.get_theta()
-    # TODO : add the following when fill will be optimized
-    #THETA.fill()
-    THETA = THETA.values.data
-
-    # Local class representing a velocityfield
-    class VF(object):
-
-        def __init__(self, vx, vy, axe_x, axe_y, mask, theta, min_win_size=3):
-            self.vx = np.array(vx)
-            self.vy = np.array(vy)
-            self.mask = np.array(mask)
-            self.theta = np.array(theta)
-            self.min_win_size = min_win_size
-            self.shape = self.vx.shape
-            self.calc_pbi()
-            self.axe_x = axe_x
-            self.axe_y = axe_y
-
-        def get_cp_position(self):
-            """
-            Return the position of the field critical point, using
-            'find_cut_position' and 'split_field'.
-            """
-            positions = []
-            pbis = []
-            # first splitting
-            grid_x, grid_y = self.find_cut_positions()
-            plt.figure()
-            plt.plot(self.pbi_x)
-            plt.figure()
-            plt.plot(self.pbi_y, np.arange(len(self.pbi_y)))
-            print(grid_x)
-            print(grid_y)
-            # If there is nothing or we really don't have luck...
-            # just a split in the middle to see
-            if grid_x is None:
-                len_x = self.shape[1]
-                len_y = self.shape[0]
-                pool = self.split_the_field([0, np.round(len_x/2.), len_x],
-                                            [0, np.round(len_y/2.), len_y])
-            else:
-                pool = self.split_the_field(grid_x, grid_y)
-            while True:
-                # if the pool is empty we have finish !
-                if len(pool) == 0:
-                    break
-                # get a field
-                tmp_vf = pool[0]
-                # check if there is something in it
-                if tmp_vf.check_struct_number() == (0, 0):
-                    pass
-                # check if there is only one critical point in it
-                elif tmp_vf.check_struct_number() == (1, 1):
-                    positions.append(tmp_vf.get_poi_position())
-                    pbis.append(tmp_vf.pbi_x[-1])
-                # Else, we split again the field
-                else:
-                    tmp_grid_x, tmp_grid_y = tmp_vf.find_cut_positions()
-                    # if there is possible cutting, we do it
-                    if len(tmp_grid_x) != 2 or len(tmp_grid_y) != 2:
-                        tmp_pool = tmp_vf.split_the_field(tmp_grid_x, tmp_grid_y)
-                        pool = np.append(pool, tmp_pool[:])
-                    #else we just delete the field
-                pool = np.delete(pool, 0)
-            return positions, pbis
-
-        def find_cut_positions(self):
-            """
-            Return the position along x ans y where we can cut the field.
-            Return None if there is no possible cut position.
-            """
-            # Getting point of interest position
-            poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
-            poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
-            ind_x = np.where(poi_x != 0)[0]
-            ind_y = np.where(poi_y != 0)[0]
-            # If there is only one or none distinct structure
-            if ind_x.shape[0] <= 1 and ind_y.shape[0] <= 1:
-                return None, None
-            # finding all possible cutting positions
-            dist_x = np.abs(ind_x[1::] - ind_x[0:-1])
-            dist_y = np.abs(ind_y[1::] - ind_y[0:-1])
-            cut_pos_x = ind_x[0:-1] + np.ceil(dist_x/2)
-            cut_pos_y = ind_y[0:-1] + np.ceil(dist_y/2)
-            # eliminating cutting creating too small fields
-            cut_pos_x = cut_pos_x[dist_x > self.min_win_size]
-            cut_pos_y = cut_pos_y[dist_y > self.min_win_size]
-            # adding borders
-            grid_x = np.concatenate(([0], cut_pos_x + 1, [len(self.pbi_x)]))
-            grid_y = np.concatenate(([0], cut_pos_y + 1, [len(self.pbi_y)]))
-            return grid_x, grid_y
-
-        def split_the_field(self, grid_x, grid_y):
-            """
-            Return a set of fields, resulting of cutting the field at the
-            given positions.
-            Resulting fields are a little bigger than if we do a basic cutting,
-            in order to not lose cp.
-            """
-            fields = []
-            for i in np.arange(len(grid_x) - 1):
-                for j in np.arange(len(grid_y) - 1):
-                    if grid_x[i] == 0:
-                        slic_x = slice(grid_x[i], grid_x[i + 1] + 1)
-                    else:
-                        slic_x = slice(grid_x[i] - 1, grid_x[i + 1] + 1)
-                    if grid_y[j] == 0:
-                        slic_y = slice(grid_y[j], grid_y[j + 1] + 1)
-                    else:
-                        slic_y = slice(grid_y[j] - 1, grid_y[j + 1] + 1)
-                    vx_tmp = self.vx[slic_y, slic_x]
-                    vy_tmp = self.vy[slic_y, slic_x]
-                    mask_tmp = self.mask[slic_y, slic_x]
-                    theta_tmp = self.theta[slic_y, slic_x]
-                    axe_x_tmp = self.axe_x[slic_x]
-                    axe_y_tmp = self.axe_y[slic_y]
-                    vf_tmp = VF(vx_tmp, vy_tmp, axe_x_tmp, axe_y_tmp,
-                                mask_tmp, theta_tmp, self.min_win_size)
-                    fields.append(vf_tmp)
-            return fields
-
-        def get_pbi(self, direction):
-            """
-            Return the PBI along the given axe.
-            """
-            theta = self.theta.copy()
-            if direction == 2:
-                theta = np.rot90(theta, 3)
-            pbi = np.zeros(theta.shape[1])
-            for i in np.arange(theta.shape[1]):
-                # getting and concatening profiles
-                thetas_border = np.concatenate((theta[::-1, 0],
-                                                theta[0, 0:i],
-                                                theta[:, i],
-                                                theta[-1, i:0:-1]),
-                                               axis=0)
-                delta_thetas = np.concatenate((thetas_border[1::]
-                                               - thetas_border[0:-1],
-                                               thetas_border[0:1]
-                                               - thetas_border[-1::]), axis=0)
-                # particular points treatment
-                delta_thetas[delta_thetas > np.pi] -= 2*np.pi
-                delta_thetas[delta_thetas < -np.pi] += 2*np.pi
-                # Stockage
-                pbi[i] = np.sum(delta_thetas)/(2.*np.pi)
-            if direction == 2:
-                pbi = pbi[::-1]
-            return np.array(np.round(pbi))
-
-        def calc_pbi(self):
-            """
-            Compute the pbi along the two axis and store them.
-            """
-            self.pbi_x = self.get_pbi(direction=1)
-            self.pbi_y = self.get_pbi(direction=2)
-
-#        def export_to_velocityfield(self):
-#            """
-#            Return a velocityfield with the information on the field
-#            """
-#            compx = ScalarField()
-#            compx.import_from_arrays(self.axe_x, self.axe_y, self.vx)
-#            compy = ScalarField()
-#            compy.import_from_arrays(self.axe_x, self.axe_y, self.vy)
-#            tmp_vf = VelocityField()
-#            tmp_vf.import_from_scalarfield(compx, compy, 0)
-#            return tmp_vf
-
-        def get_poi_position(self):
-            """
-            On a field with only one structure detected by PBI, return the
-            position of this structure (position is not given in indice, but
-            by using 'axe_x' and 'axe_y').
-            """
-            poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
-            poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
-            ind_x = np.where(poi_x != 0)[0]
-            ind_y = np.where(poi_y != 0)[0]
-            if len(ind_x) > 1 or len(ind_y) > 1:
-                raise StandardError()
-            if len(ind_x) == 0 and len(ind_y) == 0:
-                raise StandardError("empty field")
-            return self.axe_x[ind_x[0]], self.axe_y[ind_y[0]]
-
-        def check_struct_number(self):
-            """
-            Return the possible number of structure in the field along each axis.
-            """
-            # finding points of interest (where pbi change)
-            poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
-            poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
-            # computing number of structures
-            num_x = len(poi_x[poi_x != 0])
-            num_y = len(poi_y[poi_y != 0])
-            return num_x, num_y
-
-    field = VF(VX, VY, IND_X, IND_Y, MASK, THETA)
+    # using VF methods to get cp position
+    field = velocityfield_to_vf(velocityfield)
     return field.get_cp_position()
 
 
