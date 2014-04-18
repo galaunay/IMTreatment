@@ -174,7 +174,7 @@ class WallLaw(object):
         liquid density (kg/m^3)
     """
 
-    def __init__(self, h, tau, visc_c=1e-6, rho=1000):
+    def __init__(self, h, tau, delta, visc_c=1e-6, rho=1000):
         """
         Class constructor.
         """
@@ -184,12 +184,15 @@ class WallLaw(object):
             raise ValueError("'h' has to be positive")
         if not isinstance(tau, NumberTypes):
             raise TypeError("'tau' has to be a number")
+        if not isinstance(delta, NumberTypes):
+            raise TypeError("'delta' has to be a number")
         if tau < 0:
             raise ValueError("'tau' has to be a positive number")
         self.k = 0.4
         self.A = 5.5
         self.rho = rho
         self.tau = tau
+        self.delta = delta
         self.Utau = np.sqrt(self.tau/self.rho)
         self.visc_c = visc_c
         self.visc_d = self.visc_c*self.rho
@@ -232,22 +235,6 @@ class WallLaw(object):
         plt.title("velocity profile according to the log-defect law")
         return fig
 
-    def _log_law(self, yp):
-        """
-        Calculate the log component of the law.
-        Take y+.
-        Return u/Utau.
-        """
-        return 1./self.k*np.log(yp)
-
-    def _linear_law(self, yp):
-        """
-        Calculate the linear component of the law.
-        Take y+.
-        Return u/Utau.
-        """
-        return yp
-
     def get_profile(self, y):
         """
         Return a log-defect profile, according to the given parameters.
@@ -271,24 +258,19 @@ class WallLaw(object):
         y = np.array(y)
         yplus = y*self.Utau/self.visc_c
         ylimscv = 11.63
-        ylimlog = 11.63
+        ylimlog = 450.
         Ufin = []
-        for yp in yplus:
+        for i, yp in enumerate(yplus):
             if yp < 0:
                 Utmp = 0
             elif yp <= ylimscv:
-                Utmp = self._linear_law(yp)*self.Utau
+                Utmp = self._scv(yp)*self.Utau
             elif yp <= ylimlog:
-                raise StandardError("Not implemented yet")
-#                Utmp1 = y1plus*self.Utau
-#                ll = self._LogLaw(y1, self.Utau)
-#                dl = self._DefectLaw(y1, self.Utau, self.Cc)
-#                Utmp2 = self.Utau*(ll - dl + self.A)
-#                Utmp = ((abs(ylimlog - y1plus)*Utmp1
-#                         + abs(ylimscv - y1plus)*Utmp2)
-#                        / abs(ylimlog - ylimscv))
+                Utmp = self._inner_turb(yp)*self.Utau
+            elif y[i] <= self.delta:
+                Utmp = self._outer_turb(yp)*self.Utau
             else:
-                Utmp = self._log_law(yp)*self.Utau
+                Utmp = self._undisturbed(yp)*self.Utau
             Ufin.append(Utmp)
         Ufin = Profile(y, Ufin, make_unit("m"), make_unit("m/s"))
         return Ufin
@@ -296,10 +278,33 @@ class WallLaw(object):
     def integral(self, x, y):
         return np.trapz(y, x)
 
+    def _scv(self, yp):
+        """
+        Calculate u/Utau in the scv.
+        """
+        return yp
 
-class DefectLaw(WallLaw):
+    def _inner_turb(self, yp):
+        """
+        Calculate u/Utau in the inner part of the bl.
+        """
+        return 1./self.k*np.log(yp) + 5.1
+
+    def _outer_turb(self, yp):
+        """
+        Calculate u/Utau in the outer part of the bl.
+        """
+        return self._inner_turb(yp)
+
+    def _undisturbed(self, yp):
+        """
+        Calculate u/Utau outside of the bl
+        """
+        return self._outer_turb(self.delta*self.Utau/self.visc_c)
+
+class WakeLaw(WallLaw):
     """
-    Class representing the log-defect law profile using Coles theory.
+    Class representing a law of the wake profile using Coles theory.
     By default, the used liquid is water.
 
     Parameters
@@ -318,34 +323,28 @@ class DefectLaw(WallLaw):
         liquid density (kg/m^3)
     """
 
-    def __init__(self, h, tau, delta, Cc=0.5, visc_c=1e-6, rho=1000):
+    def _inner_turb(self, yp):
         """
-        Class constructor.
+        Calculate u/Utau in the turbulent part of the bl.
         """
-        if not isinstance(Cc, NumberTypes):
-            raise TypeError("'Cc' has to be a number")
-        if not isinstance(delta, NumberTypes):
-            raise TypeError("'delta' has to be a number")
-        WallLaw.__init__(self, h, tau, visc_c=visc_c, rho=rho)
-        self.Cc = Cc
-        self.delta = delta
+        return self._wake_law(yp)
 
-    def _defect_law(self, yp):
+    def _outer_turb(self, yp):
+        """
+        Calculate u/Utau outside of the bl.
+        """
+        return self._wake_law(yp)
+
+    def _wake_law(self, yp):
         """
         Calculate the defect composante of the law.
         Take yp.
         Return u/Utau.
         """
         y = yp/self.Utau*self.visc_c
-        return 2.*self.Cc/self.k*np.sin(np.pi*y/(2.*self.delta))**2.
-
-    def _log_law(self, yp):
-        """
-        Calculate the log component of the law.
-        Take yp.
-        Return u/Utau.
-        """
-        return 1./self.k*np.log(yp) + self._defect_law(yp)
+        Cc = 0.55
+        return (1./self.k*np.log(self.Utau*y/self.visc_c)+ 5.1
+                + 2.*Cc/self.k*np.sin(np.pi*y/(2.*self.delta))**2)
 
 
 def get_bl_thickness(obj, direction=1, perc=0.95):
