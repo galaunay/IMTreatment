@@ -1605,7 +1605,7 @@ class ScalarField(object):
         v = IM.IM7(filename)
         axe_x = v.Px[0, :]
         axe_y = v.Py[:, 0]
-        values = v.getmaI().data[0]*v.buffer['scaleI']['factor']
+        values = v.getmaI()[0]*v.buffer['scaleI']['factor']
         unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
         unit_x = unit_x.replace('[', '')
         unit_x = unit_x.replace(']', '')
@@ -3251,6 +3251,7 @@ class VectorField(object):
         unit_values = unit_values.replace('[', '')
         unit_values = unit_values.replace(']', '')
         # vérification de l'ordre des axes (et correction)
+        # TODO : ajouter importation du mask (si pas déja fait)
         x = v.Px[0, :]
         y = v.Py[:, 0]
         Vx = v.Vx[0]
