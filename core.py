@@ -2839,10 +2839,14 @@ class ScalarField(object):
             if not 'cmap' in plotargs.keys():
                 plotargs['cmap'] = cm.jet
             if not 'interpolation' in plotargs.keys():
-                plotargs['interpolation'] = 'bicubic'
+                plotargs['interpolation'] = 'nearest'
+            delta_x = self.axe_x[1] - self.axe_x[0]
+            delta_y = self.axe_y[1] - self.axe_y[0]
             fig = plt.imshow(self.values,
-                             extent=(self.axe_x[0], self.axe_x[-1],
-                                     self.axe_y[0], self.axe_y[-1]),
+                             extent=(self.axe_x[0] - delta_x/2.,
+                                     self.axe_x[-1] + delta_x/2.,
+                                     self.axe_y[0] - delta_y/2.,
+                                     self.axe_y[-1] + delta_y/2.),
                              origin='lower', **plotargs)
         else:
             raise ValueError("Unknown 'kind' of plot for ScalarField object")

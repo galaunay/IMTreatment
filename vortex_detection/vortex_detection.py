@@ -14,7 +14,8 @@ from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, VelocityField, TemporalVelocityFields
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.interpolate import UnivariateSpline
+from scipy.interpolate import UnivariateSpline, RectBivariateSpline
+from scipy.optimize import fmin
 import warnings
 import sets
 
@@ -24,30 +25,32 @@ def velocityfield_to_vf(velocityfield):
     Create a VF object from a VelocityField object.
     """
     # extracting data
-    VX = velocityfield.V.comp_x.values.data
-    VY = velocityfield.V.comp_y.values.data
-    IND_X = velocityfield.V.comp_x.axe_x
-    IND_Y = velocityfield.V.comp_x.axe_y
-    MASK = velocityfield.V.comp_x.values.mask
-    THETA = velocityfield.V.get_theta()
+    vx = velocityfield.V.comp_x.values.data
+    vy = velocityfield.V.comp_y.values.data
+    ind_x = velocityfield.V.comp_x.axe_x
+    ind_y = velocityfield.V.comp_x.axe_y
+    mask = velocityfield.V.comp_x.values.mask
+    theta = velocityfield.V.get_theta()
+    time = velocityfield.get_comp('time')
     # TODO : add the following when fill will be optimized
     #THETA.fill()
-    THETA = THETA.values.data
+    theta = theta.values.data
     # using VF methods to get cp position
-    vf = VF(VX, VY, IND_X, IND_Y, MASK, THETA)
+    vf = VF(vx, vy, ind_x, ind_y, mask, theta, time)
     return vf
 
 
 class VF(object):
 
-    def __init__(self, vx, vy, axe_x, axe_y, mask, theta, min_win_size=3):
+    def __init__(self, vx, vy, axe_x, axe_y, mask, theta, time,
+                 min_win_size=3):
         self.vx = np.array(vx)
         self.vy = np.array(vy)
         self.mask = np.array(mask)
         self.theta = np.array(theta)
+        self.time = time
         self.min_win_size = min_win_size
         self.shape = self.vx.shape
-        self._calc_pbi()
         self.axe_x = axe_x
         self.axe_y = axe_y
 
@@ -60,13 +63,16 @@ class VF(object):
         compy = ScalarField()
         compy.import_from_arrays(self.axe_x, self.axe_y, self.vy)
         tmp_vf = VelocityField()
-        tmp_vf.import_from_scalarfield(compx, compy, 0)
+        tmp_vf.import_from_scalarfield(compx, compy, self.time)
         return tmp_vf
 
     def get_cp_position(self, min_win_size=3):
         """
-        Return the critical points positions and their PBI.
+        Return critical points positions and their associated PBI.
         (PBI : Poincarre_Bendixson indice)
+        Positions are returned in axis unities (axe_x and axe_y) and are
+        always at the center of 4 points (accuracy of this algorithm is
+        limited by the spatial resolution of the field)
 
         Parameters
         ----------
@@ -87,6 +93,8 @@ class VF(object):
             PBI (1 indicate a node, -1 a saddle point)
         """
         self.min_win_size = min_win_size
+        delta_x = self.axe_x[1] - self.axe_x[0]
+        delta_y = self.axe_y[1] - self.axe_y[0]
         positions = []
         pbis = []
         # first splitting
@@ -107,21 +115,22 @@ class VF(object):
                 break
             # get a field
             tmp_vf = pool[0]
+            nmb_struct = tmp_vf._check_struct_number()
             # check if there is something in it
-            if tmp_vf._check_struct_number() == (0, 0):
+            if nmb_struct == (0, 0):
                 pass
             # if there is only one critical point and the field is as
-            # small as possible, we store the cd position, the end !
-            elif tmp_vf._check_struct_number() == (1, 1)\
+            # small as possible, we store the cp position, the end !
+            elif nmb_struct == (1, 1)\
                     and np.all(self.shape[0] < (2*self.min_win_size,
                                                 2*self.min_win_size)):
                 cp_pos = tmp_vf._get_poi_position()
-                positions.append((tmp_vf.axe_x[cp_pos[0]],
-                                  tmp_vf.axe_y[cp_pos[1]]))
+                positions.append((tmp_vf.axe_x[cp_pos[0]] + delta_x/2.,
+                                  tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
                 pbis.append(tmp_vf.pbi_x[-1])
             # if there is only one critical point in it, we cut around
             # this point
-            elif tmp_vf._check_struct_number() == (1, 1):
+            elif nmb_struct == (1, 1):
                 pass
             # Else, we split again the field
             else:
@@ -167,36 +176,40 @@ class VF(object):
         Return a field around the poit given by x and y.
         nm_lc give the number of line and column to take around the point.
         """
-        # getting slices
-        ind_x = np.argwhere(self.axe_x == xy[0])
-        ind_y = np.argwhere(self.axe_y == xy[1])
-        nmb_lc_2 = np.ceil(nmb_lc/2)
-        if len(ind_x) != 1 or len(ind_y) != 1:
-            raise ValueError()
-        x = [ind_x - nmb_lc_2, ind_x + nmb_lc_2]
-        y = [ind_y - nmb_lc_2, ind_y + nmb_lc_2]
-        if x[0] < 0:
-            x[0] = 0
-        slice_x = slice(x[0], x[-1] + 1)
-        if y[0] < 0:
-            y[0] = 0
-        slice_y = slice(y[0], y[-1] + 1)
+        # getting data
+        delta_x = self.axe_x[1] - self.axe_x[0]
+        delta_y = self.axe_y[1] - self.axe_y[0]
+        nmb_lc_2 = np.ceil(nmb_lc/2.)
+        # getting bornes
+        x_min = xy[0] - nmb_lc_2*delta_x
+        x_max = xy[0] + nmb_lc_2*delta_x
+        y_min = xy[1] - nmb_lc_2*delta_y
+        y_max = xy[1] + nmb_lc_2*delta_y
+        # getting masks
+        mask_x = np.logical_and(self.axe_x > x_min, self.axe_x < x_max)
+        mask_y = np.logical_and(self.axe_y > y_min, self.axe_y < y_max)
         # trimming original field
-        vx = self.vx[slice_y, slice_x]
-        vy = self.vy[slice_y, slice_x]
-        axe_x = self.axe_x[slice_x]
-        axe_y = self.axe_y[slice_y]
-        mask = self.mask[slice_y, slice_x]
-        theta = self.theta[slice_y, slice_x]
+        vx = self.vx[mask_y, :]
+        vx = vx[:, mask_x]
+        vy = self.vy[mask_y, :]
+        vy = vy[:, mask_x]
+        axe_x = self.axe_x[mask_x]
+        axe_y = self.axe_y[mask_y]
+        mask = self.mask[mask_y, :]
+        mask = mask[:, mask_x]
+        theta = self.theta[mask_y, :]
+        mask = theta[:, mask_x]
+        time = self.time
         if len(axe_x) == 0 or len(axe_y) == 0:
             raise ValueError()
-        return VF(vx, vy, axe_x, axe_y, mask, theta, self.min_win_size)
+        return VF(vx, vy, axe_x, axe_y, mask, theta, time, self.min_win_size)
 
     def _find_cut_positions(self):
         """
         Return the position along x ans y where we can cut the field.
         Return None if there is no possible cut position.
         """
+        self._calc_pbi()
         # Getting point of interest position
         poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
         poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
@@ -244,7 +257,7 @@ class VF(object):
         # adding borders
         grid_x = np.concatenate(([0], trim_x_1, cut_pos_x + 1, trim_x_2,
                                  [len(self.pbi_x)]))
-        grid_y = np.concatenate(([0], trim_y_1,cut_pos_y + 1, trim_y_2,
+        grid_y = np.concatenate(([0], trim_y_1, cut_pos_y + 1, trim_y_2,
                                  [len(self.pbi_y)]))
 #        # display (debug)
 #        plt.figure()
@@ -309,10 +322,11 @@ class VF(object):
                 vy_tmp = self.vy[slic_y, slic_x]
                 mask_tmp = self.mask[slic_y, slic_x]
                 theta_tmp = self.theta[slic_y, slic_x]
+                time_tmp = self.time
                 axe_x_tmp = self.axe_x[slic_x]
                 axe_y_tmp = self.axe_y[slic_y]
                 vf_tmp = VF(vx_tmp, vy_tmp, axe_x_tmp, axe_y_tmp,
-                            mask_tmp, theta_tmp, self.min_win_size)
+                            mask_tmp, theta_tmp, time_tmp, self.min_win_size)
                 fields.append(vf_tmp)
         return fields
 
@@ -320,14 +334,18 @@ class VF(object):
         """
         Compute the pbi along the two axis and store them.
         """
-        self.pbi_x = self.get_pbi(direction=1)
-        self.pbi_y = self.get_pbi(direction=2)
+        try:
+            self.pbi_x
+        except AttributeError:
+            self.pbi_x = self.get_pbi(direction=1)
+            self.pbi_y = self.get_pbi(direction=2)
 
     def _get_poi_position(self):
         """
         On a field with only one structure detected by PBI, return the
         position of this structure (position is given in indice).
         """
+        self._calc_pbi()
         poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
         poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
         ind_x = np.where(poi_x != 0)[0]
@@ -342,6 +360,7 @@ class VF(object):
         """
         Return the possible number of structure in the field along each axis.
         """
+        self._calc_pbi()
         # finding points of interest (where pbi change)
         poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
         poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
@@ -351,7 +370,8 @@ class VF(object):
         return num_x, num_y
 
 
-def find_critical_points_traj(TVFS, epsilon=None):
+### Critical points detection algorithm ###
+def get_cp_traj(TVFS, epsilon=None, kind='crit'):
     """
     For a set of velocity field (TemporalVelocityFields object), return the
     trajectory of critical points.
@@ -362,18 +382,13 @@ def find_critical_points_traj(TVFS, epsilon=None):
     Parameters
     ----------
     TVFS : TemporalVelocityFields object
-        Sets of fields on which detect vortex
-    windows_size : int, optional
-        Size of the windows for isolating structures (default is 5).
-        (a small value gave less VF_others, but can lead to errors because of
-        critical points no-finding).
     epsilon : float, optional
         Maximum length between two consecutive points in trajectory.
         (default is Inf), extremely usefull to put a correct value here.
-    treat_others : boolean
-        If 'True', zoi with indeterminate PBI are treated using
-        'find_critical_points_on_zoi' (see doc).
-        If 'False' (default), these zoi are returned in 'VF_others'.
+    kind : string, optional
+        If 'pbi', return cp position given by PBI algorithm.
+        If 'crit' (default), return cp position given by PBI + criterion.
+        (more accurate).
 
     Returns
     -------
@@ -398,11 +413,34 @@ def find_critical_points_traj(TVFS, epsilon=None):
     nodes_i = []
     nodes_o = []
     saddles = []
-    others = []
+    cp_pbi_p = []
+    cp_pbi_m = []
     # getting first critical points for all fields
     for field in TVFS.fields:
-        foc, foc_c, nod_i, nod_o, sadd, oth\
-            = find_critical_points(field)
+        if kind == 'crit':
+            foc, foc_c, nod_i, nod_o, sadd, pbi = get_cp_crit(field)
+            pbi_p = pbi
+            pbi_m = []
+            # TODO : to finish
+        elif kind == 'pbi':
+            pos, pbis = get_cp_pbi(field)
+            foc = []
+            foc_c = []
+            nod_i = []
+            nod_o = []
+            sadd = []
+            pbi_p = []
+            pbi_m = []
+            for i, pt in enumerate(pos):
+                tmp_pt = Points([pt], [field.time])
+                tmp_pt.pbi = pbis[i]
+                if pbis[i] == 1:
+                    pbi_p.append(tmp_pt)
+                else:
+                    pbi_m.append(tmp_pt)
+
+        else:
+            raise ValueError()
         # storing results
         if len(foc) != 0:
             focus += foc
@@ -414,295 +452,154 @@ def find_critical_points_traj(TVFS, epsilon=None):
             nodes_o += nod_o
         if len(sadd) != 0:
             saddles += sadd
-        if len(oth) != 0:
-            others += oth
+        if len(pbi_p) != 0:
+            cp_pbi_p += pbi_p
+        if len(pbi_m) != 0:
+            cp_pbi_m += pbi_m
     # getting times
     times = TVFS.get_comp('time')
     # getting critical points trajectory
     if len(focus) != 0:
-        focus_traj = vortices_evolution(focus, times, epsilon)
+        focus_traj = get_cp_time_evolution(focus, times, epsilon)
     else:
         focus_traj = []
     if len(focus_c) != 0:
-        focus_c_traj = vortices_evolution(focus_c, times, epsilon)
+        focus_c_traj = get_cp_time_evolution(focus_c, times, epsilon)
     else:
         focus_c_traj = []
     if len(nodes_i) != 0:
-        nodes_i_traj = vortices_evolution(nodes_i, times, epsilon)
+        nodes_i_traj = get_cp_time_evolution(nodes_i, times, epsilon)
     else:
         nodes_i_traj = []
     if len(nodes_o) != 0:
-        nodes_o_traj = vortices_evolution(nodes_o, times, epsilon)
+        nodes_o_traj = get_cp_time_evolution(nodes_o, times, epsilon)
     else:
         nodes_o_traj = []
     if len(saddles) != 0:
-        saddles_traj = vortices_evolution(saddles, times, epsilon)
+        saddles_traj = get_cp_time_evolution(saddles, times, epsilon)
     else:
         saddles_traj = []
+    if len(cp_pbi_p) != 0:
+        cp_pbip_traj = get_cp_time_evolution(cp_pbi_p, times, epsilon)
+    else:
+        cp_pbip_traj = []
+    if len(cp_pbi_m) != 0:
+        cp_pbim_traj = get_cp_time_evolution(cp_pbi_m, times, epsilon)
+    else:
+        cp_pbim_traj = []
     return focus_traj, focus_c_traj, nodes_i_traj, nodes_o_traj, saddles_traj,\
-        others
+        cp_pbim_traj, cp_pbip_traj
 
 
-def find_critical_points(velocityfield):
-    """
-    For a velocity field (VelocityField object), return the position of
-    critical points.
-
-    Parameters
-    ----------
-    velocityfield : VelocityField object
-    windows_size : int
-        size (in field point) of the PBI windows. Small value tend to more
-        critical points discovered, but with less accuracy.
-        (To small values may lead to errors in criterion computation)
-    radius : number
-        radius for criterion computation (default lead to 8 points zone of
-        computation)
-    expend : boolean
-        If 'True' (default), zone of interest computed with PBI are expended
-        by 'radius' in order to have good criterion computation
-    treat_others : boolean
-        If 'True', zoi with indeterminate PBI are treated using
-        'find_critical_points_on_zoi' (see doc).
-        If 'False' (default), these zoi are returned in 'VF_others'.
-
-    Returns
-    -------
-    focus, focus_c, nodes_i, nodes_o, saddles : tuple of points
-        Found points of each type.
-    other_VF : tuple of VelocityField
-        Areas where PBI fail to isolate only one critical points
-        (diminue with small 'windows_size')
-    """
-    if not isinstance(velocityfield, VelocityField):
-        raise TypeError("'VF' must be a VelocityField")
-    # getting pbi cp position
-    VF_field = velocityfield_to_vf(velocityfield)
-    cp_positions, pbis = VF_field.get_cp_position()
-    # creating velocityfields around critical points
-    # and transforming into VelocityField objects
-    # TODO : maybe keep VF instead of VelocityField
-    VF_tupl = [[]] * len(cp_positions)
-    for i, cp_pos in enumerate(cp_positions):
-        tmp_vf = VF_field.get_field_around_pt(cp_pos, 5)
-        tmp_vf = tmp_vf.export_to_velocityfield()
-        tmp_vf.PBI = pbis[i]
-        VF_tupl[i] = tmp_vf
-    # sorting by critical points type
-    VF_focus = []
-    VF_nodes = []
-    VF_saddle = []
-    VF_others = []
-    for VF in VF_tupl:
-        # If the field surrounding the cp is tto small, we simply conserv the
-        # cp position from the pbi analysis
-        axe_x, axe_y = VF.get_axes()
-        if len(axe_x) < 5 or len(axe_y) < 5:
-            continue
-        # test if node or focus
-        if VF.PBI == 1:
-            # checking if node or focus
-            VF.gamma1 = get_gamma(VF.V, radius=1.9, ind=True)
-            VF.kappa1 = get_kappa(VF.V, radius=1.9, ind=True)
-            max_gam = np.max([abs(VF.gamma1.get_max()),
-                             abs(VF.gamma1.get_min())])
-            max_kap = np.max([abs(VF.kappa1.get_max()),
-                             abs(VF.kappa1.get_min())])
-            if max_gam > max_kap:
-                VF_focus.append(VF)
-            else:
-                VF_nodes.append(VF)
-        # saddle point
-        elif VF.PBI == -1:
-            VF_saddle.append(VF)
-        # complicated
-        else:
-            VF_others.append(VF)
-    # computing saddle points positions
-    saddles = []
-    if len(VF_saddle) != 0:
-        for VF in VF_saddle:
-# TODO : determiner lequel est le mieux !
-#            # getting iota
-#            V_tmp = VF.V
-#            tmp_iota = get_iota(V_tmp)
-#            pts = tmp_iota.get_zones_centers(bornes=[.75, 1], kind='extremum')
+#def find_cp_on_zoi(VF, others_VF, radius=None, expend=True):
+#    """
+#    Return critical points positions on the given set of zoi (give one
+#    point per zoi).
+#    Contrary to 'find_critical_points', this function do not use informations
+#    given by PBI. Determination of the type of the critical point is so
+#    less accurate.
+#
+#    Parameters
+#    ----------
+#    VF : VelocityField object
+#        Complete Velocity field (for expendind purpose)
+#    other_VF : tuple of VelocityField objects
+#        Zoi where we want to find critical points.
+#    radius : number
+#        radius for criterion computation (default lead to 8 points zone of
+#        computation)
+#    expend : boolean
+#        If 'True' (default), zone of interest are expended
+#        by 'radius' in order to have good criterion results (gamma and kappa)
+#
+#    Returns
+#    -------
+#    focus, focus_c, nodes_i, nodes_o, saddles : tuple of points
+#        Found points of each type.
+#    """
+#    # expanding the interesting zones where PBI = 1 (for good gamma and kappa
+#    # criterion computation)
+#    if expend:
+#        axe_x, axe_y = VF.get_axes()
+#        if radius is None:
+#            expend_len = ((axe_x[-1] - axe_x[0])
+#                          / (VF.get_dim()[0] - 1)
+#                          + (axe_y[-1] - axe_y[0])
+#                          / (VF.get_dim()[1] - 1)
+#                          )/2
+#        else:
+#            expend_len = radius
+#        for i in np.arange(len(others_VF)):
+#            pbi = others_VF[i].PBI
+#            others_VF[i] = _expend(VF, others_VF[i], expend_len, error=False)
+#            others_VF[i].PBI = pbi
+#    # loop on the velocity fields
+#    focus = []
+#    focus_c = []
+#    saddles = []
+#    nodes_i = []
+#    nodes_o = []
+#    for vf in others_VF:
+#        # Computing criterion
+#        vf.calc_gamma1(radius)
+#        vf.calc_kappa1(radius)
+#        vf.calc_sigma(radius)
+#        # Getting the most adequate criterion
+#        gam_prob1 = np.abs(vf.gamma1.get_min())/1.
+#        gam_prob2 = np.abs(vf.gamma1.get_max())/1.
+#        kap_prob1 = np.abs(vf.kappa1.get_min())/1.
+#        kap_prob2 = np.abs(vf.kappa1.get_max())/1.
+#        # If no one suits, we consideer it's a saddle
+#        if np.max([gam_prob1, gam_prob2, kap_prob1, kap_prob2]) < 0.5:
+#            adeq_crit = 4
+#        else:
+#            adeq_crit = np.argmax([gam_prob1, gam_prob2, kap_prob1, kap_prob2])
+#        # Getting the point position using the given criterion
+#        if adeq_crit == 0:
+#            #focus
+#            pts = vf.gamma1.get_zones_centers(bornes=[-1, -.5], rel=False)
+#            if pts is not None:
+#                if pts.xy[0][0] is not None and len(pts) == 1:
+#                    pts.v = [VF.time]
+#                    pts.unit_v = VF.unit_time
+#                    focus_c.append(pts)
+#        elif adeq_crit == 1:
+#            #focus contrarotative
+#            pts = vf.gamma1.get_zones_centers(bornes=[.5, 1.], rel=False)
+#            if pts is not None:
+#                if pts.xy[0][0] is not None and len(pts) == 1:
+#                    pts.v = [VF.time]
+#                    pts.unit_v = VF.unit_time
+#                    focus.append(pts)
+#        elif adeq_crit == 2:
+#            #node in
+#            pts = vf.kappa1.get_zones_centers(bornes=[-1, -.5], rel=False)
+#            if pts is not None:
+#                if pts.xy[0][0] is not None and len(pts) == 1:
+#                    pts.v = [VF.time]
+#                    pts.unit_v = VF.unit_time
+#                    nodes_i.append(pts)
+#        elif adeq_crit == 3:
+#            #node out
+#            pts = vf.kappa1.get_zones_centers(bornes=[.5, 1.], rel=False)
+#            if pts is not None:
+#                if pts.xy[0][0] is not None and len(pts) == 1:
+#                    pts.v = [VF.time]
+#                    pts.unit_v = VF.unit_time
+#                    nodes_o.append(pts)
+#        elif adeq_crit == 4:
+#            #saddle
+#        # TOD0 : determiner si iota est mieux que sigma ou non
+#            pts = vf.sigma.get_zones_centers(bornes=[0, .25], rel=False)
 #            if pts is not None:
 #                if pts.xy[0][0] is not None and len(pts) == 1:
 #                    pts.v = [VF.time]
 #                    pts.unit_v = VF.unit_time
 #                    saddles.append(pts)
-            # trying with sigma instead of iota
-            V_tmp = VF.V
-            tmp_sigma = get_sigma(V_tmp, 1.9, ind=True)
-            pts = tmp_sigma.get_zones_centers(bornes=[0, .25], rel=False,
-                                              kind='center')
-            if pts is not None:
-                if pts.xy[0][0] is not None and len(pts) == 1:
-                    pts.v = [VF.time]
-                    pts.unit_v = VF.unit_time
-                    saddles.append(pts)
-    # computing focus positions (rotatives and contrarotatives)
-    focus = []
-    focus_c = []
-    if len(VF_focus) != 0:
-        for VF in VF_focus:
-            tmp_gam = VF.gamma1
-            #tmp_gam.smooth()
-            min_gam = tmp_gam.get_min()
-            max_gam = tmp_gam.get_max()
-            # rotative vortex
-            if abs(max_gam) > abs(min_gam):
-                pts = tmp_gam.get_zones_centers(bornes=[0.4, 1], rel=False)
-                if pts is not None:
-                    if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [VF.time]
-                        pts.unit_v = VF.unit_time
-                        focus.append(pts)
-            # contrarotative vortex
-            else:
-                pts = tmp_gam.get_zones_centers(bornes=[-1, -0.4], rel=False)
-                if pts is not None:
-                    if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [VF.time]
-                        pts.unit_v = VF.unit_time
-                        focus_c.append(pts)
-    # computing nodes points positions (in or out)
-    nodes_i = []
-    nodes_o = []
-    if len(VF_nodes) != 0:
-        for VF in VF_nodes:
-            tmp_kap = VF.kappa1
-            min_kap = tmp_kap.get_min()
-            max_kap = tmp_kap.get_max()
-            # out nodes
-            if abs(max_kap) > abs(min_kap):
-                pts = tmp_kap.get_zones_centers(bornes=[0.75, 1], rel=False)
-                if pts is not None:
-                    if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [VF.time]
-                        pts.unit_v = VF.unit_time
-                        nodes_o.append(pts)
-            # in nodes
-            else:
-                pts = tmp_kap.get_zones_centers(bornes=[-1, -0.75], rel=False)
-                if pts is not None:
-                    if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [VF.time]
-                        pts.unit_v = VF.unit_time
-                        nodes_i.append(pts)
-    return focus, focus_c, nodes_i, nodes_o, saddles, VF_others
+#    return focus, focus_c, nodes_i, nodes_o, saddles
 
 
-def find_critical_points_on_zoi(VF, others_VF, radius=None, expend=True):
-    """
-    Return critical points positions on the given set of zoi (give one
-    point per zoi).
-    Contrary to 'find_critical_points', this function do not use informations
-    given by PBI. Determination of the type of the critical point is so
-    less accurate.
-
-    Parameters
-    ----------
-    VF : VelocityField object
-        Complete Velocity field (for expendind purpose)
-    other_VF : tuple of VelocityField objects
-        Zoi where we want to find critical points.
-    radius : number
-        radius for criterion computation (default lead to 8 points zone of
-        computation)
-    expend : boolean
-        If 'True' (default), zone of interest are expended
-        by 'radius' in order to have good criterion results (gamma and kappa)
-
-    Returns
-    -------
-    focus, focus_c, nodes_i, nodes_o, saddles : tuple of points
-        Found points of each type.
-    """
-    # expanding the interesting zones where PBI = 1 (for good gamma and kappa
-    # criterion computation)
-    if expend:
-        axe_x, axe_y = VF.get_axes()
-        if radius is None:
-            expend_len = ((axe_x[-1] - axe_x[0])
-                          / (VF.get_dim()[0] - 1)
-                          + (axe_y[-1] - axe_y[0])
-                          / (VF.get_dim()[1] - 1)
-                          )/2
-        else:
-            expend_len = radius
-        for i in np.arange(len(others_VF)):
-            pbi = others_VF[i].PBI
-            others_VF[i] = _expend(VF, others_VF[i], expend_len, error=False)
-            others_VF[i].PBI = pbi
-    # loop on the velocity fields
-    focus = []
-    focus_c = []
-    saddles = []
-    nodes_i = []
-    nodes_o = []
-    for vf in others_VF:
-        # Computing criterion
-        vf.calc_gamma1(radius)
-        vf.calc_kappa1(radius)
-        vf.calc_sigma(radius)
-        # Getting the most adequate criterion
-        gam_prob1 = np.abs(vf.gamma1.get_min())/1.
-        gam_prob2 = np.abs(vf.gamma1.get_max())/1.
-        kap_prob1 = np.abs(vf.kappa1.get_min())/1.
-        kap_prob2 = np.abs(vf.kappa1.get_max())/1.
-        # If no one suits, we consideer it's a saddle
-        if np.max([gam_prob1, gam_prob2, kap_prob1, kap_prob2]) < 0.5:
-            adeq_crit = 4
-        else:
-            adeq_crit = np.argmax([gam_prob1, gam_prob2, kap_prob1, kap_prob2])
-        # Getting the point position using the given criterion
-        if adeq_crit == 0:
-            #focus
-            pts = vf.gamma1.get_zones_centers(bornes=[-1, -.5], rel=False)
-            if pts is not None:
-                if pts.xy[0][0] is not None and len(pts) == 1:
-                    pts.v = [VF.time]
-                    pts.unit_v = VF.unit_time
-                    focus_c.append(pts)
-        elif adeq_crit == 1:
-            #focus contrarotative
-            pts = vf.gamma1.get_zones_centers(bornes=[.5, 1.], rel=False)
-            if pts is not None:
-                if pts.xy[0][0] is not None and len(pts) == 1:
-                    pts.v = [VF.time]
-                    pts.unit_v = VF.unit_time
-                    focus.append(pts)
-        elif adeq_crit == 2:
-            #node in
-            pts = vf.kappa1.get_zones_centers(bornes=[-1, -.5], rel=False)
-            if pts is not None:
-                if pts.xy[0][0] is not None and len(pts) == 1:
-                    pts.v = [VF.time]
-                    pts.unit_v = VF.unit_time
-                    nodes_i.append(pts)
-        elif adeq_crit == 3:
-            #node out
-            pts = vf.kappa1.get_zones_centers(bornes=[.5, 1.], rel=False)
-            if pts is not None:
-                if pts.xy[0][0] is not None and len(pts) == 1:
-                    pts.v = [VF.time]
-                    pts.unit_v = VF.unit_time
-                    nodes_o.append(pts)
-        elif adeq_crit == 4:
-            #saddle
-        # TOD0 : determiner si iota est mieux que sigma ou non
-            pts = vf.sigma.get_zones_centers(bornes=[0, .25], rel=False)
-            if pts is not None:
-                if pts.xy[0][0] is not None and len(pts) == 1:
-                    pts.v = [VF.time]
-                    pts.unit_v = VF.unit_time
-                    saddles.append(pts)
-    return focus, focus_c, nodes_i, nodes_o, saddles
-
-
-def vortices_evolution(points, times=None, epsilon=None):
+def get_cp_time_evolution(points, times=None, epsilon=None):
     """
     Compute the temporal evolution of each vortex centers from a set of points
     at different times. (Points objects must contain only one point)
@@ -758,6 +655,7 @@ def vortices_evolution(points, times=None, epsilon=None):
                 self.times = times
             # Sorting points by times
             for time in times:
+                self.times = times
                 tmp_points = []
                 for pt in pts_tupl:
                     if pt.v[0] == time:
@@ -928,7 +826,7 @@ def vortices_evolution(points, times=None, epsilon=None):
     return points_f
 
 
-def vortices_zoi(velocityfield, min_win_size=3):
+def get_cp_pbi(velocityfield, min_win_size=3):
     """
     For a velocity field, return the critical points positions and their PBI.
     (PBI : Poincarre_Bendixson indice)
@@ -960,40 +858,218 @@ def vortices_zoi(velocityfield, min_win_size=3):
     return field.get_cp_position()
 
 
-def _expend(VF, vf, expend, error=True):
+def get_cp_crit(velocityfield):
     """
-    Return an extended version of vf in VF.
+    For a velocity field (VelocityField object), return the position of
+    critical points.
+
+    Parameters
+    ----------
+    velocityfield : VelocityField object
+    windows_size : int
+        size (in field point) of the PBI windows. Small value tend to more
+        critical points discovered, but with less accuracy.
+        (To small values may lead to errors in criterion computation)
+    radius : number
+        radius for criterion computation (default lead to 8 points zone of
+        computation)
+    expend : boolean
+        If 'True' (default), zone of interest computed with PBI are expended
+        by 'radius' in order to have good criterion computation
+    treat_others : boolean
+        If 'True', zoi with indeterminate PBI are treated using
+        'find_cp_on_zoi' (see doc).
+        If 'False' (default), these zoi are returned in 'VF_others'.
+
+    Returns
+    -------
+    focus, focus_c, nodes_i, nodes_o, saddles : tuple of points
+        Found points of each type.
+    other_VF : tuple of VelocityField
+        Areas where PBI fail to isolate only one critical points
+        (diminue with small 'windows_size')
     """
-    if not isinstance(expend, NUMBERTYPES):
-        raise TypeError("expend must be a number")
-    if expend <= 0:
-        raise ValueError("'expend' must be positive")
-    axe_x_g, axe_y_g = VF.get_axes()
-    axe_x, axe_y = vf.get_axes()
-    len_x = axe_x[-1] - axe_x[0]
-    len_y = axe_y[-1] - axe_y[0]
-    # x axis determination
-    if axe_x[0] - expend < axe_x_g[0] and axe_x[-1] + expend > axe_x_g[-1]:
-        if error:
-            raise ValueError("'expend' is too big")
-    if axe_x[0] - expend < axe_x_g[0]:
-        lim_x = [axe_x_g[0], axe_x_g[0] + 2*expend + len_x]
-    elif axe_x[-1] + expend > axe_x_g[-1]:
-        lim_x = [axe_x_g[-1] - 2*expend - len_x, axe_x_g[-1]]
-    else:
-        lim_x = [axe_x[0] - expend, axe_x[-1] + expend]
-    # y axis determination
-    if axe_y[0] - expend < axe_y_g[0] and axe_y[-1] + expend > axe_y_g[-1]:
-        if error:
-            raise ValueError("'expend' is too big")
-    if axe_y[0] - expend < axe_y_g[0]:
-        lim_y = [axe_y_g[0], axe_y_g[0] + 2*expend + len_y]
-    elif axe_y[-1] + expend > axe_y_g[-1]:
-        lim_y = [axe_y_g[-1] - 2*expend - len_y, axe_y_g[-1]]
-    else:
-        lim_y = [axe_y[0] - expend, axe_y[-1] + expend]
-    # trim area
-    return VF.trim_area(lim_x, lim_y)
+    if not isinstance(velocityfield, VelocityField):
+        raise TypeError("'VF' must be a VelocityField")
+    ### Getting pbi cp position and fields around ###
+    VF_field = velocityfield_to_vf(velocityfield)
+    cp_positions, pbis = VF_field.get_cp_position()
+    # creating velocityfields around critical points
+    # and transforming into VelocityField objects
+    VF_tupl = []
+    cp_pbi = []
+    for i, cp_pos in enumerate(cp_positions):
+        tmp_vf = VF_field.get_field_around_pt(cp_pos, 5)
+        tmp_vf = tmp_vf.export_to_velocityfield()
+        # trating small fields
+        axe_x, axe_y = tmp_vf.get_axes()
+        if len(axe_x) < 6 or len(axe_y) < 6:
+            pt = Points([cp_pos], [VF_field.time])
+            pt.pbi = pbis[i]
+            cp_pbi.append(pt)
+        else:
+            tmp_vf.PBI = pbis[i]
+            VF_tupl.append(tmp_vf)
+    ### Sorting by critical points type ###
+    VF_focus = []
+    VF_nodes = []
+    VF_saddle = []
+    for VF in VF_tupl:
+        # node or focus
+        if VF.PBI == 1:
+            # checking if node or focus
+            VF.gamma1 = get_gamma(VF.V, radius=1.9, ind=True)
+            VF.kappa1 = get_kappa(VF.V, radius=1.9, ind=True)
+            max_gam = np.max([abs(VF.gamma1.get_max()),
+                             abs(VF.gamma1.get_min())])
+            max_kap = np.max([abs(VF.kappa1.get_max()),
+                             abs(VF.kappa1.get_min())])
+            if max_gam > max_kap:
+                VF_focus.append(VF)
+            else:
+                VF_nodes.append(VF)
+        # saddle point
+        elif VF.PBI == -1:
+            VF_saddle.append(VF)
+    ### Computing saddle points positions ###
+    saddles = []
+    if len(VF_saddle) != 0:
+        for VF in VF_saddle:
+            tmp_sigma = get_sigma(VF.V, 1.9, ind=True)
+            pts = _min_detection(tmp_sigma)
+            if pts is not None:
+                if pts.xy[0][0] is not None and len(pts) == 1:
+                    pts.v = [VF.time]
+                    pts.unit_v = VF.unit_time
+                    saddles.append(pts)
+    ### Computing focus positions (rotatives and contrarotatives) ###
+    focus = []
+    focus_c = []
+    if len(VF_focus) != 0:
+        for VF in VF_focus:
+            tmp_gam = VF.gamma1
+            min_gam = tmp_gam.get_min()
+            max_gam = tmp_gam.get_max()
+            # rotative vortex
+            if abs(max_gam) > abs(min_gam):
+                pts = _min_detection(-1.*tmp_gam)
+                if pts is not None:
+                    if pts.xy[0][0] is not None and len(pts) == 1:
+                        pts.v = [VF.time]
+                        pts.unit_v = VF.unit_time
+                        focus.append(pts)
+            # contrarotative vortex
+            else:
+                pts = _min_detection(tmp_gam)
+                if pts is not None:
+                    if pts.xy[0][0] is not None and len(pts) == 1:
+                        pts.v = [VF.time]
+                        pts.unit_v = VF.unit_time
+                        focus_c.append(pts)
+    ### Computing nodes points positions (in or out) ###
+    nodes_i = []
+    nodes_o = []
+    if len(VF_nodes) != 0:
+        for VF in VF_nodes:
+            tmp_kap = VF.kappa1
+            min_kap = tmp_kap.get_min()
+            max_kap = tmp_kap.get_max()
+            # out nodes
+            if abs(max_kap) > abs(min_kap):
+                pts = _min_detection(-1.*tmp_kap)
+                if pts is not None:
+                    if pts.xy[0][0] is not None and len(pts) == 1:
+                        pts.v = [VF.time]
+                        pts.unit_v = VF.unit_time
+                        nodes_o.append(pts)
+            # in nodes
+            else:
+                pts = _min_detection(tmp_kap)
+                if pts is not None:
+                    if pts.xy[0][0] is not None and len(pts) == 1:
+                        pts.v = [VF.time]
+                        pts.unit_v = VF.unit_time
+                        nodes_i.append(pts)
+    return focus, focus_c, nodes_i, nodes_o, saddles, cp_pbi
+
+
+def _min_detection(SF):
+    """
+    Only for use in 'get_cp_crit'.
+    """
+    # interpolation on the field
+    interp = RectBivariateSpline(SF.axe_y, SF.axe_x, SF.values.data, s=0)
+    # extended field (resolution x100)
+    x = np.linspace(SF.axe_x[0], SF.axe_x[-1], 100)
+    y = np.linspace(SF.axe_y[0], SF.axe_y[-1], 100)
+    values = interp(y, x)
+    ind_min= np.argmin(values)
+#    plt.figure()
+#    plt.imshow(values, interpolation='nearest')
+#    plt.colorbar()
+    ind_y, ind_x = np.unravel_index(ind_min, values.shape)
+    pos = (x[ind_x], y[ind_y])
+
+
+
+
+
+
+
+
+
+
+
+
+
+#    # minima finding
+#    x_moy = SF.axe_x[np.round(len(SF.axe_x)/2.)]
+#    y_moy = SF.axe_y[np.round(len(SF.axe_y)/2.)]
+#    def fun(xy):
+#        if xy[0] < SF.axe_x[0] or xy[0] > SF.axe_x[1]\
+#                or xy[1] < SF.axe_y[0] or xy[1] > SF.axe_y[1]:
+#            return np.inf
+#        else:
+#            return interp(xy[1], xy[0])
+#    # minimize
+#    pos = fmin(fun, (x_moy, y_moy))
+    return Points([pos])
+
+
+#def _expend(VF, vf, expend, error=True):
+#    """
+#    Return an extended version of vf in VF.
+#    """
+#    if not isinstance(expend, NUMBERTYPES):
+#        raise TypeError("expend must be a number")
+#    if expend <= 0:
+#        raise ValueError("'expend' must be positive")
+#    axe_x_g, axe_y_g = VF.get_axes()
+#    axe_x, axe_y = vf.get_axes()
+#    len_x = axe_x[-1] - axe_x[0]
+#    len_y = axe_y[-1] - axe_y[0]
+#    # x axis determination
+#    if axe_x[0] - expend < axe_x_g[0] and axe_x[-1] + expend > axe_x_g[-1]:
+#        if error:
+#            raise ValueError("'expend' is too big")
+#    if axe_x[0] - expend < axe_x_g[0]:
+#        lim_x = [axe_x_g[0], axe_x_g[0] + 2*expend + len_x]
+#    elif axe_x[-1] + expend > axe_x_g[-1]:
+#        lim_x = [axe_x_g[-1] - 2*expend - len_x, axe_x_g[-1]]
+#    else:
+#        lim_x = [axe_x[0] - expend, axe_x[-1] + expend]
+#    # y axis determination
+#    if axe_y[0] - expend < axe_y_g[0] and axe_y[-1] + expend > axe_y_g[-1]:
+#        if error:
+#            raise ValueError("'expend' is too big")
+#    if axe_y[0] - expend < axe_y_g[0]:
+#        lim_y = [axe_y_g[0], axe_y_g[0] + 2*expend + len_y]
+#    elif axe_y[-1] + expend > axe_y_g[-1]:
+#        lim_y = [axe_y_g[-1] - 2*expend - len_y, axe_y_g[-1]]
+#    else:
+#        lim_y = [axe_y[0] - expend, axe_y[-1] + expend]
+#    # trim area
+#    return VF.trim_area(lim_x, lim_y)
 
 
 ### Separation point detection algorithm ###
