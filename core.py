@@ -2665,10 +2665,11 @@ class ScalarField(object):
             raise TypeError("'tof' must be a string")
         if not isinstance(value, NUMBERTYPES):
             raise TypeError("'value' must be a number")
-        # if there is nothing to do...
-        mask = self.values.mask
+        # deleting the masked border (useless field part)
         if crop_border:
             self.crop_masked_border()
+        mask = self.values.mask
+        # if there is nothing to do...
         if not np.any(mask):
             pass
         elif tof == 'interplin':
@@ -2699,7 +2700,6 @@ class ScalarField(object):
                 if masked:
                     values[inds[1], inds[0]] = f(inds[1], inds[0])
             mask = np.zeros(values.shape)
-            self.values = np.ma.masked_array(values, mask)
             self.values = np.ma.masked_array(values, mask)
         elif tof == 'value':
             self.values[self.values.mask] = value
@@ -2839,10 +2839,14 @@ class ScalarField(object):
             if not 'cmap' in plotargs.keys():
                 plotargs['cmap'] = cm.jet
             if not 'interpolation' in plotargs.keys():
-                plotargs['interpolation'] = 'bicubic'
+                plotargs['interpolation'] = 'nearest'
+            delta_x = self.axe_x[1] - self.axe_x[0]
+            delta_y = self.axe_y[1] - self.axe_y[0]
             fig = plt.imshow(self.values,
-                             extent=(self.axe_x[0], self.axe_x[-1],
-                                     self.axe_y[0], self.axe_y[-1]),
+                             extent=(self.axe_x[0] - delta_x/2.,
+                                     self.axe_x[-1] + delta_x/2.,
+                                     self.axe_y[0] - delta_y/2.,
+                                     self.axe_y[-1] + delta_y/2.),
                              origin='lower', **plotargs)
         else:
             raise ValueError("Unknown 'kind' of plot for ScalarField object")
@@ -3251,7 +3255,6 @@ class VectorField(object):
         unit_values = unit_values.replace('[', '')
         unit_values = unit_values.replace(']', '')
         # vérification de l'ordre des axes (et correction)
-        # TODO : ajouter importation du mask (si pas déja fait)
         x = v.Px[0, :]
         y = v.Py[:, 0]
         Vx = v.Vx[0]
