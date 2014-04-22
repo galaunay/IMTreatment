@@ -14,6 +14,7 @@ from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline
+from scipy import optimize
 import warnings
 import sets
 
@@ -807,7 +808,7 @@ def _min_detection(SF):
     Only for use in 'get_cp_crit'.
     """
     # interpolation on the field
-    interp = RectBivariateSpline(SF.axe_y, SF.axe_x, SF.values.data, s=0)
+    interp = RectBivariateSpline(SF.axe_y, SF.axe_x, SF.values.data, s=0, ky=2, kx=2)
     # extended field (resolution x100)
     x = np.linspace(SF.axe_x[0], SF.axe_x[-1], 100)
     y = np.linspace(SF.axe_y[0], SF.axe_y[-1], 100)
@@ -816,6 +817,47 @@ def _min_detection(SF):
     ind_y, ind_x = np.unravel_index(ind_min, values.shape)
     pos = (x[ind_x], y[ind_y])
     return Points([pos])
+
+def _gaussian_fit(SF):
+    """
+    Only for use in 'get_cp_crit'.
+    """
+    # gaussian fitting
+    def gaussian(height, center_x, center_y, width_x, width_y):
+        """Returns a gaussian function with the given parameters"""
+        width_x = float(width_x)
+        width_y = float(width_y)
+        return lambda x, y: height*np.exp(
+            -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
+    def moments(data):
+        """Returns (height, x, y, width_x, width_y)
+        the gaussian parameters of a 2D distribution by calculating its
+        moments """
+        total = data.sum()
+        X, Y = np.indices(data.shape)
+        x = (X*data).sum()/total
+        y = (Y*data).sum()/total
+        col = data[:, int(y)]
+        width_x = np.sqrt(abs((np.arange(col.size)-y)**2*col).sum()/col.sum())
+        row = data[int(x), :]
+        width_y = np.sqrt(abs((np.arange(row.size)-x)**2*row).sum()/row.sum())
+        height = data.max()
+        return height, x, y, width_x, width_y
+    def fitgaussian(data):
+        """Returns (height, x, y, width_x, width_y)
+        the gaussian parameters of a 2D distribution found by a fit"""
+        params = moments(data)
+        errorfunction = lambda p: np.ravel(gaussian(*p)(*np.indices(data.shape)) -
+                                           data)
+        p, success = optimize.leastsq(errorfunction, params)
+        return p
+
+    params = fitgaussian(SF.values)
+    delta_x = SF.axe_x[1] - SF.axe_x[0]
+    delta_y = SF.axe_y[1] - SF.axe_y[0]
+    x = SF.axe_x[0] + delta_x*params[1]
+    y = SF.axe_y[0] + delta_y*params[2]
+    return Points([(x, y)])
 
 
 ### Separation point detection algorithm ###
@@ -1542,7 +1584,6 @@ def get_iota(vectorfield, mask=None):
     iota_sf.import_from_arrays(axe_x, axe_y, grad_theta_m,
                                unit_x=vectorfield.comp_x.unit_x,
                                unit_y=vectorfield.comp_x.unit_y)
-    iota_sf.smooth(1)
 #    ### XXX : Alternate calculation for iota !
 #    mean = iota_sf.integrate_over_surface().asNumber()
 #    mean = mean/len(iota_sf.axe_x)/len(iota_sf.axe_y)
