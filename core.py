@@ -763,8 +763,9 @@ class Profile(object):
         if not len(x) == len(y):
             raise ValueError("'x' and 'y' must have the same length")
         self.__classname__ = "Profile"
-        self.x = x.copy()
-        self.y = y.copy()
+        order = np.argsort(x)
+        self.x = x[order]
+        self.y = y[order]
         self.name = name
         self.unit_x = unit_x.copy()
         self.unit_y = unit_y.copy()
@@ -1768,8 +1769,6 @@ class ScalarField(object):
         self.unit_x = unit_x.copy()/unit_x_value
         self.unit_y = unit_y.copy()/unit_y_value
         self.unit_values = unit_values.copy()/unit_values_value
-        # deleting useless datas
-        self.crop_masked_border()
 
     def import_from_scalarfield(self, scalarfield):
         """
@@ -2644,6 +2643,7 @@ class ScalarField(object):
         self.axe_y = self.axe_y[axe_y_m]
 
     def fill(self, tof='interplin', value=0., crop_border=True):
+        # TODO : Make this fucking functionnality work !
         """
         Fill the masked part of the array in place.
 
@@ -4221,6 +4221,32 @@ class VectorField(object):
         self.comp_x.smooth(tos=tos, size=size, **kw)
         self.comp_y.smooth(tos=tos, size=size, **kw)
 
+    def fill(self, tof='interplin', value=[0., 0.], crop_border=True):
+        """
+        Fill the masked part of the field in place.
+
+        Parameters
+        ----------
+        tof : string, optional
+            Type of algorithm used to fill.
+            'value' : fill with a given value
+            'interplin' : fill using linear interpolation
+            'interpcub' : fill using cubic interpolation
+        value : 2x1 array
+            Value for filling  '[comp_x, comp_y]'
+            (only usefull with tof='value')
+        crop_border : boolean
+            If 'True' (default), masked borders of the field are cropped
+            before filling. Else, values on border are extrapolated (poorly).
+        """
+        if not isinstance(value, ARRAYTYPES):
+            raise TypeError("'value' must be a 2x1 array")
+        value = np.array(value)
+        if not value.shape == (2,):
+            raise ValueError("'value' must be a 2x1 array")
+        self.comp_x.fill(tof=tof, value=value[0], crop_border=crop_border)
+        self.comp_y.fill(tof=tof, value=value[1], crop_border=crop_border)
+
     def trim_area(self, intervalx=None, intervaly=None):
         """
         return a trimed area in respect with given intervals.
@@ -4258,6 +4284,13 @@ class VectorField(object):
         tmp_vf.comp_x = tmp_vf.comp_x.trim_area(intervalx, intervaly)
         tmp_vf.comp_y = tmp_vf.comp_y.trim_area(intervalx, intervaly)
         return tmp_vf
+
+    def crop_masked_border(self):
+        """
+        Crop the masked border of the vector field in place.
+        """
+        self.comp_x.crop_masked_border()
+        self.comp_y.crop_masked_border()
 
     def _display(self, component=None, kind=None, **plotargs):
         if kind is not None:
@@ -5218,6 +5251,33 @@ class VelocityField(object):
             fig = compo._display(**plotargs)
         return fig
 
+    def crop_masked_border(self):
+        """
+        Crop the masked border of the vector field in place.
+        """
+        self.V.crop_masked_border()
+        self._clear_derived()
+
+    def fill(self, tof='interplin', value=[0., 0.], crop_border=True):
+        """
+        Fill the masked part of the velocity field in place.
+
+        Parameters
+        ----------
+        tof : string, optional
+            Type of algorithm used to fill.
+            'value' : fill with a given value
+            'interplin' : fill using linear interpolation
+            'interpcub' : fill using cubic interpolation
+        value : 2x1 array
+            Value for filling '[Vx, Vy]' (only usefull with tof='value')
+        crop_border : boolean
+            If 'True' (default), masked borders of the field are cropped
+            before filling. Else, values on border are extrapolated (poorly).
+        """
+        self.V.fill(tof=tof, value=value, crop_border=crop_border)
+        self._clear_derived()
+
     def display(self, componentname="V", **plotargs):
         """
         Display something from the velocity field.
@@ -5926,14 +5986,17 @@ class TemporalVelocityFields(VelocityFields):
         if isinstance(compo[0], ScalarField):
             time = []
             unit_time = self[0].unit_time
-            values = np.array([])
+            values = np.zeros(len(compo))
+            mask = np.zeros(len(compo))
             unit_values = compo[0].unit_values
             # getting position indices
             ind_x = compo[0].get_indice_on_axe(1, x, nearest=True)
             ind_y = compo[0].get_indice_on_axe(2, y, nearest=True)
             for i in np.arange(len(compo)):
                 time.append(self[i].time)
-                values= np.append(values, compo[i].values[ind_y, ind_x])
+                values[i] = compo[i].values.data[ind_y, ind_x]
+                mask[i] = compo[i].values.mask[ind_y, ind_x]
+            values = np.ma.masked_array(values, mask)
             return Profile(time, values, unit_x=unit_time, unit_y=unit_values)
         else:
             raise ValueError("Unvalid component for a time profile")
@@ -6405,6 +6468,88 @@ class TemporalVelocityFields(VelocityFields):
                 break
         return tmp_TVFS
 
+    def fill(self, kind='temporal', tof='interplin', value=[0., 0.],
+             crop_border=True):
+        """
+        Fill the masked part of the array in place.
+
+        Parameters
+        ----------
+        kind : string
+            Can be 'temporal' for temporal interpolation, or 'spatial' for
+            spatial interpolation.
+        tof : string, optional
+            Type of algorithm used to fill.
+            'value' : fill with a given value
+            'interplin' : fill using linear interpolation
+            'interpcub' : fill using cubic interpolation
+        value : 2x1 array
+            Value for filling, '[Vx, Vy]' (only usefull with tof='value')
+        crop_border : boolean
+            If 'True' (default), masked borders of the field are cropped
+            before filling. Else, values on border are extrapolated (poorly).
+        """
+        # temporal interpolation
+        if kind == 'temporal':
+            # getting datas
+            axe_x, axe_y = self.get_axes()
+            # loop on each field position
+            for inds, _ in np.ndenumerate(np.zeros(self.get_dim())):
+                i = inds[1]
+                j = inds[0]
+                prof_x = self.get_time_profile('Vx', axe_x[i], axe_y[j])
+                prof_y = self.get_time_profile('Vy', axe_x[i], axe_y[j])
+                # checking if all time profile value are masked
+                if np.all(np.logical_or(prof_x.y.mask, prof_x.y.mask)):
+                    continue
+                # getting masked position on profile
+                inds_masked_x = np.where(prof_x.y.mask)
+                inds_masked_y = np.where(prof_y.y.mask)
+                # creating interpolation function
+                if tof == 'interplin':
+                    interp_x = spinterp.interp1d(prof_x.x[~prof_x.y.mask],
+                                                 prof_x.y[~prof_x.y.mask],
+                                                 kind='linear')
+                    interp_y = spinterp.interp1d(prof_y.x[~prof_y.y.mask],
+                                                 prof_y.y[~prof_y.y.mask],
+                                                 kind='linear')
+                elif tof == 'interpcub':
+                    interp_x = spinterp.interp1d(prof_x.x[~prof_x.y.mask],
+                                                 prof_x.y[~prof_x.y.mask],
+                                                 kind='cubic')
+                    interp_y = spinterp.interp1d(prof_y.x[~prof_y.y.mask],
+                                                 prof_y.y[~prof_y.y.mask],
+                                                 kind='cubic')
+                # loop on all x profile masked points
+                for ind_masked in inds_masked_x[0]:
+                    if tof == 'value':
+                        interp_val = value[0]
+                    elif tof in ['interplin', 'interpcubic']:
+                        try:
+                            interp_val = interp_x(prof_x.x[ind_masked])
+                        except ValueError:
+                            continue
+                    # putting interpolated value in the field
+                    self[ind_masked].V.comp_x.values[j, i] = interp_val
+                # loop on all y profile masked points
+                for ind_masked in inds_masked_y[0]:
+                    if tof == 'value':
+                        interp_val = value[1]
+                    elif tof in ['interplin', 'interpcubic']:
+                        try:
+                            interp_val = interp_y(prof_y.x[ind_masked])
+                        except ValueError:
+                            continue
+                    # putting interpolated value in the field
+                    self[ind_masked].V.comp_y.values[j, i] = interp_val
+        # spatial interpolation
+        elif kind == 'spatial':
+            for field in self.fields:
+                field.fill(tof=tof, value=value, crop_border=True)
+
+        else:
+            raise ValueError("Unknown parameter for 'kind' : {}".format(kind))
+
     def trim_area(self, intervalx=None, intervaly=None):
         """
         Trim the area and the axes in respect with given intervals.
@@ -6421,6 +6566,54 @@ class TemporalVelocityFields(VelocityFields):
             tmp_field = field.trim_area(intervalx, intervaly)
             tmp_vfs.add_field(tmp_field)
         return tmp_vfs
+
+    def crop_masked_border(self):
+        """
+        Crop the masked border of the velocity fields in place.
+        """
+        # getting big mask (where all the value are masked)
+        masks_temp = self.get_comp('mask')
+        mask_temp = np.sum(masks_temp).values.data
+        mask_temp = mask_temp == len(masks_temp)
+        # checking masked values presence
+        if not np.any(mask_temp):
+            return None
+        # getting positions to remove (column or line with only masked values)
+        axe_y_m = ~np.all(mask_temp, axis=1)
+        axe_x_m = ~np.all(mask_temp, axis=0)
+        # skip if nothing to do
+        if not np.any(axe_y_m) or not np.any(axe_x_m):
+            return None
+        # else loop on fields
+        for i in np.arange(len(self.fields)):
+            #getting datas for one field
+            values_x = self.fields[i].V.comp_x.values.data
+            values_y = self.fields[i].V.comp_y.values.data
+            mask = self.fields[i].V.comp_x.values.mask
+            # crop values along y
+            if np.any(axe_y_m):
+                # deleting useless part along y
+                values_x = values_x[axe_y_m, :]
+                values_y = values_y[axe_y_m, :]
+                mask = mask[axe_y_m, :]
+            # crop values along x
+            if np.any(axe_y_m):
+                # deleting useless part along y
+                values_x = values_x[:, axe_x_m]
+                values_y = values_y[:, axe_x_m]
+                mask = mask[:, axe_x_m]
+            # storing croped values
+            self.fields[i].V.comp_x.values = np.ma.masked_array(values_x, mask)
+            self.fields[i].V.comp_y.values = np.ma.masked_array(values_y, mask)
+            self.fields[i]._clear_derived()
+            #crop axis
+            axe_x, axe_y = self.fields[i].get_axes()
+            new_axe_x = axe_x[axe_x_m]
+            new_axe_y = axe_y[axe_y_m]
+            self.fields[i].V.comp_x.axe_x = new_axe_x
+            self.fields[i].V.comp_y.axe_x = new_axe_x
+            self.fields[i].V.comp_x.axe_y = new_axe_y
+            self.fields[i].V.comp_y.axe_y = new_axe_y
 
     def display(self, fieldname="fields", **plotargs):
         """
