@@ -6489,14 +6489,25 @@ class TemporalVelocityFields(VelocityFields):
             If 'True' (default), masked borders of the field are cropped
             before filling. Else, values on border are extrapolated (poorly).
         """
+        # checking parameters coherence
+        if len(self.fields) < 3 and kind=='temporal':
+            raise ValueError("Not enough fields to fill with temporal"
+                             " interpolation")
+        # cropping masked borders if necessary
+        if crop_border:
+            self.crop_masked_border()
         # temporal interpolation
         if kind == 'temporal':
             # getting datas
             axe_x, axe_y = self.get_axes()
+            # getting super mask (0 where no value are masked and where all
+            # values are masked)
+            super_mask = self.get_comp('mask')
+            super_mask = np.sum(super_mask).values.data
+            super_mask[super_mask == len(self.fields)] = 0
             # loop on each field position
-            for inds, _ in np.ndenumerate(np.zeros(self.get_dim())):
-                i = inds[1]
-                j = inds[0]
+            for j, i in np.argwhere(super_mask):
+                print(i, j)
                 prof_x = self.get_time_profile('Vx', axe_x[i], axe_y[j])
                 prof_y = self.get_time_profile('Vy', axe_x[i], axe_y[j])
                 # checking if all time profile value are masked
