@@ -368,12 +368,7 @@ def get_cp_traj(TVFS, epsilon=None, kind='crit'):
             raise ValueError("'epsilon' must be a positive real")
     if not isinstance(kind, STRINGTYPES):
         raise TypeError("'kind' must be a string")
-    # if necessary, fill the masked gap in the velocityfield using temporal
-    # interpolation. If not enough fields for temporal interpolation,
-    # spatial interpolation is used.
-    # TODO : add spatial interpolation when functionnal
-    if len(TVFS.fields) > 3:
-        TVFS.fill(kind='temporal', tof='interplin', crop_border=True)
+    # TODO : Add warning when masked values are present (or not ?)
     # create storage arrays
     focus = []
     focus_c = []

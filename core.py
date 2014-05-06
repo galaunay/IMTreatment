@@ -1383,8 +1383,8 @@ class ScalarField(object):
         elif isinstance(obj, unum.Unum):
             final_sf = ScalarField()
             final_sf.import_from_scalarfield(self)
-            final_sf.values /= obj.asNumber
-            final_sf.unit_values /= obj/obj.asNumber
+            final_sf.values /= obj.asNumber()
+            final_sf.unit_values /= obj/obj.asNumber()
             return final_sf
         elif isinstance(obj, ScalarField):
             if np.any(self.axe_x != obj.axe_x)\
@@ -2010,27 +2010,65 @@ class ScalarField(object):
         """
         return self.values.shape
 
-    def get_min(self):
+    def get_min(self, unit=False):
         """
         Return the minima of the field.
 
+        Parameters
+        ----------
+        unit : boolean, optional
+            If True, a unit object is returned,
+            else (default), a float is returned.
+
         Returns
         -------
-        mini : float
+        mini : float or unit object
             Minima on the field
         """
-        return np.min(self.values)
+        if unit:
+            return np.min(self.values)*self.unit_values
+        else:
+            return np.min(self.values)
 
-    def get_max(self):
+    def get_max(self, unit=False):
         """
         Return the maxima of the field.
 
+        Parameters
+        ----------
+        unit : boolean, optional
+            If True, a unit object is returned,
+            else (default), a float is returned.
+
         Returns
         -------
-        maxi : float
+        maxi : float or unit object
             Maxima on the field
         """
-        return np.max(self.values)
+        if unit:
+            return np.max(self.values)*self.unit_values
+        else:
+            return np.max(self.values)
+
+    def get_mean(self, unit=False):
+        """
+        Return the mean value of the field.
+
+        Parameters
+        ----------
+        unit : boolean, optional
+            If True, a unit object is returned,
+            else (default), a float is returned.
+
+        Returns
+        -------
+        mean : float or unit object
+            Mean value of the field.
+        """
+        if unit:
+            return np.mean(self.values)*self.unit_values
+        else:
+            return np.mean(self.values)
 
     def get_axes(self):
         """
@@ -3665,27 +3703,39 @@ class VectorField(object):
         """
         return self.comp_x.get_axes()
 
-    def get_min(self):
+    def get_min(self, unit=False):
         """
         Return the minima of the magnitude of the field.
+
+        Parameters
+        ----------
+        unit : boolean, optinal
+            If True, a unit object is returned,
+            else (default), a float is returned.
 
         Returns
         -------
         mini : float
             Minima on the field
         """
-        return self.get_magnitude().get_min()
+        return self.get_magnitude().get_min(unit)
 
-    def get_max(self):
+    def get_max(self, unit=False):
         """
         Return the maxima of the magnitude of the field.
+
+        Parameters
+        ----------
+        unit : boolean, optinal
+            If True, a unit object is returned,
+            else (default), a float is returned.
 
         Returns
         -------
         maxi: float
             Maxima on the field
         """
-        return self.get_magnitude().get_max()
+        return self.get_magnitude().get_max(unit)
 
     def get_profile(self, component, direction, position):
         """
@@ -4990,7 +5040,7 @@ class VelocityField(object):
         """
         return self.V.get_dim()
 
-    def get_min(self, componentname='V'):
+    def get_min(self, componentname='V', unit=False):
         """
         Return the minima of the field component.
 
@@ -4998,6 +5048,9 @@ class VelocityField(object):
         ----------
         componentname : string
             Wanted component
+        unit : boolean, optional
+            If True, a unit object is returned,
+            else (default), a float is returned.
 
         Returns
         -------
@@ -5006,11 +5059,11 @@ class VelocityField(object):
         """
         comp = self.get_comp(componentname)
         if isinstance(comp, (ScalarField, VectorField)):
-            return comp.get_min()
+            return comp.get_min(unit)
         else:
             raise ValueError("I can't compute a minima on this thing")
 
-    def get_max(self, componentname='V'):
+    def get_max(self, componentname='V', unit=False):
         """
         Return the maxima of the field component.
 
@@ -5018,6 +5071,9 @@ class VelocityField(object):
         ----------
         componentname : string, optiona
             Wanted component
+        unit : boolean, optional
+            If True, a unit object is returned,
+            else (default), a float is returned.
 
         Returns
         -------
@@ -5026,7 +5082,7 @@ class VelocityField(object):
         """
         comp = self.get_comp(componentname)
         if isinstance(comp, (ScalarField, VectorField)):
-            return comp.get_max()
+            return comp.get_max(unit)
         else:
             raise ValueError("I can't compute the maxima on that sort of "
                              "thing")
