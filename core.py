@@ -1171,7 +1171,7 @@ class Profile(object):
                             and self.x[i-1] > interval[1]):
                     ind2 = i
             indices = [ind1, ind2]
-            indices.sort()
+            #indices.sort()
             x_new = self.x[indices[0]:indices[1]]
             y_new = self.y[indices[0]:indices[1]]
         # given position is an indice
@@ -2878,6 +2878,8 @@ class ScalarField(object):
                 plotargs['cmap'] = cm.jet
             if not 'interpolation' in plotargs.keys():
                 plotargs['interpolation'] = 'nearest'
+            if not 'aspect' in plotargs.keys():
+                plotargs['aspect'] = 'equal'
             delta_x = self.axe_x[1] - self.axe_x[0]
             delta_y = self.axe_y[1] - self.axe_y[0]
             fig = plt.imshow(self.values,
