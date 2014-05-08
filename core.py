@@ -649,83 +649,6 @@ class Points(object):
             return radii, center, alpha
 
 
-class Parametric_curve(object):
-    """
-    Class representing a parametric curve.
-    Supporting curve type are : polynome and ellipsoide
-
-    Parameters
-    ----------
-    kind : string
-        Kind of curve ('polynomial' or 'ellipse')
-    param : tuple of parameters
-        If 'polynomial', 'param' is ('polynomial coef', 'base_direction')
-        (highest order first for coefficients)
-        If 'ellipse', 'param' is ('radii', 'center', 'angle')
-        ('angle' is optional)
-    """
-    def __init__(self, kind, param):
-        """
-        Class constructor.
-        """
-        if not isinstance(kind, STRINGTYPES):
-            raise TypeError()
-        self.kind = kind
-        if kind == 'polynomial':
-            self.p = param[0]
-            self.order = len(self.p) - 1
-            self.base_dir = param[1]
-        elif kind == 'ellipse':
-            self.radii = param[0]
-            self.center = param[1]
-            if len(param) == 2:
-                self.angle = np.pi/2.
-            else:
-                self.angle = param[2]
-        else:
-            raise ValueError()
-
-    def get_points(self, x=None, nmb_points=100):
-        """
-        Return the curve points.
-
-        Parameters
-        ----------
-        x : tuple, only for 'polynomial'
-            x values where we want the curve.
-        nmb_points : integer, only for 'ellipse'
-            Number of points on the ellipse.
-
-        Returns
-        -------
-        x, y : coordinates of curve points
-        """
-        if not isinstance(x, ARRAYTYPES):
-            raise TypeError()
-        if self.kind == 'ellipse':
-            import fit_ellipse as fte
-            xy = fte.create_ellipse(self.radii, self.center, self.angle,
-                                    nmb_points)
-            return xy[:, 0], xy[:, 1]
-        elif self.kind == 'polynomial':
-            if self.base_dir == 0:
-                y = x*0
-                for i in np.arange(self.order + 1):
-                    y += self.p[i]*x**(self.order - i)
-            else:
-                y = x
-                x = y*0
-                for i in np.arange(self.order + 1):
-                    x += self.p[i]*y**(self.order - i)
-            return x, y
-
-    def display(self):
-        """
-        display the curve.
-        """
-        pass
-
-
 class Profile(object):
     """
     Class representing a profile.
@@ -1287,7 +1210,283 @@ class Profile(object):
         return fig
 
 
-class ScalarField(object):
+class Field(object):
+
+    def __init__(self):
+        self.axe_x = np.array([])
+        self.axe_y = np.array([])
+        self.unit_x = make_unit('')
+        self.unit_y = make_unit('')
+
+    def __iter__(self):
+        for i, x in enumerate(self.axe_x):
+            for j, y in enumerate(self.axe_y):
+                yield [i, j], [x, y]
+
+    def get_axes(self):
+        """
+        Return the field axes.
+
+        Returns
+        -------
+        axe_x : array
+            Axe along X.
+        axe_y : array
+            Axe along Y.
+        """
+        return self.axe_x, self.axe_y
+
+    def get_axe_units(self):
+        """
+        Return the axis unities.
+
+        Returns:
+        --------
+        unit_x : unit object
+            Axe x unit
+        unit_y : unit object
+            Axe y unit
+        """
+        return self.unit_x, self.unit_y
+
+    def get_copy(self):
+        """
+        Return a copy of the Field object.
+        """
+        return copy.deepcopy(self)
+
+    def set_axes(self, axe_x=None, axe_y=None):
+        """
+        Load new axes in the field.
+
+        Parameters
+        ----------
+        axe_x : array
+            One-dimensionale array representing the position of the scalar
+            values along the X axe.
+        axe_y : array
+            idem for the Y axe.
+        """
+        if axe_x is not None:
+            if not isinstance(axe_x, ARRAYTYPES):
+                raise TypeError("'axe_x' must be an array")
+            axe_x = np.array(axe_x)
+            if self.axe_x.shape == axe_x.shape:
+                self.axe_x = axe_x
+            else:
+                raise ValueError("Inconsistent size of 'axe_x'")
+        if axe_y is not None:
+            if not isinstance(axe_y, ARRAYTYPES):
+                raise TypeError("'axe_y' must be an array")
+            axe_y = np.array(axe_y)
+            if axe_y.shape == self.axe_y.shape:
+                self.axe_y = axe_y
+            else:
+                raise ValueError("Inconsistent size of 'axe_y'")
+
+    def set_axe_units(self, unit_x=None, unit_y=None):
+        """
+        Load unities into the field axis.
+
+        Parameters
+        ----------
+        unit_x : Unit object
+            Axis X unit.
+        unit_y : Unit object
+            Axis Y unit.
+        """
+        if unit_x is not None:
+            if not isinstance(unit_x, unum.Unum):
+                raise TypeError("'unit_x' must be an unit object")
+            self.unit_x = unit_x
+        if unit_y is not None:
+            if not isinstance(unit_y, unum.Unum):
+                raise TypeError("'unit_y' must be an unit object")
+            self.unit_y = unit_y
+
+    def set_origin(self, x=None, y=None):
+        """
+        Modify the axis in order to place the origin at the givev point (x, y)
+
+        Parameters
+        ----------
+        x : number
+        y : number
+        """
+        if x is not None:
+            if not isinstance(x, NUMBERTYPES):
+                raise TypeError("'x' must be a number")
+            self.axe_x -= x
+        if y is not None:
+            if not isinstance(y, NUMBERTYPES):
+                raise TypeError("'y' must be a number")
+            self.axe_y -= y
+
+    def trim_area(self, intervalx=None, intervaly=None, full_output=False):
+        """
+        Return a trimed field in respect with given intervals.
+
+        Parameters
+        ----------
+        intervalx : array, optional
+            interval wanted along x
+        intervaly : array, optional
+            interval wanted along y
+        full_output : boolean, optional
+            If 'True', cutting indices are alson returned
+        """
+        if intervalx is None:
+            intervalx = [self.axe_x[0], self.axe_x[-1]]
+        if intervaly is None:
+            intervaly = [self.axe_y[0], self.axe_y[-1]]
+        if not isinstance(intervalx, ARRAYTYPES):
+            raise TypeError("'intervalx' must be an array of two numbers")
+        intervalx = np.array(intervalx)
+        if intervalx.ndim != 1:
+            raise ValueError("'intervalx' must be an array of two numbers")
+        if intervalx.shape != (2,):
+            raise ValueError("'intervalx' must be an array of two numbers")
+        if intervalx[0] > intervalx[1]:
+            raise ValueError("'intervalx' values must be crescent")
+        if not isinstance(intervaly, ARRAYTYPES):
+            raise TypeError("'intervaly' must be an array of two numbers")
+        intervaly = np.array(intervaly)
+        if intervaly.ndim != 1:
+            raise ValueError("'intervaly' must be an array of two numbers")
+        if intervaly.shape != (2,):
+            raise ValueError("'intervaly' must be an array of two numbers")
+        if intervaly[0] > intervaly[1]:
+            raise ValueError("'intervaly' values must be crescent")
+        # finding interval indices
+        if intervalx[0] <= self.axe_x[0]:
+            indmin_x = 0
+        else:
+            indmin_x = self.get_indice_on_axe(1, intervalx[0])[-1]
+        if intervalx[1] >= self.axe_x[-1]:
+            indmax_x = len(self.axe_x) - 1
+        else:
+            indmax_x = self.get_indice_on_axe(1, intervalx[1])[0]
+        if intervaly[0] <= self.axe_y[0]:
+            indmin_y = 0
+        else:
+            indmin_y = self.get_indice_on_axe(2, intervaly[0])[-1]
+        if intervaly[1] >= self.axe_y[-1]:
+            indmax_y = len(self.axe_y) - 1
+        else:
+            indmax_y = self.get_indice_on_axe(2, intervaly[1])[0]
+        trimfield = self.get_copy()
+        trimfield.axe_x = trimfield.axe_x[indmin_x:indmax_x + 1]
+        trimfield.axe_y = trimfield.axe_y[indmin_y:indmax_y + 1]
+        if full_output:
+            return indmin_x, indmax_x, indmin_y, indmax_y, trimfield
+        else:
+            return trimfield
+
+    def get_indice_on_axe(self, direction, value, nearest=False):
+        """
+        Return, on the given axe, the indices representing the positions
+        surrounding 'value'.
+        if 'value' is exactly an axe position, return just one indice.
+
+        Parameters
+        ----------
+        direction : int
+            1 or 2, for axes choice.
+        value : number
+        nearest : boolean
+            If 'True', only the nearest indice is returned.
+
+        Returns
+        -------
+        interval : 2x1 or 1x1 array of integer
+        """
+        if not isinstance(direction, NUMBERTYPES):
+            raise TypeError("'direction' must be a number.")
+        if not (direction == 1 or direction == 2):
+            raise ValueError("'direction' must be 1 or 2.")
+        if not isinstance(value, NUMBERTYPES):
+            raise TypeError("'value' must be a number.")
+        if direction == 1:
+            axe = self.axe_x
+            if value < axe[0] or value > axe[-1]:
+                raise ValueError("'value' is out of bound.")
+        else:
+            axe = self.axe_y
+            if value < axe[0] or value > axe[-1]:
+                raise ValueError("'value' is out of bound.")
+        # getting the borning indices
+        ind = np.searchsorted(axe, value)
+        if axe[ind] == value:
+            inds = [ind]
+        else:
+            inds = [ind - 1, ind]
+        if not nearest:
+            return inds
+        # getting the nearest indice
+        else:
+            if len(inds) != 1:
+                if np.abs(axe[inds[0]] - value) < np.abs(axe[inds[1]] - value):
+                    ind = inds[0]
+                else:
+                    ind = inds[1]
+            else:
+                ind = inds[0]
+            return ind
+
+    def get_points_around(self, center, radius):
+        """
+        Return the list of points or the scalar field that are in a circle
+        centered on 'center' and of radius 'radius'.
+
+        Parameters
+        ----------
+        center : array
+            Coordonate of the center point (in axes units).
+        radius : float
+            radius of the cercle (in axes units).
+
+        Returns
+        -------
+        indices : array
+            Array contening the indices of the contened points.
+            [(ind1x, ind1y), (ind2x, ind2y), ...].
+            You can easily put them in the axes to obtain points coordinates
+        """
+        if not isinstance(center, ARRAYTYPES):
+            raise TypeError("'center' must be an array")
+        center = np.array(center)
+        if not center.shape == (2,):
+            raise ValueError("'center' must be a 2x1 array")
+        if not isinstance(radius, NUMBERTYPES):
+            raise TypeError("'radius' must be a number")
+        if not radius > 0:
+            raise ValueError("'radius' must be positive")
+        radius2 = radius**2
+        radius_int = radius/np.sqrt(2)
+        inds = []
+        for indices, coord, _ in self:
+            # test if the point is not in the square surrounding the cercle
+            if coord[0] >= center[0] + radius \
+                    and coord[0] <= center[0] - radius \
+                    and coord[1] >= center[1] + radius \
+                    and coord[1] <= center[1] - radius:
+                pass
+            # test if the point is in the square 'compris' in the cercle
+            elif coord[0] <= center[0] + radius_int \
+                    and coord[0] >= center[0] - radius_int \
+                    and coord[1] <= center[1] + radius_int \
+                    and coord[1] >= center[1] - radius_int:
+                inds.append(indices)
+            # test if the point is the center
+            elif all(coord == center):
+                pass
+            # test if the point is in the circle
+            elif ((coord[0] - center[0])**2 + (coord[1] - center[1])**2
+                    <= radius2):
+                inds.append(indices)
+        return inds
+
+class ScalarField(Field):
     """
     Class representing a scalar field (2D field, with one component on each
     point).
@@ -1312,7 +1511,8 @@ class ScalarField(object):
     """
 
     def __init__(self):
-        self.__classname__ = "ScalarField"
+        Field.__init__(self)
+        self.values = np.array([])
 
     def __neg__(self):
         final_sf = ScalarField()
@@ -1464,128 +1664,17 @@ class ScalarField(object):
         return final_sf
 
     def __iter__(self):
-        dimx, dimy = self.get_dim()
         try:
+            mask = self.values.mask
             data = self.values.data
-            for i in np.arange(dimy):
-                for j in np.arange(dimx):
-                    yield [i, j], [self.axe_x[i], self.axe_y[j]],   \
-                        data[j, i]
         except AttributeError:
-            for i in np.arange(dimy):
-                for j in np.arange(dimx):
-                    yield [i, j], [self.axe_x[i], self.axe_y[j]],   \
-                        self.values[j, i]
-
-    def __getitem__(self, i):
-        return self.values[i]
-
-    def __lt__(self, another):
-        if isinstance(another, ScalarField):
-            return self.values < another.values
-        if isinstance(another, NUMBERTYPES):
-            return self.values < another
-        else:
-            raise StandardError("I can't compare these two things")
-
-    def __le__(self, another):
-        if isinstance(another, ScalarField):
-            return self.values <= another.values
-        if isinstance(another, NUMBERTYPES):
-            return self.values <= another
-        else:
-            raise StandardError("I can't compare these two things")
-
-    def __gt__(self, another):
-        if isinstance(another, ScalarField):
-            return self.values > another.values
-        if isinstance(another, NUMBERTYPES):
-            return self.values > another
-        else:
-            raise StandardError("I can't compare these two things")
-
-    def __ge__(self, another):
-        if isinstance(another, ScalarField):
-            return self.values >= another.values
-        if isinstance(another, NUMBERTYPES):
-            return self.values >= another
-        else:
-            raise StandardError("I can't compare these two things")
-
-    def __eq__(self, another):
-        if isinstance(another, ScalarField):
-            return self.values == another.values
-        if isinstance(another, NUMBERTYPES):
-            return self.values == another
-        else:
-            raise StandardError("I can't compare these two things")
-
-    def __ne__(self, another):
-        if isinstance(another, ScalarField):
-            return self.values != another.values
-        if isinstance(another, NUMBERTYPES):
-            return self.values != another
-        else:
-            raise StandardError("I can't compare these two things")
-#
-#    def Import(self, *args):
-#        """
-#        Method fo importing datas in a ScalarField object.
-#
-#        Parameters
-#        ----------
-#        args :
-#            Must have different formats.
-#            For importing from Davis, Ascii or Matlab files, 'args' must be
-#            the path to the file to import.
-#            For importing from an other ScalarField, 'args' is an object of
-#            the respective type.
-#            For importing from a set of arrays, 'args' must have the format
-#            explained in the 'ImportFromArrays' method.
-#
-#        Examples
-#        --------
-#        From a file
-#
-#        >>> S1 = ScalarField()
-#        >>> S1.Import("/Davis/measure23/velocityfield4.IM7")
-#
-#        From a ScalarField
-#
-#        >>> S2 = ScalarField()
-#        >>> S2.import_from_arrays([1,2], [1,2], [[1,2], [3,4]], make_unit(""),
-#                                make_unit(""))
-#        >>> S1.Import(S2)
-#
-#        From a set of arrays
-#
-#        >>> axe_x = [1, 2, 3]
-#        >>> axe_y = [4, 5, 6]
-#        >>> values = [[1, 2, 3],[4, 5, 6],[7, 8, 9]]
-#        >>> unit_x = make_unit("mm")
-#        >>> unit_y = make_unit"mm")
-#        >>> unit_values = make_unit("Pa")
-#        >>> S1.Import(axe_x, axe_y, values, unit_x, unit_y, unit_values)
-#        """
-#        if len(args) == 1:
-#            if isinstance(args[0], STRINGTYPES):
-#                extension = args[0].split()[-1]
-#                if extension == "IM7":
-#                    self.import_from_davis(args[0])
-#                elif extension == "txt":
-#                    self.import_from_ascii(args[0])
-#                elif extension == "m":
-#                    self.import_from_matlab(args[0])
-#                else:
-#                    raise ValueError("filename extension unknown")
-#            elif isinstance(args[0], ScalarField):
-#                self.import_from_scalarfield(args[0])
-#            else:
-#                raise ValueError("Unknown object to import")
-#        elif (len(args) >= 3 and len(args) <= 6):
-#            self.import_from_arrays(*args)
-#        else:
-#            raise ValueError("Unknown format for arguments")
+            data = self.values
+            mask = np.zeros(data.shape)
+        for ij, xy in Field.__iter__(self):
+            i = ij[0]
+            j = ij[1]
+            if not mask[j, i]:
+                yield ij, xy, data[j, i]
 
     def import_from_davis(self, filename):
         """
@@ -1694,12 +1783,6 @@ class ScalarField(object):
                                 unit_x=unit_x, unit_y=unit_y,
                                 unit_values=make_unit(''))
 
-    def import_from_matlab(self, filename):
-        """
-        Import a scalarfield from a matlab file.
-        """
-        pass
-
     def import_from_arrays(self, axe_x, axe_y, values, unit_x=make_unit(""),
                            unit_y=make_unit(""), unit_values=make_unit("")):
         """
@@ -1769,27 +1852,6 @@ class ScalarField(object):
         self.unit_x = unit_x.copy()/unit_x_value
         self.unit_y = unit_y.copy()/unit_y_value
         self.unit_values = unit_values.copy()/unit_values_value
-
-    def import_from_scalarfield(self, scalarfield):
-        """
-        Set the scalar field from another scalarfield.
-
-        Parameters
-        ----------
-        scalarfield : ScalarField object
-            The scalar field to copy
-        """
-        if not isinstance(scalarfield, ScalarField):
-            raise TypeError("'scalarfield' must be a ScalarField object")
-        axe_x = scalarfield.axe_x.copy()    # np.array is here to cut
-        axe_y = scalarfield.axe_y.copy()     # the link between variables
-        values = scalarfield.values.copy()
-        unit_x = scalarfield.unit_x.copy()
-        unit_y = scalarfield.unit_y.copy()
-        unit_values = scalarfield.unit_values.copy()
-        self.import_from_arrays(axe_x=axe_x, axe_y=axe_y, values=values,
-                                unit_x=unit_x, unit_y=unit_y,
-                                unit_values=unit_values)
 
     def import_from_file(self, filepath, **kw):
         """
@@ -1919,85 +1981,25 @@ class ScalarField(object):
             v = np.append(v, value)
         return Points(pts, v, self.unit_x, self.unit_y, self.unit_values)
 
-    def set_axes(self, axe_x=None, axe_y=None):
+    def get_values_unit(self):
         """
-        Load new axes in the scalar field.
+        Return the values unit
+        """
+        return self.unit_values
+
+    def set_values_unit(self, unit_values=None):
+        """
+        Load unities into the scalar field values.
 
         Parameters
         ----------
-        axe_x : array
-            One-dimensionale array representing the position of the scalar
-            values along the X axe.
-        axe_y : array
-            idem for the Y axe.
-        """
-        if (axe_x is None) and (axe_y is None):
-            raise Warning("Ok, but i'll do nothing if you don't give me an"
-                          " argument")
-        if axe_x is not None:
-            if isinstance(axe_x, ARRAYTYPES):
-                axe_x = np.array(axe_x)
-                if axe_x.ndim == self.axe_x.ndim:
-                    self.axe_x = axe_x
-                else:
-                    raise ValueError("'axe_x' must have a consistent dimension"
-                                     " with the scalar field")
-            else:
-                raise TypeError("'axe_x' must be an array")
-        if axe_y is not None:
-            if isinstance(axe_y, ARRAYTYPES):
-                axe_y = np.array(axe_y)
-                if axe_y.ndim == self.axe_y.ndim:
-                    self.axe_y = axe_y
-                else:
-                    raise ValueError("'axe_y' must have a consistent dimension"
-                                     " with the scalar field")
-            else:
-                raise TypeError("'axe_y' must be an array")
-
-    def set_unit(self, unit_x=None, unit_y=None, unit_values=None):
-        """
-        Load unities into the scalar field.
-
-        Parameters
-        ----------
-        unit_x : Unit object
-            Axis X unit.
-        unit_y : Unit object
-            Axis Y unit.
         unit_values : Unit object
             Values unit.
         """
-        if unit_x is not None:
-            if not isinstance(unit_x, unum.Unum):
-                raise TypeError("'unit_x' must be an Unit object")
-            self.unit_x = unit_x
-        if unit_y is not None:
-            if not isinstance(unit_y, unum.Unum):
-                raise TypeError("'unit_y' must be an Unit object")
-            self.unit_y = unit_y
         if unit_values is not None:
             if not isinstance(unit_values, unum.Unum):
                 raise TypeError("'unit_values' must be an Unit object")
             self.unit_values = unit_values
-
-    def set_origin(self, x=None, y=None):
-        """
-        Modify the axis in order to place the origin at the actual point (x, y)
-
-        Parameters
-        ----------
-        x : number
-        y : number
-        """
-        if x is not None:
-            if not isinstance(x, NUMBERTYPES):
-                raise TypeError("'x' must be a number")
-            self.axe_x -= x
-        if y is not None:
-            if not isinstance(y, NUMBERTYPES):
-                raise TypeError("'y' must be a number")
-            self.axe_y -= y
 
     def get_dim(self):
         """
@@ -2070,20 +2072,7 @@ class ScalarField(object):
         else:
             return np.mean(self.values)
 
-    def get_axes(self):
-        """
-        Return the scalar field axes.
-
-        Returns
-        -------
-        axe_x : array
-            Axe along X.
-        axe_y : array
-            Axe along Y.
-        """
-        return self.axe_x, self.axe_y
-
-    def get_value(self, x, y, ind=False):
+    def get_value(self, x, y, ind=False, unit=False):
         """
         Return the scalar field value on the point (x, y).
         If ind is true, x and y are indices,
@@ -2104,8 +2093,12 @@ class ScalarField(object):
             if x > np.max(self.axe_x) or y > np.max(self.axe_y)\
                     or x < np.min(self.axe_x) or y < np.min(self.axe_y):
                 raise ValueError("'x' and 'y' are out of axes")
+        if unit:
+            unit = self.unit_values
+        else:
+            unit = 1.
         if ind:
-            return self.values[y, x]
+            return self.values[y, x]*unit
         else:
             ind_x = None
             ind_y = None
@@ -2115,7 +2108,7 @@ class ScalarField(object):
             inds_y = self.get_indice_on_axe(2, y)
             # if we are on a grid point
             if len(inds_x) == 1 and len(inds_y) == 1:
-                return self.values[inds_y[0], inds_x[0]]
+                return self.values[inds_y[0], inds_x[0]]*unit
             # if we are on a x grid branch
             elif len(inds_x) == 1:
                 ind_x = inds_x[0]
@@ -2126,7 +2119,7 @@ class ScalarField(object):
                 i_value = ((value2*np.abs(pos_y1 - y)
                            + value1*np.abs(pos_y2 - y))
                            / np.abs(pos_y1 - pos_y2))
-                return i_value
+                return i_value*unit
             # if we are on a x grid branch
             elif len(inds_y) == 1:
                 ind_y = inds_y[0]
@@ -2137,7 +2130,7 @@ class ScalarField(object):
                 i_value = ((value2*np.abs(pos_x1 - x)
                             + value1*np.abs(pos_x2 - x))
                            / np.abs(pos_x1 - pos_x2))
-                return i_value
+                return i_value*unit
             # if we are in the middle of nowhere (linear interpolation)
             ind_x = inds_x[0]
             ind_y = inds_y[0]
@@ -2148,111 +2141,7 @@ class ScalarField(object):
             pts = zip(a, b)
             interp_vx = spinterp.LinearNDInterpolator(pts, values.flatten())
             i_value = float(interp_vx(x, y))
-            return i_value
-
-    def get_indice_on_axe(self, direction, value, nearest=False):
-        """
-        Return, on the given axe, the indices representing the positions
-        surrounding 'value'.
-        if 'value' is exactly an axe position, return just one indice.
-
-        Parameters
-        ----------
-        direction : int
-            1 or 2, for axes choice.
-        value : number
-        nearest : boolean
-            If 'True', only the nearest indice is returned.
-
-        Returns
-        -------
-        interval : 2x1 or 1x1 array of integer
-        """
-        if not isinstance(direction, NUMBERTYPES):
-            raise TypeError("'direction' must be a number.")
-        if not (direction == 1 or direction == 2):
-            raise ValueError("'direction' must be 1 or 2.")
-        if not isinstance(value, NUMBERTYPES):
-            raise TypeError("'value' must be a number.")
-        if direction == 1:
-            axe = self.axe_x
-            if value < axe[0] or value > axe[-1]:
-                raise ValueError("'value' is out of bound.")
-        else:
-            axe = self.axe_y
-            if value < axe[0] or value > axe[-1]:
-                raise ValueError("'value' is out of bound.")
-        # getting the borning indices
-        ind = np.searchsorted(axe, value)
-        if axe[ind] == value:
-            inds = [ind]
-        else:
-            inds = [ind - 1, ind]
-        if not nearest:
-            return inds
-        # getting the nearest indice
-        else:
-            if len(inds) != 1:
-                if np.abs(axe[inds[0]] - value) < np.abs(axe[inds[1]] - value):
-                    ind = inds[0]
-                else:
-                    ind = inds[1]
-            else:
-                ind = inds[0]
-            return ind
-
-    def get_points_around(self, center, radius):
-        """
-        Return the list of points or the scalar field that are in a circle
-        centered on 'center' and of radius 'radius'.
-
-        Parameters
-        ----------
-        center : array
-            Coordonate of the center point (in axes units).
-        radius : float
-            radius of the cercle (in axes units).
-
-        Returns
-        -------
-        indices : array
-            Array contening the indices of the contened points.
-            [(ind1x, ind1y), (ind2x, ind2y), ...].
-            You can easily put them in the axes to obtain points coordinates
-        """
-        if not isinstance(center, ARRAYTYPES):
-            raise TypeError("'center' must be an array")
-        center = np.array(center)
-        if not center.shape == (2,):
-            raise ValueError("'center' must be a 2x1 array")
-        if not isinstance(radius, NUMBERTYPES):
-            raise TypeError("'radius' must be a number")
-        if not radius > 0:
-            raise ValueError("'radius' must be positive")
-        radius2 = radius**2
-        radius_int = radius/np.sqrt(2)
-        inds = []
-        for indices, coord, _ in self:
-            # test if the point is not in the square surrounding the cercle
-            if coord[0] >= center[0] + radius \
-                    and coord[0] <= center[0] - radius \
-                    and coord[1] >= center[1] + radius \
-                    and coord[1] <= center[1] - radius:
-                pass
-            # test if the point is in the square 'compris' in the cercle
-            elif coord[0] <= center[0] + radius_int \
-                    and coord[0] >= center[0] - radius_int \
-                    and coord[1] <= center[1] + radius_int \
-                    and coord[1] >= center[1] - radius_int:
-                inds.append(indices)
-            # test if the point is the center
-            elif all(coord == center):
-                pass
-            # test if the point is in the circle
-            elif ((coord[0] - center[0])**2 + (coord[1] - center[1])**2
-                    <= radius2):
-                inds.append(indices)
-        return inds
+            return i_value*unit
 
     def get_zones_centers(self, bornes=[0.75, 1], rel=True,
                           kind='ponderated'):
@@ -2354,12 +2243,12 @@ class ScalarField(object):
         for ind in inds:
             indx = ind[1]
             indy = ind[0]
-            if indx%1 == 0:
+            if indx % 1 == 0:
                 x = self.axe_x[indx]
             else:
                 dx = self.axe_x[1] - self.axe_x[0]
                 x = self.axe_x[int(indx)] + dx*(indx % 1)
-            if indy%1 == 0:
+            if indy % 1 == 0:
                 y = self.axe_y[indy]
             else:
                 dy = self.axe_y[1] - self.axe_y[0]
@@ -2591,9 +2480,7 @@ class ScalarField(object):
         """
         Return a copy of the scalarfield.
         """
-        copy = ScalarField()
-        copy.import_from_scalarfield(self)
-        return copy
+        return copy.deepcopy(self)
 
     def trim_area(self, intervalx=None, intervaly=None):
         """
@@ -2606,53 +2493,14 @@ class ScalarField(object):
         intervaly : array, optional
             interval wanted along y
         """
-        if intervalx is None:
-            intervalx = [self.axe_x[0], self.axe_x[-1]]
-        if intervaly is None:
-            intervaly = [self.axe_y[0], self.axe_y[-1]]
-        if not isinstance(intervalx, ARRAYTYPES):
-            raise TypeError("'intervalx' must be an array of two numbers")
-        intervalx = np.array(intervalx)
-        if intervalx.ndim != 1:
-            raise ValueError("'intervalx' must be an array of two numbers")
-        if intervalx.shape != (2,):
-            raise ValueError("'intervalx' must be an array of two numbers")
-        if intervalx[0] > intervalx[1]:
-            raise ValueError("'intervalx' values must be crescent")
-        if not isinstance(intervaly, ARRAYTYPES):
-            raise TypeError("'intervaly' must be an array of two numbers")
-        intervaly = np.array(intervaly)
-        if intervaly.ndim != 1:
-            raise ValueError("'intervaly' must be an array of two numbers")
-        if intervaly.shape != (2,):
-            raise ValueError("'intervaly' must be an array of two numbers")
-        if intervaly[0] > intervaly[1]:
-            raise ValueError("'intervaly' values must be crescent")
-        # finding interval indices
-        if intervalx[0] <= self.axe_x[0]:
-            indmin_x = 0
-        else:
-            indmin_x = self.get_indice_on_axe(1, intervalx[0])[-1]
-        if intervalx[1] >= self.axe_x[-1]:
-            indmax_x = len(self.axe_x) - 1
-        else:
-            indmax_x = self.get_indice_on_axe(1, intervalx[1])[0]
-        if intervaly[0] <= self.axe_y[0]:
-            indmin_y = 0
-        else:
-            indmin_y = self.get_indice_on_axe(2, intervaly[0])[-1]
-        if intervaly[1] >= self.axe_y[-1]:
-            indmax_y = len(self.axe_y) - 1
-        else:
-            indmax_y = self.get_indice_on_axe(2, intervaly[1])[0]
-        trimfield = ScalarField()
-        trimfield.import_from_arrays(self.axe_x[indmin_x:indmax_x + 1],
-                                     self.axe_y[indmin_y:indmax_y + 1],
-                                     self.values[indmin_y:indmax_y + 1,
-                                                 indmin_x:indmax_x + 1],
-                                     self.unit_x, self.unit_y,
-                                     self.unit_values)
-        return trimfield
+        indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
+            Field.trim_area(self, intervalx, intervaly, full_output=True)
+        tmpsf = self.get_copy()
+        tmpsf.axe_x = tmpsf.axe_x[indmin_x:indmax_x + 1]
+        tmpsf.axe_y = tmpsf.axe_y[indmin_y:indmax_y + 1]
+        tmpsf.values = tmpsf.values[indmin_y:indmax_y + 1,
+                                    indmin_x:indmax_x + 1]
+        return tmpsf
 
     def crop_masked_border(self):
         """
@@ -2958,120 +2806,6 @@ class ScalarField(object):
         """
         pass
 
-    def __display_profile__(self, direction, position, **plotargs):
-        profile, cutposition = self.get_profile(direction, position)
-        if direction == 1:
-            try:
-                plotargs["label"]
-            except KeyError:
-                plotargs["label"] = "X = {0}".format(cutposition.mean() *
-                                                     self.unit_x)
-            fig = profile.display(**plotargs)
-            plt.ylabel("Y " + profile.unit_x.strUnit())
-            plt.xlabel("Values " + profile.unit_y.strUnit())
-        else:
-            try:
-                plotargs["label"]
-            except KeyError:
-                plotargs["label"] = "Y = {0}".format(cutposition.mean() *
-                                                     self.unit_y)
-            fig = profile.display(**plotargs)
-            plt.xlabel("X " + profile.unit_x.strUnit())
-            plt.ylabel("Values " + profile.unit_y.strUnit())
-        return fig, cutposition
-
-    def display_profile(self, direction, position, **plotargs):
-        """
-        Display a profile of the scalar field, at the given position (or at
-        least at the nearest possible position).
-        If position is an interval, the fonction display an average profile
-        in this interval.
-
-        Parameters
-        ----------
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y).
-        position : float or interval of float
-            Position or interval in which we want a profile.
-        **plotargs :
-            Supplementary arguments for the plot() function.
-
-        Returns
-        -------
-        fig : figure
-            Reference to the drawned figure.
-        """
-        fig, cutposition = self.__display_profile__(direction, position,
-                                                    **plotargs)
-        if direction == 1:
-            if isinstance(cutposition, ARRAYTYPES):
-                plt.title("Mean Scalar field profile {0}, for X={1}"
-                          .format(self.unit_values.strUnit(),
-                                  np.array([cutposition[0],
-                                            cutposition[-1]])*self.unit_x))
-            else:
-                plt.title("Scalar field profile {0}, at X={1}"
-                          .format(self.unit_values.strUnit(),
-                                  cutposition*self.unit_x))
-        else:
-            if isinstance(cutposition, ARRAYTYPES):
-                plt.title("Mean Scalar field profile {0}, for Y={1}"
-                          .format(self.unit_values.strUnit(),
-                                  np.array([cutposition[0],
-                                            cutposition[-1]])*self.unit_y))
-            else:
-                plt.title("Scalar field profile {0}, at Y={1}"
-                          .format(self.unit_values.strUnit(),
-                                  cutposition*self.unit_y))
-        return fig
-
-    def display_multiple_profiles(self, direction, positions,
-                                  meandist=0, **plotargs):
-        """
-        Display profiles of the scalar field, at given positions (or at
-        least at the nearest possible positions).
-        If 'meandist' is non-zero, profiles will be averaged on the interval
-        [position - meandist, position + meandist].
-
-        Parameters
-        ----------
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y).
-        positions : tuple of numbers
-            Positions in which we want a profile.
-        meandist : number
-            Distance for the profil average.
-        **plotargs :
-            Supplementary arguments for the plot() function.
-        """
-        i = 0.
-        nmbcb = len(positions)
-        for position in positions:
-            if meandist != 0:
-                pos = [position - meandist, position + meandist]
-            else:
-                pos = position
-            color = (i/nmbcb, 0, 1-i/nmbcb)
-            plotargs = {'color': (color)}
-            self.__display_profile__(direction, pos, **plotargs)
-            i = i + 1
-        plt.legend()
-        if meandist != 0:
-            if direction == 1:
-                plt.title("Mean Scalar field profile, for given values of X,\n"
-                          " with an averaging value of {0}"
-                          .format(meandist*self.unit_x))
-            else:
-                plt.title("Mean Scalar field profile, for given values of Y,\n"
-                          " with an averaging value of {0}"
-                          .format(meandist*self.unit_y))
-        else:
-            if direction == 1:
-                plt.title("Mean Scalar field profile, for given values of X")
-            else:
-                plt.title("Mean Scalar field profile, for given values of Y")
-
-
 class VectorField(object):
     """
     Class representing a vector field (2D field, with two components on each
@@ -3099,8 +2833,7 @@ class VectorField(object):
     """
 
     def __init__(self):
-        self.__classname__ = "VectorField"
-
+        pass
     def __neg__(self):
         final_vf = VectorField()
         final_vf.import_from_vectorfield(self)
@@ -4562,7 +4295,7 @@ class VelocityField(object):
     "display" : display the vector field, with these unities.
     """
     def __init__(self):
-        self.__classname__ = "VelocityField"
+        pass
 
     def __neg__(self):
         final_vf = VelocityField()
@@ -5464,7 +5197,7 @@ class VelocityFields(object):
 
     def __init__(self):
         self.fields = []
-        self.__classname__ = "VelocityFields"
+        pass
 
     def __len__(self):
         return len(self.fields)
@@ -5776,13 +5509,6 @@ class TemporalVelocityFields(VelocityFields):
 
     "calc_*" : give access to a bunch of derived statistical fields.
     """
-
-    def __init__(self):
-        """
-        Class constructor.
-        """
-        VelocityFields.__init__(self)
-        self.__classname__ = "TemporalVelocityFields"
 
     def __add__(self, other):
         if isinstance(other, TemporalVelocityFields):
@@ -6866,10 +6592,6 @@ class SpatialVelocityFields(VelocityFields):
 
     "get_bl*" : compute different kind of boundary layer thickness.
     """
-
-    def __init__(self):
-        VelocityFields.__init__(self)
-        self.__classname__ = "SpatialVelocityFields"
 
     def import_from_svfs(self, svfs):
         """
