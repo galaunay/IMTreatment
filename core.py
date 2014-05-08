@@ -1515,55 +1515,41 @@ class ScalarField(Field):
         self.values = np.array([])
 
     def __neg__(self):
-        final_sf = ScalarField()
-        final_sf.import_from_scalarfield(self)
-        final_sf.values = -final_sf.values
-        return final_sf
+        tmpsf = self.get_copy()
+        tmpsf.values = -tmpsf.values
+        return tmpsf
 
     def __add__(self, otherone):
+        # if we add with a ScalarField object
         if isinstance(otherone, ScalarField):
             if all(self.axe_x != otherone.axe_x) or \
                     all(self.axe_y != otherone.axe_y):
                 raise ValueError("Scalar fields have to be consistent "
                                  "(same dimensions)")
-
-                raise ValueError("Scalar fields have to be consistent "
-                                 "(same units)")
             try:
                 self.unit_values + otherone.unit_values
                 self.unit_x + otherone.unit_x
                 self.unit_y + otherone.unit_y
             except:
                 raise ValueError("I think these units don't match, fox")
-            final_sf = ScalarField()
-            final_sf.import_from_scalarfield(self)
-            final_sf.values += otherone.values
-            if isinstance(self.values, np.ma.MaskedArray) or\
-                    isinstance(otherone.values, np.ma.MaskedArray):
-                mask_self = np.zeros(self.values.shape)
-                mask_other = np.zeros(otherone.values.shape)
-                if isinstance(self.values, np.ma.MaskedArray):
-                    mask_self = self.values.mask
-                if isinstance(otherone.values, np.ma.MaskedArray):
-                    mask_other = otherone.values.mask
-                final_sf.values.mask = np.logical_or(mask_self, mask_other)
-            return final_sf
+            tmpsf = self.get_copy()
+            fact = otherone.unit_values/self.unit_values
+            tmpsf.values += otherone.values*fact.asNumber()
+            return tmpsf
+        # if we add with a number
         elif isinstance(otherone, NUMBERTYPES):
-            final_sf = ScalarField()
-            final_sf.import_from_scalarfield(self)
-            final_sf.values += otherone
-            return final_sf
+            tmpsf = self.get_copy()
+            tmpsf.values += otherone
+            return tmpsf
         elif isinstance(otherone, unum.Unum):
-            if self.unit_values / self.unit_values.asNumber() != \
-                    otherone/otherone.asNumber():
+            try:
+                self.unit_values + otherone
+            except:
                 raise ValueError("Given number have to be consistent with"
                                  "the scalar field (same units)")
-            else:
-                final_sf = ScalarField()
-                final_sf.import_from_scalarfield(self)
-                final_sf.values += (otherone.asNumber()
-                                    / self.unit_values.asNumber())
-                return final_sf
+            tmpsf = self.get_copy()
+            tmpsf.values += (otherone/self.unit_values).asNumber()
+            return tmpsf
         else:
             raise TypeError("You can only add a scalarfield "
                             "with others scalarfields or with numbers")
@@ -1576,30 +1562,26 @@ class ScalarField(Field):
 
     def __truediv__(self, obj):
         if isinstance(obj, NUMBERTYPES):
-            final_sf = ScalarField()
-            final_sf.import_from_scalarfield(self)
-            final_sf.values /= obj
-            return final_sf
+            tmpsf = self.get_copy()
+            tmpsf.values /= obj
+            return tmpsf
         elif isinstance(obj, unum.Unum):
-            final_sf = ScalarField()
-            final_sf.import_from_scalarfield(self)
-            final_sf.values /= obj.asNumber()
-            final_sf.unit_values /= obj/obj.asNumber()
-            return final_sf
+            tmpsf = self.get_copy()
+            tmpsf.values /= obj.asNumber()
+            tmpsf.unit_values /= obj/obj.asNumber()
+            return tmpsf
         elif isinstance(obj, ScalarField):
             if np.any(self.axe_x != obj.axe_x)\
                     or np.any(self.axe_y != obj.axe_y)\
                     or self.unit_x != obj.unit_x\
                     or self.unit_y != obj.unit_y:
                 raise ValueError("Fields are not consistent")
+            tmpsf = self.get_copy()
             values = self.values / obj.values
             unit = self.unit_values / obj.unit_values
-            values = values*unit.asNumber()
-            unit = unit/unit.asNumber()
-            tmp_sf = ScalarField()
-            tmp_sf.import_from_arrays(self.axe_x, self.axe_y, values,
-                                      self.unit_x, self.unit_y, unit)
-            return tmp_sf
+            tmpsf.values = values*unit.asNumber()
+            tmpsf.unit_values = unit/unit.asNumber()
+            return tmpsf
         else:
             raise TypeError("Unsupported operation between {} and a "
                             "ScalarField object".format(type(obj)))
@@ -1608,60 +1590,56 @@ class ScalarField(Field):
 
     def __mul__(self, obj):
         if isinstance(obj, NUMBERTYPES):
-            final_sf = ScalarField()
-            final_sf.import_from_scalarfield(self)
-            final_sf.values *= obj
-            return final_sf
+            tmpsf = self.get_copy()
+            tmpsf.values *= obj
+            return tmpsf
         elif isinstance(obj, unum.Unum):
-            final_sf = ScalarField()
-            final_sf.import_from_scalarfield(self)
-            final_sf.values *= obj.asNumber
-            final_sf.unit_values *= obj/obj.asNumber
-            return final_sf
+            tmpsf = self.get_copy()
+            tmpsf.values *= obj.asNumber
+            tmpsf.unit_values *= obj/obj.asNumber
+            return tmpsf
         elif isinstance(obj, np.ma.core.MaskedArray):
             if obj.shape != self.values.shape:
                 raise ValueError("Fields are not consistent")
-            tmp_sf = self.get_copy()
-            tmp_sf.values *= obj
-            return tmp_sf
+            tmpsf = self.get_copy()
+            tmpsf.values *= obj
+            return tmpsf
         elif isinstance(obj, ScalarField):
             if np.any(self.axe_x != obj.axe_x)\
                     or np.any(self.axe_y != obj.axe_y)\
                     or self.unit_x != obj.unit_x\
                     or self.unit_y != obj.unit_y:
                 raise ValueError("Fields are not consistent")
+            tmpsf = self.get_copy()
             values = self.values * obj.values
             unit = self.unit_values * obj.unit_values
-            values = values*unit.asNumber()
-            unit = unit/unit.asNumber()
-            tmp_sf = ScalarField()
-            tmp_sf.import_from_arrays(self.axe_x, self.axe_y, values,
-                                      self.unit_x, self.unit_y, unit)
-            return tmp_sf
+            tmpsf.values = values*unit.asNumber()
+            tmpsf.unit_values = unit/unit.asNumber()
+            return tmpsf
         else:
             raise TypeError("Unsupported operation between {} and a "
                             "ScalarField object".format(type(obj)))
     __rmul__ = __mul__
 
     def __abs__(self):
-        tmp_sf = self.get_copy()
-        tmp_sf.values = np.abs(tmp_sf.values)
-        return tmp_sf
+        tmpsf = self.get_copy()
+        tmpsf.values = np.abs(tmpsf.values)
+        return tmpsf
 
     def __sqrt__(self):
-        final_sf = self.get_copy()
-        final_sf.values = np.sqrt(final_sf.values)
-        final_sf.unit_values = np.sqrt(final_sf.unit_values)
-        return final_sf
+        tmpsf = self.get_copy()
+        tmpsf.values = np.sqrt(tmpsf.values)
+        tmpsf.unit_values = np.sqrt(tmpsf.unit_values)
+        return tmpsf
 
     def __pow__(self, number):
         if not isinstance(number, NUMBERTYPES):
             raise TypeError("You only can use a number for the power "
                             "on a Scalar field")
-        final_sf = self.get_copy()
-        final_sf.values = np.power(final_sf.values, number)
-        final_sf.unit_values = np.power(final_sf.unit_values, number)
-        return final_sf
+        tmpsf = self.get_copy()
+        tmpsf.values = np.power(tmpsf.values, number)
+        tmpsf.unit_values = np.power(tmpsf.unit_values, number)
+        return tmpsf
 
     def __iter__(self):
         try:
@@ -1867,10 +1845,10 @@ class ScalarField(Field):
             Path specifiing the ScalarField to load.
         """
         import IMTreatment.io.io as imtio
-        tmp_sf = imtio.import_from_file(filepath, **kw)
-        if tmp_sf.__classname__ != self.__classname__:
+        tmpsf = imtio.import_from_file(filepath, **kw)
+        if tmpsf.__classname__ != self.__classname__:
             raise IOError("This file do not contain a ScalarField, cabron.")
-        self.import_from_scalarfield(tmp_sf)
+        self = tmpsf
 
     def export_to_file(self, filepath, compressed=True, **kw):
         """
@@ -2806,7 +2784,7 @@ class ScalarField(Field):
         """
         pass
 
-class VectorField(object):
+class VectorField(Field):
     """
     Class representing a vector field (2D field, with two components on each
     point).
@@ -2833,7 +2811,10 @@ class VectorField(object):
     """
 
     def __init__(self):
-        pass
+        Field.__init__(self)
+        self.comp_x = np.array([])
+        self.comp_y = np.array([])
+
     def __neg__(self):
         final_vf = VectorField()
         final_vf.import_from_vectorfield(self)
@@ -3123,7 +3104,7 @@ class VectorField(object):
         Vy = ScalarField()
         Vy.import_from_arrays(x_org, y_org, vy_org, unit_x, unit_y,
                               unit_values)
-        self.import_from_scalarfield(Vx, Vy)
+        self.import_from_scalarfields(Vx, Vy)
 
     def import_from_matlab(self, filename):
         """
@@ -3207,9 +3188,9 @@ class VectorField(object):
                                 unit_values_x)
         SF_y.import_from_arrays(axe_x, axe_y, comp_y, unit_x, unit_y,
                                 unit_values_y)
-        self.import_from_scalarfield(SF_x, SF_y)
+        self.import_from_scalarfields(SF_x, SF_y)
 
-    def import_from_scalarfield(self, comp_x, comp_y):
+    def import_from_scalarfields(self, comp_x, comp_y):
         """
         Import a vector field from two scalarfields.
 
@@ -3813,7 +3794,7 @@ class VectorField(object):
         trimfield = VectorField()
         trimed_comp_x = self.comp_x.get_area(intervalx, intervaly)
         trimed_comp_y = self.comp_y.get_area(intervalx, intervaly)
-        trimfield.import_from_scalarfield(trimed_comp_x, trimed_comp_y)
+        trimfield.import_from_scalarfields(trimed_comp_x, trimed_comp_y)
         return trimfield
 
     def get_magnitude(self):
@@ -3849,7 +3830,7 @@ class VectorField(object):
         tmp_sfy.import_from_arrays(axe_x, axe_y, comp_y, self.comp_x.unit_x,
                                    self.comp_x.unit_y)
         tmp_vf = VectorField()
-        tmp_vf.import_from_scalarfield(tmp_sfx, tmp_sfy)
+        tmp_vf.import_from_scalarfields(tmp_sfx, tmp_sfy)
         return tmp_vf
 
     def get_vorticity(self):
@@ -3940,7 +3921,7 @@ class VectorField(object):
         tmp_sfy.import_from_arrays(axe_x, axe_y, comp_y, self.comp_x.unit_x,
                                    self.comp_x.unit_y)
         tmp_vf = VectorField()
-        tmp_vf.import_from_scalarfield(tmp_sfx, tmp_sfy)
+        tmp_vf.import_from_scalarfields(tmp_sfx, tmp_sfy)
         return tmp_vf
 
     def get_spatial_correlation(self, xy):
@@ -4440,7 +4421,7 @@ class VelocityField(object):
                                   make_unit(unit_y),
                                   make_unit(unit_values))
         self.V = VectorField()
-        self.V.import_from_scalarfield(comp_x, comp_y)
+        self.V.import_from_scalarfields(comp_x, comp_y)
         timefile = v.attributes['_TIME'].split(':')
         timefile = float(timefile[0])*3600 + float(timefile[1])*60\
             + float(timefile[2])
@@ -4484,7 +4465,7 @@ class VelocityField(object):
         """
         pass
 
-    def import_from_scalarfield(self, comp_x, comp_y, time,
+    def import_from_scalarfields(self, comp_x, comp_y, time,
                                 unit_time=make_unit("s")):
         """
         Import a velocity field from two scalarfields.
@@ -4507,7 +4488,7 @@ class VelocityField(object):
         # cleaning in case values are already been set
         self._clear_derived()
         self.V = VectorField()
-        self.V.import_from_scalarfield(comp_x, comp_y)
+        self.V.import_from_scalarfields(comp_x, comp_y)
         self.time = time
         self.unit_time = unit_time.copy()
 
@@ -4727,7 +4708,7 @@ class VelocityField(object):
 #            raise ValueError("'scalarfield' must have the same dimensions "
 #                             "than the velocity field")
 #        compo = self.get_comp(componentname)
-#        compo.import_from_scalarfield(scalarfield)
+#        compo.import_from_scalarfields(scalarfield)
 
     def set_axes(self, axe_x=None, axe_y=None):
         """
@@ -6043,7 +6024,7 @@ class TemporalVelocityFields(VelocityFields):
         comp_y = self.fields[0].V.comp_y.get_copy()
         comp_y.values = np.ma.masked_array(mean_vy, mask_tot)
         mean_vf = VelocityField()
-        mean_vf.import_from_scalarfield(comp_x, comp_y, time=time,
+        mean_vf.import_from_scalarfields(comp_x, comp_y, time=time,
                                         unit_time=self.fields[0].unit_time)
         if np.all(mask_tot):
             raise Warning("All datas masked in this mean field."
