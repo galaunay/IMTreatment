@@ -542,53 +542,6 @@ class Points(object):
         tmp_pt.xy = xy_tmp
         return tmp_pt
 
-
-#    def simplify(self, axe=0):
-#        """
-#        Simplify a group of points, on order to make the cloud look
-#        like a curve.
-#        On each row or column (according to axe), this algorithm take
-#        the two extremal points, and determine the intermediate points.
-#        A list of these intermediate points is returned.
-#        (It is obvious that this algorithm only work with orthogonal points
-#        fields)
-#        """
-#        if not isinstance(axe, int):
-#            raise TypeError("'axe' must be 0 or 1")
-#        if axe != 0 and axe != 1:
-#            raise ValueError("'axe' must be 0 or 1")
-#        # récupération de la grille orthonormée
-#        axe_y = sets.Set(self.xy[:, 1])
-#        axe_y = list(axe_y)
-#        axe_y.sort()
-#        # calcul des positions moyennes sur chaque axe_x
-#        if axe == 0:
-#            axe_x = sets.Set(self.xy[:, 0])
-#            axe_x = list(axe_x)
-#            axe_x.sort()
-#            xyf = None
-#            for x in axe_x:
-#                xytmp = self.xy[self.xy[:, 0] == x]
-#                if xyf is None:
-#                    xyf = [[x, np.mean(xytmp[:, 1])]]
-#                else:
-#                    xyf = np.append(xyf, [[x, np.mean(xytmp[:, 1])]], axis=0)
-#        else:
-#            axe_y = sets.Set(self.xy[:, 1])
-#            axe_y = list(axe_y)
-#            axe_y.sort()
-#            xyf = None
-#            for y in axe_y:
-#                xytmp = self.xy[self.xy[:, 1] == y]
-#                if xyf is None:
-#                    xyf = [[y, np.mean(xytmp[:, 0])]]
-#                else:
-#                    xyf = np.append(xyf, [[np.mean(xytmp[:, 0]), y]], axis=0)
-#        pts = Points(xyf, v, unit_x=self.unit_x, unit_y=self.unit_y,
-#                     unit_v=self.unit_v,
-#                     name=self.name)
-#        return pts
-
     def decompose(self):
         """
         return a tuple of Points object, with only one point per object.
@@ -1486,6 +1439,7 @@ class Field(object):
                 inds.append(indices)
         return inds
 
+
 class ScalarField(Field):
     """
     Class representing a scalar field (2D field, with one component on each
@@ -1512,7 +1466,7 @@ class ScalarField(Field):
 
     def __init__(self):
         Field.__init__(self)
-        self.values = np.array([])
+        self.values = np.ma.masked_array([])
 
     def __neg__(self):
         tmpsf = self.get_copy()
@@ -1830,6 +1784,7 @@ class ScalarField(Field):
         self.unit_x = unit_x.copy()/unit_x_value
         self.unit_y = unit_y.copy()/unit_y_value
         self.unit_values = unit_values.copy()/unit_values_value
+        self.crop_masked_border()
 
     def import_from_file(self, filepath, **kw):
         """
@@ -1958,6 +1913,42 @@ class ScalarField(Field):
                 pts = np.append(pts, [pos], axis=0)
             v = np.append(v, value)
         return Points(pts, v, self.unit_x, self.unit_y, self.unit_values)
+
+    def set_values(self, values):
+        """
+        fill the scalar field with the given values
+        """
+        if not isinstance(values, ARRAYTYPES):
+            raise TypeError("'values' must be an array")
+        values = np.array(values)
+        if not np.all(values.shape == self.get_dim()):
+            raise ValueError("'values' shape must agree with the "
+                             "original field shape")
+        self.values = values
+
+    def get_values(self):
+        """
+        Return the field values.
+        """
+        return self.values
+
+    def get_mask(self):
+        """
+        Return the scalarfield mask.
+        """
+        return self.values.mask
+
+    def set_mask(self, mask):
+        """
+        fill the scalar field mask with the given values.
+        """
+        if not isinstance(mask, ARRAYTYPES):
+            raise TypeError("'values' must be an array")
+        mask = np.array(mask)
+        if not np.all(mask.shape == self.get_dim()):
+            raise ValueError("'values' shape must agree with the "
+                             "original field shape")
+        self.values.mask = mask
 
     def get_values_unit(self):
         """
@@ -2484,12 +2475,14 @@ class ScalarField(Field):
         """
         Crop the masked border of the field in place.
         """
+        axe_x, axe_y = self.get_axes()
         # checking masked values presence
-        if not np.ma.is_masked(self.values):
+        values = self.get_values()
+        if not np.ma.is_masked(values):
             return None
         # getting datas
-        values = self.values.data
-        mask = self.values.mask
+        values = values.data
+        mask = self.get_mask()
         # crop border along y
         axe_y_m = ~np.all(mask, axis=1)
         if np.any(axe_y_m):
@@ -2503,8 +2496,8 @@ class ScalarField(Field):
         # storing cropped values
         self.values = np.ma.masked_array(values, mask)
         # crop axis
-        self.axe_x = self.axe_x[axe_x_m]
-        self.axe_y = self.axe_y[axe_y_m]
+        self.axe_x = axe_x[axe_x_m]
+        self.axe_y = axe_y[axe_y_m]
 
     def fill(self, tof='interplin', value=0., crop_border=True):
         # TODO : Make this fucking functionnality work !
@@ -2598,20 +2591,17 @@ class ScalarField(Field):
         # filling up the field before smoothing
         self.fill()
         # mask treatment
-        if isinstance(self.values, np.ma.MaskedArray):
-            values = self.values.data
-        else:
-            values = self.values
-        mask = np.zeros(values.shape)
+        values = self.values.data
+        mask = self.get_mask()
         # smoothing
         if tos == "uniform":
-            values = ndimage.uniform_filter(values, size)
+            values = ndimage.uniform_filter(values, size, **kw)
         elif tos == "gaussian":
-            values = ndimage.gaussian_filter(values, size)
+            values = ndimage.gaussian_filter(values, size, **kw)
         else:
             raise ValueError("'tos' must be 'uniform' or 'gaussian'")
         # storing
-        self.values = np.ma.masked_array(values, mask)
+        self.set_values(np.ma.masked_array(values, mask))
 
     def integrate_over_line(self, direction, interval):
         """
@@ -2784,6 +2774,7 @@ class ScalarField(Field):
         """
         pass
 
+
 class VectorField(Field):
     """
     Class representing a vector field (2D field, with two components on each
@@ -2814,13 +2805,13 @@ class VectorField(Field):
         Field.__init__(self)
         self.comp_x = np.array([])
         self.comp_y = np.array([])
+        self.unit_values = make_unit('')
 
     def __neg__(self):
-        final_vf = VectorField()
-        final_vf.import_from_vectorfield(self)
-        final_vf.comp_x = -final_vf.comp_x
-        final_vf.comp_y = -final_vf.comp_y
-        return final_vf
+        tmpvf = self.get_copy()
+        tmpvf.comp_x = -tmpvf.comp_x
+        tmpvf.comp_y = -tmpvf.comp_y
+        return tmpvf
 
     def __add__(self, other):
         if isinstance(other, VectorField):
@@ -2829,38 +2820,37 @@ class VectorField(Field):
                 raise ValueError("Vector fields have to be consistent "
                                  "(same dimensions)")
             try:
-                self.comp_x.unit_values + other.comp_x.unit_values
-                self.comp_x.unit_x + other.comp_x.unit_x
-                self.comp_x.unit_y + other.comp_x.unit_y
+                self.unit_values + other.unit_values
+                self.unit_x + other.unit_x
+                self.unit_y + other.unit_y
             except:
                 raise ValueError("I think these units don't match, fox")
-            final_vf = VectorField()
-            final_vf.import_from_vectorfield(self)
-            final_vf.comp_x = self.comp_x + other.comp_x
-            final_vf.comp_y = self.comp_y + other.comp_y
-            return final_vf
+            tmpvf = self.get_copy()
+            tmpvf.comp_x = (self.comp_x
+                            + other.comp_x*other.unit_values/self.unit_values)
+            tmpvf.comp_y = (self.comp_y
+                            + other.comp_y*other.unit_values/self.unit_values)
+            return tmpvf
         else:
             raise TypeError("You can only add a velocity field "
                             "with others velocity fields")
 
     def __sub__(self, other):
         other_tmp = other.__neg__()
-        tmp_vf = self.__add__(other_tmp)
-        return tmp_vf
+        tmpvf = self.__add__(other_tmp)
+        return tmpvf
 
     def __truediv__(self, number):
         if isinstance(number, unum.Unum):
-            final_vf = VectorField()
-            final_vf.import_from_vectorfield(self)
-            final_vf.comp_x.values /= number
-            final_vf.comp_y.values /= number
-            return final_vf
+            tmpvf = self.get_copy()
+            tmpvf.comp_x /= (number/self.unit_values).asNumber()
+            tmpvf.comp_y /= (number/self.unit_values).asNumber()
+            return tmpvf
         elif isinstance(number, NUMBERTYPES):
-            final_vf = VectorField()
-            final_vf.import_from_vectorfield(self)
-            final_vf.comp_x.values /= number
-            final_vf.comp_y.values /= number
-            return final_vf
+            tmpvf = self.get_copy()
+            tmpvf.comp_x /= number
+            tmpvf.comp_y /= number
+            return tmpvf
         else:
             raise TypeError("You can only divide a vector field "
                             "by numbers")
@@ -2869,17 +2859,15 @@ class VectorField(Field):
 
     def __mul__(self, number):
         if isinstance(number, unum.Unum):
-            final_vf = VectorField()
-            final_vf.import_from_vectorfield(self)
-            final_vf.comp_x.values *= number
-            final_vf.comp_y.values *= number
-            return final_vf
+            tmpvf = self.get_copy()
+            tmpvf.comp_x *= (number/self.unit_values).asNumber()
+            tmpvf.comp_y *= (number/self.unit_values).asNumber()
+            return tmpvf
         elif isinstance(number, NUMBERTYPES):
-            final_vf = VectorField()
-            final_vf.import_from_vectorfield(self)
-            final_vf.comp_x.values *= number
-            final_vf.comp_y.values *= number
-            return final_vf
+            tmpvf = self.get_copy()
+            tmpvf.comp_x *= number
+            tmpvf.comp_y *= number
+            return tmpvf
         else:
             raise TypeError("You can only multiply a vector field "
                             "by numbers")
@@ -2887,95 +2875,37 @@ class VectorField(Field):
     __rmul__ = __mul__
 
     def __sqrt__(self):
-        final_vf = self.get_copy()
-        final_vf.comp_x = np.sqrt(final_vf.comp_x)
-        final_vf.comp_y = np.sqrt(final_vf.comp_y)
-        return final_vf
+        tmpvf = self.get_copy()
+        tmpvf.comp_x = np.sqrt(tmpvf.comp_x)
+        tmpvf.comp_y = np.sqrt(tmpvf.comp_y)
+        return tmpvf
 
     def __pow__(self, number):
         if not isinstance(number, NUMBERTYPES):
             raise TypeError("You only can use a number for the power "
                             "on a Vectorfield")
-        final_vf = self.get_copy()
-        final_vf.comp_x = np.power(final_vf.comp_x, number)
-        final_vf.comp_y = np.power(final_vf.comp_y, number)
-        return final_vf
+        tmpvf = self.get_copy()
+        tmpvf.comp_x = np.power(tmpvf.comp_x, number)
+        tmpvf.comp_y = np.power(tmpvf.comp_y, number)
+        return tmpvf
 
     def __iter__(self):
-        dimx, dimy = self.get_dim()
         try:
-            self.comp_x.values.mask
+            maskx = self.comp_x.mask
+            masky = self.comp_y.mask
+            datax = self.comp_x.data
+            datay = self.comp_y.data
         except AttributeError:
-            datax = self.comp_x.values
-            datay = self.comp_y.values
-            for i in np.arange(dimx):
-                for j in np.arange(dimy):
-                    yield [j, i], [self.comp_x.axe_x[j],
-                                   self.comp_y.axe_y[i]], \
-                          [datax[i, j],
-                           datay[i, j]]
-        else:
-            datax = self.comp_x.values.data
-            datay = self.comp_y.values.data
-            for i in np.arange(dimx):
-                for j in np.arange(dimy):
-                    yield [j, i], [self.comp_x.axe_x[j],
-                                   self.comp_y.axe_y[i]], \
-                          [datax[i, j],
-                           datay[i, j]]
-
-#    def Import(self, *args):
-#        """
-#        Method fo importing datas in a VectorField object.
-#
-#        Parameters
-#        ----------
-#        args :
-#            Must have different formats.
-#            For importing from Davis, Ascii or Matlab files, 'args' must be
-#            the path to the file to import.
-#            For importing from a vector field, 'args' must be a VectorField
-#            object.
-#            For importing from a set of scalar fields, 'args' must be two
-#            ScalarField objects.
-#
-#        Examples
-#        --------
-#        From a file
-#
-#        >>> V1 = VectorField()
-#        >>> V1.Import("/Davis/measure23/vectorfield4.VC7")
-#
-#        From a VectorField
-#
-#        >>> V2 = VectorField()
-#        >>> V2.Import(V1)
-#
-#        From a set of scalar fields
-#
-#        >>> comp_x = ScalarField()
-#        >>> comp_y = ScalarField()
-#        >>> V1.Import(comp_x, comp_y)
-#        """
-#        if len(args) == 1:
-#            if isinstance(args[0], STRINGTYPES):
-#                extension = args[0].split()[-1]
-#                if extension == "VC7":
-#                    self.import_from_davis(args[0])
-#                elif extension == "txt":
-#                    self.import_from_ascii(args[0])
-#                elif extension == "m":
-#                    self.import_from_matlab(args[0])
-#                else:
-#                    raise ValueError("filename extension unknown")
-#            elif isinstance(args[0], VectorField):
-#                self.import_from_vectorfield(args[0])
-#            else:
-#                raise ValueError("Unknown object to import")
-#        elif len(args) == 2:
-#            self.ImportFromScalarFields(*args)
-#        else:
-#            raise ValueError("Unknown format for arguments")
+            datax = self.comp_x
+            datay = self.comp_y
+            maskx = np.zeros(datax.shape)
+            masky = np.zeros(datay.shape)
+        mask = np.logical_or(maskx, masky)
+        for ij, xy in Field.__iter__(self):
+            i = ij[0]
+            j = ij[1]
+            if not mask[j, i]:
+                yield ij, xy, [datax[j, i], datay[j, i]]
 
     def import_from_davis(self, filename):
         """
@@ -3021,14 +2951,8 @@ class VectorField(Field):
             y = y[::-1]
             Vx = Vx[::-1, :]
             Vy = Vy[::-1, :]
-        self.comp_x.import_from_arrays(x, y, Vx,
-                                       make_unit(unit_x),
-                                       make_unit(unit_y),
-                                       make_unit(unit_values))
-        self.comp_y.import_from_arrays(x, y, Vy,
-                                       make_unit(unit_x),
-                                       make_unit(unit_y),
-                                       make_unit(unit_values))
+        self.import_from_arrays(x, y, Vx, Vy, make_unit(unit_x),
+                                make_unit(unit_y), make_unit(unit_values))
 
     def import_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
                           vy_col=4, unit_x=make_unit(""), unit_y=make_unit(""),
@@ -3098,24 +3022,12 @@ class VectorField(Field):
         vx_org.mask = np.logical_or(vx_org.mask, np.isnan(vx_org.data))
         vy_org.mask = np.logical_or(vy_org.mask, np.isnan(vy_org.data))
         #store field in attributes
-        Vx = ScalarField()
-        Vx.import_from_arrays(x_org, y_org, vx_org, unit_x, unit_y,
-                              unit_values)
-        Vy = ScalarField()
-        Vy.import_from_arrays(x_org, y_org, vy_org, unit_x, unit_y,
-                              unit_values)
-        self.import_from_scalarfields(Vx, Vy)
-
-    def import_from_matlab(self, filename):
-        """
-        Import a vector field from a matlab file.
-        """
-        pass
+        self.import_from_arrays(x_org, y_org, vx_org, vy_org, unit_x, unit_y,
+                                unit_values)
 
     def import_from_arrays(self, axe_x, axe_y, comp_x, comp_y,
                            unit_x=make_unit(""), unit_y=make_unit(""),
-                           unit_values_x=make_unit(""),
-                           unit_values_y=make_unit("")):
+                           unit_values=make_unit("")):
         """
         Set the vector field from a set of arrays.
 
@@ -3133,10 +3045,8 @@ class VectorField(Field):
             Unit for the values of axe_x
         unit_y : Unit object, optionnal
             Unit for the values of axe_y
-        unit_values_x : Unit object, optionnal
-            Unit for the field x component.
-        unit_values_y : Unit object, optionnal
-            Unit for the field y component.
+        unit_values : Unit object, optionnal
+            Unit for the field components.
         """
         if not isinstance(axe_x, ARRAYTYPES):
             raise TypeError("'axe_x' must be an array")
@@ -3168,12 +3078,9 @@ class VectorField(Field):
         if unit_y is not None:
             if not isinstance(unit_y, unum.Unum):
                 raise TypeError("'unit_y' must be an Unit object")
-        if unit_values_x is not None:
-            if not isinstance(unit_values_x, unum.Unum):
-                raise TypeError("'unit_values_x' must be an Unit object")
-        if unit_values_y is not None:
-            if not isinstance(unit_values_y, unum.Unum):
-                raise TypeError("'unit_values_y' must be an Unit object")
+        if unit_values is not None:
+            if not isinstance(unit_values, unum.Unum):
+                raise TypeError("'unit_values' must be an Unit object")
         if (comp_x.shape[0] != axe_y.shape[0] or
                 comp_x.shape[1] != axe_x.shape[0]):
             raise ValueError("Dimensions of 'axe_x', 'axe_y' and 'comp_x' must"
@@ -3182,13 +3089,13 @@ class VectorField(Field):
                 comp_y.shape[1] != axe_x.shape[0]):
             raise ValueError("Dimensions of 'axe_x', 'axe_y' and 'comp_y' must"
                              " be consistents")
-        SF_x = ScalarField()
-        SF_y = ScalarField()
-        SF_x.import_from_arrays(axe_x, axe_y, comp_x, unit_x, unit_y,
-                                unit_values_x)
-        SF_y.import_from_arrays(axe_x, axe_y, comp_y, unit_x, unit_y,
-                                unit_values_y)
-        self.import_from_scalarfields(SF_x, SF_y)
+        self.axe_x = axe_x
+        self.axe_y = axe_y
+        self.comp_x = comp_x
+        self.comp_y = comp_y
+        self.unit_x = unit_x
+        self.unit_y = unit_y
+        self.unit_values = unit_values
 
     def import_from_scalarfields(self, comp_x, comp_y):
         """
@@ -3205,30 +3112,22 @@ class VectorField(Field):
             raise TypeError("'comp_x' must be a ScalarField object")
         if not isinstance(comp_y, ScalarField):
             raise TypeError("'comp_y' must be a ScalarField object")
-        if not comp_x.get_dim() == comp_y.get_dim():
+        axe_x, axe_y = comp_x.get_axes()
+        xunit_x, xunit_y = comp_x.get_axe_units()
+        xunit_values = comp_x.get_values_unit()
+        yunit_x, yunit_y = comp_y.get_axe_units()
+        yunit_values = comp_y.get_values_unit()
+        comp_x = comp_x.get_values()
+        comp_y = comp_y.get_values()
+        if not comp_x.shape == comp_y.shape:
             raise ValueError("'comp_x' and 'comp_y' must have the same "
                              "dimensions")
-        if not (comp_x.unit_x._unit == comp_y.unit_x._unit
-                or comp_x.unit_y._unit == comp_y.unit_y._unit
-                or comp_x.unit_values._unit == comp_y.unit_values._unit):
+        if not (xunit_x == yunit_x or xunit_y == yunit_y
+                or xunit_values == yunit_values):
             raise ValueError("Unities of the two components and their axis "
                              "must be the same")
-        self.comp_x = comp_x.get_copy()
-        self.comp_y = comp_y.get_copy()
-
-    def import_from_vectorfield(self, vectorfield):
-        """
-        Import from another vectorfield.
-
-        Parameters
-        ----------
-        vectorfield : VectorField object
-            The vector field to copy.
-        """
-        if not isinstance(vectorfield, VectorField):
-            raise TypeError("'scalarfield' must be a ScalarField object")
-        self.comp_x = vectorfield.comp_x.get_copy()
-        self.comp_y = vectorfield.comp_y.get_copy()
+        self.import_from_arrays(axe_x, axe_y, comp_x, comp_y, xunit_x, xunit_y,
+                                xunit_values)
 
     def import_from_file(self, filepath, **kw):
         """
@@ -3244,10 +3143,10 @@ class VectorField(Field):
             Path specifiing the VectorField to load.
         """
         import IMTreatment.io.io as imtio
-        tmp_vf = imtio.import_from_file(filepath, **kw)
-        if tmp_vf.__classname__ != self.__classname__:
+        tmpvf = imtio.import_from_file(filepath, **kw)
+        if tmpvf.__classname__ != self.__classname__:
             raise IOError("This file do not contain a VectorField, cabron.")
-        self.import_from_vectorfield(tmp_vf)
+        self = tmpvf
 
     def export_to_file(self, filepath, compressed=True, **kw):
         """
@@ -3297,8 +3196,9 @@ class VectorField(Field):
             raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
         if axis[0] == axis[1]:
             raise ValueError("'axis' strings must be different")
-        Vx = self.comp_x.values.flatten()
-        Vy = self.comp_y.values.flatten()
+        Vx, Vy = self.get_values()
+        Vx = Vx.flatten()
+        Vy = Vy.flatten()
         x, y = self.get_axes()
         x_vtk = 0.
         y_vtk = 0.
@@ -3330,70 +3230,97 @@ class VectorField(Field):
         data = pyvtk.VtkData(grid, 'Vector Field from python', point_data)
         data.tofile(filepath)
 
-#    def set_comp(self, component, scalarfield):
-#        """
-#        Set the vector field component (1 or 2) to the given scalarfield.
-#
-#        Parameters
-#        ----------
-#        component : integer
-#            Component to replace (1 or 2).
-#        scalarfield : ScalarField object
-#            Scalarfield to set in the vector field.
-#
-#        """
-#        if not isinstance(scalarfield, ScalarField):
-#            raise TypeError("'scalarfield' must be a ScalarField object")
-#        if not scalarfield.get_dim() == self.comp_x.get_dim():
-#            raise ValueError("'scalarfield' must have the same "
-#                             "dimensions as the vector field")
-#        if component == 1:
-#            self.comp_x = scalarfield.get_copy()
-#        else:
-#            self.comp_y = scalarfield.get_copy()
-
-    def set_axes(self, axe_x=None, axe_y=None):
+    def get_values(self):
         """
-        Load new axes in the vector field.
-
-        Parameters
-        ----------
-        axe_x : array, optional
-            One-dimensionale array representing the position of the
-            values along the X axe.
-        axe_y : array, optional
-            idem for the Y axe.
+        Return the values of the 2 components.
         """
-        self.comp_x.set_axes(axe_x, axe_y)
-        self.comp_y.set_axes(axe_x, axe_y)
+        return self.comp_x, self.comp_y
 
-    def set_origin(self, x=None, y=None):
+    def set_values(self, comp_x=None, comp_y=None):
         """
-        Modify the axis in order to place the origin at the actual point (x, y)
+        fill the scalar field with the given values
+        """
+        if comp_x is not None:
+            if not isinstance(comp_x, ARRAYTYPES):
+                raise TypeError("'comp_x' must be an array")
+            comp_x = np.array(comp_x)
+            if not np.all(comp_x.shape == self.get_dim()):
+                raise ValueError("'comp_x' shape must agree with the "
+                                 "original field shape")
+            self.comp_x = comp_x
+        if comp_y is not None:
+            if not isinstance(comp_y, ARRAYTYPES):
+                raise TypeError("'comp_y' must be an array")
+            comp_y = np.array(comp_y)
+            if not np.all(comp_y.shape == self.get_dim()):
+                raise ValueError("'comp_y' shape must agree with the "
+                                 "original field shape")
+            self.comp_y = comp_y
+
+    def get_values_unit(self):
+        """
+        Return the values unit
+        """
+        return self.unit_values
+
+    def set_values_unit(self, unit_values=None):
+        """
+        Load unities into the scalar field values.
 
         Parameters
         ----------
-        x : number
-        y : number
+        unit_values : Unit object
+            Values unit.
         """
-        if x is not None:
-            if not isinstance(x, NUMBERTYPES):
-                raise TypeError("'x' must be a number")
-            self.comp_x.set_origin(x=x)
-            self.comp_y.set_origin(x=x)
-        if y is not None:
-            if not isinstance(y, NUMBERTYPES):
-                raise TypeError("'y' must be a number")
-            self.comp_x.set_origin(y=y)
-            self.comp_y.set_origin(y=y)
+        if unit_values is not None:
+            if not isinstance(unit_values, unum.Unum):
+                raise TypeError("'unit_values' must be an Unit object")
+            self.unit_values = unit_values
+
+    def get_mask(self):
+        """
+        Return the scalarfield mask.
+        """
+        Vx, Vy = self.get_values()
+        return np.logical_or(Vx.mask, Vy.mask)
+
+    def set_mask(self, mask):
+        """
+        fill the scalar field mask with the given values.
+        """
+        if not isinstance(mask, ARRAYTYPES):
+            raise TypeError("'values' must be an array")
+        mask = np.array(mask)
+        if not np.all(mask.shape == self.get_dim()):
+            raise ValueError("'values' shape must agree with the "
+                             "original field shape")
+        Vx, Vy = self.get_values()
+        Vx.mask = mask
+        Vy.mask = mask
+
+    def get_comp_x(self):
+        """
+        Return the x component as a Scalarfield object.
+        """
+        tmpsf = ScalarField()
+        tmpsf.import_from_arrays(self.axe_x, self.axe_y, self.comp_x,
+                                 self.unit_x, self.unit_y, self.unit_values)
+        return tmpsf
+
+    def get_comp_y(self):
+        """
+        Return the y component as a Scalarfield object.
+        """
+        tmpsf = ScalarField()
+        tmpsf.import_from_arrays(self.axe_x, self.axe_y, self.comp_y,
+                                 self.unit_x, self.unit_y, self.unit_values)
+        return tmpsf
 
     def get_copy(self):
         """
         Return a copy of the vectorfield.
         """
-        copy = VectorField()
-        copy.import_from_vectorfield(self)
-        return copy
+        return copy.deepcopy(self)
 
     def get_dim(self):
         """
@@ -3404,20 +3331,7 @@ class VectorField(Field):
         shape : tuple
             Tuple of the dimensions (along X and Y) of the scalar field.
         """
-        return self.comp_x.get_dim()
-
-    def get_axes(self):
-        """
-        Return the vector field axes.
-
-        Returns
-        -------
-        axe_x : array
-            Axe along X.
-        axe_y : array
-            Axe along Y.
-        """
-        return self.comp_x.get_axes()
+        return self.comp_x.shape
 
     def get_min(self, unit=False):
         """
@@ -3453,79 +3367,79 @@ class VectorField(Field):
         """
         return self.get_magnitude().get_max(unit)
 
-    def get_profile(self, component, direction, position):
-        """
-        Return a profile of the vector field component, at the given position
-        (or at least at the nearest possible position).
-        If position is an interval, the fonction return an average profile
-        in this interval.
+#    def get_profile(self, component, direction, position):
+#        """
+#        Return a profile of the vector field component, at the given position
+#        (or at least at the nearest possible position).
+#        If position is an interval, the fonction return an average profile
+#        in this interval.
+#
+#        Function
+#        --------
+#        axe, profile, cutposition = get_profile(component, direction, position)
+#
+#        Parameters
+#        ----------
+#        component : integer
+#            component to treat.
+#        direction : integer
+#            Direction along which we choose a position (1 for x and 2 for y).
+#        position : float or interval of float
+#            Position or interval in which we want a profile.
+#
+#        Returns
+#        -------
+#        profile : Profile object
+#            Asked profile.
+#        cutposition : array or number
+#            Final position or interval in which the profile has been taken.
+#        """
+#        if not isinstance(component, int):
+#            raise TypeError("'component' must be an integer")
+#        if component == 1:
+#            return self.get_comp_x().get_profile(direction, position)
+#        elif component == 2:
+#            return self.get_comp_y().get_profile(direction, position)
+#        else:
+#            raise ValueError("'component' must have the value of 1 or 2")
 
-        Function
-        --------
-        axe, profile, cutposition = get_profile(component, direction, position)
-
-        Parameters
-        ----------
-        component : integer
-            component to treat.
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y).
-        position : float or interval of float
-            Position or interval in which we want a profile.
-
-        Returns
-        -------
-        profile : Profile object
-            Asked profile.
-        cutposition : array or number
-            Final position or interval in which the profile has been taken.
-        """
-        if not isinstance(component, int):
-            raise TypeError("'component' must be an integer")
-        if component == 1:
-            return self.comp_x.get_profile(direction, position)
-        elif component == 2:
-            return self.comp_y.get_profile(direction, position)
-        else:
-            raise ValueError("'component' must have the value of 1 or 2")
-
-    def get_bl(self, component, value, direction, rel=False, kind="default"):
-        """
-        Return the thickness of the boundary layer on the scalar field,
-        accoirdinf to the given component.
-        Warning : Just return the interpolated position of the first value
-        encontered.
-
-        Parameters
-        ----------
-        component : integer
-            Component to work on.
-        value : number
-            The wanted isovalue.
-        direction : integer
-            Direction along which the isocurve is drawn.
-        rel : Bool, optionnal
-            Determine if 'value' is absolute or relative to the maximum in
-            each line/column.
-        kind : string
-            Type of boundary layer thickness you want.
-            default : For a bl thickness at a given value (typically 90%).
-            displacement : For the bl displacement thickness.
-            momentum : For the bl momentum thickness.
-
-        Returns
-        -------
-        isoc : Profile object
-            Asked isocurve
-        """
-        if not isinstance(component, int):
-            raise TypeError("'component' must be an integer")
-        if not (component == 1 or component == 2):
-            raise ValueError("'component' must be 1 or 2")
-        if component == 1:
-            return self.comp_x.get_bl(direction, value, rel, kind)
-        else:
-            return self.comp_y.get_bl(value, direction, rel, kind)
+#    def get_bl(self, component, value, direction, rel=False, kind="default"):
+#        """
+#        Return the thickness of the boundary layer on the scalar field,
+#        accoirdinf to the given component.
+#        Warning : Just return the interpolated position of the first value
+#        encontered.
+#
+#        Parameters
+#        ----------
+#        component : integer
+#            Component to work on.
+#        value : number
+#            The wanted isovalue.
+#        direction : integer
+#            Direction along which the isocurve is drawn.
+#        rel : Bool, optionnal
+#            Determine if 'value' is absolute or relative to the maximum in
+#            each line/column.
+#        kind : string
+#            Type of boundary layer thickness you want.
+#            default : For a bl thickness at a given value (typically 90%).
+#            displacement : For the bl displacement thickness.
+#            momentum : For the bl momentum thickness.
+#
+#        Returns
+#        -------
+#        isoc : Profile object
+#            Asked isocurve
+#        """
+#        if not isinstance(component, int):
+#            raise TypeError("'component' must be an integer")
+#        if not (component == 1 or component == 2):
+#            raise ValueError("'component' must be 1 or 2")
+#        if component == 1:
+#            return self.get_comp_x().get_bl(direction, value, rel, kind)
+#        else:
+#            return self.get_comp_y().get_bl(value, direction, rel, kind)
 
     def get_streamlines(self, xy, delta=.25, interp='linear',
                         reverse_direction=False):
@@ -3555,10 +3469,10 @@ class VectorField(Field):
             pass
         else:
             raise ValueError("'xy' must be a tuple of arrays")
-        axe_x = self.comp_x.axe_x
-        axe_y = self.comp_x.axe_y
-        Vx = self.comp_x.values.flatten()
-        Vy = self.comp_y.values.flatten()
+        axe_x, axe_y = self.get_axes()
+        Vx, Vy = self.get_values()
+        Vx = Vx.flatten()
+        Vy = Vy.flatten()
         if not isinstance(delta, NUMBERTYPES):
             raise TypeError("'delta' must be a number")
         if delta <= 0:
@@ -3662,11 +3576,11 @@ class VectorField(Field):
             pass
         else:
             raise ValueError("'xy' must be a tuple of arrays")
-        axe_x = self.comp_x.axe_x
-        axe_y = self.comp_x.axe_y
-        Vx = self.comp_x.values.flatten()
-        Vy = self.comp_y.values.flatten()
-        Magn = self.get_magnitude().values.flatten()
+        axe_x, axe_y = self.get_axes()
+        Vx, Vy = self.get_values()
+        Vx = Vx.flatten()
+        Vy = Vy.flatten()
+        Magn = self.get_magnitude().get_values().flatten()
         if not isinstance(delta, NUMBERTYPES):
             raise TypeError("'delta' must be a number")
         if delta <= 0:
@@ -3757,56 +3671,17 @@ class VectorField(Field):
         else:
             return streams
 
-    def get_area(self, intervalx, intervaly):
-        """
-        Return the field delimited by two intervals.
-
-        Fonction
-        --------
-        trimfield = get_area(intervalx, intervaly)
-
-        Parameters
-        ----------
-        intervalx : array
-            interval wanted along x.
-        intervaly : array
-            interval wanted along y.
-
-        Returns
-        -------
-        trimfield : VectorField object
-            The wanted trimmed field from the main vector field.
-        """
-        if not isinstance(intervalx, ARRAYTYPES):
-            raise TypeError("'intervalx' must be an array of two numbers")
-        intervalx = np.array(intervalx)
-        if intervalx.shape != (2,):
-            raise ValueError("'intervalx' must be an array of two numbers")
-        if intervalx[0] > intervalx[1]:
-            raise ValueError("'intervalx' values must be crescent")
-        if not isinstance(intervaly, ARRAYTYPES):
-            raise TypeError("'intervaly' must be an array of two numbers")
-        intervaly = np.array(intervaly)
-        if intervaly.shape != (2,):
-            raise ValueError("'intervaly' must be an array of two numbers")
-        if intervaly[0] > intervaly[1]:
-            raise ValueError("'intervaly' values must be crescent")
-        trimfield = VectorField()
-        trimed_comp_x = self.comp_x.get_area(intervalx, intervaly)
-        trimed_comp_y = self.comp_y.get_area(intervalx, intervaly)
-        trimfield.import_from_scalarfields(trimed_comp_x, trimed_comp_y)
-        return trimfield
-
     def get_magnitude(self):
         """
         Return a scalar field with the velocity field magnitude.
         """
-        magn = self.comp_x.get_copy()
-        values = np.sqrt(self.comp_x.values**2 + self.comp_y.values**2)
-        unit_values = (self.comp_x.unit_values**2
-                       + self.comp_y.unit_values**2)**(1/2)
-        magn.values = values
-        magn.set_unit(unit_values=unit_values)
+        magn = self.get_comp_x().get_copy()
+        comp_x, comp_y = self.get_values()
+        unit_x, unit_y = self.get_axe_units()
+        values = np.sqrt(comp_x**2 + comp_y**2)
+        unit_values = (unit_x**2 + unit_y**2)**(.5)
+        magn.set_values(values)
+        magn.set_values_unit(unit_values)
         return magn
 
     def get_shear_stress(self):
@@ -3815,35 +3690,32 @@ class VectorField(Field):
         """
         # Getting gradients and axes
         axe_x, axe_y = self.get_axes()
+        comp_x, comp_y = self.get_values()
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
-        du_dy, _ = np.gradient(self.comp_x.values, dy, dx)
-        _, dv_dx = np.gradient(self.comp_y.values, dy, dx)
+        du_dy, _ = np.gradient(comp_x, dy, dx)
+        _, dv_dx = np.gradient(comp_y, dy, dx)
         # swirling vectors matrix
         comp_x = dv_dx
         comp_y = du_dy
         # creating vectorfield object
-        tmp_sfx = ScalarField()
-        tmp_sfx.import_from_arrays(axe_x, axe_y, comp_x, self.comp_x.unit_x,
-                                   self.comp_x.unit_y)
-        tmp_sfy = ScalarField()
-        tmp_sfy.import_from_arrays(axe_x, axe_y, comp_y, self.comp_x.unit_x,
-                                   self.comp_x.unit_y)
-        tmp_vf = VectorField()
-        tmp_vf.import_from_scalarfields(tmp_sfx, tmp_sfy)
-        return tmp_vf
+        tmpvf = self.get_copy()
+        tmpvf.set_values(comp_x=comp_x, comp_y=comp_y)
+        return tmpvf
 
     def get_vorticity(self):
         """
         Return a scalar field with the z component of the vorticity.
         """
-        dx = self.comp_x.axe_x[1] - self.comp_x.axe_x[0]
-        dy = self.comp_x.axe_y[1] - self.comp_x.axe_y[0]
-        _, Exy = np.gradient(self.comp_x.values, dy, dx)
-        Eyx, _ = np.gradient(self.comp_y.values, dy, dx)
+        axe_x, axe_y = self.get_axes()
+        comp_x, comp_y = self.get_values()
+        dx = axe_x[1] - axe_x[0]
+        dy = axe_y[1] - axe_y[0]
+        _, Exy = np.gradient(comp_x, dy, dx)
+        Eyx, _ = np.gradient(comp_y, dy, dx)
         vort = Eyx - Exy
-        vort_sf = self.comp_x.get_copy()
-        vort_sf.values = vort
+        vort_sf = self.get_comp_x().get_copy()
+        vort_sf.set_values(vort)
         return vort_sf
 
     def get_swirling_strength(self):
@@ -3853,10 +3725,11 @@ class VectorField(Field):
         """
         # Getting gradients and axes
         axe_x, axe_y = self.get_axes()
+        comp_x, comp_y = self.get_values()
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
-        du_dy, du_dx = np.gradient(self.comp_x.values, dy, dx)
-        dv_dy, dv_dx = np.gradient(self.comp_y.values, dy, dx)
+        du_dy, du_dx = np.gradient(comp_x, dy, dx)
+        dv_dy, dv_dx = np.gradient(comp_y, dy, dx)
         # swirling stregnth matrix
         swst = np.zeros(self.comp_x.values.shape)
         mask = np.logical_or(np.logical_or(du_dx.mask, du_dy.mask),
@@ -3871,11 +3744,10 @@ class VectorField(Field):
                     swst[i, j] = np.max(np.imag(eigvals))
         # creating ScalarField object
         swst = np.ma.masked_array(swst, mask)
-        tmp_sf = ScalarField()
+        tmpsf = self.get_comp_x().get_copy()
         ### TODO : implementer unité swst
-        tmp_sf.import_from_arrays(axe_x, axe_y, swst, self.comp_x.unit_x,
-                                  self.comp_x.unit_y)
-        return tmp_sf
+        tmpsf.set_values(swst)
+        return tmpsf
 
     def get_swirling_vector(self):
         """
@@ -3887,10 +3759,11 @@ class VectorField(Field):
         """
         # Getting gradients and axes
         axe_x, axe_y = self.get_axes()
+        comp_x, comp_y = self.get_values()
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
-        du_dy, du_dx = np.gradient(self.comp_x.values, dy, dx)
-        dv_dy, dv_dx = np.gradient(self.comp_y.values, dy, dx)
+        du_dy, du_dx = np.gradient(comp_x, dy, dx)
+        dv_dy, dv_dx = np.gradient(comp_y, dy, dx)
         # swirling vectors matrix
         comp_x = np.zeros(self.comp_x.values.shape)
         comp_y = np.zeros(self.comp_x.values.shape)
@@ -3914,18 +3787,9 @@ class VectorField(Field):
         # creating vectorfield object
         comp_x = np.ma.masked_array(comp_x, mask)
         comp_y = np.ma.masked_array(comp_y, mask)
-        tmp_sfx = ScalarField()
-        tmp_sfx.import_from_arrays(axe_x, axe_y, comp_x, self.comp_x.unit_x,
-                                   self.comp_x.unit_y)
-        tmp_sfy = ScalarField()
-        tmp_sfy.import_from_arrays(axe_x, axe_y, comp_y, self.comp_x.unit_x,
-                                   self.comp_x.unit_y)
-        tmp_vf = VectorField()
-        tmp_vf.import_from_scalarfields(tmp_sfx, tmp_sfy)
-        return tmp_vf
-
-    def get_spatial_correlation(self, xy):
-        pass
+        tmpvf = self.get_copy()
+        tmpvf.set_values(comp_x=comp_x, comp_y=comp_y)
+        return tmpvf
 
     def get_theta(self, low_velocity_filter=0.):
         """
@@ -3943,9 +3807,10 @@ class VectorField(Field):
             Contening theta field.
         """
         # get data
-        Vx = self.comp_x.values.data
-        Vy = self.comp_y.values.data
-        mask = self.comp_x.values.mask
+        Vx, Vy = self.get_values()
+        Vx = Vx.data
+        Vy = Vy.data
+        mask = self.get_mask()
         theta = np.zeros(self.get_dim())
         # getting angle
         norm = np.sqrt(Vx**2 + Vy**2)
@@ -3955,16 +3820,11 @@ class VectorField(Field):
         tmp_mask = np.logical_and(norm != 0, ~mask)
         theta[tmp_mask] = Vx[tmp_mask]/norm[tmp_mask]
         theta[tmp_mask] = np.arccos(theta[tmp_mask])
-        theta[self.comp_y.values < 0] = 2*np.pi - theta[self.comp_y.values < 0]
+        theta[Vy < 0] = 2*np.pi - theta[Vy < 0]
         theta = np.ma.masked_array(theta, mask)
-        theta_sf = ScalarField()
-        theta_sf.import_from_arrays(self.comp_x.axe_x,
-                                    self.comp_x.axe_y,
-                                    theta,
-                                    self.comp_x.unit_x,
-                                    self.comp_x.unit_y,
-                                    make_unit("rad"))
-        return theta_sf
+        tmpsf = self.get_comp_x().get_copy()
+        tmpsf.set_values(theta)
+        return tmpsf
 
     def smooth(self, tos='uniform', size=None, **kw):
         """
@@ -3984,10 +3844,33 @@ class VectorField(Field):
             Additional parameters for ndimage methods
             (See ndimage documentation)
         """
-        self.comp_x.smooth(tos=tos, size=size, **kw)
-        self.comp_y.smooth(tos=tos, size=size, **kw)
+        if not isinstance(tos, STRINGTYPES):
+            raise TypeError("'tos' must be a string")
+        if size is None and tos == 'uniform':
+            size = 3
+        elif size is None and tos == 'gaussian':
+            size = 1
+        # filling up the field before smoothing
+        self.fill()
+        # getting data
+        Vx, Vy = self.get_values()
+        mask = self.get_mask()
+        # smoothing
+        if tos == "uniform":
+            Vx = ndimage.uniform_filter(Vx, size, **kw)
+            Vy = ndimage.uniform_filter(Vy, size, **kw)
+        elif tos == "gaussian":
+            Vx = ndimage.gaussian_filter(Vx, size, **kw)
+            Vy = ndimage.gaussian_filter(Vy, size, **kw)
+        else:
+            raise ValueError("'tos' must be 'uniform' or 'gaussian'")
+        # storing
+        Vx = np.ma.masked_array(Vx, mask)
+        Vy = np.ma.masked_array(Vy, mask)
+        self.set_values(comp_x=Vx, comp_y=Vy)
 
-    def fill(self, tof='interplin', value=[0., 0.], crop_border=True):
+    def fill(self, tof='interplin', value=0., crop_border=True):
+        # TODO : Make this fucking functionnality work !
         """
         Fill the masked part of the field in place.
 
@@ -3998,65 +3881,122 @@ class VectorField(Field):
             'value' : fill with a given value
             'interplin' : fill using linear interpolation
             'interpcub' : fill using cubic interpolation
-        value : 2x1 array
-            Value for filling  '[comp_x, comp_y]'
-            (only usefull with tof='value')
+        value : number
+            Value for filling (only usefull with tof='value')
         crop_border : boolean
             If 'True' (default), masked borders of the field are cropped
             before filling. Else, values on border are extrapolated (poorly).
         """
-        if not isinstance(value, ARRAYTYPES):
-            raise TypeError("'value' must be a 2x1 array")
-        value = np.array(value)
-        if not value.shape == (2,):
-            raise ValueError("'value' must be a 2x1 array")
-        self.comp_x.fill(tof=tof, value=value[0], crop_border=crop_border)
-        self.comp_y.fill(tof=tof, value=value[1], crop_border=crop_border)
+        # check parameters coherence
+        if not isinstance(tof, STRINGTYPES):
+            raise TypeError("'tof' must be a string")
+        if not isinstance(value, NUMBERTYPES):
+            raise TypeError("'value' must be a number")
+        # deleting the masked border (useless field part)
+        if crop_border:
+            self.crop_masked_border()
+        mask = self.get_mask()
+        # if there is nothing to do...
+        if not np.any(mask):
+            pass
+        elif tof == 'interplin':
+            inds_x = np.arange(self.get_dim()[1])
+            inds_y = np.arange(self.get_dim()[0])
+            grid_x, grid_y = np.meshgrid(inds_x, inds_y)
+            Vx, Vy = self.get_values()
+            Vx = Vx.data
+            Vy = Vy.data
+            fx = spinterp.interp2d(grid_y[~mask],
+                                   grid_x[~mask],
+                                   Vx[~mask])
+            fy = spinterp.interp2d(grid_y[~mask],
+                                   grid_x[~mask],
+                                   Vy[~mask])
+            for inds, masked in np.ndenumerate(mask):
+                if masked:
+                    Vx[inds[0], inds[1]] = fx(inds[0], inds[1])
+                    Vy[inds[0], inds[1]] = fy(inds[0], inds[1])
+            mask = np.zeros(Vx.shape)
+            self.set_values(Vx, Vy)
+        elif tof == 'interpcub':
+            inds_x = np.arange(self.values.shape[1])
+            inds_y = np.arange(self.values.shape[0])
+            grid_x, grid_y = np.meshgrid(inds_x, inds_y)
+            Vx, Vy = self.get_values()
+            Vx = Vx.data
+            Vy = Vy.data
+            fx = spinterp.interp2d(grid_y[~mask],
+                                   grid_x[~mask],
+                                   Vx[~mask], kind='cubic')
+            fy = spinterp.interp2d(grid_y[~mask],
+                                   grid_x[~mask],
+                                   Vy[~mask], kind='cubic')
+            for inds, masked in np.ndenumerate(mask):
+                if masked:
+                    Vx[inds[0], inds[1]] = fx(inds[0], inds[1])
+                    Vy[inds[0], inds[1]] = fy(inds[0], inds[1])
+            mask = np.zeros(Vx.shape)
+            self.set_values(Vx, Vy)
+        elif tof == 'value':
+            Vx, Vy = self.get_values()
+            Vx[mask] = value
+            Vy[mask] = value
+        else:
+            raise ValueError("unknown 'tof' value")
 
     def trim_area(self, intervalx=None, intervaly=None):
         """
-        return a trimed area in respect with given intervals.
+        Return a trimed  area in respect with given intervals.
 
         Parameters
         ----------
         intervalx : array, optional
-            interval wanted along x.
+            interval wanted along x
         intervaly : array, optional
-            interval wanted along y.
+            interval wanted along y
         """
-        if intervalx is None:
-            intervalx = [self.comp_x.axe_x[0], self.comp_x.axe_x[-1]]
-        if intervaly is None:
-            intervaly = [self.comp_x.axe_y[0], self.comp_x.axe_y[-1]]
-        if not isinstance(intervalx, ARRAYTYPES):
-            raise TypeError("'intervalx' must be an array of two numbers")
-        intervalx = np.array(intervalx)
-        if intervalx.ndim != 1:
-            raise ValueError("'intervalx' must be an array of two numbers")
-        if intervalx.shape != (2,):
-            raise ValueError("'intervalx' must be an array of two numbers")
-        if intervalx[0] > intervalx[1]:
-            raise ValueError("'intervalx' values must be crescent")
-        if not isinstance(intervaly, ARRAYTYPES):
-            raise TypeError("'intervaly' must be an array of two numbers")
-        intervaly = np.array(intervaly)
-        if intervaly.ndim != 1:
-            raise ValueError("'intervaly' must be an array of two numbers")
-        if intervaly.shape != (2,):
-            raise ValueError("'intervaly' must be an array of two numbers")
-        if intervaly[0] > intervaly[1]:
-            raise ValueError("'intervaly' values must be crescent")
-        tmp_vf = self.get_copy()
-        tmp_vf.comp_x = tmp_vf.comp_x.trim_area(intervalx, intervaly)
-        tmp_vf.comp_y = tmp_vf.comp_y.trim_area(intervalx, intervaly)
-        return tmp_vf
+        indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
+            Field.trim_area(self, intervalx, intervaly, full_output=True)
+        tmpsf = self.get_copy()
+        tmpsf.axe_x = tmpsf.axe_x[indmin_x:indmax_x + 1]
+        tmpsf.axe_y = tmpsf.axe_y[indmin_y:indmax_y + 1]
+        tmpsf.comp_x = tmpsf.comp_x[indmin_y:indmax_y + 1,
+                                    indmin_x:indmax_x + 1]
+        tmpsf.comp_y = tmpsf.comp_y[indmin_y:indmax_y + 1,
+                                    indmin_x:indmax_x + 1]
+        return tmpsf
 
     def crop_masked_border(self):
         """
-        Crop the masked border of the vector field in place.
+        Crop the masked border of the field in place.
         """
-        self.comp_x.crop_masked_border()
-        self.comp_y.crop_masked_border()
+        axe_x, axe_y = self.get_axes()
+        # checking masked values presence
+        Vx, Vy = self.get_values()
+        if not (np.ma.is_masked(Vx), np.ma.is_masked(Vy)):
+            return None
+        # getting datas
+        Vx = Vx.data
+        Vy = Vy.data
+        mask = self.get_mask()
+        # crop border along y
+        axe_y_m = ~np.all(mask, axis=1)
+        if np.any(axe_y_m):
+            Vx = Vx[axe_y_m, :]
+            Vy = Vy[axe_y_m, :]
+            mask = mask[axe_y_m, :]
+        # crop values along x
+        axe_x_m = ~np.all(mask, axis=0)
+        if np.any(axe_x_m):
+            Vx = Vx[:, axe_x_m]
+            Vy = Vy[:, axe_x_m]
+            mask = mask[:, axe_x_m]
+        # storing cropped values
+        self.comp_x = np.ma.masked_array(Vx, mask)
+        self.comp_y = np.ma.masked_array(Vy, mask)
+        # crop axis
+        self.axe_x = axe_x[axe_x_m]
+        self.axe_y = axe_y[axe_y_m]
 
     def _display(self, component=None, kind=None, **plotargs):
         if kind is not None:
@@ -4065,43 +4005,39 @@ class VectorField(Field):
         if isinstance(component, int):
             if component == 1:
                 if kind == '3D':
-                    fig = self.comp_x.Display3D()
+                    fig = self.get_comp_x().Display3D()
                 else:
-                    fig = self.comp_x._display(kind)
+                    fig = self.get_comp_x()._display(kind)
             elif component == 2:
                 if kind == '3D':
-                    fig = self.comp_y.Display3D()
+                    fig = self.get_comp_y().Display3D()
                 else:
-                    fig = self.comp_y._display(kind)
+                    fig = self.get_comp_y()._display(kind)
             else:
                 raise ValueError("'component' must have the value of 1 or 2'")
         elif component is None:
+            axe_x, axe_y = self.get_axes()
+            Vx, Vy = self.get_values()
+            magn = self.get_magnitude().get_values()
+            unit_x, unit_y = self.get_axe_units()
             if kind == 'stream':
                 if not 'color' in plotargs.keys():
-                    plotargs['color'] = self.get_magnitude().values.data
-                fig = plt.streamplot(self.comp_x.axe_x, self.comp_x.axe_y,
-                                     self.comp_x.values, self.comp_y.values,
-                                     **plotargs)
+                    plotargs['color'] = magn.data
+                fig = plt.streamplot(axe_x, axe_y, Vx, Vy, **plotargs)
             elif kind == 'quiver' or kind is None:
                 if 'C' in plotargs.keys():
                     C = plotargs.pop('C')
                     if not (C == 0 or C is None):
-                        fig = plt.quiver(self.comp_x.axe_x, self.comp_x.axe_y,
-                                         self.comp_x.values,
-                                         self.comp_y.values, C, **plotargs)
+                        fig = plt.quiver(axe_x, axe_y, Vx, Vy, C, **plotargs)
                     else:
-                        fig = plt.quiver(self.comp_x.axe_x, self.comp_x.axe_y,
-                                         self.comp_x.values,
-                                         self.comp_y.values, **plotargs)
+                        fig = plt.quiver(axe_x, axe_y, Vx, Vy, **plotargs)
                 else:
-                    fig = plt.quiver(self.comp_x.axe_x, self.comp_x.axe_y,
-                                     self.comp_x.values, self.comp_y.values,
-                                     self.get_magnitude().values, **plotargs)
+                    fig = plt.quiver(axe_x, axe_y, Vx, Vy, magn, **plotargs)
             else:
                 raise ValueError("I don't know this kind of plot")
             plt.axis('equal')
-            plt.xlabel("X " + self.comp_x.unit_x.strUnit())
-            plt.ylabel("Y " + self.comp_x.unit_y.strUnit())
+            plt.xlabel("X " + unit_x.strUnit())
+            plt.ylabel("Y " + unit_y.strUnit())
         else:
             raise TypeError("'component' must be an integer or None")
         return fig
@@ -4136,129 +4072,25 @@ class VectorField(Field):
             Reference to the displayed figure
         """
         fig = self._display(component, kind, **plotargs)
+        unit_x, unit_y = self.get_axe_units()
+        unit_values = self.get_values_unit()
+        Vx, Vy = self.get_values()
         if isinstance(component, int):
             if component == 1:
-                plt.title("Vx " + self.comp_x.unit_values.strUnit())
+                plt.title("Vx " + unit_values.strUnit())
             elif component == 2:
-                plt.title("Vx " + self.comp_y.unit_values.strUnit())
+                plt.title("Vx " + unit_values.strUnit())
         elif component is None:
             if kind == 'quiver' or kind is None:
                 cb = plt.colorbar()
-                cb.set_label("Magnitude "
-                             + self.comp_x.unit_values.strUnit())
-                legendarrow = round(np.max([self.comp_x.values.max(),
-                                            self.comp_y.values.max()]))
+                cb.set_label("Magnitude " + unit_values.strUnit())
+                legendarrow = round(np.max([Vx.max(), Vy.max()]))
                 plt.quiverkey(fig, 1.075, 1.075, legendarrow,
                               "$" + str(legendarrow)
-                              + self.comp_x.unit_values.strUnit() + "$",
+                              + unit_values.strUnit() + "$",
                               labelpos='W', fontproperties={'weight': 'bold'})
-            plt.title("Values "
-                      + self.comp_x.unit_values.strUnit())
+            plt.title("Values " + unit_values.strUnit())
         return fig
-
-    def __display_profile__(self, component, direction, position, **plotargs):
-        if not isinstance(component, int):
-            raise TypeError("'component' must be an integer")
-        if (component != 1) and (component != 2):
-            raise ValueError("'component' must be 1 or 2")
-        if component == 1:
-            fig, cutposition = self.comp_x.__display_profile__(direction,
-                                                               position,
-                                                               **plotargs)
-            axelabel = "Component x " + self.comp_x.unit_values.strUnit()
-        else:
-            fig, cutposition = self.comp_y.display_profile(direction, position,
-                                                           **plotargs)
-            axelabel = "Component y " + self.comp_y.unit_values.strUnit()
-        if direction == 1:
-            plt.xlabel(axelabel)
-        else:
-            plt.ylabel(axelabel)
-        return fig, cutposition
-
-    def display_profile(self, component, direction, position, **plotargs):
-        """
-        Display the profile of the given component at a fixed position on the
-        given direction.
-
-        Parameters
-        ----------
-        component : integer
-            Component wanted for the profile.
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y).
-        position : float or interval of float
-            Position or interval in which we want a profile.
-        **plotargs :
-            Supplementary arguments for the plot() function.
-        """
-        fig, cutposition = self.__display_profile__(component, direction,
-                                                    position, **plotargs)
-        if component == 1:
-            fig = self.comp_x.display_profile(direction, position, **plotargs)
-            if direction == 1:
-                plt.title("Component X, at x={0}".format(cutposition
-                                                         * self.comp_x.unit_x))
-            else:
-                plt.title("Component X, at y={0}".format(cutposition
-                                                         * self.comp_x.unit_y))
-        else:
-            fig = self.comp_y.display_profile(direction, position, **plotargs)
-            if direction == 1:
-                plt.title("Component Y, at x={0}".format(cutposition
-                                                         * self.comp_x.unit_x))
-            else:
-                plt.title("Component Y, at y={0}".format(cutposition
-                                                         * self.comp_x.unit_y))
-        return fig
-
-    def display_multiple_profiles(self, component, direction, positions,
-                                  meandist=0, **plotargs):
-        """
-        Display profiles of a vector field component, at given positions
-        (or at least at the nearest possible positions).
-        If 'meandist' is non-zero, profiles will be averaged on the interval
-        [position - meandist, position + meandist].
-
-        Parameters
-        ----------
-        component : integer
-            Component wanted for the profile.
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y).
-        positions : tuple of numbers
-            Positions in which we want a profile.
-        meandist : number
-            Distance for the profil average.
-        **plotargs :
-            Supplementary arguments for the plot() function.
-        """
-        if not isinstance(component, int):
-            raise TypeError("'component' must be an integer")
-        if (component != 1) and (component != 2):
-            raise ValueError("'component' must be 1 or 2")
-        if component == 1:
-            self.comp_x.display_multiple_profiles(direction, positions,
-                                                  meandist, **plotargs)
-            if direction == 1:
-                plt.title("Mean profile of the X component, "
-                          "for given values of X")
-                plt.xlabel("Component X " + self.comp_x.unit_values.strUnit())
-            else:
-                plt.title("Mean profile of the X component, "
-                          "for given values of Y")
-                plt.ylabel("Component X " + self.comp_x.unit_values.strUnit())
-        else:
-            self.comp_y.display_multiple_profiles(direction, positions,
-                                                  meandist, **plotargs)
-            if direction == 1:
-                plt.title("Mean profile of the Y component, "
-                          "for given values of X")
-                plt.xlabel("Component Y " + self.comp_x.unit_values.strUnit())
-            else:
-                plt.title("Mean profile of the Y component, "
-                          "for given values of Y")
-                plt.ylabel("Component Y " + self.comp_x.unit_values.strUnit())
 
 
 class VelocityField(object):
@@ -4466,7 +4298,7 @@ class VelocityField(object):
         pass
 
     def import_from_scalarfields(self, comp_x, comp_y, time,
-                                unit_time=make_unit("s")):
+                                 unit_time=make_unit("s")):
         """
         Import a velocity field from two scalarfields.
 
@@ -5851,7 +5683,7 @@ class TemporalVelocityFields(VelocityFields):
             for i, val in enumerate(values):
                 if np.ma.is_masked(val):
                     if zero_fill:
-                        values[i]=0
+                        values[i] = 0
                     else:
                         if mask_error:
                             raise StandardError("Masked values on time "
@@ -5979,7 +5811,8 @@ class TemporalVelocityFields(VelocityFields):
                     phase = phase + tmp_p
         if real_nmb_fields == 0:
             raise StandardError("I can't find a single non-masked time profile"
-            ", maybe you will want to try 'zero_fill' option")
+                                ", maybe you will want to try 'zero_fill' "
+                                "option")
         magn = magn/real_nmb_fields
         phase = phase/real_nmb_fields
         return magn, phase
@@ -6025,7 +5858,7 @@ class TemporalVelocityFields(VelocityFields):
         comp_y.values = np.ma.masked_array(mean_vy, mask_tot)
         mean_vf = VelocityField()
         mean_vf.import_from_scalarfields(comp_x, comp_y, time=time,
-                                        unit_time=self.fields[0].unit_time)
+                                         unit_time=self.fields[0].unit_time)
         if np.all(mask_tot):
             raise Warning("All datas masked in this mean field."
                           "Try a smaller 'nmb_min'")
@@ -6255,7 +6088,7 @@ class TemporalVelocityFields(VelocityFields):
             before filling. Else, values on border are extrapolated (poorly).
         """
         # checking parameters coherence
-        if len(self.fields) < 3 and kind=='temporal':
+        if len(self.fields) < 3 and kind == 'temporal':
             raise ValueError("Not enough fields to fill with temporal"
                              " interpolation")
         # cropping masked borders if necessary
