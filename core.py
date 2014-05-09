@@ -4,10 +4,7 @@ Module IMTreatment.
 
     Auteur : Gaby Launay
 """
-try:
-    import IM
-except:
-    pass
+
 import scipy.interpolate as spinterp
 import scipy.ndimage.measurements as msr
 import scipy.io as spio
@@ -1475,15 +1472,17 @@ class ScalarField(Field):
             return False
         if not np.all(self.get_axes()[1] == another.get_axes()[1]):
             return False
-        if not np.all(self.get_values().data == another.get_values().data):
+        if not np.all(self.get_comp('values').data
+                == another.get_comp('values').data):
             return False
-        if not np.all(self.get_values().mask == another.get_values().mask):
+        if not np.all(self.get_comp('mask', raw=True)
+                == another.get_comp('mask', raw=True)):
             return False
         if not np.all(self.get_axe_units()[0] == another.get_axe_units()[0]):
             return False
         if not np.all(self.get_axe_units()[1] == another.get_axe_units()[1]):
             return False
-        if not np.all(self.get_values_unit() == another.get_values_unit()):
+        if not np.all(self.get_unit_values() == another.get_unit_values()):
             return False
         return True
 
@@ -1652,112 +1651,112 @@ class ScalarField(Field):
             if not mask[j, i]:
                 yield ij, xy, data[j, i]
 
-    def import_from_davis(self, filename):
-        """
-        Import a scalar field from a .IM7 file.
+#    def import_from_davis(self, filename):
+#        """
+#        Import a scalar field from a .IM7 file.
+#
+#        Parameters
+#        ----------
+#        filename : string
+#            Path to the IM7 file.
+#        """
+#        if not isinstance(filename, STRINGTYPES):
+#            raise TypeError("'filename' must be a string")
+#        if not os.path.exists(filename):
+#            raise ValueError("I did not find your file, boy")
+#        _, ext = os.path.splitext(filename)
+#        if not (ext == ".im7" or ext == ".IM7"):
+#            raise ValueError("I need the file to be an IM7 file")
+#        v = IM.IM7(filename)
+#        axe_x = v.Px[0, :]
+#        axe_y = v.Py[:, 0]
+#        values = v.getmaI()[0]*v.buffer['scaleI']['factor']
+#        unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
+#        unit_x = unit_x.replace('[', '')
+#        unit_x = unit_x.replace(']', '')
+#        unit_x = make_unit(unit_x)
+#        unit_y = v.buffer['scaleY']['unit'].split("\x00")[0]
+#        unit_y = unit_y.replace('[', '')
+#        unit_y = unit_y.replace(']', '')
+#        unit_y = make_unit(unit_y)
+#        unit_values = v.buffer['scaleI']['unit'].split("\x00")[0]
+#        unit_values = unit_values.replace('[', '')
+#        unit_values = unit_values.replace(']', '')
+#        unit_values = make_unit(unit_values)
+#        # check if axe are crescent
+#        if axe_y[-1] < axe_y[0]:
+#            axe_y = axe_y[::-1]
+#            values = values[::-1, :]
+#        if axe_x[-1] < axe_x[0]:
+#            axe_x = axe_x[::-1]
+#            values = values[:, ::-1]
+#        self.import_from_arrays(axe_x=axe_x, axe_y=axe_y, values=values,
+#                                unit_x=unit_x, unit_y=unit_y,
+#                                unit_values=unit_values)
 
-        Parameters
-        ----------
-        filename : string
-            Path to the IM7 file.
-        """
-        if not isinstance(filename, STRINGTYPES):
-            raise TypeError("'filename' must be a string")
-        if not os.path.exists(filename):
-            raise ValueError("I did not find your file, boy")
-        _, ext = os.path.splitext(filename)
-        if not (ext == ".im7" or ext == ".IM7"):
-            raise ValueError("I need the file to be an IM7 file")
-        v = IM.IM7(filename)
-        axe_x = v.Px[0, :]
-        axe_y = v.Py[:, 0]
-        values = v.getmaI()[0]*v.buffer['scaleI']['factor']
-        unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
-        unit_x = unit_x.replace('[', '')
-        unit_x = unit_x.replace(']', '')
-        unit_x = make_unit(unit_x)
-        unit_y = v.buffer['scaleY']['unit'].split("\x00")[0]
-        unit_y = unit_y.replace('[', '')
-        unit_y = unit_y.replace(']', '')
-        unit_y = make_unit(unit_y)
-        unit_values = v.buffer['scaleI']['unit'].split("\x00")[0]
-        unit_values = unit_values.replace('[', '')
-        unit_values = unit_values.replace(']', '')
-        unit_values = make_unit(unit_values)
-        # check if axe are crescent
-        if axe_y[-1] < axe_y[0]:
-            axe_y = axe_y[::-1]
-            values = values[::-1, :]
-        if axe_x[-1] < axe_x[0]:
-            axe_x = axe_x[::-1]
-            values = values[:, ::-1]
-        self.import_from_arrays(axe_x=axe_x, axe_y=axe_y, values=values,
-                                unit_x=unit_x, unit_y=unit_y,
-                                unit_values=unit_values)
-
-    def import_from_ascii(self, filename, x_col=1, y_col=2, v_col=3,
-                          unit_x=make_unit(""), unit_y=make_unit(""),
-                          unit_values=make_unit(""), **kwargs):
-        """
-        Import a scalarfield from an ascii file.
-
-        Parameters
-        ----------
-        x_col, y_col, v_col : integer, optional
-            Colonne numbers for the given variables
-            (begining at 1).
-        unit_x, unit_y, unit_v : Unit objects, optional
-            Unities for the given variables.
-        **kwargs :
-            Possibles additional parameters are the same as those used in the
-            numpy function 'genfromtext()' :
-            'delimiter' to specify the delimiter between colonnes.
-            'skip_header' to specify the number of colonne to skip at file
-                begining
-            ...
-        """
-        # validating parameters
-        if not isinstance(x_col, int) or not isinstance(y_col, int)\
-                or not isinstance(v_col, int):
-            raise TypeError("'x_col', 'y_col' and 'v_col' must be integers")
-        if x_col < 1 or y_col < 1 or v_col < 1:
-            raise ValueError("Colonne number out of range")
-        # 'names' deletion, if specified (dangereux pour la suite)
-        if 'names' in kwargs:
-            kwargs.pop('names')
-        # extract data from file
-        data = np.genfromtxt(filename, **kwargs)
-        # get axes
-        x = data[:, x_col-1]
-        x_org = np.unique(x)
-        y = data[:, y_col-1]
-        y_org = np.unique(y)
-        v = data[:, v_col-1]
-        # Masking all the initial field (to handle missing values)
-        v_org = np.zeros((x_org.shape[0], y_org.shape[0]))
-        v_org_mask = np.ones(v_org.shape)
-        v_org = np.ma.masked_array(v_org, v_org_mask)
-        #loop on all 'v' values
-        for i in np.arange(v.shape[0]):
-            x_tmp = x[i]
-            y_tmp = y[i]
-            v_tmp = v[i]
-            #find x index
-            for j in np.arange(x_org.shape[0]):
-                if x_org[j] == x_tmp:
-                    x_ind = j
-            #find y index
-            for j in np.arange(y_org.shape[0]):
-                if y_org[j] == y_tmp:
-                    y_ind = j
-            #put the value at its place
-            v_org[x_ind, y_ind] = v_tmp
-        # treating 'nan' values
-        v_org.mask = np.logical_and(v_org.mask, np.isnan(v_org.data))
-        #store field in attributes
-        self.import_from_arrays(axe_x=x_org, axe_y=y_org, values=v_org,
-                                unit_x=unit_x, unit_y=unit_y,
-                                unit_values=make_unit(''))
+#    def import_from_ascii(self, filename, x_col=1, y_col=2, v_col=3,
+#                          unit_x=make_unit(""), unit_y=make_unit(""),
+#                          unit_values=make_unit(""), **kwargs):
+#        """
+#        Import a scalarfield from an ascii file.
+#
+#        Parameters
+#        ----------
+#        x_col, y_col, v_col : integer, optional
+#            Colonne numbers for the given variables
+#            (begining at 1).
+#        unit_x, unit_y, unit_v : Unit objects, optional
+#            Unities for the given variables.
+#        **kwargs :
+#            Possibles additional parameters are the same as those used in the
+#            numpy function 'genfromtext()' :
+#            'delimiter' to specify the delimiter between colonnes.
+#            'skip_header' to specify the number of colonne to skip at file
+#                begining
+#            ...
+#        """
+#        # validating parameters
+#        if not isinstance(x_col, int) or not isinstance(y_col, int)\
+#                or not isinstance(v_col, int):
+#            raise TypeError("'x_col', 'y_col' and 'v_col' must be integers")
+#        if x_col < 1 or y_col < 1 or v_col < 1:
+#            raise ValueError("Colonne number out of range")
+#        # 'names' deletion, if specified (dangereux pour la suite)
+#        if 'names' in kwargs:
+#            kwargs.pop('names')
+#        # extract data from file
+#        data = np.genfromtxt(filename, **kwargs)
+#        # get axes
+#        x = data[:, x_col-1]
+#        x_org = np.unique(x)
+#        y = data[:, y_col-1]
+#        y_org = np.unique(y)
+#        v = data[:, v_col-1]
+#        # Masking all the initial field (to handle missing values)
+#        v_org = np.zeros((x_org.shape[0], y_org.shape[0]))
+#        v_org_mask = np.ones(v_org.shape)
+#        v_org = np.ma.masked_array(v_org, v_org_mask)
+#        #loop on all 'v' values
+#        for i in np.arange(v.shape[0]):
+#            x_tmp = x[i]
+#            y_tmp = y[i]
+#            v_tmp = v[i]
+#            #find x index
+#            for j in np.arange(x_org.shape[0]):
+#                if x_org[j] == x_tmp:
+#                    x_ind = j
+#            #find y index
+#            for j in np.arange(y_org.shape[0]):
+#                if y_org[j] == y_tmp:
+#                    y_ind = j
+#            #put the value at its place
+#            v_org[x_ind, y_ind] = v_tmp
+#        # treating 'nan' values
+#        v_org.mask = np.logical_and(v_org.mask, np.isnan(v_org.data))
+#        #store field in attributes
+#        self.import_from_arrays(axe_x=x_org, axe_y=y_org, values=v_org,
+#                                unit_x=unit_x, unit_y=unit_y,
+#                                unit_values=make_unit(''))
 
     def import_from_arrays(self, axe_x, axe_y, values, unit_x=make_unit(""),
                            unit_y=make_unit(""), unit_values=make_unit("")):
@@ -1830,95 +1829,95 @@ class ScalarField(Field):
         self.unit_values = unit_values.copy()/unit_values_value
         self.crop_masked_border()
 
-    def import_from_file(self, filepath, **kw):
-        """
-        Load a ScalarField object from the specified file using the JSON
-        format.
-        Additionnals arguments for the JSON decoder may be set with the **kw
-        argument. Such as'encoding' (to change the file
-        encoding, default='utf-8').
+#    def import_from_file(self, filepath, **kw):
+#        """
+#        Load a ScalarField object from the specified file using the JSON
+#        format.
+#        Additionnals arguments for the JSON decoder may be set with the **kw
+#        argument. Such as'encoding' (to change the file
+#        encoding, default='utf-8').
+#
+#        Parameters
+#        ----------
+#        filepath : string
+#            Path specifiing the ScalarField to load.
+#        """
+#        import IMTreatment.io.io as imtio
+#        tmpsf = imtio.import_from_file(filepath, **kw)
+#        if tmpsf.__classname__ != self.__classname__:
+#            raise IOError("This file do not contain a ScalarField, cabron.")
+#        self = tmpsf
 
-        Parameters
-        ----------
-        filepath : string
-            Path specifiing the ScalarField to load.
-        """
-        import IMTreatment.io.io as imtio
-        tmpsf = imtio.import_from_file(filepath, **kw)
-        if tmpsf.__classname__ != self.__classname__:
-            raise IOError("This file do not contain a ScalarField, cabron.")
-        self = tmpsf
+#    def export_to_file(self, filepath, compressed=True, **kw):
+#        """
+#        Write the Profile object in the specified file usint the JSON format.
+#        Additionnals arguments for the JSON encoder may be set with the **kw
+#        argument. Such arguments may be 'indent' (for visual indentation in
+#        file, default=0) or 'encoding' (to change the file encoding,
+#        default='utf-8').
+#        If existing, specified file will be truncated. If not, it will
+#        be created.
+#
+#        Parameters
+#        ----------
+#        filepath : string
+#            Path specifiing where to save the ScalarField.
+#        compressed : boolean, optional
+#            If 'True' (default), the json file is compressed using gzip.
+#        """
+#        import IMTreatment.io.io as imtio
+#        imtio.export_to_file(self, filepath, compressed, **kw)
 
-    def export_to_file(self, filepath, compressed=True, **kw):
-        """
-        Write the Profile object in the specified file usint the JSON format.
-        Additionnals arguments for the JSON encoder may be set with the **kw
-        argument. Such arguments may be 'indent' (for visual indentation in
-        file, default=0) or 'encoding' (to change the file encoding,
-        default='utf-8').
-        If existing, specified file will be truncated. If not, it will
-        be created.
-
-        Parameters
-        ----------
-        filepath : string
-            Path specifiing where to save the ScalarField.
-        compressed : boolean, optional
-            If 'True' (default), the json file is compressed using gzip.
-        """
-        import IMTreatment.io.io as imtio
-        imtio.export_to_file(self, filepath, compressed, **kw)
-
-    def export_to_vtk(self, filepath, axis=None):
-        """
-        Export the scalar field to a .vtk file, for Mayavi use.
-
-        Parameters
-        ----------
-        filepath : string
-            Path where to write the vtk file.
-        axis : tuple of strings
-            By default, scalar field axe are set to (x,y), if you want
-            different axis, you have to specified them here.
-            For example, "('z', 'y')", put the x scalar field axis values
-            in vtk z axis, and y scalar field axis in y vtk axis.
-        """
-        import pyvtk
-        if not os.path.exists(os.path.dirname(filepath)):
-            raise ValueError("'filepath' is not a valid path")
-        if axis is None:
-            axis = ('x', 'y')
-        if not isinstance(axis, ARRAYTYPES):
-            raise TypeError("'axis' must be a 2x1 tuple")
-        if not isinstance(axis[0], STRINGTYPES) \
-                or not isinstance(axis[1], STRINGTYPES):
-            raise TypeError("'axis' must be a 2x1 tuple of strings")
-        if not axis[0] in ['x', 'y', 'z'] or not axis[1] in ['x', 'y', 'z']:
-            raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
-        if axis[0] == axis[1]:
-            raise ValueError("'axis' strings must be different")
-        V = self.values.flatten()
-        x = self.axe_x
-        y = self.axe_y
-        point_data = pyvtk.PointData(pyvtk.Scalars(V, 'Scalar Field'))
-        x_vtk = 0.
-        y_vtk = 0.
-        z_vtk = 0.
-        if axis[0] == 'x':
-            x_vtk = x
-        elif axis[0] == 'y':
-            y_vtk = x
-        else:
-            z_vtk = x
-        if axis[1] == 'x':
-            x_vtk = y
-        elif axis[1] == 'y':
-            y_vtk = y
-        else:
-            z_vtk = y
-        grid = pyvtk.RectilinearGrid(x_vtk, y_vtk, z_vtk)
-        data = pyvtk.VtkData(grid, 'Scalar Field from python', point_data)
-        data.tofile(filepath)
+#    def export_to_vtk(self, filepath, axis=None):
+#        """
+#        Export the scalar field to a .vtk file, for Mayavi use.
+#
+#        Parameters
+#        ----------
+#        filepath : string
+#            Path where to write the vtk file.
+#        axis : tuple of strings
+#            By default, scalar field axe are set to (x,y), if you want
+#            different axis, you have to specified them here.
+#            For example, "('z', 'y')", put the x scalar field axis values
+#            in vtk z axis, and y scalar field axis in y vtk axis.
+#        """
+#        import pyvtk
+#        if not os.path.exists(os.path.dirname(filepath)):
+#            raise ValueError("'filepath' is not a valid path")
+#        if axis is None:
+#            axis = ('x', 'y')
+#        if not isinstance(axis, ARRAYTYPES):
+#            raise TypeError("'axis' must be a 2x1 tuple")
+#        if not isinstance(axis[0], STRINGTYPES) \
+#                or not isinstance(axis[1], STRINGTYPES):
+#            raise TypeError("'axis' must be a 2x1 tuple of strings")
+#        if not axis[0] in ['x', 'y', 'z'] or not axis[1] in ['x', 'y', 'z']:
+#            raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
+#        if axis[0] == axis[1]:
+#            raise ValueError("'axis' strings must be different")
+#        V = self.values.flatten()
+#        x = self.axe_x
+#        y = self.axe_y
+#        point_data = pyvtk.PointData(pyvtk.Scalars(V, 'Scalar Field'))
+#        x_vtk = 0.
+#        y_vtk = 0.
+#        z_vtk = 0.
+#        if axis[0] == 'x':
+#            x_vtk = x
+#        elif axis[0] == 'y':
+#            y_vtk = x
+#        else:
+#            z_vtk = x
+#        if axis[1] == 'x':
+#            x_vtk = y
+#        elif axis[1] == 'y':
+#            y_vtk = y
+#        else:
+#            z_vtk = y
+#        grid = pyvtk.RectilinearGrid(x_vtk, y_vtk, z_vtk)
+#        data = pyvtk.VtkData(grid, 'Scalar Field from python', point_data)
+#        data.tofile(filepath)
 
     def export_to_scatter(self, mask=None):
         """
@@ -1958,49 +1957,112 @@ class ScalarField(Field):
             v = np.append(v, value)
         return Points(pts, v, self.unit_x, self.unit_y, self.unit_values)
 
-    def set_values(self, values):
+    def get_comp(self, componentname, raw=False):
         """
-        fill the scalar field with the given values
-        """
-        if not isinstance(values, ARRAYTYPES):
-            raise TypeError("'values' must be an array")
-        values = np.array(values)
-        if not np.all(values.shape == self.get_dim()):
-            raise ValueError("'values' shape must agree with the "
-                             "original field shape")
-        self.values = values
+        Return a ScalarField object representing a component of the
+        Vectorfield object.
 
-    def get_values(self):
-        """
-        Return the field values.
-        """
-        return self.values
+        Parameters
+        ----------
+        componentname : string
+            Can be 'values' or 'mask'.
+        raw : boolean, optional
+            If 'False' (default), return a ScalarField object,
+            if 'True', return a masked array.
 
-    def get_mask(self):
+        Returns
+        -------
+        component : ScalarField object or numpy masked array
         """
-        Return the scalarfield mask.
-        """
-        return self.values.mask
+        if not isinstance(componentname, STRINGTYPES):
+            raise TypeError("'componentname' must be a string")
+        if componentname == 'values':
+            values = self.values
+        elif componentname == 'mask':
+            values = self.values.mask
+        else:
+            raise ValueError("unknown value of 'componentname'")
+        if raw:
+            return values
+        else:
+            axe_x, axe_y = self.get_axes()
+            unit_x, unit_y = self.get_axe_units()
+            unit_values = self.get_unit_values()
+            tmpsf = ScalarField()
+            tmpsf.import_from_arrays(axe_x, axe_y, values, unit_x, unit_y,
+                                     unit_values)
+            return tmpsf
 
-    def set_mask(self, mask):
-        """
-        fill the scalar field mask with the given values.
-        """
-        if not isinstance(mask, ARRAYTYPES):
-            raise TypeError("'values' must be an array")
-        mask = np.array(mask)
-        if not np.all(mask.shape == self.get_dim()):
-            raise ValueError("'values' shape must agree with the "
-                             "original field shape")
-        self.values.mask = mask
+#    def get_values(self):
+#        """
+#        Return the field values.
+#        """
+#        return self.values
+#
+#    def get_mask(self):
+#        """
+#        Return the scalarfield mask.
+#        """
+#        return self.values.mask
 
-    def get_values_unit(self):
+    def get_unit_values(self):
         """
         Return the values unit
         """
         return self.unit_values
 
-    def set_values_unit(self, unit_values=None):
+#    def set_values(self, values):
+#        """
+#        fill the scalar field with the given values
+#        """
+#        if not isinstance(values, ARRAYTYPES):
+#            raise TypeError("'values' must be an array")
+#        values = np.array(values)
+#        if not np.all(values.shape == self.get_dim()):
+#            raise ValueError("'values' shape must agree with the "
+#                             "original field shape")
+#        self.values = values
+#
+#    def set_mask(self, mask):
+#        """
+#        fill the scalar field mask with the given values.
+#        """
+#        if not isinstance(mask, ARRAYTYPES):
+#            raise TypeError("'values' must be an array")
+#        mask = np.array(mask)
+#        if not np.all(mask.shape == self.get_dim()):
+#            raise ValueError("'values' shape must agree with the "
+#                             "original field shape")
+#        self.values.mask = mask
+
+    def set_comp(self, componentname, value):
+        """
+        Fill the component 'componentname' with 'value'.
+
+        Parameters
+        ----------
+        componentname : string
+            Can be 'values' or 'mask'.
+        value : array
+            Array with the same shape as the initial component
+        """
+        if not isinstance(componentname, STRINGTYPES):
+            raise TypeError("'componentname' must be a string")
+        if not isinstance(value, ARRAYTYPES):
+            raise TypeError("'value' must be an array")
+        if not isinstance(value, np.ma.MaskedArray):
+             value = np.ma.masked_array(value)
+        if self.get_dim() != value.shape:
+            raise ValueError("'value' dimensions are inconsistent with the "
+                             "ScalarField shape")
+        if componentname == 'values':
+            self.values = value
+        elif componentname == 'mask':
+            self.values.mask = value
+        else:
+            raise ValueError("Unknown 'componentname' value")
+
+    def set_unit_values(self, unit_values=None):
         """
         Load unities into the scalar field values.
 
@@ -2356,138 +2418,138 @@ class ScalarField(Field):
                 cutposition = self.axe_y[axe_mask]
         return Profile(axe, profile, unit_x, unit_y, "Profile"), cutposition
 
-    def get_curve(self, bornes=[.75, 1], rel=True, order=5):
-        """
-        Return a Points object, representing the choosen zone, and polynomial
-        interpolation coefficient of these points.
+#    def get_curve(self, bornes=[.75, 1], rel=True, order=5):
+#        """
+#        Return a Points object, representing the choosen zone, and polynomial
+#        interpolation coefficient of these points.
+#
+#        Parameters
+#        ----------
+#        bornes : 2x1 array, optionnal
+#            Trigger values determining the zones.
+#            '[inferior borne, superior borne]'
+#        rel : Boolean
+#            If 'rel' is 'True' (default), values of 'bornes' are relative to
+#            the extremum values of the field.
+#            If 'rel' is 'False', values of bornes are treated like absolute
+#            values.
+#        order : number
+#            Order of the polynomial interpolation (default=5).
+#
+#        Returns
+#        -------
+#        pts : Points object
+#        coefp : array of number
+#            interpolation coefficients (higher order first).
+#        """
+#        if not isinstance(bornes, ARRAYTYPES):
+#            raise TypeError("'bornes' must be an array")
+#        if not isinstance(bornes, np.ndarray):
+#            bornes = np.array(bornes)
+#        if not bornes.shape == (2,):
+#            raise ValueError("'bornes' must be a 2x1 array")
+#        if not bornes[0] < bornes[1]:
+#            raise ValueError("'bornes' must be crescent")
+#        if not isinstance(rel, bool):
+#            raise TypeError("'rel' must be a boolean")
+#        if rel:
+#            if np.abs(bornes[0]) > np.abs(bornes[1]):
+#                bornes *= np.abs(self.get_min())
+#                coef = -1
+#            else:
+#                bornes *= np.abs(self.get_max())
+#                coef = 1
+#        # récupération des zones
+#        zone = np.logical_and(self.values > bornes[0], self.values < bornes[1])
+#        labeledzones, nmbzones = msr.label(zone)
+#        # vérification du nombre de zones et récupération de la plus grande
+#        areas = []
+#        if nmbzones > 1:
+#            zones = msr.find_objects(labeledzones, nmbzones)
+#            area = []
+#            for i in np.arange(nmbzones):
+#                slices = zones[i]
+#                area = (slices[0].stop - slices[0].start) *  \
+#                       (slices[1].stop - slices[1].start)
+#                areas.append(area)
+#            areas = np.array(areas)
+#            ind = areas.argmax()
+#            labeledzones = labeledzones == ind + 1
+#        # Récupération des points
+#        mask = labeledzones == 0
+#        pts = self.export_to_scatter(mask=mask)
+#        pts.v = pts.v*coef
+#        # interpolation
+#        coefp = pts.fit(order=order)
+#        return pts, coefp
 
-        Parameters
-        ----------
-        bornes : 2x1 array, optionnal
-            Trigger values determining the zones.
-            '[inferior borne, superior borne]'
-        rel : Boolean
-            If 'rel' is 'True' (default), values of 'bornes' are relative to
-            the extremum values of the field.
-            If 'rel' is 'False', values of bornes are treated like absolute
-            values.
-        order : number
-            Order of the polynomial interpolation (default=5).
-
-        Returns
-        -------
-        pts : Points object
-        coefp : array of number
-            interpolation coefficients (higher order first).
-        """
-        if not isinstance(bornes, ARRAYTYPES):
-            raise TypeError("'bornes' must be an array")
-        if not isinstance(bornes, np.ndarray):
-            bornes = np.array(bornes)
-        if not bornes.shape == (2,):
-            raise ValueError("'bornes' must be a 2x1 array")
-        if not bornes[0] < bornes[1]:
-            raise ValueError("'bornes' must be crescent")
-        if not isinstance(rel, bool):
-            raise TypeError("'rel' must be a boolean")
-        if rel:
-            if np.abs(bornes[0]) > np.abs(bornes[1]):
-                bornes *= np.abs(self.get_min())
-                coef = -1
-            else:
-                bornes *= np.abs(self.get_max())
-                coef = 1
-        # récupération des zones
-        zone = np.logical_and(self.values > bornes[0], self.values < bornes[1])
-        labeledzones, nmbzones = msr.label(zone)
-        # vérification du nombre de zones et récupération de la plus grande
-        areas = []
-        if nmbzones > 1:
-            zones = msr.find_objects(labeledzones, nmbzones)
-            area = []
-            for i in np.arange(nmbzones):
-                slices = zones[i]
-                area = (slices[0].stop - slices[0].start) *  \
-                       (slices[1].stop - slices[1].start)
-                areas.append(area)
-            areas = np.array(areas)
-            ind = areas.argmax()
-            labeledzones = labeledzones == ind + 1
-        # Récupération des points
-        mask = labeledzones == 0
-        pts = self.export_to_scatter(mask=mask)
-        pts.v = pts.v*coef
-        # interpolation
-        coefp = pts.fit(order=order)
-        return pts, coefp
-
-    def get_bl(self, direction, kind="default", perc=.99):
-        """
-        Return one of the boundary layer characteristic.
-        WARNING : the wall must be at x=0.
-
-        Parameters
-        ----------
-        direction : integer
-            Direction of the wall supporting the BL.
-        kind : string
-            Type of boundary layer thickness you want.
-            default : For a bl thickness at a given value (typically 90%).
-            displacement : For the bl displacement thickness.
-            momentum : For the bl momentum thickness.
-            H factor : For the shape factor.
-        perc : number
-            Relative limit velocity defining the default boundary layer.
-            (Only usefull with kind='default')
-
-        Returns
-        -------
-        profile : Profile object
-            Wanted isocurve.
-        """
-        if not isinstance(perc, NUMBERTYPES):
-            raise TypeError("'value' must be a number")
-        if not isinstance(direction, int):
-            raise TypeError("'direction' must be an integer")
-        if not isinstance(kind, str):
-            raise TypeError("'kind' must be a string")
-        if not (direction == 1 or direction == 2):
-            raise ValueError("'direction' must be '1' or '2'")
-        if not (perc <= 1 and perc > 0):
-            raise ValueError("'value' must be between 0 and 1")
-        isoc = []
-        axec = []
-        axe_x, axe_y = self.get_axes()
-        if direction == 1:
-            axe = axe_x
-            unit_x = self.unit_x.copy()
-            unit_y = self.unit_y.copy()
-        else:
-            axe = axe_y
-            unit_x = self.unit_y.copy()
-            unit_y = self.unit_x.copy()
-        for axevalue in axe:
-            profile, _ = self.get_profile(direction, axevalue)
-            # vérification du nombre de valeurs non-masquée
-            if profile is None:
-                continue
-            if len(profile.y[profile.y.mask]) > 0.5*len(profile.y):
-                continue
-            from .boundary_layer import get_bl_thickness, get_displ_thickness,\
-                get_momentum_thickness, get_shape_factor
-            if kind == "default":
-                val = get_bl_thickness(profile, perc=perc)
-            elif kind == "displacement":
-                val = get_displ_thickness(profile)
-            elif kind == "momentum":
-                val = get_momentum_thickness(profile)
-            elif kind == "H factor":
-                val = get_shape_factor(profile)
-            else:
-                raise ValueError("Unknown value for 'kind'")
-            isoc.append(val)
-            axec.append(axevalue)
-        return Profile(axec, isoc, unit_x, unit_y, "Boundary Layer")
+#    def get_bl(self, direction, kind="default", perc=.99):
+#        """
+#        Return one of the boundary layer characteristic.
+#        WARNING : the wall must be at x=0.
+#
+#        Parameters
+#        ----------
+#        direction : integer
+#            Direction of the wall supporting the BL.
+#        kind : string
+#            Type of boundary layer thickness you want.
+#            default : For a bl thickness at a given value (typically 90%).
+#            displacement : For the bl displacement thickness.
+#            momentum : For the bl momentum thickness.
+#            H factor : For the shape factor.
+#        perc : number
+#            Relative limit velocity defining the default boundary layer.
+#            (Only usefull with kind='default')
+#
+#        Returns
+#        -------
+#        profile : Profile object
+#            Wanted isocurve.
+#        """
+#        if not isinstance(perc, NUMBERTYPES):
+#            raise TypeError("'value' must be a number")
+#        if not isinstance(direction, int):
+#            raise TypeError("'direction' must be an integer")
+#        if not isinstance(kind, str):
+#            raise TypeError("'kind' must be a string")
+#        if not (direction == 1 or direction == 2):
+#            raise ValueError("'direction' must be '1' or '2'")
+#        if not (perc <= 1 and perc > 0):
+#            raise ValueError("'value' must be between 0 and 1")
+#        isoc = []
+#        axec = []
+#        axe_x, axe_y = self.get_axes()
+#        if direction == 1:
+#            axe = axe_x
+#            unit_x = self.unit_x.copy()
+#            unit_y = self.unit_y.copy()
+#        else:
+#            axe = axe_y
+#            unit_x = self.unit_y.copy()
+#            unit_y = self.unit_x.copy()
+#        for axevalue in axe:
+#            profile, _ = self.get_profile(direction, axevalue)
+#            # vérification du nombre de valeurs non-masquée
+#            if profile is None:
+#                continue
+#            if len(profile.y[profile.y.mask]) > 0.5*len(profile.y):
+#                continue
+#            from .boundary_layer import get_bl_thickness, get_displ_thickness,\
+#                get_momentum_thickness, get_shape_factor
+#            if kind == "default":
+#                val = get_bl_thickness(profile, perc=perc)
+#            elif kind == "displacement":
+#                val = get_displ_thickness(profile)
+#            elif kind == "momentum":
+#                val = get_momentum_thickness(profile)
+#            elif kind == "H factor":
+#                val = get_shape_factor(profile)
+#            else:
+#                raise ValueError("Unknown value for 'kind'")
+#            isoc.append(val)
+#            axec.append(axevalue)
+#        return Profile(axec, isoc, unit_x, unit_y, "Boundary Layer")
 
     def get_copy(self):
         """
@@ -2521,12 +2583,12 @@ class ScalarField(Field):
         """
         axe_x, axe_y = self.get_axes()
         # checking masked values presence
-        values = self.get_values()
+        values = self.get_comp('values', raw=True)
         if not np.ma.is_masked(values):
             return None
         # getting datas
         values = values.data
-        mask = self.get_mask()
+        mask = self.get_comp('mask', raw=True)
         # crop border along y
         axe_y_m = ~np.all(mask, axis=1)
         if np.any(axe_y_m):
@@ -2569,8 +2631,8 @@ class ScalarField(Field):
         # deleting the masked border (useless field part)
         if crop_border:
             self.crop_masked_border()
-        mask = self.get_mask()
-        values = self.get_values().data
+        mask = self.get_comp('mask', raw=True)
+        values = self.get_comp('values', raw=True).data
         # if there is nothing to do...
         if not np.any(mask):
             pass
@@ -2585,7 +2647,7 @@ class ScalarField(Field):
                 if masked:
                     values[inds[0], inds[1]] = f(inds[0], inds[1])
             mask = np.zeros(values.shape)
-            self.set_values(np.ma.masked_array(values, mask))
+            self.set_comp('values', np.ma.masked_array(values, mask))
         elif tof == 'interpcub':
             inds_x = np.arange(values.shape[1])
             inds_y = np.arange(values.shape[0])
@@ -2598,11 +2660,11 @@ class ScalarField(Field):
                 if masked:
                     values[inds[1], inds[0]] = f(inds[1], inds[0])
             mask = np.zeros(values.shape)
-            self.set_values(np.ma.masked_array(values, mask))
+            self.set_comp('values', np.ma.masked_array(values, mask))
         elif tof == 'value':
-            tmp_val = self.get_values()
+            tmp_val = self.get_comp('values', raw=True)
             tmp_val[self.values.mask] = value
-            self.set_values(tmp_val)
+            self.set_comp('values', tmp_val)
         else:
             raise ValueError("unknown 'tof' value")
 
@@ -2635,7 +2697,7 @@ class ScalarField(Field):
         self.fill()
         # mask treatment
         values = self.values.data
-        mask = self.get_mask()
+        mask = self.get_comp('mask', raw=True)
         # smoothing
         if tos == "uniform":
             values = ndimage.uniform_filter(values, size, **kw)
@@ -2644,7 +2706,7 @@ class ScalarField(Field):
         else:
             raise ValueError("'tos' must be 'uniform' or 'gaussian'")
         # storing
-        self.set_values(np.ma.masked_array(values, mask))
+        self.set_comp('values', np.ma.masked_array(values, mask))
 
     def integrate_over_line(self, direction, interval):
         """
@@ -2714,7 +2776,7 @@ class ScalarField(Field):
         trimfield = self.trim_area(intervalx, intervaly)
         axe2_x, axe2_y = trimfield.get_axes()
         unit_x, unit_y = trimfield.get_axe_units()
-        integral = (trimfield.get_values().sum()
+        integral = (trimfield.get_comp('values', raw=True).sum()
                     * np.abs(axe2_x[-1] - axe2_x[0])
                     * np.abs(axe2_y[-1] - axe2_y[0])
                     / len(axe2_x)
@@ -2724,7 +2786,7 @@ class ScalarField(Field):
 
     def _display(self, kind=None, **plotargs):
         X, Y = np.meshgrid(*self.get_axes())
-        values = self.get_values()
+        values = self.get_comp('values', raw=True)
         axe_x, axe_y = self.get_axes()
         unit_x, unit_y = self.get_axe_units()
         if kind == 'contour':
@@ -2783,9 +2845,9 @@ class ScalarField(Field):
         fig = self._display(kind, **plotargs)
         plt.title("Scalar field Values " + self.unit_values.strUnit())
         cb = plt.colorbar(fig, shrink=1, aspect=5)
-        cb.set_label(self.get_values_unit().strUnit())
+        cb.set_label(self.get_unit_values().strUnit())
         # search for limits in case of masked field
-        mask = self.get_values().mask
+        mask = self.get_comp('mask', raw=True)
         for i in np.arange(len(self.axe_x)):
             if not np.all(mask[:, i]):
                 break
@@ -2938,123 +3000,123 @@ class VectorField(Field):
             if not mask[j, i]:
                 yield ij, xy, [datax[j, i], datay[j, i]]
 
-    def import_from_davis(self, filename):
-        """
-        Import a vector field from a .VC7 file
+#    def import_from_davis(self, filename):
+#        """
+#        Import a vector field from a .VC7 file
+#
+#        Parameters
+#        ----------
+#        filename : string
+#            Path to the file to import.
+#        """
+#        if not isinstance(filename, STRINGTYPES):
+#            raise TypeError("'filename' must be a string")
+#        if not os.path.exists(filename):
+#            raise ValueError("'filename' must ne an existing file")
+#        if os.path.isdir(filename):
+#            filename = glob.glob(os.path.join(filename, '*.vc7'))[0]
+#        _, ext = os.path.splitext(filename)
+#        if not (ext == ".vc7" or ext == ".VC7"):
+#            raise ValueError("'filename' must be a vc7 file")
+#        v = IM.VC7(filename)
+#        self.comp_x = ScalarField()
+#        self.comp_y = ScalarField()
+#        # traitement des unités
+#        unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
+#        unit_x = unit_x.replace('[', '')
+#        unit_x = unit_x.replace(']', '')
+#        unit_y = v.buffer['scaleY']['unit'].split("\x00")[0]
+#        unit_y = unit_y.replace('[', '')
+#        unit_y = unit_y.replace(']', '')
+#        unit_values = v.buffer['scaleI']['unit'].split("\x00")[0]
+#        unit_values = unit_values.replace('[', '')
+#        unit_values = unit_values.replace(']', '')
+#        # vérification de l'ordre des axes (et correction)
+#        x = v.Px[0, :]
+#        y = v.Py[:, 0]
+#        Vx = v.Vx[0]
+#        Vy = v.Vy[0]
+#        if x[-1] < x[0]:
+#            x = x[::-1]
+#            Vx = Vx[:, ::-1]
+#            Vy = Vy[:, ::-1]
+#        if y[-1] < y[0]:
+#            y = y[::-1]
+#            Vx = Vx[::-1, :]
+#            Vy = Vy[::-1, :]
+#        self.import_from_arrays(x, y, Vx, Vy, make_unit(unit_x),
+#                                make_unit(unit_y), make_unit(unit_values))
 
-        Parameters
-        ----------
-        filename : string
-            Path to the file to import.
-        """
-        if not isinstance(filename, STRINGTYPES):
-            raise TypeError("'filename' must be a string")
-        if not os.path.exists(filename):
-            raise ValueError("'filename' must ne an existing file")
-        if os.path.isdir(filename):
-            filename = glob.glob(os.path.join(filename, '*.vc7'))[0]
-        _, ext = os.path.splitext(filename)
-        if not (ext == ".vc7" or ext == ".VC7"):
-            raise ValueError("'filename' must be a vc7 file")
-        v = IM.VC7(filename)
-        self.comp_x = ScalarField()
-        self.comp_y = ScalarField()
-        # traitement des unités
-        unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
-        unit_x = unit_x.replace('[', '')
-        unit_x = unit_x.replace(']', '')
-        unit_y = v.buffer['scaleY']['unit'].split("\x00")[0]
-        unit_y = unit_y.replace('[', '')
-        unit_y = unit_y.replace(']', '')
-        unit_values = v.buffer['scaleI']['unit'].split("\x00")[0]
-        unit_values = unit_values.replace('[', '')
-        unit_values = unit_values.replace(']', '')
-        # vérification de l'ordre des axes (et correction)
-        x = v.Px[0, :]
-        y = v.Py[:, 0]
-        Vx = v.Vx[0]
-        Vy = v.Vy[0]
-        if x[-1] < x[0]:
-            x = x[::-1]
-            Vx = Vx[:, ::-1]
-            Vy = Vy[:, ::-1]
-        if y[-1] < y[0]:
-            y = y[::-1]
-            Vx = Vx[::-1, :]
-            Vy = Vy[::-1, :]
-        self.import_from_arrays(x, y, Vx, Vy, make_unit(unit_x),
-                                make_unit(unit_y), make_unit(unit_values))
-
-    def import_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
-                          vy_col=4, unit_x=make_unit(""), unit_y=make_unit(""),
-                          unit_values=make_unit(""), **kwargs):
-        """
-        Import a vectorfield from an ascii file.
-
-        Parameters
-        ----------
-        x_col, y_col, vx_col, vy_col : integer, optional
-            Colonne numbers for the given variables
-            (begining at 1).
-        unit_x, unit_y, unit_v : Unit objects, optional
-            Unities for the given variables.
-        **kwargs :
-            Possibles additional parameters are the same as those used in the
-            numpy function 'genfromtext()' :
-            'delimiter' to specify the delimiter between colonnes.
-            'skip_header' to specify the number of colonne to skip at file
-                begining
-            ...
-        """
-        # validating parameters
-        if not isinstance(x_col, int) or not isinstance(y_col, int)\
-                or not isinstance(vx_col, int) or not isinstance(vy_col, int):
-            raise TypeError("'x_col', 'y_col', 'vx_col' and 'vy_col' must "
-                            "be integers")
-        if x_col < 1 or y_col < 1 or vx_col < 1 or vy_col < 1:
-            raise ValueError("Colonne number out of range")
-        # 'names' deletion, if specified (dangereux pour la suite)
-        if 'names' in kwargs:
-            kwargs.pop('names')
-        # extract data from file
-        data = np.genfromtxt(filename, **kwargs)
-        # get axes
-        x = data[:, x_col-1]
-        x_org = np.unique(x)
-        y = data[:, y_col-1]
-        y_org = np.unique(y)
-        vx = data[:, vx_col-1]
-        vy = data[:, vy_col-1]
-        # Masking all the initial fields (to handle missing values)
-        vx_org = np.zeros((y_org.shape[0], x_org.shape[0]))
-        vx_org_mask = np.ones(vx_org.shape)
-        vx_org = np.ma.masked_array(vx_org, vx_org_mask)
-        vy_org = np.zeros((y_org.shape[0], x_org.shape[0]))
-        vy_org_mask = np.ones(vy_org.shape)
-        vy_org = np.ma.masked_array(vy_org, vy_org_mask)
-        #loop on all 'v' values
-        for i in np.arange(vx.shape[0]):
-            x_tmp = x[i]
-            y_tmp = y[i]
-            vx_tmp = vx[i]
-            vy_tmp = vy[i]
-            #find x index
-            for j in np.arange(x_org.shape[0]):
-                if x_org[j] == x_tmp:
-                    x_ind = j
-            #find y index
-            for j in np.arange(y_org.shape[0]):
-                if y_org[j] == y_tmp:
-                    y_ind = j
-            #put the value at its place
-            vx_org[y_ind, x_ind] = vx_tmp
-            vy_org[y_ind, x_ind] = vy_tmp
-        # Treating 'nan' values
-        vx_org.mask = np.logical_or(vx_org.mask, np.isnan(vx_org.data))
-        vy_org.mask = np.logical_or(vy_org.mask, np.isnan(vy_org.data))
-        #store field in attributes
-        self.import_from_arrays(x_org, y_org, vx_org, vy_org, unit_x, unit_y,
-                                unit_values)
+#    def import_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
+#                          vy_col=4, unit_x=make_unit(""), unit_y=make_unit(""),
+#                          unit_values=make_unit(""), **kwargs):
+#        """
+#        Import a vectorfield from an ascii file.
+#
+#        Parameters
+#        ----------
+#        x_col, y_col, vx_col, vy_col : integer, optional
+#            Colonne numbers for the given variables
+#            (begining at 1).
+#        unit_x, unit_y, unit_v : Unit objects, optional
+#            Unities for the given variables.
+#        **kwargs :
+#            Possibles additional parameters are the same as those used in the
+#            numpy function 'genfromtext()' :
+#            'delimiter' to specify the delimiter between colonnes.
+#            'skip_header' to specify the number of colonne to skip at file
+#                begining
+#            ...
+#        """
+#        # validating parameters
+#        if not isinstance(x_col, int) or not isinstance(y_col, int)\
+#                or not isinstance(vx_col, int) or not isinstance(vy_col, int):
+#            raise TypeError("'x_col', 'y_col', 'vx_col' and 'vy_col' must "
+#                            "be integers")
+#        if x_col < 1 or y_col < 1 or vx_col < 1 or vy_col < 1:
+#            raise ValueError("Colonne number out of range")
+#        # 'names' deletion, if specified (dangereux pour la suite)
+#        if 'names' in kwargs:
+#            kwargs.pop('names')
+#        # extract data from file
+#        data = np.genfromtxt(filename, **kwargs)
+#        # get axes
+#        x = data[:, x_col-1]
+#        x_org = np.unique(x)
+#        y = data[:, y_col-1]
+#        y_org = np.unique(y)
+#        vx = data[:, vx_col-1]
+#        vy = data[:, vy_col-1]
+#        # Masking all the initial fields (to handle missing values)
+#        vx_org = np.zeros((y_org.shape[0], x_org.shape[0]))
+#        vx_org_mask = np.ones(vx_org.shape)
+#        vx_org = np.ma.masked_array(vx_org, vx_org_mask)
+#        vy_org = np.zeros((y_org.shape[0], x_org.shape[0]))
+#        vy_org_mask = np.ones(vy_org.shape)
+#        vy_org = np.ma.masked_array(vy_org, vy_org_mask)
+#        #loop on all 'v' values
+#        for i in np.arange(vx.shape[0]):
+#            x_tmp = x[i]
+#            y_tmp = y[i]
+#            vx_tmp = vx[i]
+#            vy_tmp = vy[i]
+#            #find x index
+#            for j in np.arange(x_org.shape[0]):
+#                if x_org[j] == x_tmp:
+#                    x_ind = j
+#            #find y index
+#            for j in np.arange(y_org.shape[0]):
+#                if y_org[j] == y_tmp:
+#                    y_ind = j
+#            #put the value at its place
+#            vx_org[y_ind, x_ind] = vx_tmp
+#            vy_org[y_ind, x_ind] = vy_tmp
+#        # Treating 'nan' values
+#        vx_org.mask = np.logical_or(vx_org.mask, np.isnan(vx_org.data))
+#        vy_org.mask = np.logical_or(vy_org.mask, np.isnan(vy_org.data))
+#        #store field in attributes
+#        self.import_from_arrays(x_org, y_org, vx_org, vy_org, unit_x, unit_y,
+#                                unit_values)
 
     def import_from_arrays(self, axe_x, axe_y, comp_x, comp_y,
                            unit_x=make_unit(""), unit_y=make_unit(""),
@@ -3128,173 +3190,180 @@ class VectorField(Field):
         self.unit_y = unit_y
         self.unit_values = unit_values
 
-    def import_from_scalarfields(self, comp_x, comp_y):
-        """
-        Import a vector field from two scalarfields.
+#    def import_from_scalarfields(self, comp_x, comp_y):
+#        """
+#        Import a vector field from two scalarfields.
+#
+#        Parameters
+#        ----------
+#        CompX : ScalarField
+#            x component of th vector field.
+#        CompY : ScalarField
+#            y component of th vector field.
+#        """
+#        if not isinstance(comp_x, ScalarField):
+#            raise TypeError("'comp_x' must be a ScalarField object")
+#        if not isinstance(comp_y, ScalarField):
+#            raise TypeError("'comp_y' must be a ScalarField object")
+#        axe_x, axe_y = comp_x.get_axes()
+#        xunit_x, xunit_y = comp_x.get_axe_units()
+#        xunit_values = comp_x.get_unit_values()
+#        yunit_x, yunit_y = comp_y.get_axe_units()
+#        yunit_values = comp_y.get_unit_values()
+#        comp_x = comp_x.get_comp('values', raw=True)
+#        comp_y = comp_y.get_comp('values', raw=True)
+#        if not comp_x.shape == comp_y.shape:
+#            raise ValueError("'comp_x' and 'comp_y' must have the same "
+#                             "dimensions")
+#        if not (xunit_x == yunit_x or xunit_y == yunit_y
+#                or xunit_values == yunit_values):
+#            raise ValueError("Unities of the two components and their axis "
+#                             "must be the same")
+#        self.import_from_arrays(axe_x, axe_y, comp_x, comp_y, xunit_x, xunit_y,
+#                                xunit_values)
 
-        Parameters
-        ----------
-        CompX : ScalarField
-            x component of th vector field.
-        CompY : ScalarField
-            y component of th vector field.
-        """
-        if not isinstance(comp_x, ScalarField):
-            raise TypeError("'comp_x' must be a ScalarField object")
-        if not isinstance(comp_y, ScalarField):
-            raise TypeError("'comp_y' must be a ScalarField object")
-        axe_x, axe_y = comp_x.get_axes()
-        xunit_x, xunit_y = comp_x.get_axe_units()
-        xunit_values = comp_x.get_values_unit()
-        yunit_x, yunit_y = comp_y.get_axe_units()
-        yunit_values = comp_y.get_values_unit()
-        comp_x = comp_x.get_values()
-        comp_y = comp_y.get_values()
-        if not comp_x.shape == comp_y.shape:
-            raise ValueError("'comp_x' and 'comp_y' must have the same "
-                             "dimensions")
-        if not (xunit_x == yunit_x or xunit_y == yunit_y
-                or xunit_values == yunit_values):
-            raise ValueError("Unities of the two components and their axis "
-                             "must be the same")
-        self.import_from_arrays(axe_x, axe_y, comp_x, comp_y, xunit_x, xunit_y,
-                                xunit_values)
+#    def import_from_file(self, filepath, **kw):
+#        """
+#        Load a VectorField object from the specified file using the JSON
+#        format.
+#        Additionnals arguments for the JSON decoder may be set with the **kw
+#        argument. Such as'encoding' (to change the file
+#        encoding, default='utf-8').
+#
+#        Parameters
+#        ----------
+#        filepath : string
+#            Path specifiing the VectorField to load.
+#        """
+#        import IMTreatment.io.io as imtio
+#        tmpvf = imtio.import_from_file(filepath, **kw)
+#        if tmpvf.__classname__ != self.__classname__:
+#            raise IOError("This file do not contain a VectorField, cabron.")
+#        self = tmpvf
 
-    def import_from_file(self, filepath, **kw):
-        """
-        Load a VectorField object from the specified file using the JSON
-        format.
-        Additionnals arguments for the JSON decoder may be set with the **kw
-        argument. Such as'encoding' (to change the file
-        encoding, default='utf-8').
+#    def export_to_file(self, filepath, compressed=True, **kw):
+#        """
+#        Write the Profile object in the specified file usint the JSON format.
+#        Additionnals arguments for the JSON encoder may be set with the **kw
+#        argument. Such arguments may be 'indent' (for visual indentation in
+#        file, default=0) or 'encoding' (to change the file encoding,
+#        default='utf-8').
+#        If existing, specified file will be truncated. If not, it will
+#        be created.
+#
+#        Parameters
+#        ----------
+#        filepath : string
+#            Path specifiing where to save the ScalarField.
+#        compressed : boolean, optional
+#            If 'True' (default), the json file is compressed using gzip.
+#        """
+#        import IMTreatment.io.io as imtio
+#        imtio.export_to_file(self, filepath, compressed, **kw)
 
-        Parameters
-        ----------
-        filepath : string
-            Path specifiing the VectorField to load.
-        """
-        import IMTreatment.io.io as imtio
-        tmpvf = imtio.import_from_file(filepath, **kw)
-        if tmpvf.__classname__ != self.__classname__:
-            raise IOError("This file do not contain a VectorField, cabron.")
-        self = tmpvf
+#    def export_to_vtk(self, filepath, axis=None):
+#        """
+#        Export the vector field to a .vtk file, for Mayavi use.
+#
+#        Parameters
+#        ----------
+#        filepath : string
+#            Path where to write the vtk file.
+#        axis : tuple of strings
+#            By default, scalar field axe are set to (x,y), if you want
+#            different axis, you have to specified them here.
+#            For example, "('z', 'y')", put the x scalar field axis values
+#            in vtk z axis, and y scalar field axis in y vtk axis.
+#        """
+#        import pyvtk
+#        if not os.path.exists(os.path.dirname(filepath)):
+#            raise ValueError("'filepath' is not a valid path")
+#        if axis is None:
+#            axis = ('x', 'y')
+#        if not isinstance(axis, ARRAYTYPES):
+#            raise TypeError("'axis' must be a 2x1 tuple")
+#        if not isinstance(axis[0], STRINGTYPES) \
+#                or not isinstance(axis[1], STRINGTYPES):
+#            raise TypeError("'axis' must be a 2x1 tuple of strings")
+#        if not axis[0] in ['x', 'y', 'z'] or not axis[1] in ['x', 'y', 'z']:
+#            raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
+#        if axis[0] == axis[1]:
+#            raise ValueError("'axis' strings must be different")
+#        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+#        Vx = Vx.flatten()
+#        Vy = Vy.flatten()
+#        x, y = self.get_axes()
+#        x_vtk = 0.
+#        y_vtk = 0.
+#        z_vtk = 0.
+#        vx_vtk = np.zeros(Vx.shape)
+#        vy_vtk = np.zeros(Vx.shape)
+#        vz_vtk = np.zeros(Vx.shape)
+#        if axis[0] == 'x':
+#            x_vtk = x
+#            vx_vtk = Vx
+#        elif axis[0] == 'y':
+#            y_vtk = x
+#            vy_vtk = Vx
+#        else:
+#            z_vtk = x
+#            vz_vtk = Vx
+#        if axis[1] == 'x':
+#            x_vtk = y
+#            vx_vtk = Vy
+#        elif axis[1] == 'y':
+#            y_vtk = y
+#            vy_vtk = Vy
+#        else:
+#            z_vtk = y
+#            vz_vtk = Vy
+#        vect = zip(vx_vtk, vy_vtk, vz_vtk)
+#        point_data = pyvtk.PointData(pyvtk.Vectors(vect, "Vector field"))
+#        grid = pyvtk.RectilinearGrid(x_vtk, y_vtk, z_vtk)
+#        data = pyvtk.VtkData(grid, 'Vector Field from python', point_data)
+#        data.tofile(filepath)
+#
+#    def get_values(self):
+#        """
+#        Return the values of the 2 components.
+#        """
+#        return self.comp_x, self.comp_y
 
-    def export_to_file(self, filepath, compressed=True, **kw):
-        """
-        Write the Profile object in the specified file usint the JSON format.
-        Additionnals arguments for the JSON encoder may be set with the **kw
-        argument. Such arguments may be 'indent' (for visual indentation in
-        file, default=0) or 'encoding' (to change the file encoding,
-        default='utf-8').
-        If existing, specified file will be truncated. If not, it will
-        be created.
-
-        Parameters
-        ----------
-        filepath : string
-            Path specifiing where to save the ScalarField.
-        compressed : boolean, optional
-            If 'True' (default), the json file is compressed using gzip.
-        """
-        import IMTreatment.io.io as imtio
-        imtio.export_to_file(self, filepath, compressed, **kw)
-
-    def export_to_vtk(self, filepath, axis=None):
-        """
-        Export the vector field to a .vtk file, for Mayavi use.
-
-        Parameters
-        ----------
-        filepath : string
-            Path where to write the vtk file.
-        axis : tuple of strings
-            By default, scalar field axe are set to (x,y), if you want
-            different axis, you have to specified them here.
-            For example, "('z', 'y')", put the x scalar field axis values
-            in vtk z axis, and y scalar field axis in y vtk axis.
-        """
-        import pyvtk
-        if not os.path.exists(os.path.dirname(filepath)):
-            raise ValueError("'filepath' is not a valid path")
-        if axis is None:
-            axis = ('x', 'y')
-        if not isinstance(axis, ARRAYTYPES):
-            raise TypeError("'axis' must be a 2x1 tuple")
-        if not isinstance(axis[0], STRINGTYPES) \
-                or not isinstance(axis[1], STRINGTYPES):
-            raise TypeError("'axis' must be a 2x1 tuple of strings")
-        if not axis[0] in ['x', 'y', 'z'] or not axis[1] in ['x', 'y', 'z']:
-            raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
-        if axis[0] == axis[1]:
-            raise ValueError("'axis' strings must be different")
-        Vx, Vy = self.get_values()
-        Vx = Vx.flatten()
-        Vy = Vy.flatten()
-        x, y = self.get_axes()
-        x_vtk = 0.
-        y_vtk = 0.
-        z_vtk = 0.
-        vx_vtk = np.zeros(Vx.shape)
-        vy_vtk = np.zeros(Vx.shape)
-        vz_vtk = np.zeros(Vx.shape)
-        if axis[0] == 'x':
-            x_vtk = x
-            vx_vtk = Vx
-        elif axis[0] == 'y':
-            y_vtk = x
-            vy_vtk = Vx
-        else:
-            z_vtk = x
-            vz_vtk = Vx
-        if axis[1] == 'x':
-            x_vtk = y
-            vx_vtk = Vy
-        elif axis[1] == 'y':
-            y_vtk = y
-            vy_vtk = Vy
-        else:
-            z_vtk = y
-            vz_vtk = Vy
-        vect = zip(vx_vtk, vy_vtk, vz_vtk)
-        point_data = pyvtk.PointData(pyvtk.Vectors(vect, "Vector field"))
-        grid = pyvtk.RectilinearGrid(x_vtk, y_vtk, z_vtk)
-        data = pyvtk.VtkData(grid, 'Vector Field from python', point_data)
-        data.tofile(filepath)
-
-    def get_values(self):
-        """
-        Return the values of the 2 components.
-        """
-        return self.comp_x, self.comp_y
-
-    def set_values(self, comp_x=None, comp_y=None):
-        """
-        fill the scalar field with the given values
-        """
-        if comp_x is not None:
-            if not isinstance(comp_x, ARRAYTYPES):
-                raise TypeError("'comp_x' must be an array")
-            comp_x = np.array(comp_x)
-            if not np.all(comp_x.shape == self.get_dim()):
-                raise ValueError("'comp_x' shape must agree with the "
-                                 "original field shape")
-            self.comp_x = comp_x
-        if comp_y is not None:
-            if not isinstance(comp_y, ARRAYTYPES):
-                raise TypeError("'comp_y' must be an array")
-            comp_y = np.array(comp_y)
-            if not np.all(comp_y.shape == self.get_dim()):
-                raise ValueError("'comp_y' shape must agree with the "
-                                 "original field shape")
-            self.comp_y = comp_y
-
-    def get_values_unit(self):
+    def get_unit_values(self):
         """
         Return the values unit
         """
         return self.unit_values
 
-    def set_values_unit(self, unit_values=None):
+#    def get_mask(self):
+#        """
+#        Return the scalarfield mask.
+#        """
+#        Vx, Vy = self.get_values()
+#        return np.logical_or(Vx.mask, Vy.mask)
+
+#    def set_values(self, comp_x=None, comp_y=None):
+#        """
+#        fill the scalar field with the given values
+#        """
+#        if comp_x is not None:
+#            if not isinstance(comp_x, ARRAYTYPES):
+#                raise TypeError("'comp_x' must be an array")
+#            comp_x = np.array(comp_x)
+#            if not np.all(comp_x.shape == self.get_dim()):
+#                raise ValueError("'comp_x' shape must agree with the "
+#                                 "original field shape")
+#            self.comp_x = comp_x
+#        if comp_y is not None:
+#            if not isinstance(comp_y, ARRAYTYPES):
+#                raise TypeError("'comp_y' must be an array")
+#            comp_y = np.array(comp_y)
+#            if not np.all(comp_y.shape == self.get_dim()):
+#                raise ValueError("'comp_y' shape must agree with the "
+#                                 "original field shape")
+#            self.comp_y = comp_y
+
+    def set_unit_values(self, unit_values=None):
         """
         Load unities into the scalar field values.
 
@@ -3308,44 +3377,87 @@ class VectorField(Field):
                 raise TypeError("'unit_values' must be an Unit object")
             self.unit_values = unit_values
 
-    def get_mask(self):
-        """
-        Return the scalarfield mask.
-        """
-        Vx, Vy = self.get_values()
-        return np.logical_or(Vx.mask, Vy.mask)
+#    def set_mask(self, mask):
+#        """
+#        fill the scalar field mask with the given values.
+#        """
+#        if not isinstance(mask, ARRAYTYPES):
+#            raise TypeError("'values' must be an array")
+#        mask = np.array(mask)
+#        if not np.all(mask.shape == self.get_dim()):
+#            raise ValueError("'values' shape must agree with the "
+#                             "original field shape")
+#        Vx, Vy = self.get_values()
+#        Vx.mask = mask
+#        Vy.mask = mask
 
-    def set_mask(self, mask):
+    def get_comp(self, componentname, raw=False):
         """
-        fill the scalar field mask with the given values.
-        """
-        if not isinstance(mask, ARRAYTYPES):
-            raise TypeError("'values' must be an array")
-        mask = np.array(mask)
-        if not np.all(mask.shape == self.get_dim()):
-            raise ValueError("'values' shape must agree with the "
-                             "original field shape")
-        Vx, Vy = self.get_values()
-        Vx.mask = mask
-        Vy.mask = mask
+        Return a ScalarField object representing a component of the
+        Vectorfield object.
 
-    def get_comp_x(self):
-        """
-        Return the x component as a Scalarfield object.
-        """
-        tmpsf = ScalarField()
-        tmpsf.import_from_arrays(self.axe_x, self.axe_y, self.comp_x,
-                                 self.unit_x, self.unit_y, self.unit_values)
-        return tmpsf
+        Parameters
+        ----------
+        componentname : string
+            Can be 'x', 'y' or 'mask'.
+        raw : boolean, optional
+            If 'False' (default), return a ScalarField object,
+            if 'True', return a masked array.
 
-    def get_comp_y(self):
+        Returns
+        -------
+        component : ScalarField object or numpy masked array
         """
-        Return the y component as a Scalarfield object.
+        if not isinstance(componentname, STRINGTYPES):
+            raise TypeError("'componentname' must be a string")
+        if componentname == 'x':
+            values = self.comp_x
+        elif componentname == 'y':
+            values = self.comp_y
+        elif componentname == 'mask':
+            values = np.logical_or(self.comp_x.mask, self.comp_y.mask)
+        else:
+            raise ValueError("unknown value of 'componentname'")
+        if raw:
+            return values
+        else:
+            axe_x, axe_y = self.get_axes()
+            unit_x, unit_y = self.get_axe_units()
+            unit_values = self.get_unit_values()
+            tmpsf = ScalarField()
+            tmpsf.import_from_arrays(axe_x, axe_y, values, unit_x, unit_y,
+                                     unit_values)
+            return tmpsf
+
+    def set_comp(self, componentname, value):
         """
-        tmpsf = ScalarField()
-        tmpsf.import_from_arrays(self.axe_x, self.axe_y, self.comp_y,
-                                 self.unit_x, self.unit_y, self.unit_values)
-        return tmpsf
+        Fill the component 'componentname' with 'value'.
+
+        Parameters
+        ----------
+        componentname : string
+            Can be 'x', 'y', 'mask'.
+        value : array
+            Array with the same shape as the initial component
+        """
+        if not isinstance(componentname, STRINGTYPES):
+            raise TypeError("'componentname' must be a string")
+        if not isinstance(value, ARRAYTYPES):
+            raise TypeError("'value' must be an array")
+        if not isinstance(value, np.ma.MaskedArray):
+             value = np.ma.masked_array(value)
+        if self.get_dim() != value.shape:
+            raise ValueError("'value' dimensions are inconsistent with the "
+                             "ScalarField shape")
+        if componentname == 'x':
+            self.comp_x = value
+        elif componentname == 'y':
+            self.comp_y = value
+        elif componentname == 'mask':
+            self.comp_x.mask = value
+            self.comp_y.mask = value
+        else:
+            raise ValueError("Unknown 'componentname' value")
 
     def get_copy(self):
         """
@@ -3398,41 +3510,41 @@ class VectorField(Field):
         """
         return self.get_magnitude().get_max(unit)
 
-#    def get_profile(self, component, direction, position):
-#        """
-#        Return a profile of the vector field component, at the given position
-#        (or at least at the nearest possible position).
-#        If position is an interval, the fonction return an average profile
-#        in this interval.
-#
-#        Function
-#        --------
-#        axe, profile, cutposition = get_profile(component, direction, position)
-#
-#        Parameters
-#        ----------
-#        component : integer
-#            component to treat.
-#        direction : integer
-#            Direction along which we choose a position (1 for x and 2 for y).
-#        position : float or interval of float
-#            Position or interval in which we want a profile.
-#
-#        Returns
-#        -------
-#        profile : Profile object
-#            Asked profile.
-#        cutposition : array or number
-#            Final position or interval in which the profile has been taken.
-#        """
-#        if not isinstance(component, int):
-#            raise TypeError("'component' must be an integer")
-#        if component == 1:
-#            return self.get_comp_x().get_profile(direction, position)
-#        elif component == 2:
-#            return self.get_comp_y().get_profile(direction, position)
-#        else:
-#            raise ValueError("'component' must have the value of 1 or 2")
+    def get_profile(self, component, direction, position):
+        """
+        Return a profile of the vector field component, at the given position
+        (or at least at the nearest possible position).
+        If position is an interval, the fonction return an average profile
+        in this interval.
+
+        Function
+        --------
+        axe, profile, cutposition = get_profile(component, direction, position)
+
+        Parameters
+        ----------
+        component : integer
+            component to treat.
+        direction : integer
+            Direction along which we choose a position (1 for x and 2 for y).
+        position : float or interval of float
+            Position or interval in which we want a profile.
+
+        Returns
+        -------
+        profile : Profile object
+            Asked profile.
+        cutposition : array or number
+            Final position or interval in which the profile has been taken.
+        """
+        if not isinstance(component, int):
+            raise TypeError("'component' must be an integer")
+        if component == 1:
+            return self.get_comp('x').get_profile(direction, position)
+        elif component == 2:
+            return self.get_comp('y').get_profile(direction, position)
+        else:
+            raise ValueError("'component' must have the value of 1 or 2")
 
 #    def get_bl(self, component, value, direction, rel=False, kind="default"):
 #        """
@@ -3468,9 +3580,9 @@ class VectorField(Field):
 #        if not (component == 1 or component == 2):
 #            raise ValueError("'component' must be 1 or 2")
 #        if component == 1:
-#            return self.get_comp_x().get_bl(direction, value, rel, kind)
+#            return self.get_comp('x').get_bl(direction, value, rel, kind)
 #        else:
-#            return self.get_comp_y().get_bl(value, direction, rel, kind)
+#            return self.get_comp('y').get_bl(value, direction, rel, kind)
 
     def get_streamlines(self, xy, delta=.25, interp='linear',
                         reverse_direction=False):
@@ -3501,7 +3613,7 @@ class VectorField(Field):
         else:
             raise ValueError("'xy' must be a tuple of arrays")
         axe_x, axe_y = self.get_axes()
-        Vx, Vy = self.get_values()
+        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
         Vx = Vx.flatten()
         Vy = Vy.flatten()
         if not isinstance(delta, NUMBERTYPES):
@@ -3608,10 +3720,10 @@ class VectorField(Field):
         else:
             raise ValueError("'xy' must be a tuple of arrays")
         axe_x, axe_y = self.get_axes()
-        Vx, Vy = self.get_values()
+        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
         Vx = Vx.flatten()
         Vy = Vy.flatten()
-        Magn = self.get_magnitude().get_values().flatten()
+        Magn = self.get_magnitude().get_comp('values').flatten()
         if not isinstance(delta, NUMBERTYPES):
             raise TypeError("'delta' must be a number")
         if delta <= 0:
@@ -3706,13 +3818,14 @@ class VectorField(Field):
         """
         Return a scalar field with the velocity field magnitude.
         """
-        magn = self.get_comp_x().get_copy()
-        comp_x, comp_y = self.get_values()
+        comp_x, comp_y = (self.get_comp('x', raw=True),
+                          self.get_comp('y', raw=True))
         unit_x, unit_y = self.get_axe_units()
         values = np.sqrt(comp_x**2 + comp_y**2)
         unit_values = (unit_x**2 + unit_y**2)**(.5)
-        magn.set_values(values)
-        magn.set_values_unit(unit_values)
+        magn = self.get_comp('x')
+        magn.set_comp('values', values)
+        magn.set_unit_values(unit_values)
         return magn
 
     def get_shear_stress(self):
@@ -3721,7 +3834,8 @@ class VectorField(Field):
         """
         # Getting gradients and axes
         axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = self.get_values()
+        comp_x, comp_y = (self.get_comp('x', raw=True),
+                          self.get_comp('y', raw=True))
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         du_dy, _ = np.gradient(comp_x, dy, dx)
@@ -3731,7 +3845,8 @@ class VectorField(Field):
         comp_y = du_dy
         # creating vectorfield object
         tmpvf = self.get_copy()
-        tmpvf.set_values(comp_x=comp_x, comp_y=comp_y)
+        tmpvf.set_comp('x', comp_x)
+        tmpvf.set_comp('y', comp_y)
         return tmpvf
 
     def get_vorticity(self):
@@ -3739,14 +3854,15 @@ class VectorField(Field):
         Return a scalar field with the z component of the vorticity.
         """
         axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = self.get_values()
+        comp_x, comp_y = (self.get_comp('x', raw=True),
+                          self.get_comp('y', raw=True))
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         _, Exy = np.gradient(comp_x, dy, dx)
         Eyx, _ = np.gradient(comp_y, dy, dx)
         vort = Eyx - Exy
-        vort_sf = self.get_comp_x().get_copy()
-        vort_sf.set_values(vort)
+        vort_sf = self.get_comp('x').get_copy()
+        vort_sf.set_comp('values', vort)
         return vort_sf
 
     def get_swirling_strength(self):
@@ -3756,7 +3872,8 @@ class VectorField(Field):
         """
         # Getting gradients and axes
         axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = self.get_values()
+        comp_x, comp_y = (self.get_comp('x', raw=True),
+                          self.get_comp('y', raw=True))
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         du_dy, du_dx = np.gradient(comp_x, dy, dx)
@@ -3775,9 +3892,9 @@ class VectorField(Field):
                     swst[i, j] = np.max(np.imag(eigvals))
         # creating ScalarField object
         swst = np.ma.masked_array(swst, mask)
-        tmpsf = self.get_comp_x().get_copy()
+        tmpsf = self.get_comp('x').get_copy()
         ### TODO : implementer unité swst
-        tmpsf.set_values(swst)
+        tmpsf.set_comp('values', swst)
         return tmpsf
 
     def get_swirling_vector(self):
@@ -3790,7 +3907,8 @@ class VectorField(Field):
         """
         # Getting gradients and axes
         axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = self.get_values()
+        comp_x, comp_y = (self.get_comp('x', raw=True),
+                          self.get_comp('y', raw=True))
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         du_dy, du_dx = np.gradient(comp_x, dy, dx)
@@ -3819,7 +3937,8 @@ class VectorField(Field):
         comp_x = np.ma.masked_array(comp_x, mask)
         comp_y = np.ma.masked_array(comp_y, mask)
         tmpvf = self.get_copy()
-        tmpvf.set_values(comp_x=comp_x, comp_y=comp_y)
+        tmpvf.set_comp('x', comp_x)
+        tmpvf.set_comp('y', comp_y)
         return tmpvf
 
     def get_theta(self, low_velocity_filter=0.):
@@ -3838,10 +3957,10 @@ class VectorField(Field):
             Contening theta field.
         """
         # get data
-        Vx, Vy = self.get_values()
+        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
         Vx = Vx.data
         Vy = Vy.data
-        mask = self.get_mask()
+        mask = self.get_comp('mask', raw=True)
         theta = np.zeros(self.get_dim())
         # getting angle
         norm = np.sqrt(Vx**2 + Vy**2)
@@ -3853,8 +3972,8 @@ class VectorField(Field):
         theta[tmp_mask] = np.arccos(theta[tmp_mask])
         theta[Vy < 0] = 2*np.pi - theta[Vy < 0]
         theta = np.ma.masked_array(theta, mask)
-        tmpsf = self.get_comp_x().get_copy()
-        tmpsf.set_values(theta)
+        tmpsf = self.get_comp('x').get_copy()
+        tmpsf.set_comp('values', theta)
         return tmpsf
 
     def smooth(self, tos='uniform', size=None, **kw):
@@ -3884,8 +4003,8 @@ class VectorField(Field):
         # filling up the field before smoothing
         self.fill()
         # getting data
-        Vx, Vy = self.get_values()
-        mask = self.get_mask()
+        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+        mask = self.get_comp('mask', raw=True)
         # smoothing
         if tos == "uniform":
             Vx = ndimage.uniform_filter(Vx, size, **kw)
@@ -3898,7 +4017,8 @@ class VectorField(Field):
         # storing
         Vx = np.ma.masked_array(Vx, mask)
         Vy = np.ma.masked_array(Vy, mask)
-        self.set_values(comp_x=Vx, comp_y=Vy)
+        self.set_comp('x', Vx)
+        self.set_comp('y', Vy)
 
     def fill(self, tof='interplin', value=0., crop_border=True):
         # TODO : Make this fucking functionnality work !
@@ -3926,7 +4046,7 @@ class VectorField(Field):
         # deleting the masked border (useless field part)
         if crop_border:
             self.crop_masked_border()
-        mask = self.get_mask()
+        mask = self.get_comp('mask', raw=True)
         # if there is nothing to do...
         if not np.any(mask):
             pass
@@ -3934,7 +4054,7 @@ class VectorField(Field):
             inds_x = np.arange(self.get_dim()[1])
             inds_y = np.arange(self.get_dim()[0])
             grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            Vx, Vy = self.get_values()
+            Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
             Vx = Vx.data
             Vy = Vy.data
             fx = spinterp.interp2d(grid_y[~mask],
@@ -3948,12 +4068,13 @@ class VectorField(Field):
                     Vx[inds[0], inds[1]] = fx(inds[0], inds[1])
                     Vy[inds[0], inds[1]] = fy(inds[0], inds[1])
             mask = np.zeros(Vx.shape)
-            self.set_values(Vx, Vy)
+            self.set_comp('x', Vx)
+            self.set_comp('y', Vy)
         elif tof == 'interpcub':
             inds_x = np.arange(self.values.shape[1])
             inds_y = np.arange(self.values.shape[0])
             grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            Vx, Vy = self.get_values()
+            Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
             Vx = Vx.data
             Vy = Vy.data
             fx = spinterp.interp2d(grid_y[~mask],
@@ -3967,9 +4088,10 @@ class VectorField(Field):
                     Vx[inds[0], inds[1]] = fx(inds[0], inds[1])
                     Vy[inds[0], inds[1]] = fy(inds[0], inds[1])
             mask = np.zeros(Vx.shape)
-            self.set_values(Vx, Vy)
+            self.set_comp('x', Vx)
+            self.set_comp('y', Vy)
         elif tof == 'value':
-            Vx, Vy = self.get_values()
+            Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
             Vx[mask] = value
             Vy[mask] = value
         else:
@@ -4003,13 +4125,13 @@ class VectorField(Field):
         """
         axe_x, axe_y = self.get_axes()
         # checking masked values presence
-        Vx, Vy = self.get_values()
+        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
         if not (np.ma.is_masked(Vx), np.ma.is_masked(Vy)):
             return None
         # getting datas
         Vx = Vx.data
         Vy = Vy.data
-        mask = self.get_mask()
+        mask = self.get_comp('mask', raw=True)
         # crop border along y
         axe_y_m = ~np.all(mask, axis=1)
         if np.any(axe_y_m):
@@ -4033,23 +4155,10 @@ class VectorField(Field):
         if kind is not None:
             if not isinstance(kind, STRINGTYPES):
                 raise TypeError("'kind' must be a string")
-        if isinstance(component, int):
-            if component == 1:
-                if kind == '3D':
-                    fig = self.get_comp_x().Display3D()
-                else:
-                    fig = self.get_comp_x()._display(kind)
-            elif component == 2:
-                if kind == '3D':
-                    fig = self.get_comp_y().Display3D()
-                else:
-                    fig = self.get_comp_y()._display(kind)
-            else:
-                raise ValueError("'component' must have the value of 1 or 2'")
-        elif component is None:
-            axe_x, axe_y = self.get_axes()
-            Vx, Vy = self.get_values()
-            magn = self.get_magnitude().get_values()
+        axe_x, axe_y = self.get_axes()
+        if component is None:
+            Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+            magn = self.get_magnitude().get_comp('values', raw=True)
             unit_x, unit_y = self.get_axe_units()
             if kind == 'stream':
                 if not 'color' in plotargs.keys():
@@ -4065,12 +4174,19 @@ class VectorField(Field):
                 else:
                     fig = plt.quiver(axe_x, axe_y, Vx, Vy, magn, **plotargs)
             else:
-                raise ValueError("I don't know this kind of plot")
-            plt.axis('equal')
-            plt.xlabel("X " + unit_x.strUnit())
-            plt.ylabel("Y " + unit_y.strUnit())
+                raise ValueError("Unknown value of 'kind'")
+        elif component == "x":
+            if kind == '3D':
+                fig = self.get_comp('x').Display3D()
+            else:
+                fig = self.get_comp('x')._display(kind)
+        elif component == "y":
+            if kind == '3D':
+                fig = self.get_comp('y').Display3D()
+            else:
+                fig = self.get_comp('y')._display(kind)
         else:
-            raise TypeError("'component' must be an integer or None")
+            raise TypeError("Unknown value of 'component'")
         return fig
 
     def display(self, component=None, kind=None, **plotargs):
@@ -4082,8 +4198,8 @@ class VectorField(Field):
 
         Parameters
         ----------
-        component : int or string, optional
-            Component to display.
+        component : string, optional
+            Component to display, can be 'x', 'y', 'mask'
         kind : string, optinnal
             Scalar plots :
             if 'None': each datas are plotted (imshow),
@@ -4104,14 +4220,9 @@ class VectorField(Field):
         """
         fig = self._display(component, kind, **plotargs)
         unit_x, unit_y = self.get_axe_units()
-        unit_values = self.get_values_unit()
-        Vx, Vy = self.get_values()
-        if isinstance(component, int):
-            if component == 1:
-                plt.title("Vx " + unit_values.strUnit())
-            elif component == 2:
-                plt.title("Vx " + unit_values.strUnit())
-        elif component is None:
+        unit_values = self.get_unit_values()
+        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+        if component is None:
             if kind == 'quiver' or kind is None:
                 cb = plt.colorbar()
                 cb.set_label("Magnitude " + unit_values.strUnit())
@@ -4121,6 +4232,12 @@ class VectorField(Field):
                               + unit_values.strUnit() + "$",
                               labelpos='W', fontproperties={'weight': 'bold'})
             plt.title("Values " + unit_values.strUnit())
+        elif component == 'x':
+            plt.title("Vx " + unit_values.strUnit())
+        elif component == 'y':
+            plt.title("Vy " + unit_values.strUnit())
+        else:
+            raise ValueError("Unknown 'component' value")
         return fig
 
 
@@ -6131,7 +6248,7 @@ class TemporalVelocityFields(VelocityFields):
             axe_x, axe_y = self.get_axes()
             # getting super mask (0 where no value are masked and where all
             # values are masked)
-            super_mask = self.get_comp('mask')
+            super_mask = self.get_comp('mask', raw=True)
             super_mask = np.sum(super_mask).values.data
             super_mask[super_mask == len(self.fields)] = 0
             # loop on each field position
@@ -6212,7 +6329,7 @@ class TemporalVelocityFields(VelocityFields):
         Crop the masked border of the velocity fields in place.
         """
         # getting big mask (where all the value are masked)
-        masks_temp = self.get_comp('mask')
+        masks_temp = self.get_comp('mask', raw=True)
         mask_temp = np.sum(masks_temp).values.data
         mask_temp = mask_temp == len(masks_temp)
         # checking masked values presence

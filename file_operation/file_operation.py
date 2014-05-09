@@ -10,6 +10,11 @@ import pdb
 import json
 import unum
 import gzip
+import glob
+try:
+    import IM
+except:
+    pass
 from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
     VelocityField, VelocityFields,\
@@ -214,6 +219,141 @@ def export_to_matlab(obj, name, filepath, **kw):
     spio.savemat(filepath, dic, **kw)
 
 
+def export_to_vtk(obj, filepath, axis=None):
+    """
+    Export the field to a .vtk file, for Mayavi use.
+
+    Parameters
+    ----------
+    filepath : string
+        Path where to write the vtk file.
+    axis : tuple of strings
+        By default, field axe are set to (x,y), if you want
+        different axis, you have to specified them here.
+        For example, "('z', 'y')", put the x field axis values
+        in vtk z axis, and y field axis in y vtk axis.
+    """
+    if isinstance(obj, ScalarField):
+        __export_sf_to_vtk(obj, filepath, axis)
+    elif isinstance(obj, VectorField):
+        __export_vf_to_vtk(obj, filepath, axis)
+    else:
+        raise TypeError("Cannot (yet) export this kind of object to vtk")
+
+
+def __export_sf_to_vtk(obj, filepath, axis=None):
+    """
+    Export the scalar field to a .vtk file, for Mayavi use.
+
+    Parameters
+    ----------
+    filepath : string
+        Path where to write the vtk file.
+    axis : tuple of strings
+        By default, scalar field axe are set to (x,y), if you want
+        different axis, you have to specified them here.
+        For example, "('z', 'y')", put the x scalar field axis values
+        in vtk z axis, and y scalar field axis in y vtk axis.
+    """
+    import pyvtk
+    if not os.path.exists(os.path.dirname(filepath)):
+        raise ValueError("'filepath' is not a valid path")
+    if axis is None:
+        axis = ('x', 'y')
+    if not isinstance(axis, ARRAYTYPES):
+        raise TypeError("'axis' must be a 2x1 tuple")
+    if not isinstance(axis[0], STRINGTYPES) \
+            or not isinstance(axis[1], STRINGTYPES):
+        raise TypeError("'axis' must be a 2x1 tuple of strings")
+    if not axis[0] in ['x', 'y', 'z'] or not axis[1] in ['x', 'y', 'z']:
+        raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
+    if axis[0] == axis[1]:
+        raise ValueError("'axis' strings must be different")
+    V = obj.values.flatten()
+    x = obj.axe_x
+    y = obj.axe_y
+    point_data = pyvtk.PointData(pyvtk.Scalars(V, 'Scalar Field'))
+    x_vtk = 0.
+    y_vtk = 0.
+    z_vtk = 0.
+    if axis[0] == 'x':
+        x_vtk = x
+    elif axis[0] == 'y':
+        y_vtk = x
+    else:
+        z_vtk = x
+    if axis[1] == 'x':
+        x_vtk = y
+    elif axis[1] == 'y':
+        y_vtk = y
+    else:
+        z_vtk = y
+    grid = pyvtk.RectilinearGrid(x_vtk, y_vtk, z_vtk)
+    data = pyvtk.VtkData(grid, 'Scalar Field from python', point_data)
+    data.tofile(filepath)
+
+def __export_vf_to_vtk(obj, filepath, axis=None):
+    """
+    Export the vector field to a .vtk file, for Mayavi use.
+
+    Parameters
+    ----------
+    filepath : string
+        Path where to write the vtk file.
+    axis : tuple of strings
+        By default, scalar field axe are set to (x,y), if you want
+        different axis, you have to specified them here.
+        For example, "('z', 'y')", put the x scalar field axis values
+        in vtk z axis, and y scalar field axis in y vtk axis.
+    """
+    import pyvtk
+    if not os.path.exists(os.path.dirname(filepath)):
+        raise ValueError("'filepath' is not a valid path")
+    if axis is None:
+        axis = ('x', 'y')
+    if not isinstance(axis, ARRAYTYPES):
+        raise TypeError("'axis' must be a 2x1 tuple")
+    if not isinstance(axis[0], STRINGTYPES) \
+            or not isinstance(axis[1], STRINGTYPES):
+        raise TypeError("'axis' must be a 2x1 tuple of strings")
+    if not axis[0] in ['x', 'y', 'z'] or not axis[1] in ['x', 'y', 'z']:
+        raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
+    if axis[0] == axis[1]:
+        raise ValueError("'axis' strings must be different")
+    Vx, Vy = obj.get_comp('x', raw=True), obj.get_comp('y', raw=True)
+    Vx = Vx.flatten()
+    Vy = Vy.flatten()
+    x, y = obj.get_axes()
+    x_vtk = 0.
+    y_vtk = 0.
+    z_vtk = 0.
+    vx_vtk = np.zeros(Vx.shape)
+    vy_vtk = np.zeros(Vx.shape)
+    vz_vtk = np.zeros(Vx.shape)
+    if axis[0] == 'x':
+        x_vtk = x
+        vx_vtk = Vx
+    elif axis[0] == 'y':
+        y_vtk = x
+        vy_vtk = Vx
+    else:
+        z_vtk = x
+        vz_vtk = Vx
+    if axis[1] == 'x':
+        x_vtk = y
+        vx_vtk = Vy
+    elif axis[1] == 'y':
+        y_vtk = y
+        vy_vtk = Vy
+    else:
+        z_vtk = y
+        vz_vtk = Vy
+    vect = zip(vx_vtk, vy_vtk, vz_vtk)
+    point_data = pyvtk.PointData(pyvtk.Vectors(vect, "Vector field"))
+    grid = pyvtk.RectilinearGrid(x_vtk, y_vtk, z_vtk)
+    data = pyvtk.VtkData(grid, 'Vector Field from python', point_data)
+    data.tofile(filepath)
+
 def import_from_file(filepath, **kw):
     """
     Load and return an object from the specified file using the JSON
@@ -260,3 +400,205 @@ def import_from_file(filepath, **kw):
         raise IOError("File is not readable "
                       "(unknown extension : {})".format(extension))
     return obj
+
+
+def import_from_IM7(filename):
+    """
+    Import a scalar field from a .IM7 file.
+
+    Parameters
+    ----------
+    filename : string
+        Path to the IM7 file.
+    """
+    if not isinstance(filename, STRINGTYPES):
+        raise TypeError("'filename' must be a string")
+    if not os.path.exists(filename):
+        raise ValueError("I did not find your file, boy")
+    _, ext = os.path.splitext(filename)
+    if not (ext == ".im7" or ext == ".IM7"):
+        raise ValueError("I need the file to be an IM7 file")
+    v = IM.IM7(filename)
+    axe_x = v.Px[0, :]
+    axe_y = v.Py[:, 0]
+    values = v.getmaI()[0]*v.buffer['scaleI']['factor']
+    unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
+    unit_x = unit_x.replace('[', '')
+    unit_x = unit_x.replace(']', '')
+    unit_x = make_unit(unit_x)
+    unit_y = v.buffer['scaleY']['unit'].split("\x00")[0]
+    unit_y = unit_y.replace('[', '')
+    unit_y = unit_y.replace(']', '')
+    unit_y = make_unit(unit_y)
+    unit_values = v.buffer['scaleI']['unit'].split("\x00")[0]
+    unit_values = unit_values.replace('[', '')
+    unit_values = unit_values.replace(']', '')
+    unit_values = make_unit(unit_values)
+    # check if axe are crescent
+    if axe_y[-1] < axe_y[0]:
+        axe_y = axe_y[::-1]
+        values = values[::-1, :]
+    if axe_x[-1] < axe_x[0]:
+        axe_x = axe_x[::-1]
+        values = values[:, ::-1]
+    tmpsf = ScalarField()
+    tmpsf.import_from_arrays(axe_x=axe_x, axe_y=axe_y, values=values,
+                             unit_x=unit_x, unit_y=unit_y,
+                             unit_values=unit_values)
+    return tmpsf
+
+
+def import_from_VC7(filename, velocity=False, time=None, unit_time=None):
+    """
+    Import a vector field or a velocity field from a .VC7 file
+
+    Parameters
+    ----------
+    filename : string
+        Path to the file to import.
+    velocity : boolean, optional
+        If 'False' (default), a VectorField object is returned,
+        If 'True', a VelocityField object is returned.
+    time : number, optional
+        time parameter for VelocityField objects.
+    """
+    if not isinstance(filename, STRINGTYPES):
+        raise TypeError("'filename' must be a string")
+    if not os.path.exists(filename):
+        raise ValueError("'filename' must ne an existing file")
+    if os.path.isdir(filename):
+        filename = glob.glob(os.path.join(filename, '*.vc7'))[0]
+    _, ext = os.path.splitext(filename)
+    if not (ext == ".vc7" or ext == ".VC7"):
+        raise ValueError("'filename' must be a vc7 file")
+    if time is None:
+        time = 0
+    if unit_time is None:
+        unit_time = make_unit('')
+    v = IM.VC7(filename)
+    # traitement des unités
+    unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
+    unit_x = unit_x.replace('[', '')
+    unit_x = unit_x.replace(']', '')
+    unit_y = v.buffer['scaleY']['unit'].split("\x00")[0]
+    unit_y = unit_y.replace('[', '')
+    unit_y = unit_y.replace(']', '')
+    unit_values = v.buffer['scaleI']['unit'].split("\x00")[0]
+    unit_values = unit_values.replace('[', '')
+    unit_values = unit_values.replace(']', '')
+    # vérification de l'ordre des axes (et correction)
+    x = v.Px[0, :]
+    y = v.Py[:, 0]
+    Vx = v.Vx[0]
+    Vy = v.Vy[0]
+    if x[-1] < x[0]:
+        x = x[::-1]
+        Vx = Vx[:, ::-1]
+        Vy = Vy[:, ::-1]
+    if y[-1] < y[0]:
+        y = y[::-1]
+        Vx = Vx[::-1, :]
+        Vy = Vy[::-1, :]
+    if velocity:
+        tmpvf = VelocityField()
+        tmpvf.import_from_arrays(x, y, Vx, Vy, time, make_unit(unit_x),
+                                 make_unit(unit_y), make_unit(unit_values),
+                                 unit_time)
+    else:
+        tmpvf = VectorField()
+        tmpvf.import_from_arrays(x, y, Vx, Vy, make_unit(unit_x),
+                                 make_unit(unit_y), make_unit(unit_values))
+    return tmpvf
+
+def import_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
+                      vy_col=None, unit_x=make_unit(""), unit_y=make_unit(""),
+                      unit_values=make_unit(""), **kwargs):
+    """
+    Import a scalarfield ot a vectorfield from an ascii file.
+    If vy_col is 'None', a ScalarField is returned,
+    else, a VectorField is returned.
+
+    Parameters
+    ----------
+    x_col, y_col, vx_col, vy_col : integer, optional
+        Colonne numbers for the given variables
+        (begining at 1).
+    unit_x, unit_y, unit_v : Unit objects, optional
+        Unities for the given variables.
+    **kwargs :
+        Possibles additional parameters are the same as those used in the
+        numpy function 'genfromtext()' :
+        'delimiter' to specify the delimiter between colonnes.
+        'skip_header' to specify the number of colonne to skip at file
+            begining
+        ...
+    """
+    # validating parameters
+    if not isinstance(x_col, int) or not isinstance(y_col, int)\
+            or not isinstance(vx_col, int):
+        raise TypeError("'x_col', 'y_col', 'vx_col' and 'vy_col' must "
+                        "be integers")
+    if x_col < 1 or y_col < 1 or vx_col < 1:
+        raise ValueError("Colonne number out of range")
+    if vy_col is not None:
+        if not isinstance(vy_col, int):
+            raise TypeError("'x_col', 'y_col', 'vx_col' and 'vy_col' must "
+                            "be integers")
+        if vy_col < 1:
+            raise ValueError("Colonne number out of range")
+    # 'names' deletion, if specified (dangereux pour la suite)
+    if 'names' in kwargs:
+        kwargs.pop('names')
+    # extract data from file
+    data = np.genfromtxt(filename, **kwargs)
+    # get axes
+    x = data[:, x_col-1]
+    x_org = np.unique(x)
+    y = data[:, y_col-1]
+    y_org = np.unique(y)
+    vx = data[:, vx_col-1]
+    if vy_col is not None:
+        vy = data[:, vy_col-1]
+    # Masking all the initial fields (to handle missing values)
+    vx_org = np.zeros((y_org.shape[0], x_org.shape[0]))
+    vx_org_mask = np.ones(vx_org.shape)
+    vx_org = np.ma.masked_array(vx_org, vx_org_mask)
+    if vy_col is not None:
+        vy_org = np.zeros((y_org.shape[0], x_org.shape[0]))
+        vy_org_mask = np.ones(vy_org.shape)
+        vy_org = np.ma.masked_array(vy_org, vy_org_mask)
+    #loop on all 'v' values
+    for i in np.arange(vx.shape[0]):
+        x_tmp = x[i]
+        y_tmp = y[i]
+        vx_tmp = vx[i]
+        if vy_col is not None:
+            vy_tmp = vy[i]
+        #find x index
+        for j in np.arange(x_org.shape[0]):
+            if x_org[j] == x_tmp:
+                x_ind = j
+        #find y index
+        for j in np.arange(y_org.shape[0]):
+            if y_org[j] == y_tmp:
+                y_ind = j
+        #put the value at its place
+        vx_org[y_ind, x_ind] = vx_tmp
+        if vy_col is not None:
+            vy_org[y_ind, x_ind] = vy_tmp
+    # Treating 'nan' values
+    vx_org.mask = np.logical_or(vx_org.mask, np.isnan(vx_org.data))
+    if vy_col is not None:
+        vy_org.mask = np.logical_or(vy_org.mask, np.isnan(vy_org.data))
+    #store field in attributes
+    if vy_col is None:
+        tmpsf = ScalarField()
+        tmpsf.import_from_arrays(x_org, y_org, vx_org, unit_x, unit_y,
+                            unit_values)
+        return tmpsf
+    else:
+        tmpvf = VectorField()
+        tmpvf.import_from_arrays(x_org, y_org, vx_org, vy_org, unit_x, unit_y,
+                                 unit_values)
+        return tmpvf
+
