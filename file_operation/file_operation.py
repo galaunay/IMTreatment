@@ -510,13 +510,131 @@ def import_from_VC7(filename, velocity=False, time=None, unit_time=None):
                                  make_unit(unit_y), make_unit(unit_values))
     return tmpvf
 
-def import_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
-                      vy_col=None, unit_x=make_unit(""), unit_y=make_unit(""),
-                      unit_values=make_unit(""), **kwargs):
+
+def import_from_VC7s(self, fieldspath, dt=1, fieldnumbers=None, incr=1):
     """
-    Import a scalarfield ot a vectorfield from an ascii file.
-    If vy_col is 'None', a ScalarField is returned,
-    else, a VectorField is returned.
+    Import velocity fields from .VC7 files.
+    'fieldspath' should be a tuple of path to vc7 files.
+    All vc7 file present in the folder are imported.
+
+    Parameters
+    ----------
+    fieldspath : string or tuple of string
+    fieldnumbers : 2x1 tuple of int
+        Interval of fields to import, default is all.
+    incr : integer
+        Incrementation between fields to take. Default is 1, meaning all
+        fields are taken.
+    dt : number
+        interval of time between fields.
+    """
+    self.fields = []
+    if fieldnumbers is not None:
+        if not isinstance(fieldnumbers, ARRAYTYPES):
+            raise TypeError("'fieldnumbers' must be a 2x1 array")
+        if not len(fieldnumbers) == 2:
+            raise TypeError("'fieldnumbers' must be a 2x1 array")
+        if not isinstance(fieldnumbers[0], int) \
+                or not isinstance(fieldnumbers[1], int):
+            raise TypeError("'fieldnumbers' must be an array of integers")
+    if not isinstance(incr, int):
+        raise TypeError("'incr' must be an integer")
+    if incr <= 0:
+        raise ValueError("'incr' must be positive")
+    if not isinstance(dt, NUMBERTYPES):
+        raise TypeError("'dt' must be a number")
+    # fields are defining by a set of file path
+    if not isinstance(fieldspath, ARRAYTYPES):
+        raise TypeError("'fieldspath' msut be a tuple of valid paths")
+    if not isinstance(fieldspath[0], STRINGTYPES):
+        raise TypeError("'fieldspath' must be a string or a tuple of"
+                        " string")
+    for path in fieldspath:
+        tmp_vf = VelocityField()
+        import_from_VC7(path)
+        self.add_field(tmp_vf)
+    # time implementation
+    t = 0
+    for field in self.fields:
+        field.time = t
+        t += dt*incr
+
+
+def import_sf_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
+                         unit_x=make_unit(""),
+                         unit_y=make_unit(""),
+                         unit_values=make_unit(""), **kwargs):
+    """
+    Import a scalarfield from an ascii file.
+
+    Parameters
+    ----------
+    x_col, y_col, vx_col: integer, optional
+        Colonne numbers for the given variables
+        (begining at 1).
+    unit_x, unit_y, unit_v : Unit objects, optional
+        Unities for the given variables.
+    **kwargs :
+        Possibles additional parameters are the same as those used in the
+        numpy function 'genfromtext()' :
+        'delimiter' to specify the delimiter between colonnes.
+        'skip_header' to specify the number of colonne to skip at file
+            begining
+        ...
+    """
+    # validating parameters
+    if not isinstance(x_col, int) or not isinstance(y_col, int)\
+            or not isinstance(vx_col, int):
+        raise TypeError("'x_col', 'y_col', 'vx_col' and 'vy_col' must "
+                        "be integers")
+    if x_col < 1 or y_col < 1 or vx_col < 1:
+        raise ValueError("Colonne number out of range")
+    # 'names' deletion, if specified (dangereux pour la suite)
+    if 'names' in kwargs:
+        kwargs.pop('names')
+    # extract data from file
+    data = np.genfromtxt(filename, **kwargs)
+    # get axes
+    x = data[:, x_col-1]
+    x_org = np.unique(x)
+    y = data[:, y_col-1]
+    y_org = np.unique(y)
+    vx = data[:, vx_col-1]
+    # Masking all the initial fields (to handle missing values)
+    vx_org = np.zeros((y_org.shape[0], x_org.shape[0]))
+    vx_org_mask = np.ones(vx_org.shape)
+    vx_org = np.ma.masked_array(vx_org, vx_org_mask)
+    #loop on all 'v' values
+    for i in np.arange(vx.shape[0]):
+        x_tmp = x[i]
+        y_tmp = y[i]
+        vx_tmp = vx[i]
+        #find x index
+        for j in np.arange(x_org.shape[0]):
+            if x_org[j] == x_tmp:
+                x_ind = j
+        #find y index
+        for j in np.arange(y_org.shape[0]):
+            if y_org[j] == y_tmp:
+                y_ind = j
+        #put the value at its place
+        vx_org[y_ind, x_ind] = vx_tmp
+    # Treating 'nan' values
+    vx_org.mask = np.logical_or(vx_org.mask, np.isnan(vx_org.data))
+
+    #store field in attributes
+    tmpsf = ScalarField()
+    tmpsf.import_from_arrays(x_org, y_org, vx_org, unit_x, unit_y,
+                        unit_values)
+    return tmpsf
+
+
+def import_vf_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
+                         vy_col=4, unit_x=make_unit(""),
+                         unit_y=make_unit(""),
+                         unit_values=make_unit(""), **kwargs):
+    """
+    Import a vectorfield from an ascii file.
 
     Parameters
     ----------
@@ -557,23 +675,20 @@ def import_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
     y = data[:, y_col-1]
     y_org = np.unique(y)
     vx = data[:, vx_col-1]
-    if vy_col is not None:
-        vy = data[:, vy_col-1]
+    vy = data[:, vy_col-1]
     # Masking all the initial fields (to handle missing values)
     vx_org = np.zeros((y_org.shape[0], x_org.shape[0]))
     vx_org_mask = np.ones(vx_org.shape)
     vx_org = np.ma.masked_array(vx_org, vx_org_mask)
-    if vy_col is not None:
-        vy_org = np.zeros((y_org.shape[0], x_org.shape[0]))
-        vy_org_mask = np.ones(vy_org.shape)
-        vy_org = np.ma.masked_array(vy_org, vy_org_mask)
+    vy_org = np.zeros((y_org.shape[0], x_org.shape[0]))
+    vy_org_mask = np.ones(vy_org.shape)
+    vy_org = np.ma.masked_array(vy_org, vy_org_mask)
     #loop on all 'v' values
     for i in np.arange(vx.shape[0]):
         x_tmp = x[i]
         y_tmp = y[i]
         vx_tmp = vx[i]
-        if vy_col is not None:
-            vy_tmp = vy[i]
+        vy_tmp = vy[i]
         #find x index
         for j in np.arange(x_org.shape[0]):
             if x_org[j] == x_tmp:
@@ -584,21 +699,83 @@ def import_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
                 y_ind = j
         #put the value at its place
         vx_org[y_ind, x_ind] = vx_tmp
-        if vy_col is not None:
-            vy_org[y_ind, x_ind] = vy_tmp
+        vy_org[y_ind, x_ind] = vy_tmp
     # Treating 'nan' values
     vx_org.mask = np.logical_or(vx_org.mask, np.isnan(vx_org.data))
-    if vy_col is not None:
-        vy_org.mask = np.logical_or(vy_org.mask, np.isnan(vy_org.data))
+    vy_org.mask = np.logical_or(vy_org.mask, np.isnan(vy_org.data))
     #store field in attributes
-    if vy_col is None:
-        tmpsf = ScalarField()
-        tmpsf.import_from_arrays(x_org, y_org, vx_org, unit_x, unit_y,
-                            unit_values)
-        return tmpsf
-    else:
-        tmpvf = VectorField()
-        tmpvf.import_from_arrays(x_org, y_org, vx_org, vy_org, unit_x, unit_y,
-                                 unit_values)
-        return tmpvf
+    tmpvf = VectorField()
+    tmpvf.import_from_arrays(x_org, y_org, vx_org, vy_org, unit_x, unit_y,
+                             unit_values)
+    return tmpvf
 
+
+def import_vfs_from_ascii(self, filepath, incr=1, interval=None,
+                          x_col=1, y_col=2, vx_col=3,
+                          vy_col=4, unit_x=make_unit(""),
+                          unit_y=make_unit(""),
+                          unit_values=make_unit(""), times=[],
+                          unit_time=make_unit(''), **kwargs):
+    """
+    Import velocityfields from an ascii files.
+    Warning : txt files are taken in alpha-numerical order
+    ('file2.txt' is taken before 'file20.txt').
+    So you should name your files properly.
+
+    Parameters
+    ----------
+    filepath : string
+        Pathname pattern to the ascii files.
+        (Example: >>> r"F:\datas\velocities_*.txt")
+    incr : integer, optional
+        Increment value between two fields taken.
+    interval : 2x1 array, optional
+        Interval in which take fields.
+    x_col, y_col, vx_col, vy_col : integer, optional
+        Colonne numbers for the given variables
+        (begining at 1).
+    unit_x, unit_y, unit_v : Unit objects, optional
+        Unities for the given variables.
+    times : array of number, optional
+        Times of the instantaneous fields.
+    unit_time : Unit object, optional
+        Time unit, 'second' by default.
+    **kwargs :
+        Possibles additional parameters are the same as those used in the
+        numpy function 'genfromtext()' :
+        'delimiter' to specify the delimiter between colonnes.
+        'skip_header' to specify the number of colonne to skip at file
+            begining
+        ...
+    """
+    if not isinstance(incr, int):
+        raise TypeError("'incr' must be an integer")
+    if incr < 1:
+        raise ValueError("'incr' must be superior to 1")
+    if interval is not None:
+        if not isinstance(interval, ARRAYTYPES):
+            raise TypeError("'interval' must be an array")
+        if not len(interval) == 2:
+            raise ValueError("'interval' must be a 2x1 array")
+        if interval[0] > interval[1]:
+            interval = [interval[1], interval[0]]
+    paths = glob.glob(filepath)
+    if interval is None:
+        interval = [0, len(paths)-1]
+    if interval[0] < 0 or interval[1] > len(paths):
+        raise ValueError("'interval' is out of bounds")
+    if times == []:
+        times = np.arange(len(paths))
+    if len(paths) != len(times):
+        raise ValueError("Not enough values in 'times'")
+    ref_path_len = len(paths[0])
+    for i in np.arange(interval[0], interval[1] + 1, incr):
+        path = paths[i]
+        if len(path) != ref_path_len:
+            raise Warning("You should check your files names,"
+                          "i may have taken them in the wrong order.")
+        tmp_vf = VelocityField()
+        tmp_vf.import_from_ascii(path, x_col, y_col, vx_col, vy_col,
+                                 unit_x, unit_y, unit_values, times[i],
+                                 unit_time, **kwargs)
+        self.add_field(tmp_vf)

@@ -212,13 +212,13 @@ class Points(object):
         """
         if not isinstance(xy, ARRAYTYPES):
             raise TypeError("'xy' must be a tuple of 2x1 arrays")
-        xy = np.array(xy, subok=True)
+        xy = np.array(xy, subok=True, dtype=float)
         if xy.shape != (0,) and (len(xy.shape) != 2 or xy.shape[1] != 2):
             raise ValueError("'xy' must be a tuple of 2x1 arrays")
         if v is not None:
             if not isinstance(v, ARRAYTYPES):
                 raise TypeError("'v' must be an array")
-            v = np.array(v)
+            v = np.array(v, dtype=float)
             if not xy.shape[0] == v.shape[0]:
                 raise ValueError("'v' ans 'xy' must have the same dimensions")
         if not isinstance(unit_x, unum.Unum)   \
@@ -622,11 +622,11 @@ class Profile(object):
         if not isinstance(x, ARRAYTYPES):
             raise TypeError("'x' must be an array")
         if not isinstance(x, (np.ndarray, np.ma.MaskedArray)):
-            x = np.array(x)
+            x = np.array(x, dtype=float)
         if not isinstance(y, ARRAYTYPES):
             raise TypeError("'y' must be an array")
         if not isinstance(y, (np.ndarray, np.ma.MaskedArray)):
-            y = np.array(y)
+            y = np.array(y, dtype=float)
         if not isinstance(name, STRINGTYPES):
             raise TypeError("'name' must be a string")
         if not isinstance(unit_x, unum.Unum):
@@ -1017,7 +1017,7 @@ class Profile(object):
         # checking parameters coherence
         if not isinstance(interval, ARRAYTYPES):
             raise TypeError("'interval' must be an array")
-        interval = np.array(interval)
+        interval = np.array(interval, dtype=float)
         if not interval.shape == (2,):
             raise ValueError("'interval' must be an array with only two"
                              "values")
@@ -1075,8 +1075,8 @@ class Profile(object):
         if meandist > len(self.x):
             raise ValueError("'meandist' must be smaller than the length of "
                              "the profile")
-        smoothx = np.array([])
-        smoothy = np.array([])
+        smoothx = np.array([], dtype=float)
+        smoothy = np.array([], dtype=float)
         for i in np.arange(0, len(self.x)-meandist+1):
             locsmoothx = 0
             locsmoothy = 0
@@ -1163,8 +1163,8 @@ class Profile(object):
 class Field(object):
 
     def __init__(self):
-        self.axe_x = np.array([])
-        self.axe_y = np.array([])
+        self.axe_x = np.array([], dtype=float)
+        self.axe_y = np.array([], dtype=float)
         self.unit_x = make_unit('')
         self.unit_y = make_unit('')
 
@@ -1220,7 +1220,7 @@ class Field(object):
         if axe_x is not None:
             if not isinstance(axe_x, ARRAYTYPES):
                 raise TypeError("'axe_x' must be an array")
-            axe_x = np.array(axe_x)
+            axe_x = np.array(axe_x, dtype=float)
             if self.axe_x.shape == axe_x.shape:
                 self.axe_x = axe_x
             else:
@@ -1228,7 +1228,7 @@ class Field(object):
         if axe_y is not None:
             if not isinstance(axe_y, ARRAYTYPES):
                 raise TypeError("'axe_y' must be an array")
-            axe_y = np.array(axe_y)
+            axe_y = np.array(axe_y, dtype=float)
             if axe_y.shape == self.axe_y.shape:
                 self.axe_y = axe_y
             else:
@@ -1285,13 +1285,14 @@ class Field(object):
         full_output : boolean, optional
             If 'True', cutting indices are alson returned
         """
+        axe_x, axe_y = self.get_axes()
         if intervalx is None:
-            intervalx = [self.axe_x[0], self.axe_x[-1]]
+            intervalx = [axe_x[0], axe_x[-1]]
         if intervaly is None:
-            intervaly = [self.axe_y[0], self.axe_y[-1]]
+            intervaly = [axe_y[0], axe_y[-1]]
         if not isinstance(intervalx, ARRAYTYPES):
             raise TypeError("'intervalx' must be an array of two numbers")
-        intervalx = np.array(intervalx)
+        intervalx = np.array(intervalx, dtype=float)
         if intervalx.ndim != 1:
             raise ValueError("'intervalx' must be an array of two numbers")
         if intervalx.shape != (2,):
@@ -1300,7 +1301,7 @@ class Field(object):
             raise ValueError("'intervalx' values must be crescent")
         if not isinstance(intervaly, ARRAYTYPES):
             raise TypeError("'intervaly' must be an array of two numbers")
-        intervaly = np.array(intervaly)
+        intervaly = np.array(intervaly, dtype=float)
         if intervaly.ndim != 1:
             raise ValueError("'intervaly' must be an array of two numbers")
         if intervaly.shape != (2,):
@@ -1308,20 +1309,20 @@ class Field(object):
         if intervaly[0] > intervaly[1]:
             raise ValueError("'intervaly' values must be crescent")
         # finding interval indices
-        if intervalx[0] <= self.axe_x[0]:
+        if intervalx[0] <= axe_x[0]:
             indmin_x = 0
         else:
             indmin_x = self.get_indice_on_axe(1, intervalx[0])[-1]
-        if intervalx[1] >= self.axe_x[-1]:
-            indmax_x = len(self.axe_x) - 1
+        if intervalx[1] >= axe_x[-1]:
+            indmax_x = len(axe_x) - 1
         else:
             indmax_x = self.get_indice_on_axe(1, intervalx[1])[0]
-        if intervaly[0] <= self.axe_y[0]:
+        if intervaly[0] <= axe_y[0]:
             indmin_y = 0
         else:
             indmin_y = self.get_indice_on_axe(2, intervaly[0])[-1]
-        if intervaly[1] >= self.axe_y[-1]:
-            indmax_y = len(self.axe_y) - 1
+        if intervaly[1] >= axe_y[-1]:
+            indmax_y = len(axe_y) - 1
         else:
             indmax_y = self.get_indice_on_axe(2, intervaly[1])[0]
         trimfield = self.get_copy()
@@ -1404,7 +1405,7 @@ class Field(object):
         """
         if not isinstance(center, ARRAYTYPES):
             raise TypeError("'center' must be an array")
-        center = np.array(center)
+        center = np.array(center, dtype=float)
         if not center.shape == (2,):
             raise ValueError("'center' must be a 2x1 array")
         if not isinstance(radius, NUMBERTYPES):
@@ -1782,19 +1783,19 @@ class ScalarField(Field):
         if not isinstance(axe_x, ARRAYTYPES):
             raise TypeError("'axe_x' must be an array")
         else:
-            axe_x = np.array(axe_x)
+            axe_x = np.array(axe_x, dtype=float)
         if not axe_x.ndim == 1:
             raise ValueError("'axe_x' must be a one dimension array")
         if not isinstance(axe_y, ARRAYTYPES):
             raise TypeError("'axe_y' must be an array")
         else:
-            axe_y = np.array(axe_y)
+            axe_y = np.array(axe_y, dtype=float)
         if not axe_y.ndim == 1:
             raise ValueError("'axe_y' must be a one dimension array")
         if not isinstance(values, ARRAYTYPES):
             raise TypeError("'values' must be an array")
         elif isinstance(values, (list, tuple)):
-            values = np.array(values)
+            values = np.array(values, dtype=float)
         if not values.ndim == 2:
             raise ValueError("'values' must be a two dimension array")
         if unit_x is not None:
@@ -1820,7 +1821,7 @@ class ScalarField(Field):
             mask = values.mask
             values = values.data
         else:
-            values = np.array(values)
+            values = np.array(values, dtype=float)
             mask = np.zeros(values.shape)
         values = values*unit_values_value
         self.values = np.ma.masked_array(values, mask, copy=True)
@@ -1945,7 +1946,7 @@ class ScalarField(Field):
         # récupération du masque
         mask = np.logical_or(mask, self.values.mask)
         pts = None
-        v = np.array([])
+        v = np.array([], dtype=float)
 
         for inds, pos, value in self:
             if mask[inds[1], inds[0]]:
@@ -1980,6 +1981,11 @@ class ScalarField(Field):
             values = self.values
         elif componentname == 'mask':
             values = self.values.mask
+            if isinstance(values, np.bool_):
+                if values:
+                    values = np.ones(self.get_dim(), dtype=bool)
+                else:
+                    values = np.zeros(self.get_dim(), dtype=bool)
         else:
             raise ValueError("unknown value of 'componentname'")
         if raw:
@@ -2253,7 +2259,7 @@ class ScalarField(Field):
         if not isinstance(bornes, ARRAYTYPES):
             raise TypeError("'bornes' must be an array")
         if not isinstance(bornes, np.ndarray):
-            bornes = np.array(bornes)
+            bornes = np.array(bornes, dtype=float)
         if not bornes.shape == (2,):
             raise ValueError("'bornes' must be a 2x1 array")
         if not bornes[0] < bornes[1]:
@@ -2329,7 +2335,7 @@ class ScalarField(Field):
                 dy = self.axe_y[1] - self.axe_y[0]
                 y = self.axe_y[int(indy)] + dy*(indy % 1)
             coords.append([x, y])
-        coords = np.array(coords)
+        coords = np.array(coords, dtype=float)
         if len(coords) == 0:
             return None
         return Points(coords, unit_x=self.unit_x, unit_y=self.unit_y)
@@ -2366,7 +2372,7 @@ class ScalarField(Field):
         if not isinstance(position, NUMBERTYPES + ARRAYTYPES):
             raise TypeError("'position' must be a number or an interval")
         if isinstance(position, ARRAYTYPES):
-            position = np.array(position)
+            position = np.array(position, dtype=float)
             if not position.shape == (2,):
                 raise ValueError("'position' must be a number or an interval")
         if direction == 1:
@@ -2800,7 +2806,7 @@ class ScalarField(Field):
             else:
                 fig = plt.contourf(X, Y, values, cmap=cm.jet, linewidth=1,
                                    **plotargs)
-        elif kind is None:
+        elif kind == "imshow" or kind is None:
             if not 'cmap' in plotargs.keys():
                 plotargs['cmap'] = cm.jet
             if not 'interpolation' in plotargs.keys():
@@ -2829,7 +2835,7 @@ class ScalarField(Field):
         Parameters
         ----------
         kind : string, optinnal
-            If 'None': each datas are plotted (imshow),
+            If 'imshow': (default) each datas are plotted (imshow),
             if 'contour': contours are ploted (contour),
             if 'contourf': filled contours are ploted (contourf),
             if '3D': a tri-dimensionnal plot is created.
@@ -2896,8 +2902,8 @@ class VectorField(Field):
 
     def __init__(self):
         Field.__init__(self)
-        self.comp_x = np.array([])
-        self.comp_y = np.array([])
+        self.comp_x = np.array([], dtype=float)
+        self.comp_y = np.array([], dtype=float)
         self.unit_values = make_unit('')
 
     def __neg__(self):
@@ -2908,8 +2914,9 @@ class VectorField(Field):
 
     def __add__(self, other):
         if isinstance(other, VectorField):
-            if (all(self.comp_x.axe_x != other.comp_x.axe_x) or
-                    all(self.comp_x.axe_y != other.comp_x.axe_y)):
+            axe_x, axe_y = self.get_axes()
+            oaxe_x, oaxe_y = other.get_axes()
+            if (all(axe_x != oaxe_x) or all(axe_y != oaxe_y)):
                 raise ValueError("Vector fields have to be consistent "
                                  "(same dimensions)")
             try:
@@ -2919,10 +2926,13 @@ class VectorField(Field):
             except:
                 raise ValueError("I think these units don't match, fox")
             tmpvf = self.get_copy()
-            tmpvf.comp_x = (self.comp_x
-                            + other.comp_x*other.unit_values/self.unit_values)
-            tmpvf.comp_y = (self.comp_y
-                            + other.comp_y*other.unit_values/self.unit_values)
+            fact = (other.get_unit_values()/self.get_unit_values()).asNumber()
+            values_x = (self.get_comp('Vx', raw=True)
+                + other.get_comp('Vx', raw=True)*fact)
+            tmpvf.set_comp('Vx', values_x)
+            values_y = (self.get_comp('Vy', raw=True)
+                + other.get_comp('Vy', raw=True)*fact)
+            tmpvf.set_comp('Vy', values_y)
             return tmpvf
         else:
             raise TypeError("You can only add a velocity field "
@@ -3144,25 +3154,25 @@ class VectorField(Field):
         if not isinstance(axe_x, ARRAYTYPES):
             raise TypeError("'axe_x' must be an array")
         else:
-            axe_x = np.array(axe_x)
+            axe_x = np.array(axe_x, dtype=float)
         if not axe_x.ndim == 1:
             raise ValueError("'axe_x' must be a one dimension array")
         if not isinstance(axe_y, ARRAYTYPES):
             raise TypeError("'axe_y' must be an array")
         else:
-            axe_y = np.array(axe_y)
+            axe_y = np.array(axe_y, dtype=float)
         if not axe_y.ndim == 1:
             raise ValueError("'axe_y' must be a one dimension array")
         if not isinstance(comp_x, ARRAYTYPES):
             raise TypeError("'comp_x' must be an array")
         elif isinstance(comp_x, (list, tuple)):
-            comp_x = np.array(comp_x)
+            comp_x = np.array(comp_x, dtype=float)
         if not comp_x.ndim == 2:
             raise ValueError("'comp_x' must be a two dimension array")
         if not isinstance(comp_y, ARRAYTYPES):
             raise TypeError("'comp_y' must be an array")
         elif isinstance(comp_y, (list, tuple)):
-            comp_y = np.array(comp_y)
+            comp_y = np.array(comp_y, dtype=float)
         if not comp_y.ndim == 2:
             raise ValueError("'comp_y' must be a two dimension array")
         if unit_x is not None:
@@ -3189,6 +3199,19 @@ class VectorField(Field):
         self.unit_x = unit_x
         self.unit_y = unit_y
         self.unit_values = unit_values
+
+    def export_to_velocityfield(self, time=None, unit_time=make_unit('')):
+        if time is None:
+            time = 0
+        axe_x, axe_y = self.get_axes()
+        unit_x, unit_y = self.get_axe_units()
+        value_x, value_y = (self.get_comp('x', raw=True),
+                            self.get_comp('y', raw=True))
+        unit_values = self.get_unit_values()
+        tmpvf = VelocityField()
+        tmpvf.import_from_arrays(axe_x, axe_y, value_x, value_y, time,
+                                 unit_x, unit_y, unit_values, unit_time)
+        return tmpvf
 
 #    def import_from_scalarfields(self, comp_x, comp_y):
 #        """
@@ -3416,6 +3439,11 @@ class VectorField(Field):
             values = self.comp_y
         elif componentname == 'mask':
             values = np.logical_or(self.comp_x.mask, self.comp_y.mask)
+            if isinstance(values, np.bool_):
+                if values:
+                    values = np.ones(self.get_dim(), dtype=bool)
+                else:
+                    values = np.zeros(self.get_dim(), dtype=bool)
         else:
             raise ValueError("unknown value of 'componentname'")
         if raw:
@@ -3589,6 +3617,8 @@ class VectorField(Field):
         """
         Return a tuples of Points object representing the streamline begining
         at the points specified in xy.
+        Warning : fill the field before computing streamlines, can give bad
+        results if the field have a lot of masked values.
 
         Parameters
         ----------
@@ -3603,44 +3633,47 @@ class VectorField(Field):
         reverse_direction : boolean, optional
             If True, the streamline goes upstream.
         """
+        axe_x, axe_y = self.get_axes()
+        # checking parameters coherence
         if not isinstance(xy, ARRAYTYPES):
             raise TypeError("'xy' must be a tuple of arrays")
-        xy = np.array(xy)
+        xy = np.array(xy, dtype=float)
         if xy.shape == (2,):
             xy = [xy]
         elif len(xy.shape) == 2 and xy.shape[1] == 2:
             pass
         else:
             raise ValueError("'xy' must be a tuple of arrays")
-        axe_x, axe_y = self.get_axes()
-        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
-        Vx = Vx.flatten()
-        Vy = Vy.flatten()
         if not isinstance(delta, NUMBERTYPES):
             raise TypeError("'delta' must be a number")
         if delta <= 0:
             raise ValueError("'delta' must be positive")
         if delta > len(axe_x) or delta > len(axe_y):
             raise ValueError("'delta' is too big !")
-        deltaabs = delta * ((axe_x[-1]-axe_x[0])/len(axe_x)
-                            + (axe_y[-1]-axe_y[0])/len(axe_y))/2
-        deltaabs2 = deltaabs**2
         if not isinstance(interp, STRINGTYPES):
             raise TypeError("'interp' must be a string")
         if not (interp == 'linear' or interp == 'cubic'):
             raise ValueError("Unknown interpolation method")
+        # getting datas
+        tmpvf = self.get_copy()
+        tmpvf.fill()
+        unit_x, unit_y = tmpvf.get_axe_units()
+        Vx, Vy = tmpvf.get_comp('x', raw=True), self.get_comp('y', raw=True)
+        deltaabs = delta * ((axe_x[-1]-axe_x[0])/len(axe_x)
+                            + (axe_y[-1]-axe_y[0])/len(axe_y))/2.
+        deltaabs2 = deltaabs**2
         # interpolation lineaire du champ de vitesse
-        a, b = np.meshgrid(axe_x, axe_y)
-        a = a.flatten()
-        b = b.flatten()
-        pts = zip(a, b)
         if interp == 'linear':
-            interp_vx = spinterp.LinearNDInterpolator(pts, Vx.flatten())
-            interp_vy = spinterp.LinearNDInterpolator(pts, Vy.flatten())
-        elif interp == 'cubic':
-            interp_vx = spinterp.CloughTocher2DInterpolator(pts, Vx.flatten())
-            interp_vy = spinterp.CloughTocher2DInterpolator(pts, Vy.flatten())
+            interp_vx = spinterp.RectBivariateSpline(axe_y, axe_x, Vx,
+                                                     kx=1, ky=1)
+            interp_vy = spinterp.RectBivariateSpline(axe_y, axe_x, Vy,
+                                                     kx=1, ky=1)
 
+        elif interp == 'cubic':
+            interp_vx = spinterp.RectBivariateSpline(axe_y, axe_x, Vx,
+                                                     kx=3, ky=3)
+            interp_vy = spinterp.RectBivariateSpline(axe_y, axe_x, Vy,
+                                                     kx=3, ky=3)
         # Calcul des streamlines
         streams = []
         longmax = (len(axe_x)+len(axe_y))/delta
@@ -3657,11 +3690,9 @@ class VectorField(Field):
             stream[0, :] = [x, y]
             i = 1
             while True:
-                tmp_vx = interp_vx(stream[i-1, 0], stream[i-1, 1])
-                tmp_vy = interp_vy(stream[i-1, 0], stream[i-1, 1])
+                tmp_vx = interp_vx(stream[i-1, 1], stream[i-1, 0])[0, 0]
+                tmp_vy = interp_vy(stream[i-1, 1], stream[i-1, 0])[0, 0]
                 # tests d'arret
-                if np.isnan(tmp_vx) or np.isnan(tmp_vy):
-                    break
                 if i >= longmax-1:
                     break
                 if i > 15:
@@ -3678,9 +3709,14 @@ class VectorField(Field):
                 dy = tmp_vy/norm*deltaabs
                 stream[i, :] = [stream[i-1, 0] + dx, stream[i-1, 1] + dy]
                 i += 1
-            stream = stream[:i-1]
-            pts = Points(stream, unit_x=self.comp_x.unit_x,
-                         unit_y=self.comp_y.unit_y,
+                # tests d'arret
+                x = stream[i-1, 0]
+                y = stream[i-1, 1]
+                if (x < axe_x[0] or x > axe_x[-1] or y < axe_y[0]
+                        or y > axe_y[-1]):
+                    break
+            stream = stream[:i]
+            pts = Points(stream, unit_x=unit_x, unit_y=unit_y,
                          name='streamline at x={:.3f}, y={:.3f}'.format(x, y))
             streams.append(pts)
         if len(streams) == 0:
@@ -3712,7 +3748,7 @@ class VectorField(Field):
         """
         if not isinstance(xy, ARRAYTYPES):
             raise TypeError("'xy' must be a tuple of arrays")
-        xy = np.array(xy)
+        xy = np.array(xy, dtype=float)
         if xy.shape == (2,):
             xy = [xy]
         elif len(xy.shape) == 2 and xy.shape[1] == 2:
@@ -3821,7 +3857,7 @@ class VectorField(Field):
         comp_x, comp_y = (self.get_comp('x', raw=True),
                           self.get_comp('y', raw=True))
         unit_x, unit_y = self.get_axe_units()
-        values = np.sqrt(comp_x**2 + comp_y**2)
+        values = (comp_x**2 + comp_y**2)**(.5)
         unit_values = (unit_x**2 + unit_y**2)**(.5)
         magn = self.get_comp('x')
         magn.set_comp('values', values)
@@ -4241,7 +4277,7 @@ class VectorField(Field):
         return fig
 
 
-class VelocityField(object):
+class VelocityField(VectorField):
     """
     Class representing a velocity field and all its derived fields.
     Contrary to the 'VectorField' class, here the derived fields are stocked
@@ -4256,305 +4292,9 @@ class VelocityField(object):
     "display" : display the vector field, with these unities.
     """
     def __init__(self):
-        pass
-
-    def __neg__(self):
-        final_vf = VelocityField()
-        final_vf.import_from_vectorfield(-self.V, self.time, self.unit_time)
-        return final_vf
-
-    def __add__(self, other):
-        if isinstance(other, VelocityField):
-            if (all(self.V.comp_x.axe_x != other.V.comp_x.axe_x) or
-                    all(self.V.comp_x.axe_y != other.V.comp_x.axe_y)):
-                raise ValueError("Vector fields have to be consistent "
-                                 "(same dimensions)")
-            try:
-                self.V.comp_x.unit_values + other.V.comp_x.unit_values
-                self.V.comp_x.unit_x + other.V.comp_x.unit_x
-                self.V.comp_x.unit_y + other.V.comp_x.unit_y
-                self.unit_time + other.unit_time
-            except:
-                raise ValueError("I think these units don't match, fox")
-            time = (self.time + other.time)/2
-            final_vf = VelocityField()
-            final_vf.import_from_vectorfield(self.V + other.V, time,
-                                             self.unit_time)
-            return final_vf
-        else:
-            raise TypeError("You can only add a velocity field "
-                            "with others velocity fields")
-
-    def __sub__(self, other):
-        tmp_other = other.__neg__()
-        tmp_sf = self.__add__(tmp_other)
-        return tmp_sf
-
-    def __truediv__(self, number):
-        if isinstance(number, NUMBERTYPES):
-            final_vf = VelocityField()
-            final_vf.import_from_vectorfield(self.V/number, self.time,
-                                             self.unit_time)
-            return final_vf
-        if isinstance(number, unum.Unum):
-            final_vf = VelocityField()
-            final_vf.import_from_vectorfield(self.V/number, self.time,
-                                             self.unit_time)
-            return final_vf
-        else:
-            raise TypeError("You can only divide a velocity field "
-                            "by numbers")
-
-    __div__ = __truediv__
-
-    def __mul__(self, number):
-        if isinstance(number, NUMBERTYPES):
-            final_vf = VelocityField()
-            final_vf.import_from_vectorfield(self.V*number, self.time,
-                                             self.unit_time)
-            return final_vf
-        if isinstance(number, unum.Unum):
-            final_vf = VelocityField()
-            final_vf.import_from_vectorfield(self.V*number, self.time,
-                                             self.unit_time)
-            return final_vf
-        else:
-            raise TypeError("You can only multiply a velocity field "
-                            "by numbers")
-
-    __rmul__ = __mul__
-
-    def __sqrt__(self):
-        final_vf = VelocityField()
-        final_vf.import_from_vectorfield(np.sqrt(self.V), time=self.time,
-                                         unit_time=self.unit_time)
-        return final_vf
-
-    def __pow__(self, number):
-        if not isinstance(number, NUMBERTYPES):
-            raise TypeError("You only can use a number for the power "
-                            "on a Vectorfield")
-        final_vf = VelocityField()
-        final_vf.import_from_vectorfield(np.power(self.V, number),
-                                         time=self.time,
-                                         unit_time=self.unit_time)
-        return final_vf
-
-    def import_from_davis(self, filename, time=0, unit_time=make_unit("s")):
-        """
-        Import a velocity field from a .VC7 file.
-
-        Parameters
-        ----------
-        filename : string
-            Path to the file to import.
-        """
-        # entry tests
-        if not (isinstance(time, NUMBERTYPES)):
-            raise TypeError("'time' must be a number")
-        if not isinstance(unit_time, unum.Unum):
-            raise TypeError("'unit_time' must be a Unit object")
-        if not isinstance(filename, STRINGTYPES):
-            raise TypeError("'filename' must be a string")
-        if not os.path.exists(filename):
-            raise ValueError("'filename' must ne an existing file")
-        if os.path.isdir(filename):
-            filename = glob.glob(os.path.join(filename, '*.vc7'))[0]
-        _, ext = os.path.splitext(filename)
-        if not (ext == ".vc7" or ext == ".VC7"):
-            raise ValueError("'filename' must be a vc7 file")
-        # cleaning in case values are already been set
-        self._clear_derived()
-        # vc7 file importation
-        v = IM.VC7(filename)
-        # units treatment
-        unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
-        unit_x = unit_x.replace('[', '')
-        unit_x = unit_x.replace(']', '')
-        unit_y = v.buffer['scaleY']['unit'].split("\x00")[0]
-        unit_y = unit_y.replace('[', '')
-        unit_y = unit_y.replace(']', '')
-        unit_values = v.buffer['scaleI']['unit'].split("\x00")[0]
-        unit_values = unit_values.replace('[', '')
-        unit_values = unit_values.replace(']', '')
-        # axis correction
-        x = v.Px[0, :]
-        y = v.Py[:, 0]
-        Vx = v.Vx[0]
-        Vy = v.Vy[0]
-        if x[-1] < x[0]:
-            x = x[::-1]
-            Vx = Vx[:, ::-1]
-            Vy = Vy[:, ::-1]
-        if y[-1] < y[0]:
-            y = y[::-1]
-            Vx = Vx[::-1, :]
-            Vy = Vy[::-1, :]
-        comp_x = ScalarField()
-        comp_y = ScalarField()
-        comp_x.import_from_arrays(x, y, Vx,
-                                  make_unit(unit_x),
-                                  make_unit(unit_y),
-                                  make_unit(unit_values))
-        comp_y.import_from_arrays(x, y, Vy,
-                                  make_unit(unit_x),
-                                  make_unit(unit_y),
-                                  make_unit(unit_values))
-        self.V = VectorField()
-        self.V.import_from_scalarfields(comp_x, comp_y)
-        timefile = v.attributes['_TIME'].split(':')
-        timefile = float(timefile[0])*3600 + float(timefile[1])*60\
-            + float(timefile[2])
-        self.time = time
-        self.unit_time = unit_time
-
-    def import_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
-                          vy_col=4, unit_x=make_unit(""), unit_y=make_unit(""),
-                          unit_values=make_unit(""), time=0,
-                          unit_time=make_unit('s'), **kwargs):
-        """
-        Import a velocityfield from an ascii file.
-
-        Parameters
-        ----------
-        x_col, y_col, vx_col, vy_col : integer, optional
-            Colonne numbers for the given variables
-            (begining at 1).
-        unit_x, unit_y, unit_v : Unit objects, optional
-            Unities for the given variables.
-        time : number, optional
-            Time of the instantaneous field.
-        unit_time : Unit object, optional
-            Time unit, 'second' by default.
-        **kwargs :
-            Possibles additional parameters are the same as those used in the
-            numpy function 'genfromtext()' :
-            'delimiter' to specify the delimiter between colonnes.
-            'skip_header' to specify the number of colonne to skip at file
-                begining
-            ...
-        """
-        VF = VectorField()
-        VF.import_from_ascii(filename, x_col, y_col, vx_col, vy_col, unit_x,
-                             unit_y, unit_values, **kwargs)
-        self.import_from_vectorfield(VF, time, unit_time)
-
-    def import_from_matlab(self, filename, time, unit_time=make_unit("s")):
-        """
-        Import a velocityfield from a maltab file.
-        """
-        pass
-
-    def import_from_scalarfields(self, comp_x, comp_y, time,
-                                 unit_time=make_unit("s")):
-        """
-        Import a velocity field from two scalarfields.
-
-        Parameters
-        ----------
-        CompX : ScalarField
-            X component of the vector field.
-        CompY : ScalarField
-            Y component of the vector field.
-        time : float
-            Time when the velocity field has been taken
-        unit_time : Unit object, optional
-            Unit for the specified time (default is 'second')
-        """
-        if not isinstance(time, NUMBERTYPES):
-            raise TypeError("'time' must be a number")
-        if not isinstance(unit_time, unum.Unum):
-            raise TypeError("'unit_time' must be a Unit object")
-        # cleaning in case values are already been set
-        self._clear_derived()
-        self.V = VectorField()
-        self.V.import_from_scalarfields(comp_x, comp_y)
-        self.time = time
-        self.unit_time = unit_time.copy()
-
-    def import_from_vectorfield(self, vectorfield, time=0,
-                                unit_time=make_unit('s')):
-        """
-        Import a velocity field from a vectorfield.
-
-        Parameters
-        ----------
-        vectorfield : VectorField object
-            The vector field to import.
-        time : float, optional
-            Time when the velocity field has been taken
-        unit_time : Unit object, optional
-            Unit for the specified time (default is 'second')
-        """
-        if not isinstance(vectorfield, VectorField):
-            raise TypeError("'vectorfield' must be a VectorField object")
-        if not isinstance(time, NUMBERTYPES):
-            raise TypeError("'time' must be a number")
-        if not isinstance(unit_time, unum.Unum):
-            raise TypeError("'unit_time' must be a Unit object")
-        # cleaning in case values are already been set
-        self._clear_derived()
-        self.V = vectorfield.get_copy()
-        self.time = time
-        self.unit_time = unit_time.copy()
-
-    def import_from_velocityfield(self, velocityfield):
-        """
-        Import a velocity field from another velocityfield.
-
-        Parameters
-        ----------
-        velocityfield : velocityField object
-            The velocity field to copy.
-        """
-        if not isinstance(velocityfield, VelocityField):
-            raise TypeError("'velocityfield' must be a VelocityField object")
-        # cleaning in case values are already been set
-        self._clear_derived()
-        self.V = velocityfield.V.get_copy()
-        self.time = velocityfield.time*1
-        self.unit_time = velocityfield.unit_time.copy()
-
-    def import_from_file(self, filepath, **kw):
-        """
-        Load a VelocityField object from the specified file using the JSON
-        format.
-        Additionnals arguments for the JSON decoder may be set with the **kw
-        argument. Such as'encoding' (to change the file
-        encoding, default='utf-8').
-
-        Parameters
-        ----------
-        filepath : string
-            Path specifiing the VelocityField to load.
-        """
-        # cleaning in case values are already been set
-        import IMTreatment.io.io as imtio
-        self._clear_derived()
-        tmp_vf = imtio.import_from_file(filepath, **kw)
-        if tmp_vf.__classname__ != self.__classname__:
-            raise IOError("This file do not contain a VelocityField, cabron.")
-        self.import_from_velocityfield(tmp_vf)
-
-    def export_to_file(self, filepath, compressed=True, **kw):
-        """
-        Write the Profile object in the specified file usint the JSON format.
-        Additionnals arguments for the JSON encoder may be set with the **kw
-        argument. Such arguments may be 'indent' (for visual indentation in
-        file, default=0) or 'encoding' (to change the file encoding,
-        default='utf-8').
-        If existing, specified file will be truncated. If not, it will
-        be created.
-
-        Parameters
-        ----------
-        filepath : string
-            Path specifiing where to save the ScalarField.
-        compressed : boolean, optional
-            If 'True' (default), the json file is compressed using gzip.
-        """
-        import IMTreatment.io.io as imtio
-        imtio.export_to_file(self, filepath, compressed, **kw)
+        VectorField.__init__(self)
+        self.time = 0
+        self.unit_time = make_unit('')
 
     def _clear_derived(self):
         """
@@ -4573,14 +4313,65 @@ class VelocityField(object):
                 if attr not in ['V', 'time', 'unit_time']:
                     del self.__dict__[attr]
 
-    def get_comp(self, componentname):
+    def import_from_arrays(self, axe_x, axe_y, comp_x, comp_y, time=0.,
+                           unit_x=make_unit(""), unit_y=make_unit(""),
+                           unit_values=make_unit(""), unit_time=make_unit("")):
+        """
+        Set the velocity field from a set of arrays.
+
+        Parameters
+        ----------
+        axe_x : array
+            Discretized axis value along x
+        axe_y : array
+            Discretized axis value along y
+        comp_x : array or masked array
+            Values of the x component at the discritized points
+        comp_y : array or masked array
+            Values of the y component at the discritized points
+        time : number, optional
+            Time associated to the field.
+        unit_x : Unit object, optionnal
+            Unit for the values of axe_x
+        unit_y : Unit object, optionnal
+            Unit for the values of axe_y
+        unit_values : Unit object, optionnal
+            Unit for the field components.
+        unit_time : Unit object, optional
+            Unit associated to 'time'
+        """
+        if not isinstance(time, NUMBERTYPES):
+            raise TypeError("'time' must be a number")
+        if not isinstance(unit_time, unum.Unum):
+            raise TypeError("'unit_time' must be a Unit object")
+        VectorField.import_from_arrays(self, axe_x, axe_y, comp_x, comp_y,
+                                       unit_x, unit_y, unit_values)
+        self.time = time
+        self.unit_time = unit_time
+
+    def export_to_vectorfield(self):
+        axe_x, axe_y = self.get_axes()
+        unit_x, unit_y = self.get_axe_units()
+        value_x, value_y = (self.get_comp('x', raw=True),
+                            self.get_comp('y', raw=True))
+        unit_values = self.get_unit_values()
+        tmpvf = VectorField()
+        tmpvf.import_from_arrays(axe_x, axe_y, value_x, value_y,
+                                 unit_x, unit_y, unit_values)
+        return tmpvf
+
+    def get_comp(self, componentname, raw=False):
         """
         Return a reference to the component designed by 'componentname'.
 
         Parameters
         ----------
         componentname : string
-            Name of the component.
+            Name of the component. At the moment, you can access the following
+            components:
+            Vx, Vy, magnitude, theta, time, unit_time,
+            gamma1, gamma2, kappa1, kappa2, iota, qcrit, swirling_strength,
+            sigma.
 
         Returns
         -------
@@ -4589,152 +4380,136 @@ class VelocityField(object):
         """
         if not isinstance(componentname, STRINGTYPES):
             raise TypeError("'componentname' must be a string")
+        value = None
+        # we want the vector !
         if componentname == "V":
-            return self.V
+                value = (VectorField.get_comp(self, 'x', raw=True),
+                         VectorField.get_comp(self, 'y', raw=True))
+        # we want a vector parameter
         if componentname == "mask":
-            tmp_mask = self.V.comp_x.get_copy()
-            if isinstance(self.V.comp_x.values, np.ma.MaskedArray):
-                tmp_mask.values = self.V.comp_x.values.mask
-            else:
-                tmp_mask.values = np.zeros(tmp_mask.values.shape)
-            return tmp_mask
-        elif componentname == "Vx":
-            return self.V.comp_x
-        elif componentname == "Vy":
-            return self.V.comp_y
-        elif componentname == "magnitude":
+            value = VectorField.get_comp(self, 'mask', raw=True)
+        if componentname == "Vx":
+            value = VectorField.get_comp(self, 'x', raw=True)
+        if componentname == "Vy":
+            value = VectorField.get_comp(self, 'y', raw=True)
+        # we want something else
+        if componentname == "magnitude":
             try:
-                return self.magnitude
+                value = self.magnitude
             except AttributeError:
-                self.calc_magnitude()
-                return self.magnitude
-        elif componentname == "theta":
+                self.magnitude = self.get_magnitude(raw=True)
+                value = self.magnitude
+        if componentname == "vorticity":
             try:
-                return self.theta
+                value = self.vorticity
             except AttributeError:
-                self.theta = self.V.get_theta()
-                return self.theta
-        elif componentname == "gamma1":
+                self.vorticity = self.get_vorticity(raw=True)
+                value = self.vorticity
+        if componentname == "theta":
             try:
-                return self.gamma1
+                value = self.theta
             except AttributeError:
-                self.calc_gamma1()
-                return self.gamma1
-        elif componentname == "gamma2":
+                self.theta = self.V.get_theta(raw=True)
+                value = self.theta
+        if componentname == "gamma1":
             try:
-                return self.gamma2
+                value = self.gamma1
             except AttributeError:
-                self.calc_gamma2()
-                return self.gamma2
-        elif componentname == "kappa1":
+                self.calc_gamma1(raw=True)
+                value = self.gamma1
+        if componentname == "gamma2":
             try:
-                return self.kappa1
+                value = self.gamma2
             except AttributeError:
-                self.calc_kappa1()
-                return self.kappa1
-        elif componentname == "kappa2":
+                self.calc_gamma2(raw=True)
+                value = self.gamma2
+        if componentname == "kappa1":
             try:
-                return self.kappa2
+                value = self.kappa1
             except AttributeError:
-                self.calc_kappa2()
-                return self.kappa2
-        elif componentname == "iota":
+                self.calc_kappa1(raw=True)
+                value = self.kappa1
+        if componentname == "kappa2":
             try:
-                return self.iota
+                value = self.kappa2
             except AttributeError:
-                self.calc_iota()
-                return self.iota
-        elif componentname == "qcrit":
+                self.calc_kappa2(raw=True)
+                value = self.kappa2
+        if componentname == "iota":
             try:
-                return self.qcrit
+                value = self.iota
             except AttributeError:
-                self.calc_q_criterion()
-                return self.qcrit
-        elif componentname == "swirling_strength":
+                self.calc_iota(raw=True)
+                value = self.iota
+        if componentname == "qcrit":
             try:
-                return self.swirling_strength
+                value = self.qcrit
             except AttributeError:
-                self.calc_swirling_strength()
-                return self.swirling_strength
-        elif componentname == "sigma":
+                self.calc_q_criterion(raw=True)
+                value = self.qcrit
+        if componentname == "swirling_strength":
             try:
-                return self.sigma
+                value = self.swirling_strength
             except AttributeError:
-                self.calc_sigma()
-                return self.sigma
-        elif componentname == "time":
-            return self.time
-        elif componentname == "unit_time":
-            return self.unit_time
-        else:
+                self.swirling_strength = self.get_swirling_strength(raw=True)
+                value = self.swirling_strength
+        if componentname == "sigma":
+            try:
+                value = self.sigma
+            except AttributeError:
+                self.calc_sigma(raw=True)
+                value = self.sigma
+        if componentname == "time":
+            value = self.time
+        if componentname == "unit_time":
+            value = self.unit_time
+        # look what we got and what we want to return
+        if value is None:
             raise ValueError("'componentname' must be a known component ({0} "
                              "is actually unknown)".format(componentname))
+        if raw:
+            return value
+        if isinstance(value, ((unum.Unum,) + NUMBERTYPES)):
+            return value
+        elif isinstance(value, np.ma.MaskedArray):
+            tmpsf = ScalarField()
+            axe_x, axe_y = self.get_axes()
+            unit_x, unit_y = self.get_axe_units()
+            unit_values = self.get_unit_values()
+            tmpsf.import_from_arrays(axe_x, axe_y, value, unit_x, unit_y,
+                                     unit_values)
+            return tmpsf
+        elif isinstance(value, tuple):
+            tmpvf = VectorField()
+            axe_x, axe_y = self.get_axes()
+            unit_x, unit_y = self.get_axe_units()
+            unit_values = self.get_unit_values()
+            tmpvf.import_from_arrays(axe_x, axe_y, value[0], value[1], unit_x,
+                                     unit_y, unit_values)
+            return tmpvf
+        else:
+            raise StandardError("something went wrong")
 
-#    def set_comp(self, componentname, scalarfield):
-#        """
-#        Set the velocity field component to the given scalarfield.
-#
-#        Parameters
-#        ----------
-#        componentname : string
-#            Name of the component to replace.
-#        scalarfield : ScalarField object
-#            Scalarfield to set in.
-#
-#        """
-#        if not isinstance(scalarfield, ScalarField):
-#            raise TypeError("'scalarfield' must be a ScalarField object")
-#        if not (scalarfield.get_dim() == self.V.comp_x.get_dim()):
-#            raise ValueError("'scalarfield' must have the same dimensions "
-#                             "than the velocity field")
-#        compo = self.get_comp(componentname)
-#        compo.import_from_scalarfields(scalarfield)
-
-    def set_axes(self, axe_x=None, axe_y=None):
+    def set_comp(self, componentname, values):
         """
-        Load new axes in the velocity field.
+        Set the velocity field component to the given scalarfield.
 
         Parameters
         ----------
-        axe_x : array, optional
-            One-dimensionale array representing the position of the
-            values along the X axe.
-        axe_y : array, optional
-            idem for the Y axe.
-        """
-        for componentname in self.__dict__.keys():
-            compo = self.get_comp(componentname)
-            if isinstance(compo, (ScalarField, VectorField)):
-                compo.set_axes(axe_x, axe_y)
+        componentname : string
+            Name of the component to replace (can be 'Vx', 'Vy' ot 'mask')
+        scalarfield : ScalarField object
+            Scalarfield to set in.
 
-    def set_origin(self, x=None, y=None):
         """
-        Modify the axis in order to place the origin at the actual point (x, y)
-
-        Parameters
-        ----------
-        x : number
-        y : number
-        """
-        if x is not None:
-            if not isinstance(x, NUMBERTYPES):
-                raise TypeError("'x' must be a number")
-            self.V.set_origin(x, None)
-        if y is not None:
-            if not isinstance(y, NUMBERTYPES):
-                raise TypeError("'y' must be a number")
-            self.V.set_origin(None, y)
-
-    def get_dim(self):
-        """
-        Return the velocity field dimension.
-
-        Returns
-        -------
-        shape : tuple
-            Tuple of the dimensions (along X and Y) of the scalar field.
-        """
-        return self.V.get_dim()
+        if componentname == 'Vx':
+            VectorField.set_comp(self, 'x', values)
+        elif componentname == 'Vy':
+            VectorField.set_comp(self, 'y', values)
+        elif componentname == 'mask':
+            VectorField.set_comp(self, 'mask', values)
+        else:
+            raise ValueError("Unknown value for 'componentname'")
 
     def get_min(self, componentname='V', unit=False):
         """
@@ -4756,6 +4531,8 @@ class VelocityField(object):
         comp = self.get_comp(componentname)
         if isinstance(comp, (ScalarField, VectorField)):
             return comp.get_min(unit)
+        elif isinstance(comp, ARRAYTYPE):
+            return np.min(comp)
         else:
             raise ValueError("I can't compute a minima on this thing")
 
@@ -4779,22 +4556,11 @@ class VelocityField(object):
         comp = self.get_comp(componentname)
         if isinstance(comp, (ScalarField, VectorField)):
             return comp.get_max(unit)
+        elif isinstance(comp, ARRAYTYPE):
+            return np.max(comp)
         else:
             raise ValueError("I can't compute the maxima on that sort of "
                              "thing")
-
-    def get_axes(self):
-        """
-        Return the velocity field axes.
-
-        Returns
-        -------
-        axe_x : array
-            Axe along X.
-        axe_y : array
-            Axe along Y.
-        """
-        return self.V.get_axes()
 
     def get_profile(self, componentname, direction, position):
         """
@@ -4825,77 +4591,6 @@ class VelocityField(object):
         """
         compo = self.get_comp(componentname)
         return compo.get_profile(direction, position)
-
-    def get_area(self, intervalx, intervaly):
-        """
-        Return the velocity field delimited by two intervals.
-
-        Fonction
-        --------
-        trimfield = get_area(intervalx, intervaly)
-
-        Parameters
-        ----------
-        intervalx : array
-            interval wanted along x.
-        intervaly : array
-            interval wanted along y.
-
-        Returns
-        -------
-        trimfield : VectorField object
-            The wanted trimmed field from the main vector field.
-        """
-        if not isinstance(intervalx, ARRAYTYPES):
-            raise TypeError("'intervalx' must be an array of two numbers")
-        intervalx = np.array(intervalx)
-        if intervalx.shape != (2,):
-            raise ValueError("'intervalx' must be an array of two numbers")
-        if intervalx[0] > intervalx[1]:
-            raise ValueError("'intervalx' values must be crescent")
-        if not isinstance(intervaly, ARRAYTYPES):
-            raise TypeError("'intervaly' must be an array of two numbers")
-        intervaly = np.array(intervaly)
-        if intervaly.shape != (2,):
-            raise ValueError("'intervaly' must be an array of two numbers")
-        if intervaly[0] > intervaly[1]:
-            raise ValueError("'intervaly' values must be crescent")
-        trimfield = VelocityField()
-        trimfield.import_from_vectorfield(self.V.get_area(intervalx,
-                                                          intervaly),
-                                          self.time)
-        for componentname in self.__dict__.keys():
-            if not componentname == "V":
-                compo = self.get_comp(componentname)
-                trimfield.set_comp(componentname,
-                                   compo.get_area(intervalx, intervaly))
-        return trimfield
-
-    def get_copy(self):
-        """
-        Return a copy of the velocityfield.
-        """
-        copy = VelocityField()
-        copy.import_from_velocityfield(self)
-        return copy
-
-    def calc_magnitude(self):
-        """
-        Compute and store the velocity field magnitude.
-        """
-        self.magnitude = self.V.get_magnitude()
-
-    def calc_theta(self, *args):
-        """
-        Compute and store velocity field vector angles.
-        """
-        self.theta = self.V.get_theta(*args)
-
-    def calc_vorticity(self):
-        """
-        Compute and store the velocity field vorticity.
-        """
-        self.vorticity = self.V.get_vorticity()
 
     def calc_sigma(self, radius=None, mask=None):
         """
@@ -4951,12 +4646,6 @@ class VelocityField(object):
             import get_q_criterion
         self.qcrit = get_q_criterion(self.V, mask)
 
-    def calc_swirling_strength(self):
-        """
-        Compute and store the swirling strength for vortex analysis.
-        """
-        self.swirling_strength = self.V.get_swirling_strength()
-
     def trim_area(self, intervalx=None, intervaly=None):
         """
         Trim the area and the axes in respect with given intervals.
@@ -4968,30 +4657,7 @@ class VelocityField(object):
         intervaly : array, optional
             interval wanted along y axe.
         """
-        if intervalx is not None:
-            if not isinstance(intervalx, ARRAYTYPES):
-                raise TypeError("'intervalx' must be an array of two numbers")
-            intervalx = np.array(intervalx)
-            if intervalx.ndim != 1:
-                raise ValueError("'intervalx' must be an array of two numbers")
-            if intervalx.shape != (2,):
-                raise ValueError("'intervalx' must be an array of two numbers")
-            if intervalx[0] > intervalx[1]:
-                raise ValueError("'intervalx' values must be crescent")
-        if intervaly is not None:
-            if not isinstance(intervaly, ARRAYTYPES):
-                raise TypeError("'intervaly' must be an array of two numbers")
-            intervaly = np.array(intervaly)
-            if intervaly.ndim != 1:
-                raise ValueError("'intervaly' must be an array of two numbers")
-            if intervaly.shape != (2,):
-                raise ValueError("'intervaly' must be an array of two numbers")
-            if intervaly[0] > intervaly[1]:
-                raise ValueError("'intervaly' values must be crescent")
-        tmp_vf = VelocityField()
-        V = self.V.trim_area(intervalx, intervaly)
-        tmp_vf.import_from_vectorfield(V, self.time, self.unit_time)
-        return tmp_vf
+        return VectorField.trim_area(self, intervalx, intervaly)
 
     def _display(self, componentname="V", **plotargs):
         if not isinstance(componentname, str):
@@ -5007,7 +4673,7 @@ class VelocityField(object):
         """
         Crop the masked border of the vector field in place.
         """
-        self.V.crop_masked_border()
+        VectorField.crop_masked_border(self)
         self._clear_derived()
 
     def fill(self, tof='interplin', value=[0., 0.], crop_border=True):
@@ -5027,7 +4693,7 @@ class VelocityField(object):
             If 'True' (default), masked borders of the field are cropped
             before filling. Else, values on border are extrapolated (poorly).
         """
-        self.V.fill(tof=tof, value=value, crop_border=crop_border)
+        VectorField.fill(self)
         self._clear_derived()
 
     def display(self, componentname="V", **plotargs):
@@ -5054,98 +4720,98 @@ class VelocityField(object):
                       + ", at t=" + str(self.time*self.unit_time))
         elif isinstance(compo, VectorField):
             fig = compo.display(**plotargs)
-            plt.title(componentname + " " + compo.comp_x.unit_values.strUnit()
+            plt.title(componentname + " " + compo.unit_values.strUnit()
                       + ", at t=" + str(self.time*self.unit_time))
         else:
             raise StandardError("I don't know how to plot a {}"
                                 .format(type(compo)))
         return fig
 
-    def __display_profile__(self, componentname, direction, position,
-                            **plotargs):
-        if not isinstance(componentname, str):
-            raise TypeError("'componentname' must be a string")
-        compo = self.get_comp(componentname)
-        if not isinstance(compo, ScalarField):
-            raise TypeError("'componentname' must be a refenrence to a"
-                            " scalarfield object")
-        fig, cutposition = compo.__display_profile__(direction, position,
-                                                     **plotargs)
-        axelabel = componentname + " " + compo.unit_values.strUnit()
-        if direction == 1:
-            plt.xlabel(axelabel)
-        else:
-            plt.ylabel(axelabel)
-        return fig, cutposition
+#    def __display_profile__(self, componentname, direction, position,
+#                            **plotargs):
+#        if not isinstance(componentname, str):
+#            raise TypeError("'componentname' must be a string")
+#        compo = self.get_comp(componentname)
+#        if not isinstance(compo, ScalarField):
+#            raise TypeError("'componentname' must be a refenrence to a"
+#                            " scalarfield object")
+#        fig, cutposition = compo.__display_profile__(direction, position,
+#                                                     **plotargs)
+#        axelabel = componentname + " " + compo.unit_values.strUnit()
+#        if direction == 1:
+#            plt.xlabel(axelabel)
+#        else:
+#            plt.ylabel(axelabel)
+#        return fig, cutposition
 
-    def display_profile(self, componentname, direction, position, **plotargs):
-        """
-        Display the profile of the given component at a fixed position on the
-        given direction.
+#    def display_profile(self, componentname, direction, position, **plotargs):
+#        """
+#        Display the profile of the given component at a fixed position on the
+#        given direction.
+#
+#        Parameters
+#        ----------
+#        componentname : string
+#            Component wanted for the profile.
+#        direction : integer
+#            Direction along which we choose a position (1 for x and 2 for y).
+#        position : float or interval of float
+#            Position or interval in which we want a profile.
+#        **plotargs : dict, optional
+#            Supplementary arguments for the plot() function.
+#        """
+#        fig, cutposition = self.__display_profile__(componentname, direction,
+#                                                    position, **plotargs)
+#        compo = self.get_comp(componentname)
+#        if direction == 1:
+#            plt.title = "{0} {1}, at {2}" \
+#                        .format(componentname,
+#                                compo.unit_values.strUnit(),
+#                                cutposition*self.V.CompX.unit_x)
+#        else:
+#            plt.title = "{0} {1}, at {2}" \
+#                        .format(componentname,
+#                                compo.unit_values.strUnit(),
+#                                cutposition*self.V.CompX.unit_y)
+#        return fig
 
-        Parameters
-        ----------
-        componentname : string
-            Component wanted for the profile.
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y).
-        position : float or interval of float
-            Position or interval in which we want a profile.
-        **plotargs : dict, optional
-            Supplementary arguments for the plot() function.
-        """
-        fig, cutposition = self.__display_profile__(componentname, direction,
-                                                    position, **plotargs)
-        compo = self.get_comp(componentname)
-        if direction == 1:
-            plt.title = "{0} {1}, at {2}" \
-                        .format(componentname,
-                                compo.unit_values.strUnit(),
-                                cutposition*self.V.CompX.unit_x)
-        else:
-            plt.title = "{0} {1}, at {2}" \
-                        .format(componentname,
-                                compo.unit_values.strUnit(),
-                                cutposition*self.V.CompX.unit_y)
-        return fig
-
-    def display_multiple_profiles(self, componentname, direction, positions,
-                                  meandist=0, **plotargs):
-        """
-        Display profiles of a velocity field component, at given positions
-        (or at least at the nearest possible positions).
-        If 'meandist' is non-zero, profiles will be averaged on the interval
-        [position - meandist, position + meandist].
-
-        Parameters
-        ----------
-        componentname : string
-            Component wanted for the profile.
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y).
-        positions : tuple of numbers
-            Positions in which we want a profile.
-        meandist : number
-            Distance for the profil average.
-        **plotargs :
-            Supplementary arguments for the plot() function.
-        """
-        if not isinstance(componentname, str):
-            raise TypeError("'component' must be a string")
-        compo = self.get_comp(componentname)
-        if not isinstance(compo, ScalarField):
-            raise TypeError("'componentname' must be a refenrence to a"
-                            " scalarfield object")
-        compo.display_multiple_profiles(direction, positions, meandist,
-                                        **plotargs)
-        if direction == 1:
-            plt.title(componentname + " " + compo.unit_values.strUnit() + ", "
-                      + "for given values of X")
-            plt.xlabel(componentname + " " + compo.unit_values.strUnit())
-        else:
-            plt.title(componentname + " " + compo.unit_values.strUnit() + ", "
-                      + "for given values of Y")
-            plt.ylabel(componentname + " " + compo.unit_values.strUnit())
+#    def display_multiple_profiles(self, componentname, direction, positions,
+#                                  meandist=0, **plotargs):
+#        """
+#        Display profiles of a velocity field component, at given positions
+#        (or at least at the nearest possible positions).
+#        If 'meandist' is non-zero, profiles will be averaged on the interval
+#        [position - meandist, position + meandist].
+#
+#        Parameters
+#        ----------
+#        componentname : string
+#            Component wanted for the profile.
+#        direction : integer
+#            Direction along which we choose a position (1 for x and 2 for y).
+#        positions : tuple of numbers
+#            Positions in which we want a profile.
+#        meandist : number
+#            Distance for the profil average.
+#        **plotargs :
+#            Supplementary arguments for the plot() function.
+#        """
+#        if not isinstance(componentname, str):
+#            raise TypeError("'component' must be a string")
+#        compo = self.get_comp(componentname)
+#        if not isinstance(compo, ScalarField):
+#            raise TypeError("'componentname' must be a refenrence to a"
+#                            " scalarfield object")
+#        compo.display_multiple_profiles(direction, positions, meandist,
+#                                        **plotargs)
+#        if direction == 1:
+#            plt.title(componentname + " " + compo.unit_values.strUnit() + ", "
+#                      + "for given values of X")
+#            plt.xlabel(componentname + " " + compo.unit_values.strUnit())
+#        else:
+#            plt.title(componentname + " " + compo.unit_values.strUnit() + ", "
+#                      + "for given values of Y")
+#            plt.ylabel(componentname + " " + compo.unit_values.strUnit())
 
 
 class VelocityFields(object):
@@ -5168,220 +4834,6 @@ class VelocityFields(object):
 
     def __getitem__(self, fieldnumber):
         return self.fields[fieldnumber]
-
-    def import_from_davis(self, fieldspath, dt=1, fieldnumbers=None, incr=1):
-        """
-        Import velocity fields from  .VC7 files.
-        'fieldspath' can be a tuple of path to vc7 files or a path to a
-        folder. In this last case, all vc7 file present in the folder are
-        imported.
-
-        Parameters
-        ----------
-        fieldspath : string or tuple of string
-        fieldnumbers : 2x1 tuple of int
-            Interval of fields to import, default is all.
-        incr : integer
-            Incrementation between fields to take. Default is 1, meaning all
-            fields are taken.
-        dt : number
-            interval of time between fields.
-        """
-        self.fields = []
-        if fieldnumbers is not None:
-            if not isinstance(fieldnumbers, ARRAYTYPES):
-                raise TypeError("'fieldnumbers' must be a 2x1 array")
-            if not len(fieldnumbers) == 2:
-                raise TypeError("'fieldnumbers' must be a 2x1 array")
-            if not isinstance(fieldnumbers[0], int) \
-                    or not isinstance(fieldnumbers[1], int):
-                raise TypeError("'fieldnumbers' must be an array of integers")
-        if not isinstance(incr, int):
-            raise TypeError("'incr' must be an integer")
-        if incr <= 0:
-            raise ValueError("'incr' must be positive")
-        if not isinstance(dt, NUMBERTYPES):
-            raise TypeError("'dt' must be a number")
-        # fields are defining by a single path
-        if isinstance(fieldspath, STRINGTYPES):
-            if not os.path.exists(fieldspath):
-                raise ValueError("'fieldspath' must be a valid path")
-            # fields are defining by a directory
-            if os.path.isdir(fieldspath):
-                import glob
-                fieldspath = glob.glob(os.path.join(fieldspath, '*.vc7'))
-                if fieldnumbers is None:
-                    fieldnumbers = [0, len(fieldspath) - 1]
-                i = -1
-                # importing all the files in 'fieldnumbers', by 'incr' steps
-                for path in fieldspath[fieldnumbers[0]:fieldnumbers[1] + 1]:
-                    i += 1
-                    if i % incr != 0:
-                        continue
-                    tmp_vf = VelocityField()
-                    tmp_vf.import_from_davis(path)
-                    self.add_field(tmp_vf)
-            # fields are defining by a single file
-            else:
-                tmp_vf = VelocityField()
-                tmp_vf.import_from_davis(fieldspath)
-                self.add_field(tmp_vf)
-        # fields are defining by a set of file path
-        elif isinstance(fieldspath, ARRAYTYPES):
-            if not isinstance(fieldspath[0], STRINGTYPES):
-                raise TypeError("'fieldspath' must be a string or a tuple of"
-                                " string")
-            for path in fieldspath:
-                tmp_vf = VelocityField()
-                tmp_vf.import_from_davis(path)
-                self.add_field(tmp_vf)
-        else:
-            raise TypeError("'fieldspath' must be a string or a tuple of"
-                            " string")
-        # time implementation
-        t = 0
-        for field in self.fields:
-            field.time = t
-            t += dt*incr
-
-    def import_from_vf(self, velocityfields):
-        """
-        Import velocity fields from another velocityfields.
-
-        Parameters
-        ----------
-        velocityfields : velocityFields object
-            Velocity fields to copy.
-        """
-        for componentkey in velocityfields.__dict__.keys():
-            component = velocityfields.__dict__[componentkey]
-            if isinstance(component, (VelocityField, VectorField,
-                                      ScalarField)):
-                self.__dict__[componentkey] \
-                    = component.get_copy()
-            elif isinstance(component, NUMBERTYPES):
-                self.__dict__[componentkey] \
-                    = component*1
-            elif isinstance(component, STRINGTYPES):
-                self.__dict__[componentkey] \
-                    = component
-            elif isinstance(component, unum.Unum):
-                self.__dict__[componentkey] \
-                    = component.copy()
-            else:
-                raise TypeError("Unknown attribute type in VelocityFields "
-                                "object (" + str(componentkey) + " : "
-                                + str(type(component)) + ")."
-                                " You must implemente it.")
-
-    def import_from_ascii(self, filepath, incr=1, interval=None,
-                          x_col=1, y_col=2, vx_col=3,
-                          vy_col=4, unit_x=make_unit(""), unit_y=make_unit(""),
-                          unit_values=make_unit(""), times=[],
-                          unit_time=make_unit(''), **kwargs):
-        """
-        Import velocityfields from an ascii files.
-        Warning : txt files are taken in alpha-numerical order
-        ('file2.txt' is taken before 'file20.txt').
-        So you should name your files properly.
-
-        Parameters
-        ----------
-        filepath : string
-            Pathname pattern to the ascii files.
-            (Example: >>> r"F:\datas\velocities_*.txt")
-        incr : integer, optional
-            Increment value between two fields taken.
-        interval : 2x1 array, optional
-            Interval in which take fields.
-        x_col, y_col, vx_col, vy_col : integer, optional
-            Colonne numbers for the given variables
-            (begining at 1).
-        unit_x, unit_y, unit_v : Unit objects, optional
-            Unities for the given variables.
-        times : array of number, optional
-            Times of the instantaneous fields.
-        unit_time : Unit object, optional
-            Time unit, 'second' by default.
-        **kwargs :
-            Possibles additional parameters are the same as those used in the
-            numpy function 'genfromtext()' :
-            'delimiter' to specify the delimiter between colonnes.
-            'skip_header' to specify the number of colonne to skip at file
-                begining
-            ...
-        """
-        if not isinstance(incr, int):
-            raise TypeError("'incr' must be an integer")
-        if incr < 1:
-            raise ValueError("'incr' must be superior to 1")
-        if interval is not None:
-            if not isinstance(interval, ARRAYTYPES):
-                raise TypeError("'interval' must be an array")
-            if not len(interval) == 2:
-                raise ValueError("'interval' must be a 2x1 array")
-            if interval[0] > interval[1]:
-                interval = [interval[1], interval[0]]
-        paths = glob.glob(filepath)
-        if interval is None:
-            interval = [0, len(paths)-1]
-        if interval[0] < 0 or interval[1] > len(paths):
-            raise ValueError("'interval' is out of bounds")
-        if times == []:
-            times = np.arange(len(paths))
-        if len(paths) != len(times):
-            raise ValueError("Not enough values in 'times'")
-        ref_path_len = len(paths[0])
-        for i in np.arange(interval[0], interval[1] + 1, incr):
-            path = paths[i]
-            if len(path) != ref_path_len:
-                raise Warning("You should check your files names,"
-                              "i may have taken them in the wrong order.")
-            tmp_vf = VelocityField()
-            tmp_vf.import_from_ascii(path, x_col, y_col, vx_col, vy_col,
-                                     unit_x, unit_y, unit_values, times[i],
-                                     unit_time, **kwargs)
-            self.add_field(tmp_vf)
-
-    def import_from_file(self, filepath, **kw):
-        """
-        Load a VelocityFields object from the specified file using the JSON
-        format.
-        Additionnals arguments for the JSON decoder may be set with the **kw
-        argument. Such as'encoding' (to change the file
-        encoding, default='utf-8').
-
-        Parameters
-        ----------
-        filepath : string
-            Path specifiing the VelocityFields to load.
-        """
-        import IMTreatment.io.io as imtio
-        tmp_vf = imtio.import_from_file(filepath, **kw)
-        if tmp_vf.__classname__ != self.__classname__:
-            raise IOError("This file do not contain a {}"
-                          ", cabron.".format(self.__classname__))
-        self.import_from_vf(tmp_vf)
-
-    def export_to_file(self, filepath, compressed=True, **kw):
-        """
-        Write the Profile object in the specified file usint the JSON format.
-        Additionnals arguments for the JSON encoder may be set with the **kw
-        argument. Such arguments may be 'indent' (for visual indentation in
-        file, default=0) or 'encoding' (to change the file encoding,
-        default='utf-8').
-        If existing, specified file will be truncated. If not, it will
-        be created.
-
-        Parameters
-        ----------
-        filepath : string
-            Path specifiing where to save the ScalarField.
-        compressed : boolean, optional
-            If 'True' (default), the json file is compressed using gzip.
-        """
-        import IMTreatment.io.io as imtio
-        imtio.export_to_file(self, filepath, compressed, **kw)
 
     def remove_field(self, fieldnumber):
         """
@@ -5505,12 +4957,6 @@ class TemporalVelocityFields(VelocityFields):
 
     __div__ = __truediv__
 
-    def __sqrt__(self):
-        final_vfs = TemporalVelocityFields()
-        for field in self.fields:
-            final_vfs.add_field(np.sqrt(field))
-        return final_vfs
-
     def __pow__(self, number):
         if not isinstance(number, NUMBERTYPES):
             raise TypeError("You only can use a number for the power "
@@ -5519,41 +4965,6 @@ class TemporalVelocityFields(VelocityFields):
         for field in self.fields:
             final_vfs.add_field(np.power(field, number))
         return final_vfs
-
-    def import_from_tvfs(self, tvfs):
-        """
-        Import velocity fields from another temporalvelocityfields.
-
-        Parameters
-        ----------
-        tvfs : TemporalVelocityFields object
-            Velocity fields to copy.
-        """
-        # delete derived fields because base fields are modified
-        self._clear_derived()
-        for componentkey in tvfs.__dict__.keys():
-            component = tvfs.__dict__[componentkey]
-            if isinstance(component, (VelocityField, VectorField,
-                                      ScalarField)):
-                self.__dict__[componentkey] \
-                    = component.get_copy()
-            elif isinstance(component, NUMBERTYPES):
-                self.__dict__[componentkey] \
-                    = copy.deepcopy(component)
-            elif isinstance(component, STRINGTYPES):
-                self.__dict__[componentkey] \
-                    = copy.deepcopy(component)
-            elif isinstance(component, unum.Unum):
-                self.__dict__[componentkey] \
-                    = component.copy()
-            elif isinstance(component, ARRAYTYPES):
-                self.__dict__[componentkey] \
-                    = copy.deepcopy(component)
-            else:
-                raise TypeError("Unknown attribute type in VelocityFields "
-                                "object (" + str(componentkey) + " : "
-                                + str(type(component)) + ")."
-                                " You must implemente it.")
 
     def _clear_derived(self):
         """
@@ -5591,7 +5002,7 @@ class TemporalVelocityFields(VelocityFields):
                                  "with current axes")
         VelocityFields.add_field(self, velocityfield)
 
-    def get_comp(self, componentname):
+    def get_comp(self, componentname, raw=False):
         """
         Return a reference to the field designed by 'fieldname'.
 
@@ -5682,7 +5093,7 @@ class TemporalVelocityFields(VelocityFields):
         """
         Return fields axis
         """
-        return self[0].V.get_axes()
+        return self[0].get_axes()
 
     def get_dim(self):
         """
@@ -5696,9 +5107,7 @@ class TemporalVelocityFields(VelocityFields):
         """
         Return a copy of the velocityfields
         """
-        tmp_tvfs = TemporalVelocityFields()
-        tmp_tvfs.import_from_tvfs(self)
-        return tmp_tvfs
+        return copy.deepcopy(tmp_tvfs)
 
     def get_time_profile(self, component, x, y):
         """
@@ -5720,7 +5129,7 @@ class TemporalVelocityFields(VelocityFields):
             raise TypeError("'component' must be a string")
         if not isinstance(x, NUMBERTYPES) or not isinstance(y, NUMBERTYPES):
             raise TypeError("'x' and 'y' must be numbers")
-        axe_x, axe_y = self[0].get_axes()
+        axe_x, axe_y = self.get_axes()
         if x < np.min(axe_x) or x > np.max(axe_x)\
                 or y < np.min(axe_y) or y > np.max(axe_y):
             raise ValueError("'x' ans 'y' values out of bounds")
@@ -5739,8 +5148,8 @@ class TemporalVelocityFields(VelocityFields):
             ind_y = compo[0].get_indice_on_axe(2, y, nearest=True)
             for i in np.arange(len(compo)):
                 time.append(self[i].time)
-                values[i] = compo[i].values.data[ind_y, ind_x]
-                mask[i] = compo[i].values.mask[ind_y, ind_x]
+                values[i] = compo[i].get_value(ind_y, ind_x, ind=True)
+                mask[i] = compo[i].get_comp('mask')[ind_y, ind_x]
             values = np.ma.masked_array(values, mask)
             return Profile(time, values, unit_x=unit_time, unit_y=unit_values)
         else:
@@ -5751,7 +5160,6 @@ class TemporalVelocityFields(VelocityFields):
         """
         Return a Profile object, with the frequential spectrum of 'component',
         on the point 'pt'.
-
 
         Parameters
         ----------
@@ -5784,7 +5192,7 @@ class TemporalVelocityFields(VelocityFields):
         # checking parameters coherence
         if not isinstance(pt, ARRAYTYPES):
             raise TypeError("'pt' must be a 2x1 array")
-        pt = np.array(pt)
+        pt = np.array(pt, dtype=float)
         if not pt.shape == (2,):
             raise ValueError("'pt' must be a 2x1 array")
         if not isinstance(ind, bool):
@@ -5805,13 +5213,13 @@ class TemporalVelocityFields(VelocityFields):
                 ind_x = x
                 ind_y = y
             elif not interp:
-                inds_x = self.fields[0].V.comp_x.get_indice_on_axe(1, pt[0])
+                inds_x = self.fields[0].get_indice_on_axe(1, pt[0])
                 if len(inds_x) == 1:
                     ind_x = inds_x[0]
                 else:
                     vals = [axe_x[inds_x[0]], axe_x[inds_x[1]]] - x
                     ind_x = inds_x[np.argmin(vals)]
-                inds_y = self.fields[0].V.comp_x.get_indice_on_axe(2, pt[1])
+                inds_y = self.fields[0].get_indice_on_axe(2, pt[1])
                 if len(inds_y) == 1:
                     ind_y = inds_y[0]
                 else:
@@ -5826,7 +5234,7 @@ class TemporalVelocityFields(VelocityFields):
                 if interp:
                     values.append(sf.get_value(x, y, ind=ind))
                 else:
-                    values.append(sf.values[ind_y, ind_x])
+                    values.append(sf.get_value(ind_y, ind_x, ind=True))
             # checking if position is masked
             for i, val in enumerate(values):
                 if np.ma.is_masked(val):
@@ -5853,7 +5261,7 @@ class TemporalVelocityFields(VelocityFields):
         else:
             raise ValueError("Not implemented yet on {}".format(type(comp[0])))
         magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
-                            unit_y=comp[0].unit_values)
+                            unit_y=comp[0].get_unit_values())
         phase_prof = Profile(frq, phase, unit_x=make_unit('Hz'),
                              unit_y=make_unit('rad'))
         return magn_prof, phase_prof
@@ -5904,7 +5312,7 @@ class TemporalVelocityFields(VelocityFields):
             raise TypeError("'intervalx' must be an array of numbers")
         if not isinstance(intervaly[0], NUMBERTYPES):
             raise TypeError("'intervaly' must be an array of numbers")
-        axe_x, axe_y = self[0].get_axes()
+        axe_x, axe_y = self.get_axes()
         # checking interval values
         if ind:
             if not isinstance(intervalx[0], int)\
@@ -5983,12 +5391,9 @@ class TemporalVelocityFields(VelocityFields):
         mask_tot = np.zeros(self.get_dim())
         time = 0
         for field in self.fields:
-            maskx = np.ma.getmaskarray(field.V.comp_x.values)
-            masky = np.ma.getmaskarray(field.V.comp_y.values)
-            mask = np.logical_or(maskx,
-                                 masky)
-            values_x = field.V.comp_x.values.data
-            values_y = field.V.comp_y.values.data
+            mask = field.get_comp('mask', raw=True)
+            values_x = field.get_comp('Vx').data
+            values_y = field.get_comp('Vy').data
             values_x[mask] = 0
             values_y[mask] = 0
             nmbvalues[np.logical_not(mask)] += 1
@@ -6000,13 +5405,17 @@ class TemporalVelocityFields(VelocityFields):
         mean_vx = mean_vx / nmbvalues
         mean_vy = mean_vy / nmbvalues
         time = time/len(self.fields)
-        comp_x = self.fields[0].V.comp_x.get_copy()
-        comp_x.values = np.ma.masked_array(mean_vx, mask_tot)
-        comp_y = self.fields[0].V.comp_y.get_copy()
-        comp_y.values = np.ma.masked_array(mean_vy, mask_tot)
+        #stockage
+        values_x = np.ma.masked_array(mean_vx, mask_tot)
+        values_y = np.ma.masked_array(mean_vy, mask_tot)
+        axe_x, axe_y = self.get_axes()
+        unit_x, unit_y = self.get_axes_unit()
+        unit_time = self.fields[0].get_unit_time()
+        unit_values = self.fields[0].get_unit_values()
+        time = time
         mean_vf = VelocityField()
-        mean_vf.import_from_scalarfields(comp_x, comp_y, time=time,
-                                         unit_time=self.fields[0].unit_time)
+        mean_vf.import_from_arrays(axe_x, axe_y, values_x, values_y, time,
+                                   unit_x, unit_y, unit_values, unit_time)
         if np.all(mask_tot):
             raise Warning("All datas masked in this mean field."
                           "Try a smaller 'nmb_min'")
@@ -6029,8 +5438,9 @@ class TemporalVelocityFields(VelocityFields):
         """
         final_sf = ScalarField()
         mean_vf = self.get_comp('mean_vf')
-        final_sf = 1./2*(mean_vf.V.comp_x**2
-                         + mean_vf.V.comp_y**2)
+        values_x = mean_vf.get_comp('x')
+        values_y = mean_vf.get_comp('y')
+        final_sf = 1./2*(values_x**2 + values_y**2)
         self.mean_kinetic_energy = final_sf
 
     def calc_tke(self):
@@ -6061,8 +5471,8 @@ class TemporalVelocityFields(VelocityFields):
         u_p = turb_vf.get_comp('Vx')
         v_p = turb_vf.get_comp('Vy')
         # rs_xx
-        rs_xx = np.zeros(u_p[0].values.shape)
-        mask_rs_xx = np.zeros(u_p[0].values.shape)
+        rs_xx = np.zeros(u_p[0].get_dim())
+        mask_rs_xx = np.zeros(u_p[0].get_dim())
         # boucle sur les points du champ
         for i in np.arange(rs_xx.shape[0]):
             for j in np.arange(rs_xx.shape[1]):
@@ -6071,7 +5481,7 @@ class TemporalVelocityFields(VelocityFields):
                 for n in np.arange(len(turb_vf.fields)):
                     # check if masked
                     if not u_p[n].values.mask[i, j]:
-                        rs_xx[i, j] += u_p[n].values[i, j]**2
+                        rs_xx[i, j] += u_p[n].get_comp(i, j, ind=True)**2
                         nmb_val += 1
                 if nmb_val > nmb_val_min:
                     rs_xx[i, j] /= nmb_val
@@ -6089,7 +5499,7 @@ class TemporalVelocityFields(VelocityFields):
                 for n in np.arange(len(turb_vf.fields)):
                     # check if masked
                     if not v_p[n].values.mask[i, j]:
-                        rs_yy[i, j] += v_p[n].values[i, j]**2
+                        rs_yy[i, j] += v_p[n].get_comp(i, j, ind=True)**2
                         nmb_val += 1
                 if nmb_val > nmb_val_min:
                     rs_yy[i, j] /= nmb_val
@@ -6097,8 +5507,8 @@ class TemporalVelocityFields(VelocityFields):
                     rs_yy[i, j] = 0
                     mask_rs_yy[i, j] = True
         # rs_xy
-        rs_xy = np.zeros(u_p[0].values.shape)
-        mask_rs_xy = np.zeros(u_p[0].values.shape)
+        rs_xy = np.zeros(u_p[0].get_dim())
+        mask_rs_xy = np.zeros(u_p[0].get_dim())
         # boucle sur les points du champ
         for i in np.arange(rs_xy.shape[0]):
             for j in np.arange(rs_xy.shape[1]):
@@ -6106,10 +5516,10 @@ class TemporalVelocityFields(VelocityFields):
                 nmb_val = 0
                 for n in np.arange(len(turb_vf.fields)):
                     # check if masked
-                    if not (u_p[n].values.mask[i, j]
-                            or v_p[n].values.mask[i, j]):
-                        rs_xy[i, j] += (u_p[n].values[i, j]
-                                        * v_p[n].values[i, j])
+                    if not (u_p[n].get_comp('mask')[i, j]
+                            or v_p[n].get_comp('mask')[i, j]):
+                        rs_xy[i, j] += (u_p[n].get_value(i, j, ind=True)
+                                        * v_p[n].get_value(i, j, ind=True))
                         nmb_val += 1
                 if nmb_val > nmb_val_min:
                     rs_xy[i, j] /= nmb_val
@@ -6117,11 +5527,9 @@ class TemporalVelocityFields(VelocityFields):
                     rs_xy[i, j] = 0
                     mask_rs_xy[i, j] = True
         # masking and storing
-        axe_x = self.fields[0].V.comp_x.axe_x
-        axe_y = self.fields[0].V.comp_x.axe_y
-        unit_x = self.fields[0].V.comp_x.unit_x
-        unit_y = self.fields[0].V.comp_x.unit_y
-        unit_values = self.fields[0].V.comp_x.unit_values
+        axe_x, axe_y = self.fields[0].get_axes()
+        unit_x, unit_y = self.fields[0].get_axe_units()
+        unit_values = self.fields[0].get_unit_values()
         self.rs_xx = ScalarField()
         rs_xx = np.ma.masked_array(rs_xx, mask_rs_xx)
         self.rs_xx.import_from_arrays(axe_x, axe_y, rs_xx,
@@ -6249,11 +5657,10 @@ class TemporalVelocityFields(VelocityFields):
             # getting super mask (0 where no value are masked and where all
             # values are masked)
             super_mask = self.get_comp('mask', raw=True)
-            super_mask = np.sum(super_mask).values.data
+            super_mask = np.sum(super_mask)
             super_mask[super_mask == len(self.fields)] = 0
             # loop on each field position
             for j, i in np.argwhere(super_mask):
-                print(i, j)
                 prof_x = self.get_time_profile('Vx', axe_x[i], axe_y[j])
                 prof_y = self.get_time_profile('Vy', axe_x[i], axe_y[j])
                 # checking if all time profile value are masked
@@ -6287,7 +5694,7 @@ class TemporalVelocityFields(VelocityFields):
                         except ValueError:
                             continue
                     # putting interpolated value in the field
-                    self[ind_masked].V.comp_x.values[j, i] = interp_val
+                    self[ind_masked].comp_x[j, i] = interp_val
                 # loop on all y profile masked points
                 for ind_masked in inds_masked_y[0]:
                     if tof == 'value':
@@ -6298,7 +5705,7 @@ class TemporalVelocityFields(VelocityFields):
                         except ValueError:
                             continue
                     # putting interpolated value in the field
-                    self[ind_masked].V.comp_y.values[j, i] = interp_val
+                    self[ind_masked].comp_y[j, i] = interp_val
         # spatial interpolation
         elif kind == 'spatial':
             for field in self.fields:
@@ -6330,7 +5737,7 @@ class TemporalVelocityFields(VelocityFields):
         """
         # getting big mask (where all the value are masked)
         masks_temp = self.get_comp('mask', raw=True)
-        mask_temp = np.sum(masks_temp).values.data
+        mask_temp = np.sum(masks_temp)
         mask_temp = mask_temp == len(masks_temp)
         # checking masked values presence
         if not np.any(mask_temp):
@@ -6344,9 +5751,9 @@ class TemporalVelocityFields(VelocityFields):
         # else loop on fields
         for i in np.arange(len(self.fields)):
             #getting datas for one field
-            values_x = self.fields[i].V.comp_x.values.data
-            values_y = self.fields[i].V.comp_y.values.data
-            mask = self.fields[i].V.comp_x.values.mask
+            values_x = self.fields[i].get_comp('Vx', raw=True).data
+            values_y = self.fields[i].get_comp('Vy', raw=True).data
+            mask = self.fields[i].get_comp('mask', raw=True)
             # crop values along y
             if np.any(axe_y_m):
                 # deleting useless part along y
@@ -6360,17 +5767,14 @@ class TemporalVelocityFields(VelocityFields):
                 values_y = values_y[:, axe_x_m]
                 mask = mask[:, axe_x_m]
             # storing croped values
-            self.fields[i].V.comp_x.values = np.ma.masked_array(values_x, mask)
-            self.fields[i].V.comp_y.values = np.ma.masked_array(values_y, mask)
+            self.fields[i].set_comp('Vx', np.ma.masked_array(values_x, mask))
+            self.fields[i].set_comp('Vy', np.ma.masked_array(values_y, mask))
             self.fields[i]._clear_derived()
             #crop axis
-            axe_x, axe_y = self.fields[i].get_axes()
+            axe_x, axe_y = self.get_axes()
             new_axe_x = axe_x[axe_x_m]
             new_axe_y = axe_y[axe_y_m]
-            self.fields[i].V.comp_x.axe_x = new_axe_x
-            self.fields[i].V.comp_y.axe_x = new_axe_x
-            self.fields[i].V.comp_x.axe_y = new_axe_y
-            self.fields[i].V.comp_y.axe_y = new_axe_y
+            self.fields[i].set_axes(new_axe_x, new_axe_y)
 
     def display(self, fieldname="fields", **plotargs):
         """
@@ -6432,9 +5836,9 @@ class TemporalVelocityFields(VelocityFields):
             ttl = plt.title('')
 
             def update(num):
-                vx = comp[num].comp_x.values
-                vy = comp[num].comp_y.values
-                magn = comp[num].get_magnitude().values
+                vx = comp[num].get_comp('x', raw=True)
+                vy = comp[num].get_comp('y', raw=True)
+                magn = comp[num].get_magnitude().get_comp('values', raw=True)
                 title = "{}, at t={:.3} {}"\
                     .format(compo, float(self[num].time),
                             self[num].unit_time.strUnit())
@@ -6455,10 +5859,10 @@ class TemporalVelocityFields(VelocityFields):
             fig = plt.figure()
             ax = comp[0].display(**plotargs)
             ttl = plt.title('')
-
+            print('first ok')
             def update(num, ax, ttl):
                 if kind is None:
-                    val = comp[num].values
+                    val = comp[num].get_comp('values', raw=True)
                     ax.set_data(val)
                 else:
                     ### TODO: suffit pas !
@@ -6602,8 +6006,8 @@ class SpatialVelocityFields(VelocityFields):
                           ScalarField):
             raise ValueError("'componentname' must make reference to a "
                              "ScalarField")
-        axe = np.array([])
-        bl = np.array([])
+        axe = np.array([], dtype=float)
+        bl = np.array([], dtype=float)
         for field in self.fields:
             compo = field.get_comp(componentname)
             tmp_bl = compo.get_bl(direction, value, rel=rel, kind=kind)
@@ -6689,60 +6093,3 @@ class SpatialVelocityFields(VelocityFields):
         else:
             unit = compo.V.comp_x.unit_values.Getunit()
         cbar.set_label("{0} {1}".format(componentname, unit))
-
-    def display_profile(self, componentname, direction, position, **plotargs):
-        """
-        Display the profile of the given component at a fixed position on the
-        given direction.
-
-        Parameters
-        ----------
-        componentname : string
-            Component wanted for the profile.
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y).
-        position : float or interval of float
-            Position or interval in which we want a profile.
-        **plotargs : dict, optional
-            Supplementary arguments for the plot() function.
-        """
-        display = False
-        for field in self.fields:
-            try:
-                field.display_profile(componentname, direction, position,
-                                      **plotargs)
-            except ValueError:
-                pass
-            else:
-                display = True
-        if not display:
-            raise ValueError("'position' must be included in"
-                             " the choosen axis values")
-
-    def display_multiple_profiles(self, component, direction, positions,
-                                  meandist=0):
-        """
-        Display some profiles on the velocity field.
-        """
-        pass
-
-
-###############################################
-### EXAMPLES TEST      pygraphtest          ###
-###############################################
-#
-#def pygraphtest():
-#    from pycallgraph import PyCallGraph
-#    from pycallgraph import Config
-#    from pycallgraph.output import GraphvizOutput
-#    from pycallgraph import GlobbingFilter
-#    os.environ['PATH'] += ';E:\\Prog\\Portable GraphViz\\App\\bin\\'
-#    config = Config()#max_depth=2)
-#    config.trace_filter = GlobbingFilter(exclude=['Unit.*'])
-#    graphviz = GraphvizOutput(output_file='PyCallGraph.png')
-#    with PyCallGraph(output=graphviz, config=config):
-#        main()
-#
-#if __name__ == "__main__":
-#    #pygraphtest()
-#    main()
