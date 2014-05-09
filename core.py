@@ -1468,6 +1468,26 @@ class ScalarField(Field):
         Field.__init__(self)
         self.values = np.ma.masked_array([])
 
+    def __eq__(self, another):
+        if not isinstance(another, ScalarField):
+            return False
+        if not np.all(self.get_axes()[0] == another.get_axes()[0]):
+            return False
+        if not np.all(self.get_axes()[1] == another.get_axes()[1]):
+            return False
+        if not np.all(self.get_values().data == another.get_values().data):
+            return False
+        if not np.all(self.get_values().mask == another.get_values().mask):
+            return False
+        if not np.all(self.get_axe_units()[0] == another.get_axe_units()[0]):
+            return False
+        if not np.all(self.get_axe_units()[1] == another.get_axe_units()[1]):
+            return False
+        if not np.all(self.get_values_unit() == another.get_values_unit()):
+            return False
+        return True
+
+
     def __neg__(self):
         tmpsf = self.get_copy()
         tmpsf.values = -tmpsf.values
@@ -1499,6 +1519,7 @@ class ScalarField(Field):
             try:
                 self.unit_values + otherone
             except:
+                pdb.set_trace()
                 raise ValueError("Given number have to be consistent with"
                                  "the scalar field (same units)")
             tmpsf = self.get_copy()
@@ -1507,6 +1528,8 @@ class ScalarField(Field):
         else:
             raise TypeError("You can only add a scalarfield "
                             "with others scalarfields or with numbers")
+    def __radd__(self, obj):
+        return self.__add__(obj)
 
     def __sub__(self, obj):
         return self.__add__(-obj)
@@ -1542,6 +1565,33 @@ class ScalarField(Field):
 
     __div__ = __truediv__
 
+    def __rdiv__(self, obj):
+        if isinstance(obj, NUMBERTYPES):
+            tmpsf = self.get_copy()
+            tmpsf.values = obj/tmpsf.values
+            tmpsf.unit_values = 1/tmpsf.unit_values
+            return tmpsf
+        elif isinstance(obj, unum.Unum):
+            tmpsf = self.get_copy()
+            tmpsf.values = obj.asNumber()/tmpsf.values
+            tmpsf.unit_values = obj/obj.asNumber()/tmpsf.unit_values
+            return tmpsf
+        elif isinstance(obj, ScalarField):
+            if np.any(self.axe_x != obj.axe_x)\
+                    or np.any(self.axe_y != obj.axe_y)\
+                    or self.unit_x != obj.unit_x\
+                    or self.unit_y != obj.unit_y:
+                raise ValueError("Fields are not consistent")
+            tmpsf = self.get_copy()
+            values = obj.values / self.values
+            unit =  obj.unit_values / self.unit_values
+            tmpsf.values = values*unit.asNumber()
+            tmpsf.unit_values = unit/unit.asNumber()
+            return tmpsf
+        else:
+            raise TypeError("Unsupported operation between {} and a "
+                            "ScalarField object".format(type(obj)))
+
     def __mul__(self, obj):
         if isinstance(obj, NUMBERTYPES):
             tmpsf = self.get_copy()
@@ -1549,8 +1599,8 @@ class ScalarField(Field):
             return tmpsf
         elif isinstance(obj, unum.Unum):
             tmpsf = self.get_copy()
-            tmpsf.values *= obj.asNumber
-            tmpsf.unit_values *= obj/obj.asNumber
+            tmpsf.values *= obj.asNumber()
+            tmpsf.unit_values *= obj/obj.asNumber()
             return tmpsf
         elif isinstance(obj, np.ma.core.MaskedArray):
             if obj.shape != self.values.shape:
@@ -1578,12 +1628,6 @@ class ScalarField(Field):
     def __abs__(self):
         tmpsf = self.get_copy()
         tmpsf.values = np.abs(tmpsf.values)
-        return tmpsf
-
-    def __sqrt__(self):
-        tmpsf = self.get_copy()
-        tmpsf.values = np.sqrt(tmpsf.values)
-        tmpsf.unit_values = np.sqrt(tmpsf.unit_values)
         return tmpsf
 
     def __pow__(self, number):
@@ -2525,41 +2569,40 @@ class ScalarField(Field):
         # deleting the masked border (useless field part)
         if crop_border:
             self.crop_masked_border()
-        mask = self.values.mask
+        mask = self.get_mask()
+        values = self.get_values().data
         # if there is nothing to do...
         if not np.any(mask):
             pass
         elif tof == 'interplin':
-            inds_x = np.arange(self.values.shape[1])
-            inds_y = np.arange(self.values.shape[0])
+            inds_x = np.arange(values.shape[1])
+            inds_y = np.arange(values.shape[0])
             grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            mask = self.values.mask
-            values = self.values.data
             f = spinterp.interp2d(grid_y[~mask],
                                   grid_x[~mask],
-                                  self.values[~mask])
+                                  values[~mask])
             for inds, masked in np.ndenumerate(mask):
                 if masked:
                     values[inds[0], inds[1]] = f(inds[0], inds[1])
             mask = np.zeros(values.shape)
-            self.values = np.ma.masked_array(values, mask)
+            self.set_values(np.ma.masked_array(values, mask))
         elif tof == 'interpcub':
-            inds_x = np.arange(self.values.shape[1])
-            inds_y = np.arange(self.values.shape[0])
+            inds_x = np.arange(values.shape[1])
+            inds_y = np.arange(values.shape[0])
             grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            mask = self.values.mask
-            values = self.values.data
             f = spinterp.interp2d(grid_y[~mask],
                                   grid_x[~mask],
-                                  self.values[~mask],
+                                  values[~mask],
                                   kind='cubic')
             for inds, masked in np.ndenumerate(mask):
                 if masked:
                     values[inds[1], inds[0]] = f(inds[1], inds[0])
             mask = np.zeros(values.shape)
-            self.values = np.ma.masked_array(values, mask)
+            self.set_values(np.ma.masked_array(values, mask))
         elif tof == 'value':
-            self.values[self.values.mask] = value
+            tmp_val = self.get_values()
+            tmp_val[self.values.mask] = value
+            self.set_values(tmp_val)
         else:
             raise ValueError("unknown 'tof' value")
 
@@ -2663,31 +2706,37 @@ class ScalarField(Field):
         unit : Unit object
             The unit of the integrale result.
         """
+        axe_x, axe_y = self.get_axes()
         if intervalx is None:
-            intervalx = [self.axe_x[0], self.axe_x[-1]]
+            intervalx = [axe_x[0], axe_x[-1]]
         if intervaly is None:
-            intervaly = [self.axe_y[0], self.axe_y[-1]]
+            intervaly = [axe_y[0], axe_y[-1]]
         trimfield = self.trim_area(intervalx, intervaly)
-        integral = (trimfield.values.sum()
-                    * np.abs(trimfield.axe_x[-1] - trimfield.axe_x[0])
-                    * np.abs(trimfield.axe_y[-1] - trimfield.axe_y[0])
-                    / len(trimfield.axe_x)
-                    / len(trimfield.axe_y))
-        unit = trimfield.unit_values*trimfield.unit_x*trimfield.unit_y
+        axe2_x, axe2_y = trimfield.get_axes()
+        unit_x, unit_y = trimfield.get_axe_units()
+        integral = (trimfield.get_values().sum()
+                    * np.abs(axe2_x[-1] - axe2_x[0])
+                    * np.abs(axe2_y[-1] - axe2_y[0])
+                    / len(axe2_x)
+                    / len(axe2_y))
+        unit = trimfield.unit_values*unit_x*unit_y
         return integral*unit
 
     def _display(self, kind=None, **plotargs):
-        X, Y = np.meshgrid(self.axe_x, self.axe_y)
+        X, Y = np.meshgrid(*self.get_axes())
+        values = self.get_values()
+        axe_x, axe_y = self.get_axes()
+        unit_x, unit_y = self.get_axe_units()
         if kind == 'contour':
             if (not 'cmap' in plotargs.keys()
                     and not 'colors' in plotargs.keys()):
                 plotargs['cmap'] = cm.jet
-            fig = plt.contour(X, Y, self.values, linewidth=1, **plotargs)
+            fig = plt.contour(X, Y, values, linewidth=1, **plotargs)
         elif kind == 'contourf':
             if 'cmap' in plotargs.keys() or 'colors' in plotargs.keys():
-                fig = plt.contourf(X, Y, self.values, linewidth=1, **plotargs)
+                fig = plt.contourf(X, Y, values, linewidth=1, **plotargs)
             else:
-                fig = plt.contourf(X, Y, self.values, cmap=cm.jet, linewidth=1,
+                fig = plt.contourf(X, Y, values, cmap=cm.jet, linewidth=1,
                                    **plotargs)
         elif kind is None:
             if not 'cmap' in plotargs.keys():
@@ -2696,19 +2745,19 @@ class ScalarField(Field):
                 plotargs['interpolation'] = 'nearest'
             if not 'aspect' in plotargs.keys():
                 plotargs['aspect'] = 'equal'
-            delta_x = self.axe_x[1] - self.axe_x[0]
-            delta_y = self.axe_y[1] - self.axe_y[0]
-            fig = plt.imshow(self.values,
-                             extent=(self.axe_x[0] - delta_x/2.,
-                                     self.axe_x[-1] + delta_x/2.,
-                                     self.axe_y[0] - delta_y/2.,
-                                     self.axe_y[-1] + delta_y/2.),
+            delta_x = axe_x[1] - axe_x[0]
+            delta_y = axe_y[1] - axe_y[0]
+            fig = plt.imshow(values,
+                             extent=(axe_x[0] - delta_x/2.,
+                                     axe_x[-1] + delta_x/2.,
+                                     axe_y[0] - delta_y/2.,
+                                     axe_y[-1] + delta_y/2.),
                              origin='lower', **plotargs)
         else:
             raise ValueError("Unknown 'kind' of plot for ScalarField object")
         plt.axis('equal')
-        plt.xlabel("X " + self.unit_x.strUnit())
-        plt.ylabel("Y " + self.unit_y.strUnit())
+        plt.xlabel("X " + unit_x.strUnit())
+        plt.ylabel("Y " + unit_y.strUnit())
         return fig
 
     def display(self, kind=None, **plotargs):
@@ -2734,9 +2783,9 @@ class ScalarField(Field):
         fig = self._display(kind, **plotargs)
         plt.title("Scalar field Values " + self.unit_values.strUnit())
         cb = plt.colorbar(fig, shrink=1, aspect=5)
-        cb.set_label(self.unit_values.strUnit())
+        cb.set_label(self.get_values_unit().strUnit())
         # search for limits in case of masked field
-        mask = np.ma.getmaskarray(self.values)
+        mask = self.get_values().mask
         for i in np.arange(len(self.axe_x)):
             if not np.all(mask[:, i]):
                 break
@@ -2756,24 +2805,6 @@ class ScalarField(Field):
         plt.xlim([xmin, xmax])
         plt.ylim([ymin, ymax])
         return fig
-
-    def display_3d(self, **plotargs):
-        """
-        Display the scalar field in three dimensions.
-
-        Parameters
-        ----------
-        **plotargs : dict
-            Arguments passed to the 'plot_surface' function used to display the
-            scalar field.
-
-        Returns
-        -------
-        fig : figure reference
-            Reference to the displayed figure.
-        """
-        pass
-
 
 class VectorField(Field):
     """
