@@ -5883,46 +5883,23 @@ class TemporalVelocityFields(VelocityFields):
         """
         from matplotlib import animation
         comp = self.get_comp(compo)
+        if 'kind' in plotargs.keys():
+            kind = plotargs['kind']
+        else:
+            kind = None
         # display a vector field (quiver)
-        if isinstance(comp[0], VectorField):
+        if isinstance(comp[0], VectorField)\
+                and (kind is None or kind == "quiver"):
             fig = plt.figure()
-            ax = comp[0].display(**plotargs)
+            ax = plt.gca()
+            displ = comp[0].display(**plotargs)
             ttl = plt.title('')
 
-            def update(num):
+            def update(num, fig, ax, displ, ttl, comp):
                 vx = comp[num].get_comp('Vx', raw=True)
                 vy = comp[num].get_comp('Vy', raw=True)
                 magn = comp[num].get_magnitude().get_comp('values', raw=True)
-                title = "{}, at t={:.3} {}"\
-                    .format(compo, float(self[num].time),
-                            self[num].unit_time.strUnit())
-                ttl.set_text(title)
-                ax.set_UVC(vx, vy, magn)
-                return ax
-            anim = animation.FuncAnimation(fig, update,
-                                           frames=len(comp),
-                                           interval=interval, blit=False,
-                                           repeat=repeat)
-            return anim
-            plt.show()
-        # display a scalar field (contour, contourf or imshow)
-        elif isinstance(comp[0], ScalarField):
-            if not 'kind' in plotargs:
-                plotargs['kind'] = None
-            kind = plotargs['kind']
-            fig = plt.figure()
-            ax = comp[0].display(**plotargs)
-            ttl = plt.title('')
-            print('first ok')
-            def update(num, ax, ttl):
-                if kind is None:
-                    val = comp[num].get_comp('values', raw=True)
-                    ax.set_data(val)
-                else:
-                    ### TODO: suffit pas !
-                    ax.ax.cla()
-                    ax = comp[num]._display(**plotargs)
-                    ttl = plt.title('')
+                displ.set_UVC(vx, vy, magn)
                 title = "{}, at t={:.3} {}"\
                     .format(compo, float(self[num].time),
                             self[num].unit_time.strUnit())
@@ -5932,10 +5909,29 @@ class TemporalVelocityFields(VelocityFields):
                                            frames=len(comp),
                                            interval=interval, blit=False,
                                            repeat=repeat,
-                                           fargs=(ax, ttl))
-            return anim
-            plt.show()
-
+                                           fargs=(fig, ax, displ, ttl, comp))
+            return anim,
+        # display a scalar field (contour, contourf or imshow) or a streamplot
+        elif isinstance(comp[0], ScalarField)\
+                or isinstance(comp[0], VectorField):
+            fig = plt.figure()
+            ax = plt.gca()
+            displ = comp[0].display(**plotargs)
+            ttl = plt.suptitle('')
+            def update(num, fig, ax, displ, ttl, comp):
+                ax.cla()
+                displ = comp[num]._display(**plotargs)
+                title = "{}, at t={:.3} {}"\
+                    .format(compo, float(self[num].time),
+                            self[num].unit_time.strUnit())
+                ttl.set_text(title)
+                return displ,
+            anim = animation.FuncAnimation(fig, update,
+                                           frames=len(comp),
+                                           interval=interval, blit=False,
+                                           repeat=repeat,
+                                           fargs=(fig, ax, displ, ttl, comp))
+            return anim,
         else:
             raise ValueError("I don't know any '{}' composant".format(compo))
 
