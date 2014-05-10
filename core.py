@@ -907,7 +907,7 @@ class Profile(object):
                 i_values.append(i_value)
         return i_values
 
-    def get_copy(self):
+    def copy(self):
         """
         Return a copy of the Profile object.
         """
@@ -1184,7 +1184,7 @@ class Field(object):
         axe_y : array
             Axe along Y.
         """
-        return self.axe_x, self.axe_y
+        return self.axe_x.copy(), self.axe_y.copy()
 
     def get_axe_units(self):
         """
@@ -1197,9 +1197,9 @@ class Field(object):
         unit_y : unit object
             Axe y unit
         """
-        return self.unit_x, self.unit_y
+        return self.unit_x.copy(), self.unit_y.copy()
 
-    def get_copy(self):
+    def copy(self):
         """
         Return a copy of the Field object.
         """
@@ -1325,7 +1325,7 @@ class Field(object):
             indmax_y = len(axe_y) - 1
         else:
             indmax_y = self.get_indice_on_axe(2, intervaly[1])[0]
-        trimfield = self.get_copy()
+        trimfield = self.copy()
         trimfield.axe_x = trimfield.axe_x[indmin_x:indmax_x + 1]
         trimfield.axe_y = trimfield.axe_y[indmin_y:indmax_y + 1]
         if full_output:
@@ -1370,7 +1370,7 @@ class Field(object):
         if axe[ind] == value:
             inds = [ind]
         else:
-            inds = [ind - 1, ind]
+            inds = [int(ind - 1), int(ind)]
         if not nearest:
             return inds
         # getting the nearest indice
@@ -1382,7 +1382,7 @@ class Field(object):
                     ind = inds[1]
             else:
                 ind = inds[0]
-            return ind
+            return int(ind)
 
     def get_points_around(self, center, radius):
         """
@@ -1474,22 +1474,21 @@ class ScalarField(Field):
         if not np.all(self.get_axes()[1] == another.get_axes()[1]):
             return False
         if not np.all(self.get_comp('values').data
-                == another.get_comp('values').data):
+                      == another.get_comp('values').data):
             return False
         if not np.all(self.get_comp('mask', raw=True)
-                == another.get_comp('mask', raw=True)):
+                      == another.get_comp('mask', raw=True)):
             return False
         if not np.all(self.get_axe_units()[0] == another.get_axe_units()[0]):
             return False
         if not np.all(self.get_axe_units()[1] == another.get_axe_units()[1]):
             return False
-        if not np.all(self.get_unit_values() == another.get_unit_values()):
+        if not np.all(self.get_comp('unit_values') == another.get_comp('unit_values')):
             return False
         return True
 
-
     def __neg__(self):
-        tmpsf = self.get_copy()
+        tmpsf = self.copy()
         tmpsf.values = -tmpsf.values
         return tmpsf
 
@@ -1506,13 +1505,13 @@ class ScalarField(Field):
                 self.unit_y + otherone.unit_y
             except:
                 raise ValueError("I think these units don't match, fox")
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             fact = otherone.unit_values/self.unit_values
             tmpsf.values += otherone.values*fact.asNumber()
             return tmpsf
         # if we add with a number
         elif isinstance(otherone, NUMBERTYPES):
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             tmpsf.values += otherone
             return tmpsf
         elif isinstance(otherone, unum.Unum):
@@ -1522,12 +1521,13 @@ class ScalarField(Field):
                 pdb.set_trace()
                 raise ValueError("Given number have to be consistent with"
                                  "the scalar field (same units)")
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             tmpsf.values += (otherone/self.unit_values).asNumber()
             return tmpsf
         else:
             raise TypeError("You can only add a scalarfield "
                             "with others scalarfields or with numbers")
+
     def __radd__(self, obj):
         return self.__add__(obj)
 
@@ -1539,11 +1539,11 @@ class ScalarField(Field):
 
     def __truediv__(self, obj):
         if isinstance(obj, NUMBERTYPES):
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             tmpsf.values /= obj
             return tmpsf
         elif isinstance(obj, unum.Unum):
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             tmpsf.values /= obj.asNumber()
             tmpsf.unit_values /= obj/obj.asNumber()
             return tmpsf
@@ -1553,7 +1553,7 @@ class ScalarField(Field):
                     or self.unit_x != obj.unit_x\
                     or self.unit_y != obj.unit_y:
                 raise ValueError("Fields are not consistent")
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             values = self.values / obj.values
             unit = self.unit_values / obj.unit_values
             tmpsf.values = values*unit.asNumber()
@@ -1567,12 +1567,12 @@ class ScalarField(Field):
 
     def __rdiv__(self, obj):
         if isinstance(obj, NUMBERTYPES):
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             tmpsf.values = obj/tmpsf.values
             tmpsf.unit_values = 1/tmpsf.unit_values
             return tmpsf
         elif isinstance(obj, unum.Unum):
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             tmpsf.values = obj.asNumber()/tmpsf.values
             tmpsf.unit_values = obj/obj.asNumber()/tmpsf.unit_values
             return tmpsf
@@ -1582,9 +1582,9 @@ class ScalarField(Field):
                     or self.unit_x != obj.unit_x\
                     or self.unit_y != obj.unit_y:
                 raise ValueError("Fields are not consistent")
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             values = obj.values / self.values
-            unit =  obj.unit_values / self.unit_values
+            unit = obj.unit_values / self.unit_values
             tmpsf.values = values*unit.asNumber()
             tmpsf.unit_values = unit/unit.asNumber()
             return tmpsf
@@ -1594,18 +1594,18 @@ class ScalarField(Field):
 
     def __mul__(self, obj):
         if isinstance(obj, NUMBERTYPES):
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             tmpsf.values *= obj
             return tmpsf
         elif isinstance(obj, unum.Unum):
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             tmpsf.values *= obj.asNumber()
             tmpsf.unit_values *= obj/obj.asNumber()
             return tmpsf
         elif isinstance(obj, np.ma.core.MaskedArray):
             if obj.shape != self.values.shape:
                 raise ValueError("Fields are not consistent")
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             tmpsf.values *= obj
             return tmpsf
         elif isinstance(obj, ScalarField):
@@ -1614,7 +1614,7 @@ class ScalarField(Field):
                     or self.unit_x != obj.unit_x\
                     or self.unit_y != obj.unit_y:
                 raise ValueError("Fields are not consistent")
-            tmpsf = self.get_copy()
+            tmpsf = self.copy()
             values = self.values * obj.values
             unit = self.unit_values * obj.unit_values
             tmpsf.values = values*unit.asNumber()
@@ -1626,7 +1626,7 @@ class ScalarField(Field):
     __rmul__ = __mul__
 
     def __abs__(self):
-        tmpsf = self.get_copy()
+        tmpsf = self.copy()
         tmpsf.values = np.abs(tmpsf.values)
         return tmpsf
 
@@ -1634,7 +1634,7 @@ class ScalarField(Field):
         if not isinstance(number, NUMBERTYPES):
             raise TypeError("You only can use a number for the power "
                             "on a Scalar field")
-        tmpsf = self.get_copy()
+        tmpsf = self.copy()
         tmpsf.values = np.power(tmpsf.values, number)
         tmpsf.unit_values = np.power(tmpsf.unit_values, number)
         return tmpsf
@@ -1986,14 +1986,18 @@ class ScalarField(Field):
                     values = np.ones(self.get_dim(), dtype=bool)
                 else:
                     values = np.zeros(self.get_dim(), dtype=bool)
+        elif componentname == "unit_values":
+            values = self.unit_values
         else:
             raise ValueError("unknown value of 'componentname'")
         if raw:
-            return values
+            return values.copy()
+        if isinstance(values, unum.Unum):
+            return values.copy()
         else:
             axe_x, axe_y = self.get_axes()
             unit_x, unit_y = self.get_axe_units()
-            unit_values = self.get_unit_values()
+            unit_values = self.get_comp('unit_values')
             tmpsf = ScalarField()
             tmpsf.import_from_arrays(axe_x, axe_y, values, unit_x, unit_y,
                                      unit_values)
@@ -2010,12 +2014,6 @@ class ScalarField(Field):
 #        Return the scalarfield mask.
 #        """
 #        return self.values.mask
-
-    def get_unit_values(self):
-        """
-        Return the values unit
-        """
-        return self.unit_values
 
 #    def set_values(self, values):
 #        """
@@ -2054,33 +2052,30 @@ class ScalarField(Field):
         """
         if not isinstance(componentname, STRINGTYPES):
             raise TypeError("'componentname' must be a string")
-        if not isinstance(value, ARRAYTYPES):
-            raise TypeError("'value' must be an array")
-        if not isinstance(value, np.ma.MaskedArray):
-             value = np.ma.masked_array(value)
-        if self.get_dim() != value.shape:
-            raise ValueError("'value' dimensions are inconsistent with the "
-                             "ScalarField shape")
         if componentname == 'values':
+            if not isinstance(value, ARRAYTYPES):
+                raise TypeError("'value' must be an array")
+            if not isinstance(value, np.ma.MaskedArray):
+                value = np.ma.masked_array(value)
+            if self.get_dim() != value.shape:
+                raise ValueError("'value' dimensions are inconsistent with the "
+                                 "ScalarField shape")
             self.values = value
         elif componentname == 'mask':
+            if not isinstance(value, ARRAYTYPES):
+                raise TypeError("'value' must be an array")
+            if not isinstance(value, np.ma.MaskedArray):
+                value = np.ma.masked_array(value)
+            if self.get_dim() != value.shape:
+                raise ValueError("'value' dimensions are inconsistent with the "
+                                 "ScalarField shape")
             self.values.mask = value
+        elif componentname == "unit_values":
+            if not isinstance(value, unum.Unum):
+                raise TypeError("'value' must here be a unit obejct")
+            self.unit_values = value
         else:
             raise ValueError("Unknown 'componentname' value")
-
-    def set_unit_values(self, unit_values=None):
-        """
-        Load unities into the scalar field values.
-
-        Parameters
-        ----------
-        unit_values : Unit object
-            Values unit.
-        """
-        if unit_values is not None:
-            if not isinstance(unit_values, unum.Unum):
-                raise TypeError("'unit_values' must be an Unit object")
-            self.unit_values = unit_values
 
     def get_dim(self):
         """
@@ -2557,7 +2552,7 @@ class ScalarField(Field):
 #            axec.append(axevalue)
 #        return Profile(axec, isoc, unit_x, unit_y, "Boundary Layer")
 
-    def get_copy(self):
+    def copy(self):
         """
         Return a copy of the scalarfield.
         """
@@ -2576,7 +2571,7 @@ class ScalarField(Field):
         """
         indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
             Field.trim_area(self, intervalx, intervaly, full_output=True)
-        tmpsf = self.get_copy()
+        tmpsf = self.copy()
         tmpsf.axe_x = tmpsf.axe_x[indmin_x:indmax_x + 1]
         tmpsf.axe_y = tmpsf.axe_y[indmin_y:indmax_y + 1]
         tmpsf.values = tmpsf.values[indmin_y:indmax_y + 1,
@@ -2851,7 +2846,7 @@ class ScalarField(Field):
         fig = self._display(kind, **plotargs)
         plt.title("Scalar field Values " + self.unit_values.strUnit())
         cb = plt.colorbar(fig, shrink=1, aspect=5)
-        cb.set_label(self.get_unit_values().strUnit())
+        cb.set_label(self.get_comp('unit_values').strUnit())
         # search for limits in case of masked field
         mask = self.get_comp('mask', raw=True)
         for i in np.arange(len(self.axe_x)):
@@ -2873,6 +2868,7 @@ class ScalarField(Field):
         plt.xlim([xmin, xmax])
         plt.ylim([ymin, ymax])
         return fig
+
 
 class VectorField(Field):
     """
@@ -2907,7 +2903,7 @@ class VectorField(Field):
         self.unit_values = make_unit('')
 
     def __neg__(self):
-        tmpvf = self.get_copy()
+        tmpvf = self.copy()
         tmpvf.comp_x = -tmpvf.comp_x
         tmpvf.comp_y = -tmpvf.comp_y
         return tmpvf
@@ -2925,13 +2921,13 @@ class VectorField(Field):
                 self.unit_y + other.unit_y
             except:
                 raise ValueError("I think these units don't match, fox")
-            tmpvf = self.get_copy()
-            fact = (other.get_unit_values()/self.get_unit_values()).asNumber()
+            tmpvf = self.copy()
+            fact = (other.get_comp('unit_values')/self.get_comp('unit_values')).asNumber()
             values_x = (self.get_comp('Vx', raw=True)
-                + other.get_comp('Vx', raw=True)*fact)
+                        + other.get_comp('Vx', raw=True)*fact)
             tmpvf.set_comp('Vx', values_x)
             values_y = (self.get_comp('Vy', raw=True)
-                + other.get_comp('Vy', raw=True)*fact)
+                        + other.get_comp('Vy', raw=True)*fact)
             tmpvf.set_comp('Vy', values_y)
             return tmpvf
         else:
@@ -2945,12 +2941,12 @@ class VectorField(Field):
 
     def __truediv__(self, number):
         if isinstance(number, unum.Unum):
-            tmpvf = self.get_copy()
+            tmpvf = self.copy()
             tmpvf.comp_x /= (number/self.unit_values).asNumber()
             tmpvf.comp_y /= (number/self.unit_values).asNumber()
             return tmpvf
         elif isinstance(number, NUMBERTYPES):
-            tmpvf = self.get_copy()
+            tmpvf = self.copy()
             tmpvf.comp_x /= number
             tmpvf.comp_y /= number
             return tmpvf
@@ -2962,12 +2958,12 @@ class VectorField(Field):
 
     def __mul__(self, number):
         if isinstance(number, unum.Unum):
-            tmpvf = self.get_copy()
+            tmpvf = self.copy()
             tmpvf.comp_x *= (number/self.unit_values).asNumber()
             tmpvf.comp_y *= (number/self.unit_values).asNumber()
             return tmpvf
         elif isinstance(number, NUMBERTYPES):
-            tmpvf = self.get_copy()
+            tmpvf = self.copy()
             tmpvf.comp_x *= number
             tmpvf.comp_y *= number
             return tmpvf
@@ -2978,7 +2974,7 @@ class VectorField(Field):
     __rmul__ = __mul__
 
     def __sqrt__(self):
-        tmpvf = self.get_copy()
+        tmpvf = self.copy()
         tmpvf.comp_x = np.sqrt(tmpvf.comp_x)
         tmpvf.comp_y = np.sqrt(tmpvf.comp_y)
         return tmpvf
@@ -2987,7 +2983,7 @@ class VectorField(Field):
         if not isinstance(number, NUMBERTYPES):
             raise TypeError("You only can use a number for the power "
                             "on a Vectorfield")
-        tmpvf = self.get_copy()
+        tmpvf = self.copy()
         tmpvf.comp_x = np.power(tmpvf.comp_x, number)
         tmpvf.comp_y = np.power(tmpvf.comp_y, number)
         return tmpvf
@@ -3192,22 +3188,22 @@ class VectorField(Field):
                 comp_y.shape[1] != axe_x.shape[0]):
             raise ValueError("Dimensions of 'axe_x', 'axe_y' and 'comp_y' must"
                              " be consistents")
-        self.axe_x = axe_x
-        self.axe_y = axe_y
-        self.comp_x = comp_x
-        self.comp_y = comp_y
-        self.unit_x = unit_x
-        self.unit_y = unit_y
-        self.unit_values = unit_values
+        self.axe_x = axe_x.copy()
+        self.axe_y = axe_y.copy()
+        self.comp_x = comp_x.copy()
+        self.comp_y = comp_y.copy()
+        self.unit_x = unit_x.copy()
+        self.unit_y = unit_y.copy()
+        self.unit_values = unit_values.copy()
 
     def export_to_velocityfield(self, time=None, unit_time=make_unit('')):
         if time is None:
             time = 0
         axe_x, axe_y = self.get_axes()
         unit_x, unit_y = self.get_axe_units()
-        value_x, value_y = (self.get_comp('x', raw=True),
-                            self.get_comp('y', raw=True))
-        unit_values = self.get_unit_values()
+        value_x, value_y = (self.get_comp('Vx', raw=True),
+                            self.get_comp('Vy', raw=True))
+        unit_values = self.get_comp('unit_values')
         tmpvf = VelocityField()
         tmpvf.import_from_arrays(axe_x, axe_y, value_x, value_y, time,
                                  unit_x, unit_y, unit_values, unit_time)
@@ -3352,12 +3348,6 @@ class VectorField(Field):
 #        """
 #        return self.comp_x, self.comp_y
 
-    def get_unit_values(self):
-        """
-        Return the values unit
-        """
-        return self.unit_values
-
 #    def get_mask(self):
 #        """
 #        Return the scalarfield mask.
@@ -3386,20 +3376,6 @@ class VectorField(Field):
 #                                 "original field shape")
 #            self.comp_y = comp_y
 
-    def set_unit_values(self, unit_values=None):
-        """
-        Load unities into the scalar field values.
-
-        Parameters
-        ----------
-        unit_values : Unit object
-            Values unit.
-        """
-        if unit_values is not None:
-            if not isinstance(unit_values, unum.Unum):
-                raise TypeError("'unit_values' must be an Unit object")
-            self.unit_values = unit_values
-
 #    def set_mask(self, mask):
 #        """
 #        fill the scalar field mask with the given values.
@@ -3422,7 +3398,7 @@ class VectorField(Field):
         Parameters
         ----------
         componentname : string
-            Can be 'x', 'y' or 'mask'.
+            Can be 'Vx', 'Vy', 'mask' or 'unit_values'.
         raw : boolean, optional
             If 'False' (default), return a ScalarField object,
             if 'True', return a masked array.
@@ -3433,10 +3409,10 @@ class VectorField(Field):
         """
         if not isinstance(componentname, STRINGTYPES):
             raise TypeError("'componentname' must be a string")
-        if componentname == 'x':
-            values = self.comp_x
-        elif componentname == 'y':
-            values = self.comp_y
+        if componentname == 'Vx':
+            values = self.comp_x.copy()
+        elif componentname == 'Vy':
+            values = self.comp_y.copy()
         elif componentname == 'mask':
             values = np.logical_or(self.comp_x.mask, self.comp_y.mask)
             if isinstance(values, np.bool_):
@@ -3444,6 +3420,8 @@ class VectorField(Field):
                     values = np.ones(self.get_dim(), dtype=bool)
                 else:
                     values = np.zeros(self.get_dim(), dtype=bool)
+        elif componentname == "unit_values":
+            return self.unit_values.copy()
         else:
             raise ValueError("unknown value of 'componentname'")
         if raw:
@@ -3451,7 +3429,7 @@ class VectorField(Field):
         else:
             axe_x, axe_y = self.get_axes()
             unit_x, unit_y = self.get_axe_units()
-            unit_values = self.get_unit_values()
+            unit_values = self.get_comp('unit_values')
             tmpsf = ScalarField()
             tmpsf.import_from_arrays(axe_x, axe_y, values, unit_x, unit_y,
                                      unit_values)
@@ -3464,30 +3442,48 @@ class VectorField(Field):
         Parameters
         ----------
         componentname : string
-            Can be 'x', 'y', 'mask'.
+            Can be 'Vx', 'Vy', 'mask'.
         value : array
             Array with the same shape as the initial component
         """
         if not isinstance(componentname, STRINGTYPES):
             raise TypeError("'componentname' must be a string")
-        if not isinstance(value, ARRAYTYPES):
-            raise TypeError("'value' must be an array")
-        if not isinstance(value, np.ma.MaskedArray):
-             value = np.ma.masked_array(value)
-        if self.get_dim() != value.shape:
-            raise ValueError("'value' dimensions are inconsistent with the "
-                             "ScalarField shape")
-        if componentname == 'x':
+        if componentname == 'Vx':
+            if not isinstance(value, ARRAYTYPES):
+                raise TypeError("'value' must be an array")
+            if not isinstance(value, np.ma.MaskedArray):
+                value = np.ma.masked_array(value)
+            if self.get_dim() != value.shape:
+                raise ValueError("'value' dimensions are inconsistent with the"
+                                 " ScalarField shape")
             self.comp_x = value
-        elif componentname == 'y':
+        elif componentname == 'Vy':
+            if not isinstance(value, ARRAYTYPES):
+                raise TypeError("'value' must be an array")
+            if not isinstance(value, np.ma.MaskedArray):
+                value = np.ma.masked_array(value)
+            if self.get_dim() != value.shape:
+                raise ValueError("'value' dimensions are inconsistent with the"
+                                 " ScalarField shape")
             self.comp_y = value
         elif componentname == 'mask':
+            if not isinstance(value, ARRAYTYPES):
+                raise TypeError("'value' must be an array")
+            if not isinstance(value, np.ma.MaskedArray):
+                value = np.ma.masked_array(value)
+            if self.get_dim() != value.shape:
+                raise ValueError("'value' dimensions are inconsistent with the"
+                                 " ScalarField shape")
             self.comp_x.mask = value
             self.comp_y.mask = value
+        elif componentname == "unit_values":
+            if not isinstance(value, unum.Unum):
+                raise TypeError("'unit_value' should be a unit object")
+            self.unit_values = value
         else:
             raise ValueError("Unknown 'componentname' value")
 
-    def get_copy(self):
+    def copy(self):
         """
         Return a copy of the vectorfield.
         """
@@ -3568,9 +3564,9 @@ class VectorField(Field):
         if not isinstance(component, int):
             raise TypeError("'component' must be an integer")
         if component == 1:
-            return self.get_comp('x').get_profile(direction, position)
+            return self.get_comp('Vx').get_profile(direction, position)
         elif component == 2:
-            return self.get_comp('y').get_profile(direction, position)
+            return self.get_comp('Vy').get_profile(direction, position)
         else:
             raise ValueError("'component' must have the value of 1 or 2")
 
@@ -3610,7 +3606,7 @@ class VectorField(Field):
 #        if component == 1:
 #            return self.get_comp('x').get_bl(direction, value, rel, kind)
 #        else:
-#            return self.get_comp('y').get_bl(value, direction, rel, kind)
+#            return self.get_comp('Vy').get_bl(value, direction, rel, kind)
 
     def get_streamlines(self, xy, delta=.25, interp='linear',
                         reverse_direction=False):
@@ -3655,10 +3651,10 @@ class VectorField(Field):
         if not (interp == 'linear' or interp == 'cubic'):
             raise ValueError("Unknown interpolation method")
         # getting datas
-        tmpvf = self.get_copy()
+        tmpvf = self.copy()
         tmpvf.fill()
         unit_x, unit_y = tmpvf.get_axe_units()
-        Vx, Vy = tmpvf.get_comp('x', raw=True), self.get_comp('y', raw=True)
+        Vx, Vy = tmpvf.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
         deltaabs = delta * ((axe_x[-1]-axe_x[0])/len(axe_x)
                             + (axe_y[-1]-axe_y[0])/len(axe_y))/2.
         deltaabs2 = deltaabs**2
@@ -3756,7 +3752,7 @@ class VectorField(Field):
         else:
             raise ValueError("'xy' must be a tuple of arrays")
         axe_x, axe_y = self.get_axes()
-        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+        Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
         Vx = Vx.flatten()
         Vy = Vy.flatten()
         Magn = self.get_magnitude().get_comp('values').flatten()
@@ -3850,28 +3846,33 @@ class VectorField(Field):
         else:
             return streams
 
-    def get_magnitude(self):
+    def get_magnitude(self, raw=False):
         """
         Return a scalar field with the velocity field magnitude.
         """
-        comp_x, comp_y = (self.get_comp('x', raw=True),
-                          self.get_comp('y', raw=True))
-        unit_x, unit_y = self.get_axe_units()
+        comp_x, comp_y = (self.get_comp('Vx', raw=True).data,
+                          self.get_comp('Vy', raw=True).data)
+        mask = self.get_comp('mask', raw=True)
         values = (comp_x**2 + comp_y**2)**(.5)
-        unit_values = (unit_x**2 + unit_y**2)**(.5)
-        magn = self.get_comp('x')
-        magn.set_comp('values', values)
-        magn.set_unit_values(unit_values)
-        return magn
+        values = np.ma.masked_array(values, mask)
+        if raw:
+            return values
+        else:
+            unit_x, unit_y = self.get_axe_units()
+            unit_values = (unit_x**2 + unit_y**2)**(.5)
+            magn = self.get_comp('Vx')
+            magn.set_comp('values', values)
+            magn.set_comp('unit_values', unit_values)
+            return magn
 
-    def get_shear_stress(self):
+    def get_shear_stress(self, raw=False):
         """
         Return a vector field with the shear stress
         """
         # Getting gradients and axes
         axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = (self.get_comp('x', raw=True),
-                          self.get_comp('y', raw=True))
+        comp_x, comp_y = (self.get_comp('Vx', raw=True),
+                          self.get_comp('Vy', raw=True))
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         du_dy, _ = np.gradient(comp_x, dy, dx)
@@ -3880,36 +3881,42 @@ class VectorField(Field):
         comp_x = dv_dx
         comp_y = du_dy
         # creating vectorfield object
-        tmpvf = self.get_copy()
-        tmpvf.set_comp('x', comp_x)
-        tmpvf.set_comp('y', comp_y)
-        return tmpvf
+        if raw:
+            return (comp_x, comp_y)
+        else:
+            tmpvf = self.copy()
+            tmpvf.set_comp('Vx', comp_x)
+            tmpvf.set_comp('Vy', comp_y)
+            return tmpvf
 
-    def get_vorticity(self):
+    def get_vorticity(self, raw=False):
         """
         Return a scalar field with the z component of the vorticity.
         """
         axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = (self.get_comp('x', raw=True),
-                          self.get_comp('y', raw=True))
+        comp_x, comp_y = (self.get_comp('Vx', raw=True),
+                          self.get_comp('Vy', raw=True))
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         _, Exy = np.gradient(comp_x, dy, dx)
         Eyx, _ = np.gradient(comp_y, dy, dx)
         vort = Eyx - Exy
-        vort_sf = self.get_comp('x').get_copy()
-        vort_sf.set_comp('values', vort)
-        return vort_sf
+        if raw:
+            return vort
+        else:
+            vort_sf = self.get_comp('Vx').copy()
+            vort_sf.set_comp('values', vort)
+            return vort_sf
 
-    def get_swirling_strength(self):
+    def get_swirling_strength(self, raw=False):
         """
         Return a scalar field with the swirling strength
         (imaginary part of the eigenvalue of the velocity laplacian matrix)
         """
         # Getting gradients and axes
         axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = (self.get_comp('x', raw=True),
-                          self.get_comp('y', raw=True))
+        comp_x, comp_y = (self.get_comp('Vx', raw=True),
+                          self.get_comp('Vy', raw=True))
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         du_dy, du_dx = np.gradient(comp_x, dy, dx)
@@ -3928,12 +3935,15 @@ class VectorField(Field):
                     swst[i, j] = np.max(np.imag(eigvals))
         # creating ScalarField object
         swst = np.ma.masked_array(swst, mask)
-        tmpsf = self.get_comp('x').get_copy()
-        ### TODO : implementer unité swst
-        tmpsf.set_comp('values', swst)
-        return tmpsf
+        if raw:
+            return swst
+        else:
+            tmpsf = self.get_comp('Vx').copy()
+            ### TODO : implementer unité swst
+            tmpsf.set_comp('values', swst)
+            return tmpsf
 
-    def get_swirling_vector(self):
+    def get_swirling_vector(self, raw=False):
         """
         Return a scalar field with the swirling vectors
         (eigenvectors of the velocity laplacian matrix
@@ -3943,8 +3953,8 @@ class VectorField(Field):
         """
         # Getting gradients and axes
         axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = (self.get_comp('x', raw=True),
-                          self.get_comp('y', raw=True))
+        comp_x, comp_y = (self.get_comp('Vx', raw=True),
+                          self.get_comp('Vy', raw=True))
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         du_dy, du_dx = np.gradient(comp_x, dy, dx)
@@ -3972,12 +3982,15 @@ class VectorField(Field):
         # creating vectorfield object
         comp_x = np.ma.masked_array(comp_x, mask)
         comp_y = np.ma.masked_array(comp_y, mask)
-        tmpvf = self.get_copy()
-        tmpvf.set_comp('x', comp_x)
-        tmpvf.set_comp('y', comp_y)
-        return tmpvf
+        if raw:
+            return (comp_x, comp_y)
+        else:
+            tmpvf = self.copy()
+            tmpvf.set_comp('Vx', comp_x)
+            tmpvf.set_comp('Vy', comp_y)
+            return tmpvf
 
-    def get_theta(self, low_velocity_filter=0.):
+    def get_theta(self, low_velocity_filter=0., raw=False):
         """
         Return a scalar field with the vector angle (in reference of the unit_y
         vector [1, 0]).
@@ -3993,7 +4006,7 @@ class VectorField(Field):
             Contening theta field.
         """
         # get data
-        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+        Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
         Vx = Vx.data
         Vy = Vy.data
         mask = self.get_comp('mask', raw=True)
@@ -4008,9 +4021,12 @@ class VectorField(Field):
         theta[tmp_mask] = np.arccos(theta[tmp_mask])
         theta[Vy < 0] = 2*np.pi - theta[Vy < 0]
         theta = np.ma.masked_array(theta, mask)
-        tmpsf = self.get_comp('x').get_copy()
-        tmpsf.set_comp('values', theta)
-        return tmpsf
+        if raw:
+            return theta
+        else:
+            tmpsf = self.get_comp('Vx').copy()
+            tmpsf.set_comp('values', theta)
+            return tmpsf
 
     def smooth(self, tos='uniform', size=None, **kw):
         """
@@ -4039,7 +4055,7 @@ class VectorField(Field):
         # filling up the field before smoothing
         self.fill()
         # getting data
-        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+        Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
         mask = self.get_comp('mask', raw=True)
         # smoothing
         if tos == "uniform":
@@ -4053,8 +4069,8 @@ class VectorField(Field):
         # storing
         Vx = np.ma.masked_array(Vx, mask)
         Vy = np.ma.masked_array(Vy, mask)
-        self.set_comp('x', Vx)
-        self.set_comp('y', Vy)
+        self.set_comp('Vx', Vx)
+        self.set_comp('Vy', Vy)
 
     def fill(self, tof='interplin', value=0., crop_border=True):
         # TODO : Make this fucking functionnality work !
@@ -4090,7 +4106,7 @@ class VectorField(Field):
             inds_x = np.arange(self.get_dim()[1])
             inds_y = np.arange(self.get_dim()[0])
             grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+            Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
             Vx = Vx.data
             Vy = Vy.data
             fx = spinterp.interp2d(grid_y[~mask],
@@ -4104,13 +4120,13 @@ class VectorField(Field):
                     Vx[inds[0], inds[1]] = fx(inds[0], inds[1])
                     Vy[inds[0], inds[1]] = fy(inds[0], inds[1])
             mask = np.zeros(Vx.shape)
-            self.set_comp('x', Vx)
-            self.set_comp('y', Vy)
+            self.set_comp('Vx', Vx)
+            self.set_comp('Vy', Vy)
         elif tof == 'interpcub':
             inds_x = np.arange(self.values.shape[1])
             inds_y = np.arange(self.values.shape[0])
             grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+            Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
             Vx = Vx.data
             Vy = Vy.data
             fx = spinterp.interp2d(grid_y[~mask],
@@ -4124,10 +4140,10 @@ class VectorField(Field):
                     Vx[inds[0], inds[1]] = fx(inds[0], inds[1])
                     Vy[inds[0], inds[1]] = fy(inds[0], inds[1])
             mask = np.zeros(Vx.shape)
-            self.set_comp('x', Vx)
-            self.set_comp('y', Vy)
+            self.set_comp('Vx', Vx)
+            self.set_comp('Vy', Vy)
         elif tof == 'value':
-            Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+            Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
             Vx[mask] = value
             Vy[mask] = value
         else:
@@ -4146,7 +4162,7 @@ class VectorField(Field):
         """
         indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
             Field.trim_area(self, intervalx, intervaly, full_output=True)
-        tmpsf = self.get_copy()
+        tmpsf = self.copy()
         tmpsf.axe_x = tmpsf.axe_x[indmin_x:indmax_x + 1]
         tmpsf.axe_y = tmpsf.axe_y[indmin_y:indmax_y + 1]
         tmpsf.comp_x = tmpsf.comp_x[indmin_y:indmax_y + 1,
@@ -4161,7 +4177,7 @@ class VectorField(Field):
         """
         axe_x, axe_y = self.get_axes()
         # checking masked values presence
-        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+        Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
         if not (np.ma.is_masked(Vx), np.ma.is_masked(Vy)):
             return None
         # getting datas
@@ -4193,7 +4209,7 @@ class VectorField(Field):
                 raise TypeError("'kind' must be a string")
         axe_x, axe_y = self.get_axes()
         if component is None:
-            Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+            Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
             magn = self.get_magnitude().get_comp('values', raw=True)
             unit_x, unit_y = self.get_axe_units()
             if kind == 'stream':
@@ -4213,14 +4229,14 @@ class VectorField(Field):
                 raise ValueError("Unknown value of 'kind'")
         elif component == "x":
             if kind == '3D':
-                fig = self.get_comp('x').Display3D()
+                fig = self.get_comp('Vx').Display3D()
             else:
-                fig = self.get_comp('x')._display(kind)
+                fig = self.get_comp('Vx')._display(kind)
         elif component == "y":
             if kind == '3D':
-                fig = self.get_comp('y').Display3D()
+                fig = self.get_comp('Vy').Display3D()
             else:
-                fig = self.get_comp('y')._display(kind)
+                fig = self.get_comp('Vy')._display(kind)
         else:
             raise TypeError("Unknown value of 'component'")
         return fig
@@ -4235,7 +4251,7 @@ class VectorField(Field):
         Parameters
         ----------
         component : string, optional
-            Component to display, can be 'x', 'y', 'mask'
+            Component to display, can be 'Vx', 'Vy', 'mask'
         kind : string, optinnal
             Scalar plots :
             if 'None': each datas are plotted (imshow),
@@ -4256,8 +4272,8 @@ class VectorField(Field):
         """
         fig = self._display(component, kind, **plotargs)
         unit_x, unit_y = self.get_axe_units()
-        unit_values = self.get_unit_values()
-        Vx, Vy = self.get_comp('x', raw=True), self.get_comp('y', raw=True)
+        unit_values = self.get_comp('unit_values')
+        Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
         if component is None:
             if kind == 'quiver' or kind is None:
                 cb = plt.colorbar()
@@ -4268,9 +4284,9 @@ class VectorField(Field):
                               + unit_values.strUnit() + "$",
                               labelpos='W', fontproperties={'weight': 'bold'})
             plt.title("Values " + unit_values.strUnit())
-        elif component == 'x':
+        elif component == 'Vx':
             plt.title("Vx " + unit_values.strUnit())
-        elif component == 'y':
+        elif component == 'Vy':
             plt.title("Vy " + unit_values.strUnit())
         else:
             raise ValueError("Unknown 'component' value")
@@ -4346,15 +4362,15 @@ class VelocityField(VectorField):
             raise TypeError("'unit_time' must be a Unit object")
         VectorField.import_from_arrays(self, axe_x, axe_y, comp_x, comp_y,
                                        unit_x, unit_y, unit_values)
-        self.time = time
-        self.unit_time = unit_time
+        self.time = copy.deepcopy(time)
+        self.unit_time = unit_time.copy()
 
     def export_to_vectorfield(self):
         axe_x, axe_y = self.get_axes()
         unit_x, unit_y = self.get_axe_units()
-        value_x, value_y = (self.get_comp('x', raw=True),
-                            self.get_comp('y', raw=True))
-        unit_values = self.get_unit_values()
+        value_x, value_y = (self.get_comp('Vx', raw=True),
+                            self.get_comp('Vy', raw=True))
+        unit_values = self.get_comp('unit_values')
         tmpvf = VectorField()
         tmpvf.import_from_arrays(axe_x, axe_y, value_x, value_y,
                                  unit_x, unit_y, unit_values)
@@ -4383,99 +4399,101 @@ class VelocityField(VectorField):
         value = None
         # we want the vector !
         if componentname == "V":
-                value = (VectorField.get_comp(self, 'x', raw=True),
-                         VectorField.get_comp(self, 'y', raw=True))
+                value = (VectorField.get_comp(self, 'Vx', raw=True),
+                         VectorField.get_comp(self, 'Vy', raw=True))
         # we want a vector parameter
-        if componentname == "mask":
+        elif componentname == "mask":
             value = VectorField.get_comp(self, 'mask', raw=True)
-        if componentname == "Vx":
-            value = VectorField.get_comp(self, 'x', raw=True)
-        if componentname == "Vy":
-            value = VectorField.get_comp(self, 'y', raw=True)
+        elif componentname == "Vx":
+            value = VectorField.get_comp(self, 'Vx', raw=True)
+        elif componentname == "Vy":
+            value = VectorField.get_comp(self, 'Vy', raw=True)
+        elif componentname == "unit_values":
+            value = self.unit_values
         # we want something else
-        if componentname == "magnitude":
+        elif componentname == "magnitude":
             try:
-                value = self.magnitude
+                value = self.magnitude.copy()
             except AttributeError:
                 self.magnitude = self.get_magnitude(raw=True)
-                value = self.magnitude
-        if componentname == "vorticity":
+                value = self.magnitude.copy()
+        elif componentname == "vorticity":
             try:
-                value = self.vorticity
+                value = self.vorticity.copy()
             except AttributeError:
                 self.vorticity = self.get_vorticity(raw=True)
-                value = self.vorticity
-        if componentname == "theta":
+                value = self.vorticity.copy()
+        elif componentname == "theta":
             try:
-                value = self.theta
+                value = self.theta.copy()
             except AttributeError:
                 self.theta = self.V.get_theta(raw=True)
-                value = self.theta
-        if componentname == "gamma1":
+                value = self.theta.copy()
+        elif componentname == "gamma1":
             try:
-                value = self.gamma1
+                value = self.gamma1.copy()
             except AttributeError:
                 self.calc_gamma1(raw=True)
-                value = self.gamma1
-        if componentname == "gamma2":
+                value = self.gamma1.copy()
+        elif componentname == "gamma2":
             try:
-                value = self.gamma2
+                value = self.gamma2.copy()
             except AttributeError:
                 self.calc_gamma2(raw=True)
-                value = self.gamma2
-        if componentname == "kappa1":
+                value = self.gamma2.copy()
+        elif componentname == "kappa1":
             try:
-                value = self.kappa1
+                value = self.kappa1.copy()
             except AttributeError:
                 self.calc_kappa1(raw=True)
-                value = self.kappa1
-        if componentname == "kappa2":
+                value = self.kappa1.copy()
+        elif componentname == "kappa2":
             try:
-                value = self.kappa2
+                value = self.kappa2.copy()
             except AttributeError:
                 self.calc_kappa2(raw=True)
-                value = self.kappa2
-        if componentname == "iota":
+                value = self.kappa2.copy()
+        elif componentname == "iota":
             try:
-                value = self.iota
+                value = self.iota.copy()
             except AttributeError:
                 self.calc_iota(raw=True)
-                value = self.iota
-        if componentname == "qcrit":
+                value = self.iota.copy()
+        elif componentname == "qcrit":
             try:
-                value = self.qcrit
+                value = self.qcrit.copy()
             except AttributeError:
                 self.calc_q_criterion(raw=True)
-                value = self.qcrit
-        if componentname == "swirling_strength":
+                value = self.qcrit.copy()
+        elif componentname == "swirling_strength":
             try:
-                value = self.swirling_strength
+                value = self.swirling_strength.copy()
             except AttributeError:
                 self.swirling_strength = self.get_swirling_strength(raw=True)
-                value = self.swirling_strength
-        if componentname == "sigma":
+                value = self.swirling_strength.copy()
+        elif componentname == "sigma":
             try:
-                value = self.sigma
+                value = self.sigma.copy()
             except AttributeError:
                 self.calc_sigma(raw=True)
-                value = self.sigma
-        if componentname == "time":
-            value = self.time
-        if componentname == "unit_time":
-            value = self.unit_time
+                value = self.sigma.copy()
+        elif componentname == "time":
+            value = copy.deepcopy(self.time)
+        elif componentname == "unit_time":
+            value = self.unit_time.copy()
         # look what we got and what we want to return
         if value is None:
             raise ValueError("'componentname' must be a known component ({0} "
                              "is actually unknown)".format(componentname))
         if raw:
             return value
-        if isinstance(value, ((unum.Unum,) + NUMBERTYPES)):
+        elif isinstance(value, ((unum.Unum,) + NUMBERTYPES)):
             return value
         elif isinstance(value, np.ma.MaskedArray):
             tmpsf = ScalarField()
             axe_x, axe_y = self.get_axes()
             unit_x, unit_y = self.get_axe_units()
-            unit_values = self.get_unit_values()
+            unit_values = self.get_comp('unit_values')
             tmpsf.import_from_arrays(axe_x, axe_y, value, unit_x, unit_y,
                                      unit_values)
             return tmpsf
@@ -4483,7 +4501,7 @@ class VelocityField(VectorField):
             tmpvf = VectorField()
             axe_x, axe_y = self.get_axes()
             unit_x, unit_y = self.get_axe_units()
-            unit_values = self.get_unit_values()
+            unit_values = self.get_comp('unit_values')
             tmpvf.import_from_arrays(axe_x, axe_y, value[0], value[1], unit_x,
                                      unit_y, unit_values)
             return tmpvf
@@ -4503,11 +4521,13 @@ class VelocityField(VectorField):
 
         """
         if componentname == 'Vx':
-            VectorField.set_comp(self, 'x', values)
+            VectorField.set_comp(self, 'Vx', values)
         elif componentname == 'Vy':
-            VectorField.set_comp(self, 'y', values)
+            VectorField.set_comp(self, 'Vy', values)
         elif componentname == 'mask':
             VectorField.set_comp(self, 'mask', values)
+        elif componentname == "unit_values":
+            VectorField.set_comp(self, "unit_values", values)
         else:
             raise ValueError("Unknown value for 'componentname'")
 
@@ -4531,7 +4551,7 @@ class VelocityField(VectorField):
         comp = self.get_comp(componentname)
         if isinstance(comp, (ScalarField, VectorField)):
             return comp.get_min(unit)
-        elif isinstance(comp, ARRAYTYPE):
+        elif isinstance(comp, ARRAYTYPES):
             return np.min(comp)
         else:
             raise ValueError("I can't compute a minima on this thing")
@@ -4556,7 +4576,7 @@ class VelocityField(VectorField):
         comp = self.get_comp(componentname)
         if isinstance(comp, (ScalarField, VectorField)):
             return comp.get_max(unit)
-        elif isinstance(comp, ARRAYTYPE):
+        elif isinstance(comp, ARRAYTYPES):
             return np.max(comp)
         else:
             raise ValueError("I can't compute the maxima on that sort of "
@@ -4857,7 +4877,7 @@ class VelocityFields(object):
         """
         if not isinstance(velocityfield, VelocityField):
             raise TypeError("'velocityfield' must be a VelocityField object")
-        self.fields.append(velocityfield.get_copy())
+        self.fields.append(velocityfield.copy())
 
     def get_field(self, fieldnumber):
         """
@@ -4876,7 +4896,7 @@ class VelocityFields(object):
         field = self.fields[fieldnumber]
         return field
 
-    def get_copy(self):
+    def copy(self):
         """
         Return a copy of the velocityfields
         """
@@ -4925,7 +4945,7 @@ class TemporalVelocityFields(VelocityFields):
 
     def __add__(self, other):
         if isinstance(other, TemporalVelocityFields):
-            tmp_tvfs = self.get_copy()
+            tmp_tvfs = self.copy()
             tmp_tvfs._clear_derived()
             tmp_tvfs.fields += other.fields
             return tmp_tvfs
@@ -5024,58 +5044,58 @@ class TemporalVelocityFields(VelocityFields):
             return self.fields
         elif componentname == "mean_vf":
             try:
-                return self.mean_vf
+                return self.mean_vf.copy()
             except AttributeError:
                 self.calc_mean_vf()
-                return self.mean_vf
+                return self.mean_vf.copy()
         elif componentname == "turbulent_vf":
             try:
-                return self.turbulent_vf
+                return self.turbulent_vf.copy()
             except AttributeError:
                 self.calc_turbulent_vf()
-                return self.turbulent_vf
+                return self.turbulent_vf.copy()
         elif componentname == "mean_kinetic_energy":
             try:
-                return self.mean_kinetic_energy
+                return self.mean_kinetic_energy.copy()
             except AttributeError:
                 self.calc_mean_kinetic_energy()
-                return self.mean_kinetic_energy
+                return self.mean_kinetic_energy.copy()
         elif componentname == "turbulent_kinetic_energy":
             try:
-                return self.turbulent_kinetic_energy
+                return self.turbulent_kinetic_energy.copy()
             except AttributeError:
                 self.calc_turbulent_kinetic_energy()
-                return self.turbulent_kinetic_energy
+                return self.turbulent_kinetic_energy.copy()
         elif componentname == "rs_xx":
             try:
-                return self.rs_xx
+                return self.rs_xx.copy()
             except AttributeError:
                 self.calc_reynolds_stress()
-                return self.rs_xx
+                return self.rs_xx.copy()
         elif componentname == "rs_yy":
             try:
-                return self.rs_yy
+                return self.rs_yy.copy()
             except AttributeError:
                 self.calc_reynolds_stress()
-                return self.rs_yy
+                return self.rs_yy.copy()
         elif componentname == "rs_xy":
             try:
-                return self.rs_xy
+                return self.rs_xy.copy()
             except AttributeError:
                 self.calc_reynolds_stress()
-                return self.rs_xy
+                return self.rs_xy.copy()
         elif componentname == "tke":
             try:
-                return self.tke
+                return self.tke.copy()
             except AttributeError:
                 self.calc_tke()
-                return self.tke
+                return copy.deepcopy(self.tke)
         elif componentname == "mean_tke":
             try:
-                return self.mean_tke
+                return self.mean_tke.copy()
             except AttributeError:
                 self.calc_mean_tke()
-                return self.mean_tke
+                return self.mean_tke.copy()
         # Velocity Field attributes
         elif len(self.fields) != 0:
             try:
@@ -5095,6 +5115,32 @@ class TemporalVelocityFields(VelocityFields):
         """
         return self[0].get_axes()
 
+    def get_axe_units(self):
+        """
+        Return fields axis unities
+        """
+        return self[0].get_axe_units()
+
+    def get_indice_on_axe(self, direction, value, nearest=False):
+        """
+        Return, on the given axe, the indices representing the positions
+        surrounding 'value'.
+        if 'value' is exactly an axe position, return just one indice.
+
+        Parameters
+        ----------
+        direction : int
+            1 or 2, for axes choice.
+        value : number
+        nearest : boolean
+            If 'True', only the nearest indice is returned.
+
+        Returns
+        -------
+        interval : 2x1 or 1x1 array of integer
+        """
+        return self.fields[0].get_indice_on_axe(direction, value, nearest)
+
     def get_dim(self):
         """
         Return the fields dimension.
@@ -5103,11 +5149,11 @@ class TemporalVelocityFields(VelocityFields):
             return (0,)
         return self.fields[0].get_dim()
 
-    def get_copy(self):
+    def copy(self):
         """
         Return a copy of the velocityfields
         """
-        return copy.deepcopy(tmp_tvfs)
+        return copy.deepcopy(self)
 
     def get_time_profile(self, component, x, y):
         """
@@ -5149,7 +5195,7 @@ class TemporalVelocityFields(VelocityFields):
             for i in np.arange(len(compo)):
                 time.append(self[i].time)
                 values[i] = compo[i].get_value(ind_y, ind_x, ind=True)
-                mask[i] = compo[i].get_comp('mask')[ind_y, ind_x]
+                mask[i] = compo[i].get_comp('mask', raw=True)[ind_y, ind_x]
             values = np.ma.masked_array(values, mask)
             return Profile(time, values, unit_x=unit_time, unit_y=unit_values)
         else:
@@ -5192,9 +5238,15 @@ class TemporalVelocityFields(VelocityFields):
         # checking parameters coherence
         if not isinstance(pt, ARRAYTYPES):
             raise TypeError("'pt' must be a 2x1 array")
-        pt = np.array(pt, dtype=float)
+        if ind:
+            pt = np.array(pt, dtype=int)
+        else:
+            pt = np.array(pt, dtype=float)
         if not pt.shape == (2,):
             raise ValueError("'pt' must be a 2x1 array")
+        if ind and (not isinstance(pt[0], int) or not isinstance(pt[1], int)):
+            raise TypeError("If 'ind' is True, 'pt' must be an array of two"
+                            " integers")
         if not isinstance(ind, bool):
             raise TypeError("'ind' must be a boolean")
         if not isinstance(interp, bool):
@@ -5210,8 +5262,8 @@ class TemporalVelocityFields(VelocityFields):
             ind_x = None
             ind_y = None
             if ind:
-                ind_x = x
-                ind_y = y
+                ind_x = int(x)
+                ind_y = int(y)
             elif not interp:
                 inds_x = self.fields[0].get_indice_on_axe(1, pt[0])
                 if len(inds_x) == 1:
@@ -5234,7 +5286,10 @@ class TemporalVelocityFields(VelocityFields):
                 if interp:
                     values.append(sf.get_value(x, y, ind=ind))
                 else:
-                    values.append(sf.get_value(ind_y, ind_x, ind=True))
+                    try:
+                        values.append(sf.get_value(ind_y, ind_x, ind=True))
+                    except:
+                        pdb.set_trace()
             # checking if position is masked
             for i, val in enumerate(values):
                 if np.ma.is_masked(val):
@@ -5261,7 +5316,7 @@ class TemporalVelocityFields(VelocityFields):
         else:
             raise ValueError("Not implemented yet on {}".format(type(comp[0])))
         magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
-                            unit_y=comp[0].get_unit_values())
+                            unit_y=comp[0].get_comp('unit_values'))
         phase_prof = Profile(frq, phase, unit_x=make_unit('Hz'),
                              unit_y=make_unit('rad'))
         return magn_prof, phase_prof
@@ -5337,11 +5392,10 @@ class TemporalVelocityFields(VelocityFields):
                 raise ValueError("intervals are out of bounds")
         # Getting indices bounds
         if not ind:
-            tmp_sf = self.fields[0].V.comp_x
-            ind_x_min = tmp_sf.get_indice_on_axe(1, intervalx[0])[0]
-            ind_x_max = tmp_sf.get_indice_on_axe(1, intervalx[1])[-1]
-            ind_y_min = tmp_sf.get_indice_on_axe(2, intervaly[0])[0]
-            ind_y_max = tmp_sf.get_indice_on_axe(2, intervaly[1])[-1]
+            ind_x_min = self.get_indice_on_axe(1, intervalx[0])[0]
+            ind_x_max = self.get_indice_on_axe(1, intervalx[1])[-1]
+            ind_y_min = self.get_indice_on_axe(2, intervaly[0])[0]
+            ind_y_max = self.get_indice_on_axe(2, intervaly[1])[-1]
         else:
             ind_x_min = intervalx[0]
             ind_x_max = intervalx[1]
@@ -5392,8 +5446,8 @@ class TemporalVelocityFields(VelocityFields):
         time = 0
         for field in self.fields:
             mask = field.get_comp('mask', raw=True)
-            values_x = field.get_comp('Vx').data
-            values_y = field.get_comp('Vy').data
+            values_x = field.get_comp('Vx', raw=True).data
+            values_y = field.get_comp('Vy', raw=True).data
             values_x[mask] = 0
             values_y[mask] = 0
             nmbvalues[np.logical_not(mask)] += 1
@@ -5409,9 +5463,9 @@ class TemporalVelocityFields(VelocityFields):
         values_x = np.ma.masked_array(mean_vx, mask_tot)
         values_y = np.ma.masked_array(mean_vy, mask_tot)
         axe_x, axe_y = self.get_axes()
-        unit_x, unit_y = self.get_axes_unit()
-        unit_time = self.fields[0].get_unit_time()
-        unit_values = self.fields[0].get_unit_values()
+        unit_x, unit_y = self.get_axe_units()
+        unit_time = self.fields[0].get_comp('unit_time')
+        unit_values = self.fields[0].get_comp('unit_values')
         time = time
         mean_vf = VelocityField()
         mean_vf.import_from_arrays(axe_x, axe_y, values_x, values_y, time,
@@ -5438,8 +5492,8 @@ class TemporalVelocityFields(VelocityFields):
         """
         final_sf = ScalarField()
         mean_vf = self.get_comp('mean_vf')
-        values_x = mean_vf.get_comp('x')
-        values_y = mean_vf.get_comp('y')
+        values_x = mean_vf.get_comp('Vx')
+        values_y = mean_vf.get_comp('Vy')
         final_sf = 1./2*(values_x**2 + values_y**2)
         self.mean_kinetic_energy = final_sf
 
@@ -5481,7 +5535,7 @@ class TemporalVelocityFields(VelocityFields):
                 for n in np.arange(len(turb_vf.fields)):
                     # check if masked
                     if not u_p[n].values.mask[i, j]:
-                        rs_xx[i, j] += u_p[n].get_comp(i, j, ind=True)**2
+                        rs_xx[i, j] += u_p[n].get_value(j, i, ind=True)**2
                         nmb_val += 1
                 if nmb_val > nmb_val_min:
                     rs_xx[i, j] /= nmb_val
@@ -5499,7 +5553,7 @@ class TemporalVelocityFields(VelocityFields):
                 for n in np.arange(len(turb_vf.fields)):
                     # check if masked
                     if not v_p[n].values.mask[i, j]:
-                        rs_yy[i, j] += v_p[n].get_comp(i, j, ind=True)**2
+                        rs_yy[i, j] += v_p[n].get_value(j, i, ind=True)**2
                         nmb_val += 1
                 if nmb_val > nmb_val_min:
                     rs_yy[i, j] /= nmb_val
@@ -5516,10 +5570,10 @@ class TemporalVelocityFields(VelocityFields):
                 nmb_val = 0
                 for n in np.arange(len(turb_vf.fields)):
                     # check if masked
-                    if not (u_p[n].get_comp('mask')[i, j]
-                            or v_p[n].get_comp('mask')[i, j]):
-                        rs_xy[i, j] += (u_p[n].get_value(i, j, ind=True)
-                                        * v_p[n].get_value(i, j, ind=True))
+                    if not (u_p[n].get_comp('mask', raw=True)[i, j]
+                            or v_p[n].get_comp('mask', raw=True)[i, j]):
+                        rs_xy[i, j] += (u_p[n].get_value(j, i, ind=True)
+                                        * v_p[n].get_value(j, i, ind=True))
                         nmb_val += 1
                 if nmb_val > nmb_val_min:
                     rs_xy[i, j] /= nmb_val
@@ -5529,7 +5583,7 @@ class TemporalVelocityFields(VelocityFields):
         # masking and storing
         axe_x, axe_y = self.fields[0].get_axes()
         unit_x, unit_y = self.fields[0].get_axe_units()
-        unit_values = self.fields[0].get_unit_values()
+        unit_values = self.fields[0].get_comp('unit_values')
         self.rs_xx = ScalarField()
         rs_xx = np.ma.masked_array(rs_xx, mask_rs_xx)
         self.rs_xx.import_from_arrays(axe_x, axe_y, rs_xx,
@@ -5599,7 +5653,7 @@ class TemporalVelocityFields(VelocityFields):
         if not isinstance(nmb_in_interval, int):
             raise TypeError("'nmb_in_interval' must be an integer")
         if nmb_in_interval == 1:
-            return self.get_copy()
+            return self.copy()
         if nmb_in_interval >= len(self):
             raise ValueError("'nmb_in_interval' is too big")
         if not isinstance(mean, bool):
@@ -5836,8 +5890,8 @@ class TemporalVelocityFields(VelocityFields):
             ttl = plt.title('')
 
             def update(num):
-                vx = comp[num].get_comp('x', raw=True)
-                vy = comp[num].get_comp('y', raw=True)
+                vx = comp[num].get_comp('Vx', raw=True)
+                vy = comp[num].get_comp('Vy', raw=True)
                 magn = comp[num].get_magnitude().get_comp('values', raw=True)
                 title = "{}, at t={:.3} {}"\
                     .format(compo, float(self[num].time),
@@ -5973,7 +6027,7 @@ class SpatialVelocityFields(VelocityFields):
             if isinstance(component, (VelocityField, VectorField,
                                       ScalarField)):
                 self.__dict__[componentkey] \
-                    = component.get_copy()
+                    = component.copy()
             elif isinstance(component, NUMBERTYPES):
                 self.__dict__[componentkey] \
                     = component*1
@@ -5989,7 +6043,7 @@ class SpatialVelocityFields(VelocityFields):
                                 + str(type(component)) + ")."
                                 " You must implemente it.")
 
-    def get_copy(self):
+    def copy(self):
         """
         Return a copy of the velocityfields
         """
