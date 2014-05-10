@@ -413,16 +413,16 @@ class Points(object):
                 kind = 'scatter'
         if kind == 'scatter':
             if self.v is None:
-                fig = plt.scatter(self.xy[:, 0], self.xy[:, 1], **plotargs)
+                plot = plt.scatter(self.xy[:, 0], self.xy[:, 1], **plotargs)
             else:
                 if not 'cmap' in plotargs:
                     plotargs['cmap'] = plt.cm.jet
                 if not 'c' in plotargs:
                     plotargs['c'] = self.v
-                fig = plt.scatter(self.xy[:, 0], self.xy[:, 1], **plotargs)
+                plot = plt.scatter(self.xy[:, 0], self.xy[:, 1], **plotargs)
         elif kind == 'plot':
-            fig = plt.plot(self.xy[:, 0], self.xy[:, 1], **plotargs)
-        return fig
+            plot = plt.plot(self.xy[:, 0], self.xy[:, 1], **plotargs)
+        return plot
 
     def remove(self, ind):
         """
@@ -455,9 +455,9 @@ class Points(object):
             Can be 'plot' (default if points have not values).
             or 'scatter' (default if points have values).
         """
-        fig = self._display(kind, **plotargs)
+        plot = self._display(kind, **plotargs)
         if self.v is not None and kind == 'scatter':
-            cb = plt.colorbar(fig)
+            cb = plt.colorbar(plot)
             cb.set_label(self.unit_v.strUnit())
         plt.xlabel('X ' + self.unit_x.strUnit())
         plt.ylabel('Y ' + self.unit_y.strUnit())
@@ -465,6 +465,7 @@ class Points(object):
             plt.title('Set of points')
         else:
             plt.title(self.name)
+        return plot
 
     def trim(self, interv_x=None, interv_y=None):
         """
@@ -1119,16 +1120,16 @@ class Profile(object):
             x = self.y
             y = self.x
         if kind == 'plot':
-            fig = plt.plot(x, y, **plotargs)
+            plot = plt.plot(x, y, **plotargs)
         elif kind == 'semilogx':
-            fig = plt.semilogx(x, y, **plotargs)
+            plot = plt.semilogx(x, y, **plotargs)
         elif kind == 'semilogy':
-            fig = plt.semilogy(x, y, **plotargs)
+            plot = plt.semilogy(x, y, **plotargs)
         elif kind == 'loglog':
-            fig = plt.loglog(x, y, **plotargs)
+            plot = plt.loglog(x, y, **plotargs)
         else:
             raise ValueError("Unknown plot type : {}.".format(kind))
-        return fig
+        return plot
 
     def display(self, kind='plot', reverse=False,  **plotargs):
         """
@@ -1149,7 +1150,7 @@ class Profile(object):
         fig : Plot reference
             Reference to the displayed plot.
         """
-        fig = self._display(kind, reverse, **plotargs)
+        plot = self._display(kind, reverse, **plotargs)
         plt.title(self.name)
         if not reverse:
             plt.xlabel("{0}".format(self.unit_x.strUnit()))
@@ -1157,7 +1158,7 @@ class Profile(object):
         else:
             plt.xlabel("{0}".format(self.unit_y.strUnit()))
             plt.ylabel("{0}".format(self.unit_x.strUnit()))
-        return fig
+        return plot
 
 
 class Field(object):
@@ -1384,7 +1385,7 @@ class Field(object):
                 ind = inds[0]
             return int(ind)
 
-    def get_points_around(self, center, radius):
+    def get_points_around(self, center, radius, ind=False):
         """
         Return the list of points or the scalar field that are in a circle
         centered on 'center' and of radius 'radius'.
@@ -1395,6 +1396,9 @@ class Field(object):
             Coordonate of the center point (in axes units).
         radius : float
             radius of the cercle (in axes units).
+        ind : boolean, optional
+            If 'True', radius and center represent indices on the field.
+            if 'False', radius and center are expressed in axis unities.
 
         Returns
         -------
@@ -1403,6 +1407,7 @@ class Field(object):
             [(ind1x, ind1y), (ind2x, ind2y), ...].
             You can easily put them in the axes to obtain points coordinates
         """
+        #checkin parameters coherence
         if not isinstance(center, ARRAYTYPES):
             raise TypeError("'center' must be an array")
         center = np.array(center, dtype=float)
@@ -1412,30 +1417,36 @@ class Field(object):
             raise TypeError("'radius' must be a number")
         if not radius > 0:
             raise ValueError("'radius' must be positive")
+        # getting somme properties
         radius2 = radius**2
         radius_int = radius/np.sqrt(2)
         inds = []
         for indices, coord, _ in self:
+            if ind:
+                x = indices[0]
+                y = indices[1]
+            else:
+                x = coord[0]
+                y = coord[1]
             # test if the point is not in the square surrounding the cercle
-            if coord[0] >= center[0] + radius \
-                    and coord[0] <= center[0] - radius \
-                    and coord[1] >= center[1] + radius \
-                    and coord[1] <= center[1] - radius:
+            if x >= center[0] + radius \
+                    and x <= center[0] - radius \
+                    and y >= center[1] + radius \
+                    and y <= center[1] - radius:
                 pass
             # test if the point is in the square 'compris' in the cercle
-            elif coord[0] <= center[0] + radius_int \
-                    and coord[0] >= center[0] - radius_int \
-                    and coord[1] <= center[1] + radius_int \
-                    and coord[1] >= center[1] - radius_int:
+            elif x <= center[0] + radius_int \
+                    and x >= center[0] - radius_int \
+                    and y <= center[1] + radius_int \
+                    and y >= center[1] - radius_int:
                 inds.append(indices)
             # test if the point is the center
-            elif all(coord == center):
+            elif all([x, y] == center):
                 pass
             # test if the point is in the circle
-            elif ((coord[0] - center[0])**2 + (coord[1] - center[1])**2
-                    <= radius2):
+            elif ((x - center[0])**2 + (y - center[1])**2 <= radius2):
                 inds.append(indices)
-        return inds
+        return np.array(inds, subok=True)
 
 
 class ScalarField(Field):
@@ -1483,7 +1494,8 @@ class ScalarField(Field):
             return False
         if not np.all(self.get_axe_units()[1] == another.get_axe_units()[1]):
             return False
-        if not np.all(self.get_comp('unit_values') == another.get_comp('unit_values')):
+        if not np.all(self.get_comp('unit_values')
+                      == another.get_comp('unit_values')):
             return False
         return True
 
@@ -2058,8 +2070,8 @@ class ScalarField(Field):
             if not isinstance(value, np.ma.MaskedArray):
                 value = np.ma.masked_array(value)
             if self.get_dim() != value.shape:
-                raise ValueError("'value' dimensions are inconsistent with the "
-                                 "ScalarField shape")
+                raise ValueError("'value' dimensions are inconsistent with "
+                                 "the ScalarField shape")
             self.values = value
         elif componentname == 'mask':
             if not isinstance(value, ARRAYTYPES):
@@ -2067,8 +2079,8 @@ class ScalarField(Field):
             if not isinstance(value, np.ma.MaskedArray):
                 value = np.ma.masked_array(value)
             if self.get_dim() != value.shape:
-                raise ValueError("'value' dimensions are inconsistent with the "
-                                 "ScalarField shape")
+                raise ValueError("'value' dimensions are inconsistent with"
+                                 "the ScalarField shape")
             self.values.mask = value
         elif componentname == "unit_values":
             if not isinstance(value, unum.Unum):
@@ -2794,13 +2806,13 @@ class ScalarField(Field):
             if (not 'cmap' in plotargs.keys()
                     and not 'colors' in plotargs.keys()):
                 plotargs['cmap'] = cm.jet
-            fig = plt.contour(X, Y, values, linewidth=1, **plotargs)
+            displ = plt.contour(X, Y, values, linewidth=1, **plotargs)
         elif kind == 'contourf':
             if 'cmap' in plotargs.keys() or 'colors' in plotargs.keys():
-                fig = plt.contourf(X, Y, values, linewidth=1, **plotargs)
+                displ = plt.contourf(X, Y, values, linewidth=1, **plotargs)
             else:
-                fig = plt.contourf(X, Y, values, cmap=cm.jet, linewidth=1,
-                                   **plotargs)
+                displ = plt.contourf(X, Y, values, cmap=cm.jet, linewidth=1,
+                                     **plotargs)
         elif kind == "imshow" or kind is None:
             if not 'cmap' in plotargs.keys():
                 plotargs['cmap'] = cm.jet
@@ -2810,18 +2822,18 @@ class ScalarField(Field):
                 plotargs['aspect'] = 'equal'
             delta_x = axe_x[1] - axe_x[0]
             delta_y = axe_y[1] - axe_y[0]
-            fig = plt.imshow(values,
-                             extent=(axe_x[0] - delta_x/2.,
-                                     axe_x[-1] + delta_x/2.,
-                                     axe_y[0] - delta_y/2.,
-                                     axe_y[-1] + delta_y/2.),
-                             origin='lower', **plotargs)
+            displ = plt.imshow(values,
+                               extent=(axe_x[0] - delta_x/2.,
+                                       axe_x[-1] + delta_x/2.,
+                                       axe_y[0] - delta_y/2.,
+                                       axe_y[-1] + delta_y/2.),
+                               origin='lower', **plotargs)
         else:
             raise ValueError("Unknown 'kind' of plot for ScalarField object")
         plt.axis('equal')
         plt.xlabel("X " + unit_x.strUnit())
         plt.ylabel("Y " + unit_y.strUnit())
-        return fig
+        return displ
 
     def display(self, kind=None, **plotargs):
         """
@@ -2843,9 +2855,9 @@ class ScalarField(Field):
         fig : figure reference
             Reference to the displayed figure.
         """
-        fig = self._display(kind, **plotargs)
+        displ = self._display(kind, **plotargs)
         plt.title("Scalar field Values " + self.unit_values.strUnit())
-        cb = plt.colorbar(fig, shrink=1, aspect=5)
+        cb = plt.colorbar(displ, shrink=1, aspect=5)
         cb.set_label(self.get_comp('unit_values').strUnit())
         # search for limits in case of masked field
         mask = self.get_comp('mask', raw=True)
@@ -2867,7 +2879,7 @@ class ScalarField(Field):
         ymax = self.axe_y[i]
         plt.xlim([xmin, xmax])
         plt.ylim([ymin, ymax])
-        return fig
+        return displ
 
 
 class VectorField(Field):
@@ -2922,7 +2934,8 @@ class VectorField(Field):
             except:
                 raise ValueError("I think these units don't match, fox")
             tmpvf = self.copy()
-            fact = (other.get_comp('unit_values')/self.get_comp('unit_values')).asNumber()
+            fact = (other.get_comp('unit_values')
+                    / self.get_comp('unit_values')).asNumber()
             values_x = (self.get_comp('Vx', raw=True)
                         + other.get_comp('Vx', raw=True)*fact)
             tmpvf.set_comp('Vx', values_x)
@@ -3161,14 +3174,14 @@ class VectorField(Field):
             raise ValueError("'axe_y' must be a one dimension array")
         if not isinstance(comp_x, ARRAYTYPES):
             raise TypeError("'comp_x' must be an array")
-        elif isinstance(comp_x, (list, tuple)):
-            comp_x = np.array(comp_x, dtype=float)
+        elif not isinstance(comp_x, np.ma.MaskedArray):
+            comp_x = np.ma.masked_array(comp_x, mask=False, dtype=float)
         if not comp_x.ndim == 2:
             raise ValueError("'comp_x' must be a two dimension array")
         if not isinstance(comp_y, ARRAYTYPES):
             raise TypeError("'comp_y' must be an array")
-        elif isinstance(comp_y, (list, tuple)):
-            comp_y = np.array(comp_y, dtype=float)
+        elif not isinstance(comp_y, np.ma.MaskedArray):
+            comp_y = np.ma.masked_array(comp_y, mask=False, dtype=float)
         if not comp_y.ndim == 2:
             raise ValueError("'comp_y' must be a two dimension array")
         if unit_x is not None:
@@ -4033,6 +4046,7 @@ class VectorField(Field):
         Smooth the vectorfield in place.
         Warning : fill up the field (should be used carefully with masked field
         borders)
+
         Parameters :
         ------------
         tos : string, optional
@@ -4106,7 +4120,8 @@ class VectorField(Field):
             inds_x = np.arange(self.get_dim()[1])
             inds_y = np.arange(self.get_dim()[0])
             grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
+            Vx = self.get_comp('Vx', raw=True)
+            Vy = self.get_comp('Vy', raw=True)
             Vx = Vx.data
             Vy = Vy.data
             fx = spinterp.interp2d(grid_y[~mask],
@@ -4126,7 +4141,8 @@ class VectorField(Field):
             inds_x = np.arange(self.values.shape[1])
             inds_y = np.arange(self.values.shape[0])
             grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
+            Vx = self.get_comp('Vx', raw=True)
+            Vy = self.get_comp('Vy', raw=True)
             Vx = Vx.data
             Vy = Vy.data
             fx = spinterp.interp2d(grid_y[~mask],
@@ -4143,7 +4159,8 @@ class VectorField(Field):
             self.set_comp('Vx', Vx)
             self.set_comp('Vy', Vy)
         elif tof == 'value':
-            Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
+            Vx = self.get_comp('Vx', raw=True)
+            Vy = self.get_comp('Vy', raw=True)
             Vx[mask] = value
             Vy[mask] = value
         else:
@@ -4209,37 +4226,38 @@ class VectorField(Field):
                 raise TypeError("'kind' must be a string")
         axe_x, axe_y = self.get_axes()
         if component is None:
-            Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
+            Vx = self.get_comp('Vx', raw=True)
+            Vy = self.get_comp('Vy', raw=True)
             magn = self.get_magnitude().get_comp('values', raw=True)
             unit_x, unit_y = self.get_axe_units()
             if kind == 'stream':
                 if not 'color' in plotargs.keys():
                     plotargs['color'] = magn.data
-                fig = plt.streamplot(axe_x, axe_y, Vx, Vy, **plotargs)
+                displ = plt.streamplot(axe_x, axe_y, Vx, Vy, **plotargs)
             elif kind == 'quiver' or kind is None:
                 if 'C' in plotargs.keys():
                     C = plotargs.pop('C')
                     if not (C == 0 or C is None):
-                        fig = plt.quiver(axe_x, axe_y, Vx, Vy, C, **plotargs)
+                        displ = plt.quiver(axe_x, axe_y, Vx, Vy, C, **plotargs)
                     else:
-                        fig = plt.quiver(axe_x, axe_y, Vx, Vy, **plotargs)
+                        displ = plt.quiver(axe_x, axe_y, Vx, Vy, **plotargs)
                 else:
-                    fig = plt.quiver(axe_x, axe_y, Vx, Vy, magn, **plotargs)
+                    displ = plt.quiver(axe_x, axe_y, Vx, Vy, magn, **plotargs)
             else:
                 raise ValueError("Unknown value of 'kind'")
         elif component == "x":
             if kind == '3D':
-                fig = self.get_comp('Vx').Display3D()
+                displ = self.get_comp('Vx').Display3D()
             else:
-                fig = self.get_comp('Vx')._display(kind)
+                displ = self.get_comp('Vx')._display(kind)
         elif component == "y":
             if kind == '3D':
-                fig = self.get_comp('Vy').Display3D()
+                displ = self.get_comp('Vy').Display3D()
             else:
-                fig = self.get_comp('Vy')._display(kind)
+                displ = self.get_comp('Vy')._display(kind)
         else:
             raise TypeError("Unknown value of 'component'")
-        return fig
+        return displ
 
     def display(self, component=None, kind=None, **plotargs):
         """
@@ -4270,7 +4288,7 @@ class VectorField(Field):
         fig : figure reference
             Reference to the displayed figure
         """
-        fig = self._display(component, kind, **plotargs)
+        displ = self._display(component, kind, **plotargs)
         unit_x, unit_y = self.get_axe_units()
         unit_values = self.get_comp('unit_values')
         Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
@@ -4279,7 +4297,7 @@ class VectorField(Field):
                 cb = plt.colorbar()
                 cb.set_label("Magnitude " + unit_values.strUnit())
                 legendarrow = round(np.max([Vx.max(), Vy.max()]))
-                plt.quiverkey(fig, 1.075, 1.075, legendarrow,
+                plt.quiverkey(displ, 1.075, 1.075, legendarrow,
                               "$" + str(legendarrow)
                               + unit_values.strUnit() + "$",
                               labelpos='W', fontproperties={'weight': 'bold'})
@@ -4290,7 +4308,7 @@ class VectorField(Field):
             plt.title("Vy " + unit_values.strUnit())
         else:
             raise ValueError("Unknown 'component' value")
-        return fig
+        return displ
 
 
 class VelocityField(VectorField):
@@ -4317,17 +4335,14 @@ class VelocityField(VectorField):
         Delete all the derived fields, in case of changement in the base
         fields.
         """
-        attributes = dir(self)
-        for attr in attributes:
-            # check if the attribute is a component
+        derived = ['magnitude', 'vorticity', 'theta', 'gamma1', 'gamma2',
+                   'kappa1', 'kappa2', 'iota', 'qcrit', 'swirling_strength',
+                   'sigma']
+        for field in derived:
             try:
-                self.get_comp(attr)
-            except ValueError:
+                del self.__dict__[field]
+            except KeyError:
                 pass
-            else:
-                # check if the attribute is the base field
-                if attr not in ['V', 'time', 'unit_time']:
-                    del self.__dict__[attr]
 
     def import_from_arrays(self, axe_x, axe_y, comp_x, comp_y, time=0.,
                            unit_x=make_unit(""), unit_y=make_unit(""),
@@ -4427,7 +4442,7 @@ class VelocityField(VectorField):
             try:
                 value = self.theta.copy()
             except AttributeError:
-                self.theta = self.V.get_theta(raw=True)
+                self.theta = self.get_theta(raw=True)
                 value = self.theta.copy()
         elif componentname == "gamma1":
             try:
@@ -4489,7 +4504,7 @@ class VelocityField(VectorField):
             return value
         elif isinstance(value, ((unum.Unum,) + NUMBERTYPES)):
             return value
-        elif isinstance(value, np.ma.MaskedArray):
+        elif isinstance(value, (np.ndarray, np.ma.MaskedArray)):
             tmpsf = ScalarField()
             axe_x, axe_y = self.get_axes()
             unit_x, unit_y = self.get_axe_units()
@@ -4612,59 +4627,60 @@ class VelocityField(VectorField):
         compo = self.get_comp(componentname)
         return compo.get_profile(direction, position)
 
-    def calc_sigma(self, radius=None, mask=None):
+    def calc_sigma(self, radius=None, mask=None, raw=False):
         """
         Compute and store the sigma criterion for vortex analysis
         """
         from IMTreatment.vortex_detection.vortex_detection import get_sigma
-        self.sigma = get_sigma(self.V, radius)
 
-    def calc_gamma1(self, radius=None, ind=False, mask=None):
+        self.sigma = get_sigma(self, radius, raw=raw)
+
+    def calc_gamma1(self, radius=None, ind=False, mask=None, raw=False):
         """
         Compute and store the gamma1 criterion for vortex analysis
         """
         from IMTreatment.vortex_detection.vortex_detection import get_gamma
-        self.gamma1 = get_gamma(self.V, radius=radius, ind=ind,
-                                kind='gamma1', mask=mask)
+        self.gamma1 = get_gamma(self, radius=radius, ind=ind,
+                                kind='gamma1', mask=mask, raw=raw)
 
-    def calc_gamma2(self, radius=None, ind=False, mask=None):
+    def calc_gamma2(self, radius=None, ind=False, mask=None, raw=False):
         """
         Compute and store the gamma2 criterion for vortex analysis
         """
         from IMTreatment.vortex_detection.vortex_detection import get_gamma
-        self.gamma2 = get_gamma(self.V, radius=radius, ind=ind,
-                                kind='gamma2', mask=mask)
+        self.gamma2 = get_gamma(self, radius=radius, ind=ind,
+                                kind='gamma2', mask=mask, raw=raw)
 
-    def calc_kappa1(self, radius=None, ind=False, mask=None):
+    def calc_kappa1(self, radius=None, ind=False, mask=None, raw=False):
         """
         Compute and store the kappa1 criterion for vortex analysis
         """
         from IMTreatment.vortex_detection.vortex_detection import get_kappa
-        self.kappa1 = get_kappa(self.V, radius=radius, ind=ind,
-                                kind='kappa1', mask=mask)
+        self.kappa1 = get_kappa(self, radius=radius, ind=ind,
+                                kind='kappa1', mask=mask, raw=raw)
 
-    def calc_kappa2(self, radius=None, ind=False, mask=None):
+    def calc_kappa2(self, radius=None, ind=False, mask=None, raw=False):
         """
         Compute and store the kappa2 criterion for vortex analysis
         """
         from IMTreatment.vortex_detection.vortex_detection import get_kappa
-        self.kappa2 = get_kappa(self.V, radius=radius, ind=ind,
-                                kind='kappa2', mask=mask)
+        self.kappa2 = get_kappa(self, radius=radius, ind=ind,
+                                kind='kappa2', mask=mask, raw=raw)
 
-    def calc_iota(self, mask=None, sigmafilter=False):
+    def calc_iota(self, mask=None, sigmafilter=False, raw=False):
         """
         Compute and store the kappa2 criterion for vortex analysis
         """
         from IMTreatment.vortex_detection.vortex_detection import get_iota
-        self.iota = get_iota(self.V, mask)
+        self.iota = get_iota(self, mask, raw=raw)
 
-    def calc_q_criterion(self, mask=None):
+    def calc_q_criterion(self, mask=None, raw=False):
         """
         Compute and store the Q criterion for vortex analysis
         """
         from IMTreatment.vortex_detection.vortex_detection\
             import get_q_criterion
-        self.qcrit = get_q_criterion(self.V, mask)
+        self.qcrit = get_q_criterion(self, mask, raw=raw)
 
     def trim_area(self, intervalx=None, intervaly=None):
         """
@@ -4684,10 +4700,10 @@ class VelocityField(VectorField):
             raise TypeError("'componentname' must be a string")
         compo = self.get_comp(componentname)
         if isinstance(compo, ScalarField):
-            fig = compo._display(**plotargs)
+            displ = compo._display(**plotargs)
         if isinstance(compo, VectorField):
-            fig = compo._display(**plotargs)
-        return fig
+            displ = compo._display(**plotargs)
+        return displ
 
     def crop_masked_border(self):
         """
@@ -4735,17 +4751,17 @@ class VelocityField(VectorField):
             raise TypeError("'componentname' must be a string")
         compo = self.get_comp(componentname)
         if isinstance(compo, ScalarField):
-            fig = compo.display(**plotargs)
+            displ = compo.display(**plotargs)
             plt.title(componentname + " " + compo.unit_values.strUnit()
                       + ", at t=" + str(self.time*self.unit_time))
         elif isinstance(compo, VectorField):
-            fig = compo.display(**plotargs)
+            displ = compo.display(**plotargs)
             plt.title(componentname + " " + compo.unit_values.strUnit()
                       + ", at t=" + str(self.time*self.unit_time))
         else:
             raise StandardError("I don't know how to plot a {}"
                                 .format(type(compo)))
-        return fig
+        return displ
 
 #    def __display_profile__(self, componentname, direction, position,
 #                            **plotargs):
@@ -5853,7 +5869,7 @@ class TemporalVelocityFields(VelocityFields):
                 linenmb = int(len(fields)/colnmb + 1)
             i = 1
             for field in fields:
-                plt.subplot(linenmb, colnmb, i)
+                subplot = plt.subplot(linenmb, colnmb, i)
                 field.display(**plotargs)
                 plt.title(fieldname + " (field number " + str(i-1) +
                           "), at t=" + str(self[i-1].time*self[i-1].unit_time))
@@ -5865,6 +5881,7 @@ class TemporalVelocityFields(VelocityFields):
         else:
             fields.display(**plotargs)
             plt.title(fieldname)
+        return subplot
 
     def display_animate(self, compo='V', interval=500, repeat=True,
                         **plotargs):
@@ -5918,6 +5935,7 @@ class TemporalVelocityFields(VelocityFields):
             ax = plt.gca()
             displ = comp[0].display(**plotargs)
             ttl = plt.suptitle('')
+
             def update(num, fig, ax, displ, ttl, comp):
                 ax.cla()
                 displ = comp[num]._display(**plotargs)
@@ -5979,19 +5997,20 @@ class TemporalVelocityFields(VelocityFields):
             profile, positions = field.get_profile(componentname, direction,
                                                    positions)
             if direction == 1:
-                profile._display(label="t={0}".format(field.time *
-                                                      field.unit_time),
-                                 **plotargs)
+                displ = profile._display(label="t={0}".format(field.time *
+                                                              field.unit_time),
+                                         **plotargs)
                 plt.xlabel("{0} {1}".format(componentname, profile.unit_x))
                 plt.ylabel("Y {0}".format(profile.unit_y))
             else:
-                profile.display(label="t={0}".format(field.time *
-                                                     field.unit_time),
-                                **plotargs)
+                displ = profile.display(label="t={0}".format(field.time *
+                                                             field.unit_time),
+                                        **plotargs)
                 plt.ylabel("{0} {1}".format(componentname, profile.unit_y))
                 plt.xlabel("X {0}".format(profile.unit_x))
         plt.title(componentname)
         plt.legend()
+        return displ
 
 
 class SpatialVelocityFields(VelocityFields):
@@ -6068,11 +6087,9 @@ class SpatialVelocityFields(VelocityFields):
         conc = np.sort(conc, axis=0, order='x')
         axe, blayer = zip(*conc)
         if direction == 1:
-            unit_x = self.fields[0].V.comp_x.unit_x
-            unit_y = self.fields[0].V.comp_x.unit_y
+            unit_x, unit_y = self.get_axe_units()
         else:
-            unit_x = self.fields[0].V.comp_x.unit_y
-            unit_y = self.fields[0].V.comp_x.unit_x
+            unit_y, unit_x = self.get_axe_units()
         bl_profile = Profile(axe, blayer, unit_x, unit_y, "Boundary Layer")
         return bl_profile
 
@@ -6139,7 +6156,7 @@ class SpatialVelocityFields(VelocityFields):
         if isinstance(compo, ScalarField):
             unit = compo.unit_values.Getunit()
         elif isinstance(compo, VectorField):
-            unit = compo.comp_x.unit_value.Getunit()
+            unit = compo.get_unit_values
         else:
-            unit = compo.V.comp_x.unit_values.Getunit()
+            unit = compo.get_unit_values()
         cbar.set_label("{0} {1}".format(componentname, unit))

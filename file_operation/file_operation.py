@@ -320,7 +320,7 @@ def __export_vf_to_vtk(obj, filepath, axis=None):
         raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
     if axis[0] == axis[1]:
         raise ValueError("'axis' strings must be different")
-    Vx, Vy = obj.get_comp('x', raw=True), obj.get_comp('y', raw=True)
+    Vx, Vy = obj.get_comp('Vx', raw=True), obj.get_comp('Vy', raw=True)
     Vx = Vx.flatten()
     Vy = Vy.flatten()
     x, y = obj.get_axes()

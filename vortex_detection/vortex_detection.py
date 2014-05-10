@@ -24,16 +24,15 @@ def velocityfield_to_vf(velocityfield):
     Create a VF object from a VelocityField object.
     """
     # extracting data
-    vx = velocityfield.V.comp_x.values.data
-    vy = velocityfield.V.comp_y.values.data
-    ind_x = velocityfield.V.comp_x.axe_x
-    ind_y = velocityfield.V.comp_x.axe_y
-    mask = velocityfield.V.comp_x.values.mask
-    theta = velocityfield.V.get_theta()
+    vx = velocityfield.get_comp('Vx', raw=True).data
+    vy = velocityfield.get_comp('Vy', raw=True).data
+    ind_x, ind_y = velocityfield.get_axes()
+    mask = velocityfield.get_comp('mask', raw=True)
+    theta = velocityfield.get_comp('theta', raw=True)
     time = velocityfield.get_comp('time')
     # TODO : add the following when fill will be optimized
     #THETA.fill()
-    theta = theta.values.data
+    theta = theta.data
     # using VF methods to get cp position
     vf = VF(vx, vy, ind_x, ind_y, mask, theta, time)
     return vf
@@ -56,12 +55,9 @@ class VF(object):
         """
         Return the field as VelocityField object.
         """
-        compx = ScalarField()
-        compx.import_from_arrays(self.axe_x, self.axe_y, self.vx)
-        compy = ScalarField()
-        compy.import_from_arrays(self.axe_x, self.axe_y, self.vy)
         tmp_vf = VelocityField()
-        tmp_vf.import_from_scalarfield(compx, compy, self.time)
+        tmp_vf.import_from_arrays(self.axe_x, self.axe_y, self.vx, self.vy,
+                                  self.time)
         return tmp_vf
 
     def get_cp_position(self):
@@ -738,8 +734,8 @@ def get_cp_crit(velocityfield):
         # node or focus
         if VF.PBI == 1:
             # checking if node or focus
-            VF.gamma1 = get_gamma(VF.V, radius=1.9, ind=True)
-            VF.kappa1 = get_kappa(VF.V, radius=1.9, ind=True)
+            VF.gamma1 = get_gamma(VF, radius=1.9, ind=True)
+            VF.kappa1 = get_kappa(VF, radius=1.9, ind=True)
             max_gam = np.max([abs(VF.gamma1.get_max()),
                              abs(VF.gamma1.get_min())])
             max_kap = np.max([abs(VF.kappa1.get_max()),
@@ -755,7 +751,7 @@ def get_cp_crit(velocityfield):
     saddles = []
     if len(VF_saddle) != 0:
         for VF in VF_saddle:
-            tmp_sigma = get_sigma(VF.V, 1.9, ind=True)
+            tmp_sigma = get_sigma(VF, 1.9, ind=True)
             pts = _min_detection(tmp_sigma)
             if pts is not None:
                 if pts.xy[0][0] is not None and len(pts) == 1:
@@ -818,15 +814,21 @@ def _min_detection(SF):
     Only for use in 'get_cp_crit'.
     """
     # interpolation on the field
-    interp = RectBivariateSpline(SF.axe_y, SF.axe_x, SF.values.data, s=0, ky=2, kx=2)
+    axe_x, axe_y = SF.get_axes()
+    values = SF.get_comp('values', raw=True).data
+    try:
+        interp = RectBivariateSpline(axe_y, axe_x, values, s=0, ky=2, kx=2)
+    except:
+        pdb.set_trace()
     # extended field (resolution x100)
-    x = np.linspace(SF.axe_x[0], SF.axe_x[-1], 100)
-    y = np.linspace(SF.axe_y[0], SF.axe_y[-1], 100)
+    x = np.linspace(axe_x[0], axe_x[-1], 100)
+    y = np.linspace(axe_y[0], axe_y[-1], 100)
     values = interp(y, x)
     ind_min = np.argmin(values)
     ind_y, ind_x = np.unravel_index(ind_min, values.shape)
     pos = (x[ind_x], y[ind_y])
     return Points([pos])
+
 
 def _gaussian_fit(SF):
     """
@@ -839,6 +841,7 @@ def _gaussian_fit(SF):
         width_y = float(width_y)
         return lambda x, y: height*np.exp(
             -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
+
     def moments(data):
         """Returns (height, x, y, width_x, width_y)
         the gaussian parameters of a 2D distribution by calculating its
@@ -853,18 +856,21 @@ def _gaussian_fit(SF):
         width_y = np.sqrt(abs((np.arange(row.size)-x)**2*row).sum()/row.sum())
         height = data.max()
         return height, x, y, width_x, width_y
+
     def fitgaussian(data):
         """Returns (height, x, y, width_x, width_y)
         the gaussian parameters of a 2D distribution found by a fit"""
         params = moments(data)
-        errorfunction = lambda p: np.ravel(gaussian(*p)(*np.indices(data.shape)) -
+        errorfunction = lambda p: np.ravel(gaussian(*p)
+                                           (*np.indices(data.shape)) -
                                            data)
         p, success = optimize.leastsq(errorfunction, params)
         return p
-
-    params = fitgaussian(SF.values)
-    delta_x = SF.axe_x[1] - SF.axe_x[0]
-    delta_y = SF.axe_y[1] - SF.axe_y[0]
+    axe_x, axe_y = SF.get_axes()
+    values = SF.get_comp('values')
+    params = fitgaussian(values)
+    delta_x = axe_x[1] - axe_x[0]
+    delta_y = axe_y[1] - axe_y[0]
     x = SF.axe_x[0] + delta_x*params[1]
     y = SF.axe_y[0] + delta_y*params[2]
     return Points([(x, y)])
@@ -914,38 +920,38 @@ def get_separation_position(obj, wall_direction, wall_position,
         raise TypeError("'interval' must be a array")
     # checking 'obj' type
     if isinstance(obj, ScalarField):
-        V = obj.values
+        V = obj.get_comp('values', raw=True)
         if wall_direction == 1:
             axe = axe_x
         else:
             axe = axe_y
     elif isinstance(obj, VectorField):
         if wall_direction == 1:
-            V = obj.comp_y
+            V = obj.get_comp('Vy', raw=True)
             axe = axe_x
         else:
-            V = obj.comp_x
+            V = obj.get_comp('Vx', raw=True)
             axe = axe_y
     elif isinstance(obj, VelocityField):
         if wall_direction == 1:
-            V = obj.V.comp_y
+            V = obj.get_comp('Vy', raw=True)
             axe = axe_x
         else:
-            V = obj.V.comp_x
+            V = obj.get_comp('Vx', raw=True)
             axe = axe_y
     elif isinstance(obj, TemporalVelocityFields):
         pts = []
         times = obj.get_comp('time')
         if wall_direction == 1:
-            unit_axe = obj[0].V.comp_x.unit_y
+            _, unit_axe = obj.get_axe_units()
         else:
-            unit_axe = obj[0].V.comp_x.unit_x
+            unit_axe, _ = obj.get_axe_units()
         for field in obj:
             pts.append(get_separation_position(field,
                                                wall_direction=wall_direction,
                                                wall_position=wall_position,
                                                interval=interval))
-        return Profile(times, pts, unit_x=obj.get_comp('unit_time')[0],
+        return Profile(times, pts, unit_x=obj.get_comp('unit_time'),
                        unit_y=unit_axe)
     else:
         raise ValueError("Unknown type for 'obj'")
@@ -1067,9 +1073,9 @@ def get_critical_line(VF, source_point, direction, kol='stream',
     pts = zip(xs.flatten(), ys.flatten())
     # get stream or track lines on around positions
     if kol == 'stream':
-        lines = VF.V.get_streamlines(pts)
+        lines = VF.get_streamlines(pts)
     elif kol == 'track':
-        lines = VF.V.get_tracklines(pts)
+        lines = VF.get_tracklines(pts)
     else:
         raise ValueError("Unknown value for 'kol' (see documentation)")
     # remove streamline near the critical point
@@ -1099,7 +1105,7 @@ def get_critical_line(VF, source_point, direction, kol='stream',
 
 
 ### Criterion computation ###
-def get_sigma(vectorfield, radius=None, ind=False, mask=None):
+def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
     """
     Return the sigma scalar field, reprensenting the homogeneity of the
     VectorField. Values of 1 mean homogeneous velocity field  and 0 mean
@@ -1122,6 +1128,9 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None):
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
         gamma will be compute only where mask is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
 
     Returns
     -------
@@ -1138,35 +1147,45 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None):
         raise TypeError("'radius' must be a number")
     if not isinstance(ind, bool):
         raise TypeError("'ind' must be a boolean")
-    axe_x, axe_y = vectorfield.get_axes()
-    if ind:
-        # transforming into axis unit
-        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2.
-        radius = radius*delta
-        ind = False
     if mask is None:
         mask = np.zeros(vectorfield.get_dim())
     elif not isinstance(mask, ARRAYTYPES):
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
-    # Getting vector angles
-    theta = vectorfield.get_theta().values.data
-    # Calcul du motif determinant les points voisins
-    ptcentral = [axe_x[int(len(axe_x)/2)], axe_y[int(len(axe_y)/2)]]
-    motif = np.array(vectorfield.comp_x.get_points_around(ptcentral, radius))
-    motif = motif - np.array([int(len(axe_x)/2), int(len(axe_y)/2)])
+    # Getting neighbouring points motif
+    axe_x, axe_y = vectorfield.get_axes()
+    indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
+    if ind:
+        motif = vectorfield.get_points_around(indcentral, radius, ind)
+        motif = motif - indcentral
+    else:
+        ptcentral = [axe_x[indcentral[0]], axe_y[indcentral[1]]]
+        motif = vectorfield.get_points_around(ptcentral, radius, ind)
+        motif = motif - indcentral
     nmbpts = len(motif)
+    # Getting vector angles
+    theta = vectorfield.get_comp('theta', raw=True).data
     # récupération du masque du champ de vitesse
-    if isinstance(vectorfield.comp_x.values, np.ma.MaskedArray):
-        mask = np.logical_or(mask, vectorfield.comp_x.values.mask)
+    mask = np.logical_or(mask, vectorfield.get_comp('mask', raw=True))
     # Ajout au masque des valeurs sur le bord
-    border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
-                             axe_x >= axe_x[-1] - (radius - delta))
-    border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
-                             axe_y >= axe_y[-1] - (radius - delta))
-    border_x, border_y = np.meshgrid(border_x, border_y)
-    mask1 = np.logical_or(border_x, border_y)
+    if ind:
+        indx = np.arange(len(axe_x))
+        indy = np.arange(len(axe_y))
+        border_x = np.logical_or(indx <= indx[0] + (radius - 1),
+                                 indx >= indx[-1] - (radius - 1))
+        border_y = np.logical_or(indy <= indy[0] + (radius - 1),
+                                 indy >= indy[-1] - (radius - 1))
+        border_x, border_y = np.meshgrid(border_x, border_y)
+        mask1 = np.logical_or(border_x, border_y)
+    else:
+        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
+        border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
+                                 axe_x >= axe_x[-1] - (radius - delta))
+        border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
+                                 axe_y >= axe_y[-1] - (radius - delta))
+        border_x, border_y = np.meshgrid(border_x, border_y)
+        mask1 = np.logical_or(border_x, border_y)
     # calcul de delta moyen
     deltamoy = 2.*np.pi/(nmbpts)
     # boucle sur les points
@@ -1207,14 +1226,19 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None):
     mask = np.logical_or(mask, mask1)
     mask = np.logical_or(mask, mask2)
     sigmas = np.ma.masked_array(sigmas, mask)
-    sigma_sf = ScalarField()
-    sigma_sf.import_from_arrays(axe_x, axe_y, sigmas,
-                                vectorfield.comp_x.unit_x,
-                                vectorfield.comp_x.unit_y, make_unit(""))
-    return sigma_sf
+    if raw:
+        return sigmas
+    else:
+        sigma_sf = ScalarField()
+        unit_x, unit_y = vectorfield.get_axe_units()
+        sigma_sf.import_from_arrays(axe_x, axe_y, sigmas,
+                                    unit_x=unit_x, unit_y=unit_y,
+                                    unit_values=make_unit(""))
+        return sigma_sf
 
 
-def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
+def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
+              raw=False):
     """
     Return the gamma scalar field. Gamma criterion is used in
     vortex analysis.
@@ -1238,6 +1262,9 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
         gamma will be compute only where mask is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
     """
     ### Checking parameters coherence ###
     if not isinstance(vectorfield, VectorField):
@@ -1251,10 +1278,6 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
         raise TypeError("'ind' must be a boolean")
     axe_x, axe_y = vectorfield.get_axes()
     delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
-    if ind:
-        # transforming into axis unit
-        radius = radius*delta
-        ind = False
     if not isinstance(kind, STRINGTYPES):
         raise TypeError("'kind' must be a string")
     if not kind in ['gamma1', 'gamma2']:
@@ -1266,21 +1289,30 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
     else:
         mask = np.array(mask)
     ### Importing data from vectorfield (velocity, axis and mask) ###
-    Vx = vectorfield.comp_x.values.data
-    Vy = vectorfield.comp_y.values.data
-    mask = np.logical_or(mask, vectorfield.comp_x.values.mask)
-    mask = np.logical_or(mask, vectorfield.comp_y.values.mask)
-    norm_v = np.sqrt(Vx**2 + Vy**2)
+    Vx = vectorfield.get_comp('Vx', raw=True).data
+    Vy = vectorfield.get_comp('Vy', raw=True).data
+    mask = np.logical_or(mask, vectorfield.get_comp('mask', raw=True))
+    norm_v = vectorfield.get_comp('magnitude', raw=True)
     ### Compute motif and motif angles on an arbitrary point ###
-    ptcentral = [axe_x[int(len(axe_x)/2)], axe_y[int(len(axe_y)/2)]]
-    motif = np.array(vectorfield.comp_x.get_points_around(ptcentral, radius))
+    axe_x, axe_y = vectorfield.get_axes()
+    indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
+    if ind:
+        motif = vectorfield.get_points_around(indcentral, radius, ind)
+        motif = motif - indcentral
+    else:
+        ptcentral = [axe_x[indcentral[0]], axe_y[indcentral[1]]]
+        motif = vectorfield.get_points_around(ptcentral, radius, ind)
+        motif = motif - indcentral
+    nmbpts = len(motif)
+    # getting the vectors between center and neighbouring
+    deltax = axe_x[1] - axe_x[0]
+    deltay = axe_y[1] - axe_y[0]
     vector_a_x = np.zeros(motif.shape[0])
     vector_a_y = np.zeros(motif.shape[0])
     for i, indaround in enumerate(motif):
-        vector_a_x[i] = axe_x[indaround[0]] - ptcentral[0]
-        vector_a_y[i] = axe_y[indaround[1]] - ptcentral[1]
-    norm_vect_a = (vector_a_x**2 + vector_a_y**2)**(1./2.)
-    motif = motif - np.array([int(len(axe_x)/2), int(len(axe_y)/2)])
+        vector_a_x[i] = indaround[0]*deltax
+        vector_a_y[i] = indaround[1]*deltay
+    norm_vect_a = (vector_a_x**2 + vector_a_y**2)**(.5)
     ### Generating masks ###
     # creating surrounding masked point zone mask
     mask_surr = np.zeros(mask.shape)
@@ -1293,15 +1325,25 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
                 continue
             mask_surr[i, j] = True
     # creating near-border zone mask
-    radius_m_delta = radius - delta
-    border_x = np.logical_or(axe_x <= axe_x[0] + radius_m_delta,
-                             axe_x >= axe_x[-1] - radius_m_delta)
-    border_y = np.logical_or(axe_y <= axe_y[0] + radius_m_delta,
-                             axe_y >= axe_y[-1] - radius_m_delta)
-    border_x, border_y = np.meshgrid(border_x, border_y)
-    mask_border = np.logical_or(border_x, border_y)
+    if ind:
+        indx = np.arange(len(axe_x))
+        indy = np.arange(len(axe_y))
+        border_x = np.logical_or(indx <= indx[0] + (int(radius) - 1),
+                                 indx >= indx[-1] - (int(radius) - 1))
+        border_y = np.logical_or(indy <= indy[0] + (int(radius) - 1),
+                                 indy >= indy[-1] - (int(radius) - 1))
+        border_x, border_y = np.meshgrid(border_x, border_y)
+        mask_border = np.logical_or(border_x, border_y)
+    else:
+        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
+        border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
+                                 axe_x >= axe_x[-1] - (radius - delta))
+        border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
+                                 axe_y >= axe_y[-1] - (radius - delta))
+        border_x, border_y = np.meshgrid(border_x, border_y)
+        mask_border = np.logical_or(border_x, border_y)
     ### Loop on points ###
-    gammas = np.zeros(vectorfield.comp_x.get_dim())
+    gammas = np.zeros(vectorfield.get_dim())
     for inds, pos, _ in vectorfield:
         ind_x = inds[0]
         ind_y = inds[1]
@@ -1310,11 +1352,10 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
                 or mask_border[ind_y, ind_x]:
             continue
         # getting neighbour points
-        indsaround = motif + np.array(inds)
+        indsaround = motif + inds
         # If necessary, compute mean velocity on points (gamma2)
         v_mean = [0., 0.]
         if kind == 'gamma2':
-            nmbpts = len(indsaround)
             for indaround in indsaround:
                 v_mean[0] += Vx[ind_y, ind_x]
                 v_mean[1] += Vy[ind_y, ind_x]
@@ -1322,7 +1363,6 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
             v_mean[1] /= nmbpts
         ### Loop on neighbouring points ###
         gamma = 0.
-        nmbpts = len(indsaround)
         for i, indaround in enumerate(indsaround):
             inda_x = indaround[0]
             inda_y = indaround[1]
@@ -1344,14 +1384,19 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None):
     mask = np.logical_or(mask, mask_surr)
     gammas = np.ma.masked_array(gammas, mask)
     ### Creating gamma ScalarField ###
-    gamma_sf = ScalarField()
-    gamma_sf.import_from_arrays(axe_x, axe_y, gammas,
-                                unit_x=vectorfield.comp_x.unit_x,
-                                unit_y=vectorfield.comp_x.unit_y)
-    return gamma_sf
+    if raw:
+        return gammas
+    else:
+        gamma_sf = ScalarField()
+        unit_x, unit_y = vectorfield.get_axe_units()
+        gamma_sf.import_from_arrays(axe_x, axe_y, gammas,
+                                    unit_x=unit_x, unit_y=unit_y,
+                                    unit_values=make_unit(''))
+        return gamma_sf
 
 
-def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
+def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
+              raw=False):
     """
     Return the kappa scalar field. Kappa criterion is used in
     vortex analysis.
@@ -1375,6 +1420,9 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
         kappa will be compute only where mask is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
     """
     ### Checking parameters coherence ###
     if not isinstance(vectorfield, VectorField):
@@ -1388,10 +1436,6 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
         raise TypeError("'ind' must be a boolean")
     axe_x, axe_y = vectorfield.get_axes()
     delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
-    if ind:
-        # transforming into axis unit
-        radius = radius*delta
-        ind = False
     if not isinstance(kind, STRINGTYPES):
         raise TypeError("'kind' must be a string")
     if not kind in ['kappa1', 'kappa2']:
@@ -1403,21 +1447,30 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
     else:
         mask = np.array(mask)
     ### Importing data from vectorfield (velocity, axis and mask) ###
-    Vx = vectorfield.comp_x.values.data
-    Vy = vectorfield.comp_y.values.data
-    mask = np.logical_or(mask, vectorfield.comp_x.values.mask)
-    mask = np.logical_or(mask, vectorfield.comp_y.values.mask)
-    norm_v = np.sqrt(Vx**2 + Vy**2)
+    Vx = vectorfield.get_comp('Vx', raw=True).data
+    Vy = vectorfield.get_comp('Vy', raw=True).data
+    mask = np.logical_or(mask, vectorfield.get_comp('mask', raw=True))
+    norm_v = vectorfield.get_comp('magnitude', raw=True)
     ### Compute motif and motif angles on an arbitrary point ###
-    ptcentral = [axe_x[int(len(axe_x)/2)], axe_y[int(len(axe_y)/2)]]
-    motif = np.array(vectorfield.comp_x.get_points_around(ptcentral, radius))
+    axe_x, axe_y = vectorfield.get_axes()
+    indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
+    if ind:
+        motif = vectorfield.get_points_around(indcentral, radius, ind)
+        motif = motif - indcentral
+    else:
+        ptcentral = [axe_x[indcentral[0]], axe_y[indcentral[1]]]
+        motif = vectorfield.get_points_around(ptcentral, radius, ind)
+        motif = motif - indcentral
+    nmbpts = len(motif)
+    # getting the vectors between center and neighbouring
+    deltax = axe_x[1] - axe_x[0]
+    deltay = axe_y[1] - axe_y[0]
     vector_a_x = np.zeros(motif.shape[0])
     vector_a_y = np.zeros(motif.shape[0])
     for i, indaround in enumerate(motif):
-        vector_a_x[i] = axe_x[indaround[0]] - ptcentral[0]
-        vector_a_y[i] = axe_y[indaround[1]] - ptcentral[1]
-    norm_vect_a = (vector_a_x**2 + vector_a_y**2)**(1./2.)
-    motif = motif - np.array([int(len(axe_x)/2), int(len(axe_y)/2)])
+        vector_a_x[i] = indaround[0]*deltax
+        vector_a_y[i] = indaround[1]*deltay
+    norm_vect_a = (vector_a_x**2 + vector_a_y**2)**(.5)
     ### Generating masks ###
     # creating surrounding masked point zone mask
     mask_surr = np.zeros(mask.shape)
@@ -1430,15 +1483,25 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
                 continue
             mask_surr[i, j] = True
     # creating near-border zone mask
-    radius_m_delta = radius - delta
-    border_x = np.logical_or(axe_x <= axe_x[0] + radius_m_delta,
-                             axe_x >= axe_x[-1] - radius_m_delta)
-    border_y = np.logical_or(axe_y <= axe_y[0] + radius_m_delta,
-                             axe_y >= axe_y[-1] - radius_m_delta)
-    border_x, border_y = np.meshgrid(border_x, border_y)
-    mask_border = np.logical_or(border_x, border_y)
+    if ind:
+        indx = np.arange(len(axe_x))
+        indy = np.arange(len(axe_y))
+        border_x = np.logical_or(indx <= indx[0] + (int(radius) - 1),
+                                 indx >= indx[-1] - (int(radius) - 1))
+        border_y = np.logical_or(indy <= indy[0] + (int(radius) - 1),
+                                 indy >= indy[-1] - (int(radius) - 1))
+        border_x, border_y = np.meshgrid(border_x, border_y)
+        mask_border = np.logical_or(border_x, border_y)
+    else:
+        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
+        border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
+                                 axe_x >= axe_x[-1] - (radius - delta))
+        border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
+                                 axe_y >= axe_y[-1] - (radius - delta))
+        border_x, border_y = np.meshgrid(border_x, border_y)
+        mask_border = np.logical_or(border_x, border_y)
     ### Loop on points ###
-    kappas = np.zeros(vectorfield.comp_x.get_dim())
+    kappas = np.zeros(vectorfield.get_dim())
     for inds, pos, _ in vectorfield:
         ind_x = inds[0]
         ind_y = inds[1]
@@ -1481,14 +1544,18 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None):
     mask = np.logical_or(mask, mask_surr)
     kappas = np.ma.masked_array(kappas, mask)
     ### Creating kappa ScalarField ###
-    kappa_sf = ScalarField()
-    kappa_sf.import_from_arrays(axe_x, axe_y, kappas,
-                                unit_x=vectorfield.comp_x.unit_x,
-                                unit_y=vectorfield.comp_x.unit_y)
-    return kappa_sf
+    if raw:
+        return kappas
+    else:
+        kappa_sf = ScalarField()
+        unit_x, unit_y = vectorfield.get_axe_units()
+        kappa_sf.import_from_arrays(axe_x, axe_y, kappas,
+                                    unit_x=unit_x, unit_y=unit_y,
+                                    unit_values=make_unit(''))
+        return kappa_sf
 
 
-def get_q_criterion(vectorfield, mask=None):
+def get_q_criterion(vectorfield, mask=None, raw=False):
     """
     Return the normalized scalar field of the 2D Q criterion .
     Define as "1/2*(sig**2 - S**2)" , with "sig" the deformation tensor,
@@ -1500,6 +1567,9 @@ def get_q_criterion(vectorfield, mask=None):
     mask : array of boolean, optional
         Has to be an array of the same size of the vector field object,
         iota2 will be compute only where zone is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
     """
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
@@ -1510,8 +1580,8 @@ def get_q_criterion(vectorfield, mask=None):
     else:
         mask = np.array(mask)
     axe_x, axe_y = vectorfield.get_axes()
-    Vx = vectorfield.comp_x.values.copy()
-    Vy = vectorfield.comp_y.values.copy()
+    Vx = vectorfield.get_comp('Vx', raw=True)
+    Vy = vectorfield.get_comp('Vy', raw=True)
     #calcul des gradients
     Exy, Exx = np.gradient(Vx)
     Eyy, Eyx = np.gradient(Vy)
@@ -1522,14 +1592,17 @@ def get_q_criterion(vectorfield, mask=None):
     qcrit = 1./2*(sig - S)
     qcrit = np.ma.masked_array(qcrit, mask)
     qcrit = qcrit/np.abs(qcrit).max()
-    q_sf = ScalarField()
-    q_sf.import_from_arrays(axe_x, axe_y, qcrit,
-                            unit_x=vectorfield.comp_x.unit_x,
-                            unit_y=vectorfield.comp_x.unit_y)
-    return q_sf
+    if raw:
+        return qcrit
+    else:
+        q_sf = ScalarField()
+        q_sf.import_from_arrays(axe_x, axe_y, qcrit,
+                                unit_x=vectorfield.comp_x.unit_x,
+                                unit_y=vectorfield.comp_x.unit_y)
+        return q_sf
 
 
-def get_iota(vectorfield, mask=None):
+def get_iota(vectorfield, mask=None, raw=False):
     """
     Return the iota scalar field. iota criterion is used in
     vortex analysis.
@@ -1543,6 +1616,9 @@ def get_iota(vectorfield, mask=None):
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
         iota2 will be compute only where zone is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
     """
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
@@ -1554,10 +1630,9 @@ def get_iota(vectorfield, mask=None):
         mask = np.array(mask)
     axe_x, axe_y = vectorfield.get_axes()
     # récupération de theta et de son masque
-    theta = vectorfield.get_theta().values
-    if isinstance(theta, np.ma.MaskedArray):
-        mask = np.logical_or(mask, theta.mask)
-        theta = theta.data
+    theta = vectorfield.get_comp('theta', raw=True)
+    mask = np.logical_or(mask, theta.mask)
+    theta = theta.data
     # récupération des dx et dy
     dx = np.abs(axe_x[0] - axe_x[2])
     dy = np.abs(axe_y[0] - axe_y[2])
@@ -1590,15 +1665,12 @@ def get_iota(vectorfield, mask=None):
         grad_theta_m[inds[1], inds[0]] = (grad_x**2 + grad_y**2)**(1./2)
     # application du masque
     grad_theta_m = np.ma.masked_array(grad_theta_m, maskf)
-    iota_sf = ScalarField()
-    iota_sf.import_from_arrays(axe_x, axe_y, grad_theta_m,
-                               unit_x=vectorfield.comp_x.unit_x,
-                               unit_y=vectorfield.comp_x.unit_y)
-#    ### XXX : Alternate calculation for iota !
-#    mean = iota_sf.integrate_over_surface().asNumber()
-#    mean = mean/len(iota_sf.axe_x)/len(iota_sf.axe_y)
-#    iota_sf = iota_sf - mean
-#    iota_sf = iota_sf**2
-    ###
-    return iota_sf
-
+    if raw:
+        return grad_theta_m
+    else:
+        iota_sf = ScalarField()
+        unit_x, unit_y = vectorfield.get_axe_units()
+        iota_sf.import_from_arrays(axe_x, axe_y, grad_theta_m,
+                                   unit_x=unit_x, unit_y=unit_y,
+                                   unit_values=make_unit(''))
+        return iota_sf
