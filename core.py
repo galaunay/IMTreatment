@@ -1164,41 +1164,121 @@ class Profile(object):
 class Field(object):
 
     def __init__(self):
-        self.axe_x = np.array([], dtype=float)
-        self.axe_y = np.array([], dtype=float)
-        self.unit_x = make_unit('')
-        self.unit_y = make_unit('')
+        self.__axe_x = np.array([], dtype=float)
+        self.__axe_y = np.array([], dtype=float)
+        self.__unit_x = make_unit('')
+        self.__unit_y = make_unit('')
 
     def __iter__(self):
         for i, x in enumerate(self.axe_x):
             for j, y in enumerate(self.axe_y):
                 yield [i, j], [x, y]
 
-    def get_axes(self):
-        """
-        Return the field axes.
+    @property
+    def axe_x(self):
+        return self.__axe_x
 
-        Returns
-        -------
-        axe_x : array
-            Axe along X.
-        axe_y : array
-            Axe along Y.
-        """
-        return self.axe_x.copy(), self.axe_y.copy()
+    @axe_x.setter
+    def axe_x(self, new_axe_x):
+        if not isinstance(new_axe_x, ARRAYTYPES):
+            raise TypeError()
+        new_axe_x = np.array(new_axe_x, dtype=float)
+        if new_axe_x.shape == self.__axe_x.shape or len(self.__axe_x) == 0:
+            self.__axe_x = new_axe_x
+        else:
+            raise ValueError()
 
-    def get_axe_units(self):
-        """
-        Return the axis unities.
+    @axe_x.deleter
+    def axe_x(self):
+        raise Exception("Nope, can't do that")
 
-        Returns:
-        --------
-        unit_x : unit object
-            Axe x unit
-        unit_y : unit object
-            Axe y unit
-        """
-        return self.unit_x.copy(), self.unit_y.copy()
+    @property
+    def axe_y(self):
+        return self.__axe_y
+
+    @axe_y.setter
+    def axe_y(self, new_axe_y):
+        if not isinstance(new_axe_y, ARRAYTYPES):
+            raise TypeError()
+        new_axe_y = np.array(new_axe_y, dtype=float)
+        if new_axe_y.shape == self.__axe_y.shape or len(self.__axe_y) == 0:
+            self.__axe_y = new_axe_y
+        else:
+            raise ValueError()
+
+    @axe_y.deleter
+    def axe_y(self):
+        raise Exception("Nope, can't do that")
+
+    @property
+    def unit_x(self):
+        return self.__unit_x
+
+    @unit_x.setter
+    def unit_x(self, new_unit_x):
+        if isinstance(new_unit_x, unum.Unum):
+            if new_unit_x.asNumber() == 1:
+                self.__unit_x = new_unit_x
+            else:
+                raise ValueError()
+        elif isinstance(new_unit_x, STRINGTYPES):
+            self.__unit_x == make_unit(new_unit_x)
+        else:
+            raise TypeError()
+
+    @unit_x.deleter
+    def unit_x(self):
+        raise Exception("Nope, can't do that")
+
+    @property
+    def unit_y(self):
+        return self.__unit_y
+
+    @unit_y.setter
+    def unit_y(self, new_unit_y):
+        if isinstance(new_unit_y, unum.Unum):
+            if new_unit_y.asNumber() == 1:
+                self.__unit_y = new_unit_y
+            else:
+                raise ValueError()
+        elif isinstance(new_unit_y, STRINGTYPES):
+            self.__unit_y == make_unit(new_unit_y)
+        else:
+            raise TypeError()
+
+    @unit_y.deleter
+    def unit_y(self):
+        raise Exception("Nope, can't do that")
+
+    @property
+    def shape(self):
+        return self.__axe_x.shape[0], self.__axe_y.shape[0]
+
+#    def get_axes(self):
+#        """
+#        Return the field axes.
+#
+#        Returns
+#        -------
+#        axe_x : array
+#            Axe along X.
+#        axe_y : array
+#            Axe along Y.
+#        """
+#        return self.axe_x.copy(), self.axe_y.copy()
+
+#    def get_axe_units(self):
+#        """
+#        Return the axis unities.
+#
+#        Returns:
+#        --------
+#        unit_x : unit object
+#            Axe x unit
+#        unit_y : unit object
+#            Axe y unit
+#        """
+#        return self.unit_x.copy(), self.unit_y.copy()
 
     def copy(self):
         """
@@ -1206,54 +1286,54 @@ class Field(object):
         """
         return copy.deepcopy(self)
 
-    def set_axes(self, axe_x=None, axe_y=None):
-        """
-        Load new axes in the field.
+#    def set_axes(self, axe_x=None, axe_y=None):
+#        """
+#        Load new axes in the field.
+#
+#        Parameters
+#        ----------
+#        axe_x : array
+#            One-dimensionale array representing the position of the scalar
+#            values along the X axe.
+#        axe_y : array
+#            idem for the Y axe.
+#        """
+#        if axe_x is not None:
+#            if not isinstance(axe_x, ARRAYTYPES):
+#                raise TypeError("'axe_x' must be an array")
+#            axe_x = np.array(axe_x, dtype=float)
+#            if self.axe_x.shape == axe_x.shape:
+#                self.axe_x = axe_x
+#            else:
+#                raise ValueError("Inconsistent size of 'axe_x'")
+#        if axe_y is not None:
+#            if not isinstance(axe_y, ARRAYTYPES):
+#                raise TypeError("'axe_y' must be an array")
+#            axe_y = np.array(axe_y, dtype=float)
+#            if axe_y.shape == self.axe_y.shape:
+#                self.axe_y = axe_y
+#            else:
+#                raise ValueError("Inconsistent size of 'axe_y'")
 
-        Parameters
-        ----------
-        axe_x : array
-            One-dimensionale array representing the position of the scalar
-            values along the X axe.
-        axe_y : array
-            idem for the Y axe.
-        """
-        if axe_x is not None:
-            if not isinstance(axe_x, ARRAYTYPES):
-                raise TypeError("'axe_x' must be an array")
-            axe_x = np.array(axe_x, dtype=float)
-            if self.axe_x.shape == axe_x.shape:
-                self.axe_x = axe_x
-            else:
-                raise ValueError("Inconsistent size of 'axe_x'")
-        if axe_y is not None:
-            if not isinstance(axe_y, ARRAYTYPES):
-                raise TypeError("'axe_y' must be an array")
-            axe_y = np.array(axe_y, dtype=float)
-            if axe_y.shape == self.axe_y.shape:
-                self.axe_y = axe_y
-            else:
-                raise ValueError("Inconsistent size of 'axe_y'")
-
-    def set_axe_units(self, unit_x=None, unit_y=None):
-        """
-        Load unities into the field axis.
-
-        Parameters
-        ----------
-        unit_x : Unit object
-            Axis X unit.
-        unit_y : Unit object
-            Axis Y unit.
-        """
-        if unit_x is not None:
-            if not isinstance(unit_x, unum.Unum):
-                raise TypeError("'unit_x' must be an unit object")
-            self.unit_x = unit_x
-        if unit_y is not None:
-            if not isinstance(unit_y, unum.Unum):
-                raise TypeError("'unit_y' must be an unit object")
-            self.unit_y = unit_y
+#    def set_axe_units(self, unit_x=None, unit_y=None):
+#        """
+#        Load unities into the field axis.
+#
+#        Parameters
+#        ----------
+#        unit_x : Unit object
+#            Axis X unit.
+#        unit_y : Unit object
+#            Axis Y unit.
+#        """
+#        if unit_x is not None:
+#            if not isinstance(unit_x, unum.Unum):
+#                raise TypeError("'unit_x' must be an unit object")
+#            self.unit_x = unit_x
+#        if unit_y is not None:
+#            if not isinstance(unit_y, unum.Unum):
+#                raise TypeError("'unit_y' must be an unit object")
+#            self.unit_y = unit_y
 
     def set_origin(self, x=None, y=None):
         """
@@ -1286,7 +1366,7 @@ class Field(object):
         full_output : boolean, optional
             If 'True', cutting indices are alson returned
         """
-        axe_x, axe_y = self.get_axes()
+        axe_x, axe_y = self.axe_x, self.axe_y
         if intervalx is None:
             intervalx = [axe_x[0], axe_x[-1]]
         if intervaly is None:
@@ -1326,9 +1406,9 @@ class Field(object):
             indmax_y = len(axe_y) - 1
         else:
             indmax_y = self.get_indice_on_axe(2, intervaly[1])[0]
-        trimfield = self.copy()
-        trimfield.axe_x = trimfield.axe_x[indmin_x:indmax_x + 1]
-        trimfield.axe_y = trimfield.axe_y[indmin_y:indmax_y + 1]
+        trimfield = self.__class__()
+        trimfield.axe_x = self.axe_x[indmin_x:indmax_x + 1]
+        trimfield.axe_y = self.axe_y[indmin_y:indmax_y + 1]
         if full_output:
             return indmin_x, indmax_x, indmin_y, indmax_y, trimfield
         else:
@@ -1475,27 +1555,26 @@ class ScalarField(Field):
 
     def __init__(self):
         Field.__init__(self)
-        self.values = np.ma.masked_array([])
+        self.__values = np.array([])
+        self.__mask = np.array([], dtype=bool)
+        self.__unit_values = make_unit("")
 
     def __eq__(self, another):
         if not isinstance(another, ScalarField):
             return False
-        if not np.all(self.get_axes()[0] == another.get_axes()[0]):
+        if not np.all(self.axe_x == another.axe_x):
             return False
-        if not np.all(self.get_axes()[1] == another.get_axes()[1]):
+        if not np.all(self.axe_y == another.axe_y):
             return False
-        if not np.all(self.get_comp('values', masked=False)
-                      == another.get_comp('values', masked=False)):
+        if not np.all(self.values == another.values):
             return False
-        if not np.all(self.get_comp('mask', raw=True)
-                      == another.get_comp('mask', raw=True)):
+        if not np.all(self.mask == another.mask):
             return False
-        if not np.all(self.get_axe_units()[0] == another.get_axe_units()[0]):
+        if not np.all(self.unit_x == another.unit_x):
             return False
-        if not np.all(self.get_axe_units()[1] == another.get_axe_units()[1]):
+        if not np.all(self.unit_y == another.unit_y):
             return False
-        if not np.all(self.get_comp('unit_values')
-                      == another.get_comp('unit_values')):
+        if not np.all(self.unit_values == another.unit_values):
             return False
         return True
 
@@ -1520,6 +1599,7 @@ class ScalarField(Field):
             tmpsf = self.copy()
             fact = otherone.unit_values/self.unit_values
             tmpsf.values += otherone.values*fact.asNumber()
+            tmpsf.mask = np.logical_or(self.mask, otherone.mask)
             return tmpsf
         # if we add with a number
         elif isinstance(otherone, NUMBERTYPES):
@@ -1567,8 +1647,10 @@ class ScalarField(Field):
                 raise ValueError("Fields are not consistent")
             tmpsf = self.copy()
             values = self.values / obj.values
+            mask = np.logical_or(self.mask, obj.mask)
             unit = self.unit_values / obj.unit_values
             tmpsf.values = values*unit.asNumber()
+            tmpsf.mask = mask
             tmpsf.unit_values = unit/unit.asNumber()
             return tmpsf
         else:
@@ -1596,8 +1678,10 @@ class ScalarField(Field):
                 raise ValueError("Fields are not consistent")
             tmpsf = self.copy()
             values = obj.values / self.values
+            mask = np.logical_or(self.mask, obj.mask)
             unit = obj.unit_values / self.unit_values
             tmpsf.values = values*unit.asNumber()
+            tmpsf.mask = mask
             tmpsf.unit_values = unit/unit.asNumber()
             return tmpsf
         else:
@@ -1628,8 +1712,10 @@ class ScalarField(Field):
                 raise ValueError("Fields are not consistent")
             tmpsf = self.copy()
             values = self.values * obj.values
+            mask = np.logical_or(self.mask, obj.mask)
             unit = self.unit_values * obj.unit_values
             tmpsf.values = values*unit.asNumber()
+            tmpsf.mask = mask
             tmpsf.unit_values = unit/unit.asNumber()
             return tmpsf
         else:
@@ -1652,127 +1738,90 @@ class ScalarField(Field):
         return tmpsf
 
     def __iter__(self):
-        try:
-            mask = self.values.mask
-            data = self.values.data
-        except AttributeError:
-            data = self.values
-            mask = np.zeros(data.shape)
+        data = self.values
+        mask = self.mask
         for ij, xy in Field.__iter__(self):
             i = ij[0]
             j = ij[1]
-            if not mask[j, i]:
-                yield ij, xy, data[j, i]
+            if not mask[i, j]:
+                yield ij, xy, data[i, j]
 
-#    def import_from_davis(self, filename):
-#        """
-#        Import a scalar field from a .IM7 file.
-#
-#        Parameters
-#        ----------
-#        filename : string
-#            Path to the IM7 file.
-#        """
-#        if not isinstance(filename, STRINGTYPES):
-#            raise TypeError("'filename' must be a string")
-#        if not os.path.exists(filename):
-#            raise ValueError("I did not find your file, boy")
-#        _, ext = os.path.splitext(filename)
-#        if not (ext == ".im7" or ext == ".IM7"):
-#            raise ValueError("I need the file to be an IM7 file")
-#        v = IM.IM7(filename)
-#        axe_x = v.Px[0, :]
-#        axe_y = v.Py[:, 0]
-#        values = v.getmaI()[0]*v.buffer['scaleI']['factor']
-#        unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
-#        unit_x = unit_x.replace('[', '')
-#        unit_x = unit_x.replace(']', '')
-#        unit_x = make_unit(unit_x)
-#        unit_y = v.buffer['scaleY']['unit'].split("\x00")[0]
-#        unit_y = unit_y.replace('[', '')
-#        unit_y = unit_y.replace(']', '')
-#        unit_y = make_unit(unit_y)
-#        unit_values = v.buffer['scaleI']['unit'].split("\x00")[0]
-#        unit_values = unit_values.replace('[', '')
-#        unit_values = unit_values.replace(']', '')
-#        unit_values = make_unit(unit_values)
-#        # check if axe are crescent
-#        if axe_y[-1] < axe_y[0]:
-#            axe_y = axe_y[::-1]
-#            values = values[::-1, :]
-#        if axe_x[-1] < axe_x[0]:
-#            axe_x = axe_x[::-1]
-#            values = values[:, ::-1]
-#        self.import_from_arrays(axe_x=axe_x, axe_y=axe_y, values=values,
-#                                unit_x=unit_x, unit_y=unit_y,
-#                                unit_values=unit_values)
+    @property
+    def values(self):
+        return self.__values
 
-#    def import_from_ascii(self, filename, x_col=1, y_col=2, v_col=3,
-#                          unit_x=make_unit(""), unit_y=make_unit(""),
-#                          unit_values=make_unit(""), **kwargs):
-#        """
-#        Import a scalarfield from an ascii file.
-#
-#        Parameters
-#        ----------
-#        x_col, y_col, v_col : integer, optional
-#            Colonne numbers for the given variables
-#            (begining at 1).
-#        unit_x, unit_y, unit_v : Unit objects, optional
-#            Unities for the given variables.
-#        **kwargs :
-#            Possibles additional parameters are the same as those used in the
-#            numpy function 'genfromtext()' :
-#            'delimiter' to specify the delimiter between colonnes.
-#            'skip_header' to specify the number of colonne to skip at file
-#                begining
-#            ...
-#        """
-#        # validating parameters
-#        if not isinstance(x_col, int) or not isinstance(y_col, int)\
-#                or not isinstance(v_col, int):
-#            raise TypeError("'x_col', 'y_col' and 'v_col' must be integers")
-#        if x_col < 1 or y_col < 1 or v_col < 1:
-#            raise ValueError("Colonne number out of range")
-#        # 'names' deletion, if specified (dangereux pour la suite)
-#        if 'names' in kwargs:
-#            kwargs.pop('names')
-#        # extract data from file
-#        data = np.genfromtxt(filename, **kwargs)
-#        # get axes
-#        x = data[:, x_col-1]
-#        x_org = np.unique(x)
-#        y = data[:, y_col-1]
-#        y_org = np.unique(y)
-#        v = data[:, v_col-1]
-#        # Masking all the initial field (to handle missing values)
-#        v_org = np.zeros((x_org.shape[0], y_org.shape[0]))
-#        v_org_mask = np.ones(v_org.shape)
-#        v_org = np.ma.masked_array(v_org, v_org_mask)
-#        #loop on all 'v' values
-#        for i in np.arange(v.shape[0]):
-#            x_tmp = x[i]
-#            y_tmp = y[i]
-#            v_tmp = v[i]
-#            #find x index
-#            for j in np.arange(x_org.shape[0]):
-#                if x_org[j] == x_tmp:
-#                    x_ind = j
-#            #find y index
-#            for j in np.arange(y_org.shape[0]):
-#                if y_org[j] == y_tmp:
-#                    y_ind = j
-#            #put the value at its place
-#            v_org[x_ind, y_ind] = v_tmp
-#        # treating 'nan' values
-#        v_org.mask = np.logical_and(v_org.mask, np.isnan(v_org.data))
-#        #store field in attributes
-#        self.import_from_arrays(axe_x=x_org, axe_y=y_org, values=v_org,
-#                                unit_x=unit_x, unit_y=unit_y,
-#                                unit_values=make_unit(''))
+    @values.setter
+    def values(self, new_values):
+        if not isinstance(new_values, ARRAYTYPES):
+            raise TypeError()
+        new_values = np.array(new_values)
+        if self.shape == new_values.shape:
+            self.__values = new_values
+        else:
+            raise ValueError("'values' should have the same shape as the "
+                             "original values : {}, not {}."
+                             .format(self.shape, new_values.shape))
 
-    def import_from_arrays(self, axe_x, axe_y, values, unit_x=make_unit(""),
-                           unit_y=make_unit(""), unit_values=make_unit("")):
+    @values.deleter
+    def values(self):
+        raise Exception("Nope, can't do that")
+
+    @property
+    def mask(self):
+        return self.__mask
+
+    @mask.setter
+    def mask(self, new_mask):
+        if isinstance(new_mask, bool):
+            self.__mask.fill(new_mask)
+        elif isinstance(new_mask, ARRAYTYPES):
+            new_mask = np.array(new_mask)
+            if self.shape == new_mask.shape:
+                self.__mask = new_mask
+            else:
+                raise ValueError()
+        else:
+            raise TypeError("'mask' should be an array or a boolean,"
+                            " not a {}".format(type(new_mask)))
+
+    @mask.deleter
+    def mask(self):
+        raise Exception("Nope, can't do that")
+
+    @property
+    def unit_values(self):
+        return self.__unit_values
+
+    @unit_values.setter
+    def unit_values(self, new_unit_values):
+        if isinstance(new_unit_values, unum.Unum):
+            if new_unit_values.asNumber() == 1:
+                self.__unit_values = new_unit_values
+            else:
+                raise ValueError()
+        elif isinstance(new_unit_values, STRINGTYPES):
+            self.__unit_values == make_unit(new_unit_values)
+        else:
+            raise TypeError()
+
+    @unit_values.deleter
+    def unit_values(self):
+        raise Exception("Nope, can't do that")
+
+    @property
+    def min(self):
+        return np.min(self.values[np.logical_not(self.mask)])
+
+    @property
+    def max(self):
+        return np.max(self.values[np.logical_not(self.mask)])
+
+    @property
+    def mean(self):
+        return np.mean(self.values[np.logical_not(self.mask)])
+
+    def import_from_arrays(self, axe_x, axe_y, values, mask=False,
+                           unit_x="", unit_y="", unit_values=""):
         """
         Set the field from a set of arrays.
 
@@ -1784,62 +1833,26 @@ class ScalarField(Field):
             Discretized axis value along y
         values : array or masked array
             Values of the field at the discritized points
-        unit_x : Unit object, optionnal
+        unit_x : String unit, optionnal
             Unit for the values of axe_x
-        unit_y : Unit object, optionnal
+        unit_y : String unit, optionnal
             Unit for the values of axe_y
-        unit_values : Unit object, optionnal
+        unit_values : String unit, optionnal
             Unit for the scalar field
         """
         # checking parameters coherence
-        if not isinstance(axe_x, ARRAYTYPES):
-            raise TypeError("'axe_x' must be an array")
-        else:
-            axe_x = np.array(axe_x, dtype=float)
-        if not axe_x.ndim == 1:
-            raise ValueError("'axe_x' must be a one dimension array")
-        if not isinstance(axe_y, ARRAYTYPES):
-            raise TypeError("'axe_y' must be an array")
-        else:
-            axe_y = np.array(axe_y, dtype=float)
-        if not axe_y.ndim == 1:
-            raise ValueError("'axe_y' must be a one dimension array")
-        if not isinstance(values, ARRAYTYPES):
-            raise TypeError("'values' must be an array")
-        elif isinstance(values, (list, tuple)):
-            values = np.array(values, dtype=float)
-        if not values.ndim == 2:
-            raise ValueError("'values' must be a two dimension array")
-        if unit_x is not None:
-            if not isinstance(unit_x, unum.Unum):
-                raise TypeError("'unit_x' must be an Unit object")
-        if unit_y is not None:
-            if not isinstance(unit_y, unum.Unum):
-                raise TypeError("'unit_y' must be an Unit object")
-        if unit_values is not None:
-            if not isinstance(unit_values, unum.Unum):
-                raise TypeError("'unit_values' must be an Unit object")
-        if (values.shape[0] != axe_y.shape[0] or
-                values.shape[1] != axe_x.shape[0]):
+        if (values.shape[0] != axe_x.shape[0] or
+                values.shape[1] != axe_y.shape[0]):
             raise ValueError("Dimensions of 'axe_x', 'axe_y' and 'values' must"
                              " be consistents")
         # storing datas
-        unit_x_value = unit_x._value
-        unit_y_value = unit_y._value
-        unit_values_value = unit_values._value
-        self.axe_x = axe_x.copy()*unit_x_value
-        self.axe_y = axe_y.copy()*unit_y_value
-        if isinstance(values, np.ma.MaskedArray):
-            mask = values.mask
-            values = values.data
-        else:
-            values = np.array(values, dtype=float)
-            mask = np.zeros(values.shape)
-        values = values*unit_values_value
-        self.values = np.ma.masked_array(values, mask, copy=True)
-        self.unit_x = unit_x.copy()/unit_x_value
-        self.unit_y = unit_y.copy()/unit_y_value
-        self.unit_values = unit_values.copy()/unit_values_value
+        self.axe_x = axe_x
+        self.axe_y = axe_y
+        self.values = values
+        self.mask = mask
+        self.unit_x = unit_x
+        self.unit_y = unit_y
+        self.unit_values = unit_values
         self.crop_masked_border()
 
 #    def import_from_file(self, filepath, **kw):
@@ -1948,20 +1961,20 @@ class ScalarField(Field):
             Contening the ScalarField points.
         """
         if mask is None:
-            mask = np.zeros(self.get_dim())
+            mask = np.zeros(self.shape)
         if not isinstance(mask, ARRAYTYPES):
             raise TypeError("'mask' must be an array of boolean")
         mask = np.array(mask)
-        if mask.shape != self.get_dim():
+        if mask.shape != self.shape:
             raise ValueError("'mask' must have the same dimensions as"
-                             "the ScalarField :{}".format(self.get_dim()))
+                             "the ScalarField :{}".format(self.shape))
         # récupération du masque
-        mask = np.logical_or(mask, self.values.mask)
+        mask = np.logical_or(mask, self.mask)
         pts = None
         v = np.array([], dtype=float)
-
+        # boucle sur les points
         for inds, pos, value in self:
-            if mask[inds[1], inds[0]]:
+            if mask[inds[0], inds[1]]:
                 continue
             if pts is None:
                 pts = [pos]
@@ -1970,56 +1983,56 @@ class ScalarField(Field):
             v = np.append(v, value)
         return Points(pts, v, self.unit_x, self.unit_y, self.unit_values)
 
-    def get_comp(self, componentname, raw=False, masked=True):
-        """
-        Return a ScalarField object representing a component of the
-        Vectorfield object.
-
-        Parameters
-        ----------
-        componentname : string
-            Can be 'values' or 'mask'.
-        raw : boolean, optional
-            If 'False' (default), return a ScalarField object,
-            if 'True', return a masked array.
-        masked : boolean, optional
-            If 'True' (default), returned np.array can be masked array,
-            If 'False', returned array are always brut np.array
-
-        Returns
-        -------
-        component : ScalarField object or numpy masked array
-        """
-        if not isinstance(componentname, STRINGTYPES):
-            raise TypeError("'componentname' must be a string")
-        if componentname == 'values':
-            if masked:
-                values = self.values
-            else:
-                values = self.values.data
-        elif componentname == 'mask':
-            values = self.values.mask
-            if isinstance(values, np.bool_):
-                if values:
-                    values = np.ones(self.get_dim(), dtype=bool)
-                else:
-                    values = np.zeros(self.get_dim(), dtype=bool)
-        elif componentname == "unit_values":
-            values = self.unit_values
-        else:
-            raise ValueError("unknown value of 'componentname'")
-        if raw:
-            return values.copy()
-        if isinstance(values, unum.Unum):
-            return values.copy()
-        else:
-            axe_x, axe_y = self.get_axes()
-            unit_x, unit_y = self.get_axe_units()
-            unit_values = self.get_comp('unit_values')
-            tmpsf = ScalarField()
-            tmpsf.import_from_arrays(axe_x, axe_y, values, unit_x, unit_y,
-                                     unit_values)
-            return tmpsf
+#    def get_comp(self, componentname, raw=False, masked=True):
+#        """
+#        Return a ScalarField object representing a component of the
+#        Vectorfield object.
+#
+#        Parameters
+#        ----------
+#        componentname : string
+#            Can be 'values' or 'mask'.
+#        raw : boolean, optional
+#            If 'False' (default), return a ScalarField object,
+#            if 'True', return a masked array.
+#        masked : boolean, optional
+#            If 'True' (default), returned np.array can be masked array,
+#            If 'False', returned array are always brut np.array
+#
+#        Returns
+#        -------
+#        component : ScalarField object or numpy masked array
+#        """
+#        if not isinstance(componentname, STRINGTYPES):
+#            raise TypeError("'componentname' must be a string")
+#        if componentname == 'values':
+#            if masked:
+#                values = self.values
+#            else:
+#                values = self.values.data
+#        elif componentname == 'mask':
+#            values = self.values.mask
+#            if isinstance(values, np.bool_):
+#                if values:
+#                    values = np.ones(self.get_dim(), dtype=bool)
+#                else:
+#                    values = np.zeros(self.get_dim(), dtype=bool)
+#        elif componentname == "unit_values":
+#            values = self.unit_values
+#        else:
+#            raise ValueError("unknown value of 'componentname'")
+#        if raw:
+#            return values.copy()
+#        if isinstance(values, unum.Unum):
+#            return values.copy()
+#        else:
+#            axe_x, axe_y = self.get_axes()
+#            unit_x, unit_y = self.get_axe_units()
+#            unit_values = self.get_comp('unit_values')
+#            tmpsf = ScalarField()
+#            tmpsf.import_from_arrays(axe_x, axe_y, values, unit_x, unit_y,
+#                                     unit_values)
+#            return tmpsf
 
 #    def get_values(self):
 #        """
@@ -2057,114 +2070,114 @@ class ScalarField(Field):
 #                             "original field shape")
 #        self.values.mask = mask
 
-    def set_comp(self, componentname, value):
-        """
-        Fill the component 'componentname' with 'value'.
+#    def set_comp(self, componentname, value):
+#        """
+#        Fill the component 'componentname' with 'value'.
+#
+#        Parameters
+#        ----------
+#        componentname : string
+#            Can be 'values' or 'mask'.
+#        value : array
+#            Array with the same shape as the initial component
+#        """
+#        if not isinstance(componentname, STRINGTYPES):
+#            raise TypeError("'componentname' must be a string")
+#        if componentname == 'values':
+#            if not isinstance(value, ARRAYTYPES):
+#                raise TypeError("'value' must be an array")
+#            if not isinstance(value, np.ma.MaskedArray):
+#                value = np.ma.masked_array(value)
+#            if self.get_dim() != value.shape:
+#                raise ValueError("'value' dimensions are inconsistent with "
+#                                 "the ScalarField shape")
+#            self.values = value
+#        elif componentname == 'mask':
+#            if not isinstance(value, ARRAYTYPES):
+#                raise TypeError("'value' must be an array")
+#            if not isinstance(value, np.ma.MaskedArray):
+#                value = np.ma.masked_array(value)
+#            if self.get_dim() != value.shape:
+#                raise ValueError("'value' dimensions are inconsistent with"
+#                                 "the ScalarField shape")
+#            self.values.mask = value
+#        elif componentname == "unit_values":
+#            if not isinstance(value, unum.Unum):
+#                raise TypeError("'value' must here be a unit obejct")
+#            self.unit_values = value
+#        else:
+#            raise ValueError("Unknown 'componentname' value")
 
-        Parameters
-        ----------
-        componentname : string
-            Can be 'values' or 'mask'.
-        value : array
-            Array with the same shape as the initial component
-        """
-        if not isinstance(componentname, STRINGTYPES):
-            raise TypeError("'componentname' must be a string")
-        if componentname == 'values':
-            if not isinstance(value, ARRAYTYPES):
-                raise TypeError("'value' must be an array")
-            if not isinstance(value, np.ma.MaskedArray):
-                value = np.ma.masked_array(value)
-            if self.get_dim() != value.shape:
-                raise ValueError("'value' dimensions are inconsistent with "
-                                 "the ScalarField shape")
-            self.values = value
-        elif componentname == 'mask':
-            if not isinstance(value, ARRAYTYPES):
-                raise TypeError("'value' must be an array")
-            if not isinstance(value, np.ma.MaskedArray):
-                value = np.ma.masked_array(value)
-            if self.get_dim() != value.shape:
-                raise ValueError("'value' dimensions are inconsistent with"
-                                 "the ScalarField shape")
-            self.values.mask = value
-        elif componentname == "unit_values":
-            if not isinstance(value, unum.Unum):
-                raise TypeError("'value' must here be a unit obejct")
-            self.unit_values = value
-        else:
-            raise ValueError("Unknown 'componentname' value")
+#    def get_dim(self):
+#        """
+#        Return the scalar field dimension.
+#
+#        Returns
+#        -------
+#        shape : tuple
+#            Tuple of the dimensions (along X and Y) of the scalar field.
+#        """
+#        return self.values.shape
 
-    def get_dim(self):
-        """
-        Return the scalar field dimension.
+#    def get_min(self, unit=False):
+#        """
+#        Return the minima of the field.
+#
+#        Parameters
+#        ----------
+#        unit : boolean, optional
+#            If True, a unit object is returned,
+#            else (default), a float is returned.
+#
+#        Returns
+#        -------
+#        mini : float or unit object
+#            Minima on the field
+#        """
+#        if unit:
+#            return np.min(self.values)*self.unit_values
+#        else:
+#            return np.min(self.values)
 
-        Returns
-        -------
-        shape : tuple
-            Tuple of the dimensions (along X and Y) of the scalar field.
-        """
-        return self.values.shape
+#    def get_max(self, unit=False):
+#        """
+#        Return the maxima of the field.
+#
+#        Parameters
+#        ----------
+#        unit : boolean, optional
+#            If True, a unit object is returned,
+#            else (default), a float is returned.
+#
+#        Returns
+#        -------
+#        maxi : float or unit object
+#            Maxima on the field
+#        """
+#        if unit:
+#            return np.max(self.values)*self.unit_values
+#        else:
+#            return np.max(self.values)
 
-    def get_min(self, unit=False):
-        """
-        Return the minima of the field.
-
-        Parameters
-        ----------
-        unit : boolean, optional
-            If True, a unit object is returned,
-            else (default), a float is returned.
-
-        Returns
-        -------
-        mini : float or unit object
-            Minima on the field
-        """
-        if unit:
-            return np.min(self.values)*self.unit_values
-        else:
-            return np.min(self.values)
-
-    def get_max(self, unit=False):
-        """
-        Return the maxima of the field.
-
-        Parameters
-        ----------
-        unit : boolean, optional
-            If True, a unit object is returned,
-            else (default), a float is returned.
-
-        Returns
-        -------
-        maxi : float or unit object
-            Maxima on the field
-        """
-        if unit:
-            return np.max(self.values)*self.unit_values
-        else:
-            return np.max(self.values)
-
-    def get_mean(self, unit=False):
-        """
-        Return the mean value of the field.
-
-        Parameters
-        ----------
-        unit : boolean, optional
-            If True, a unit object is returned,
-            else (default), a float is returned.
-
-        Returns
-        -------
-        mean : float or unit object
-            Mean value of the field.
-        """
-        if unit:
-            return np.mean(self.values)*self.unit_values
-        else:
-            return np.mean(self.values)
+#    def get_mean(self, unit=False):
+#        """
+#        Return the mean value of the field.
+#
+#        Parameters
+#        ----------
+#        unit : boolean, optional
+#            If True, a unit object is returned,
+#            else (default), a float is returned.
+#
+#        Returns
+#        -------
+#        mean : float or unit object
+#            Mean value of the field.
+#        """
+#        if unit:
+#            return np.mean(self.values)*self.unit_values
+#        else:
+#            return np.mean(self.values)
 
     def get_value(self, x, y, ind=False, unit=False):
         """
@@ -2196,7 +2209,6 @@ class ScalarField(Field):
         else:
             ind_x = None
             ind_y = None
-            axe_x, axe_y = self.get_axes()
             # getting indices interval
             inds_x = self.get_indice_on_axe(1, x)
             inds_y = self.get_indice_on_axe(2, y)
@@ -2228,7 +2240,8 @@ class ScalarField(Field):
             # if we are in the middle of nowhere (linear interpolation)
             ind_x = inds_x[0]
             ind_y = inds_y[0]
-            a, b = np.meshgrid(axe_x[ind_x:ind_x + 2], axe_y[ind_y:ind_y + 2])
+            a, b = np.meshgrid(self.axe_x[ind_x:ind_x + 2],
+                               self.axe_y[ind_y:ind_y + 2])
             values = self.values[ind_y:ind_y + 2, ind_x:ind_x + 2]
             a = a.flatten()
             b = b.flatten()
@@ -2286,8 +2299,8 @@ class ScalarField(Field):
             if bornes[0]*bornes[1] < 0:
                 raise ValueError("In relative 'bornes' must have the same"
                                  " sign")
-            mini = self.get_min()
-            maxi = self.get_max()
+            mini = self.min
+            maxi = self.max
             if np.abs(bornes[0]) > np.abs(bornes[1]):
                 bornes[1] = abs(maxi - mini)*bornes[1] + maxi
                 bornes[0] = abs(maxi - mini)*bornes[0] + maxi
@@ -2296,8 +2309,8 @@ class ScalarField(Field):
                 bornes[0] = abs(maxi - mini)*bornes[0] + mini
         # check if the zone exist
         else:
-            mini = self.get_min()
-            maxi = self.get_max()
+            mini = self.min
+            maxi = self.max
             if maxi < bornes[0] or mini > bornes[1]:
                 return None
         # check if there is more than one point superior
@@ -2325,7 +2338,7 @@ class ScalarField(Field):
                 else:
                     inds.append(ind_max[i])
         elif kind == 'center':
-            inds = msr.center_of_mass(np.ones(self.get_dim()),
+            inds = msr.center_of_mass(np.ones(self.shape),
                                       labeledzones,
                                       np.arange(nmbzones) + 1)
         elif kind == 'ponderated':
@@ -2390,12 +2403,12 @@ class ScalarField(Field):
                 raise ValueError("'position' must be a number or an interval")
         if direction == 1:
             axe = self.axe_x
-            unit_x = self.unit_y.copy()
-            unit_y = self.unit_values.copy()
+            unit_x = self.unit_y
+            unit_y = self.unit_values
         else:
             axe = self.axe_y
-            unit_x = self.unit_x.copy()
-            unit_y = self.unit_values.copy()
+            unit_x = self.unit_x
+            unit_y = self.unit_values
         if isinstance(position, ARRAYTYPES):
             for pos in position:
                 if pos > axe.max() or pos < axe.min():
@@ -2417,22 +2430,22 @@ class ScalarField(Field):
             else:
                 finalindice = i
             if direction == 1:
-                profile = self.values[:, finalindice]
+                profile = self.values[finalindice, :]
                 axe = self.axe_y
                 cutposition = self.axe_x[finalindice]
             else:
-                profile = self.values[finalindice, :]
+                profile = self.values[:, finalindice]
                 axe = self.axe_x
                 cutposition = self.axe_y[finalindice]
         # Calculation of the profile for an interval of position
         else:
             axe_mask = np.logical_and(axe >= position[0], axe <= position[1])
             if direction == 1:
-                profile = self.values[:, axe_mask].mean(1)
+                profile = self.values[axe_mask, :].mean(1)
                 axe = self.axe_y
                 cutposition = self.axe_x[axe_mask]
             else:
-                profile = self.values[axe_mask, :].mean(0)
+                profile = self.values[:, axe_mask].mean(0)
                 axe = self.axe_x
                 cutposition = self.axe_y[axe_mask]
         return Profile(axe, profile, unit_x, unit_y, "Profile"), cutposition
@@ -2589,40 +2602,38 @@ class ScalarField(Field):
         """
         indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
             Field.trim_area(self, intervalx, intervaly, full_output=True)
-        tmpsf = self.copy()
-        tmpsf.axe_x = tmpsf.axe_x[indmin_x:indmax_x + 1]
-        tmpsf.axe_y = tmpsf.axe_y[indmin_y:indmax_y + 1]
-        tmpsf.values = tmpsf.values[indmin_y:indmax_y + 1,
-                                    indmin_x:indmax_x + 1]
-        return tmpsf
+        trimfield.values = self.values[indmin_x:indmax_x + 1,
+                                       indmin_y:indmax_y + 1]
+        return trimfield
 
     def crop_masked_border(self):
         """
         Crop the masked border of the field in place.
         """
-        axe_x, axe_y = self.get_axes()
+        axe_x, axe_y = self.axe_x, self.axe_y
         # checking masked values presence
-        values = self.get_comp('values', raw=True)
-        if not np.ma.is_masked(values):
+        mask = self.mask
+        if np.any(mask):
             return None
-        # getting datas
-        values = values.data
-        mask = self.get_comp('mask', raw=True)
+        # getting values
+        values = self.values
         # crop border along y
-        axe_y_m = ~np.all(mask, axis=1)
+        axe_y_m = np.logical_not(np.all(mask, axis=0))
         if np.any(axe_y_m):
-            values = values[axe_y_m, :]
-            mask = mask[axe_y_m, :]
+            values = values[:, axe_y_m]
+            mask = mask[:, axe_y_m]
         # crop values along x
-        axe_x_m = ~np.all(mask, axis=0)
+        axe_x_m = np.logical_not(np.all(mask, axis=1))
         if np.any(axe_x_m):
-            values = values[:, axe_x_m]
-            mask = mask[:, axe_x_m]
+            values = values[axe_x_m, :]
+            mask = mask[axe_x_m, :]
         # storing cropped values
-        self.values = np.ma.masked_array(values, mask)
-        # crop axis
-        self.axe_x = axe_x[axe_x_m]
-        self.axe_y = axe_y[axe_y_m]
+        cropped_field = self.__class__()
+        Field.__init__(cropped_field)
+        cropped_field.axe_x = axe_x[axe_x_m]
+        cropped_field.axe_y = axe_y[axe_y_m]
+        cropped_field.values = values
+        self = cropped_field
 
     def fill(self, tof='interplin', value=0., crop_border=True):
         # TODO : Make this fucking functionnality work !
@@ -2650,8 +2661,9 @@ class ScalarField(Field):
         # deleting the masked border (useless field part)
         if crop_border:
             self.crop_masked_border()
-        mask = self.get_comp('mask', raw=True)
-        values = self.get_comp('values', raw=True, masked=False)
+        mask = self.mask
+        not_mask = np.logical_not(mask)
+        values = self.values
         # if there is nothing to do...
         if not np.any(mask):
             pass
@@ -2659,31 +2671,31 @@ class ScalarField(Field):
             inds_x = np.arange(values.shape[1])
             inds_y = np.arange(values.shape[0])
             grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            f = spinterp.interp2d(grid_y[~mask],
-                                  grid_x[~mask],
-                                  values[~mask])
+            f = spinterp.interp2d(grid_y[not_mask],
+                                  grid_x[not_mask],
+                                  values[not_mask])
             for inds, masked in np.ndenumerate(mask):
                 if masked:
                     values[inds[0], inds[1]] = f(inds[0], inds[1])
-            mask = np.zeros(values.shape)
-            self.set_comp('values', np.ma.masked_array(values, mask))
+            self.values = values
+            self.mask = False
         elif tof == 'interpcub':
             inds_x = np.arange(values.shape[1])
             inds_y = np.arange(values.shape[0])
             grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            f = spinterp.interp2d(grid_y[~mask],
-                                  grid_x[~mask],
-                                  values[~mask],
+            f = spinterp.interp2d(grid_y[not_mask],
+                                  grid_x[not_mask],
+                                  values[not_mask],
                                   kind='cubic')
             for inds, masked in np.ndenumerate(mask):
                 if masked:
                     values[inds[1], inds[0]] = f(inds[1], inds[0])
-            mask = np.zeros(values.shape)
-            self.set_comp('values', np.ma.masked_array(values, mask))
+            self.values = values
+            self.mask = False
         elif tof == 'value':
-            tmp_val = self.get_comp('values', raw=True)
-            tmp_val[self.values.mask] = value
-            self.set_comp('values', tmp_val)
+            values[mask] = value
+            self.values = values
+            self.mask = False
         else:
             raise ValueError("unknown 'tof' value")
 
@@ -2715,8 +2727,7 @@ class ScalarField(Field):
         # filling up the field before smoothing
         self.fill()
         # mask treatment
-        values = self.values.data
-        mask = self.get_comp('mask', raw=True)
+        values = self.values
         # smoothing
         if tos == "uniform":
             values = ndimage.uniform_filter(values, size, **kw)
@@ -2725,7 +2736,7 @@ class ScalarField(Field):
         else:
             raise ValueError("'tos' must be 'uniform' or 'gaussian'")
         # storing
-        self.set_comp('values', np.ma.masked_array(values, mask))
+        self.values = values
 
     def integrate_over_line(self, direction, interval):
         """
@@ -2787,15 +2798,15 @@ class ScalarField(Field):
         unit : Unit object
             The unit of the integrale result.
         """
-        axe_x, axe_y = self.get_axes()
+        axe_x, axe_y = self.axe_x, self.axe_y
         if intervalx is None:
             intervalx = [axe_x[0], axe_x[-1]]
         if intervaly is None:
             intervaly = [axe_y[0], axe_y[-1]]
         trimfield = self.trim_area(intervalx, intervaly)
-        axe2_x, axe2_y = trimfield.get_axes()
-        unit_x, unit_y = trimfield.get_axe_units()
-        integral = (trimfield.get_comp('values', raw=True).sum()
+        axe2_x, axe2_y = trimfield.axe_x, trimfield.axe_y
+        unit_x, unit_y = trimfield.unit_x, trimfield.unit_y
+        integral = (trimfield.values.sum()
                     * np.abs(axe2_x[-1] - axe2_x[0])
                     * np.abs(axe2_y[-1] - axe2_y[0])
                     / len(axe2_x)
@@ -2804,10 +2815,15 @@ class ScalarField(Field):
         return integral*unit
 
     def _display(self, kind=None, **plotargs):
-        X, Y = np.meshgrid(*self.get_axes())
-        values = self.get_comp('values', raw=True)
-        axe_x, axe_y = self.get_axes()
-        unit_x, unit_y = self.get_axe_units()
+        # getting datas
+        axe_x, axe_y = self.axe_x, self.axe_y
+        values = self.values
+        mask = self.mask
+        unit_x, unit_y = self.unit_x, self.unit_y
+        X, Y = np.meshgrid(self.axe_y, self.axe_x)
+        # masking
+        values[mask] = np.nan
+        # displaying according to 'kind'
         if kind == 'contour':
             if (not 'cmap' in plotargs.keys()
                     and not 'colors' in plotargs.keys()):
@@ -2864,23 +2880,23 @@ class ScalarField(Field):
         displ = self._display(kind, **plotargs)
         plt.title("Scalar field Values " + self.unit_values.strUnit())
         cb = plt.colorbar(displ, shrink=1, aspect=5)
-        cb.set_label(self.get_comp('unit_values').strUnit())
+        cb.set_label(self.unit_values.strUnit())
         # search for limits in case of masked field
-        mask = self.get_comp('mask', raw=True)
+        mask = self.mask
         for i in np.arange(len(self.axe_x)):
-            if not np.all(mask[:, i]):
+            if not np.all(mask[i, :]):
                 break
         xmin = self.axe_x[i]
         for i in np.arange(len(self.axe_x) - 1, -1, -1):
-            if not np.all(mask[:, i]):
+            if not np.all(mask[i, :]):
                 break
         xmax = self.axe_x[i]
         for i in np.arange(len(self.axe_y)):
-            if not np.all(mask[i, :]):
+            if not np.all(mask[:, i]):
                 break
         ymin = self.axe_y[i]
         for i in np.arange(len(self.axe_y) - 1, -1, -1):
-            if not np.all(mask[i, :]):
+            if not np.all(mask[:, i]):
                 break
         ymax = self.axe_y[i]
         plt.xlim([xmin, xmax])
