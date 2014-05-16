@@ -1756,6 +1756,13 @@ class ScalarField(Field):
             raise TypeError()
         new_values = np.array(new_values)
         if self.shape == new_values.shape:
+            # adapting mask to 'nan' values
+            add_mask = np.isnan(new_values)
+            if self.mask.shape == (0,):
+                self.mask = add_mask
+            else:
+                self.mask = np.logical_or(self.mask, add_mask)
+            # storing data
             self.__values = new_values
         else:
             raise ValueError("'values' should have the same shape as the "
@@ -1772,17 +1779,25 @@ class ScalarField(Field):
 
     @mask.setter
     def mask(self, new_mask):
+        # check 'new_mask' coherence
         if isinstance(new_mask, bool):
-            self.__mask.fill(new_mask)
+            new_mask = np.empty(self.shape).fill(new_mask)
         elif isinstance(new_mask, ARRAYTYPES):
             new_mask = np.array(new_mask)
-            if self.shape == new_mask.shape:
-                self.__mask = new_mask
-            else:
-                raise ValueError()
         else:
             raise TypeError("'mask' should be an array or a boolean,"
                             " not a {}".format(type(new_mask)))
+        if self.shape != new_mask.shape:
+            raise ValueError()
+        # check if the new mask don'r reveal masked values
+        if np.any(new_mask[self.mask]):
+            raise Exception("This mask reveal masked values, maybe you should"
+                            "use the 'fill' function instead")
+        # store mask
+        self.__mask = new_mask
+        # put nan values in "values" if necessary
+        if self.values.shape != (0,):
+            self.values[new_mask] = np.nan
 
     @mask.deleter
     def mask(self):
@@ -2678,7 +2693,7 @@ class ScalarField(Field):
                 if masked:
                     values[inds[0], inds[1]] = f(inds[0], inds[1])
             self.values = values
-            self.mask = False
+            self.__mask = np.empty(self.shape).fill(False, dtype=bool)
         elif tof == 'interpcub':
             inds_x = np.arange(values.shape[1])
             inds_y = np.arange(values.shape[0])
@@ -2691,11 +2706,11 @@ class ScalarField(Field):
                 if masked:
                     values[inds[1], inds[0]] = f(inds[1], inds[0])
             self.values = values
-            self.mask = False
+            self.__mask = np.empty(self.shape).fill(False, dtype=bool)
         elif tof == 'value':
             values[mask] = value
             self.values = values
-            self.mask = False
+            self.__mask = np.empty(self.shape).fill(False, dtype=bool)
         else:
             raise ValueError("unknown 'tof' value")
 
@@ -2818,11 +2833,8 @@ class ScalarField(Field):
         # getting datas
         axe_x, axe_y = self.axe_x, self.axe_y
         values = self.values
-        mask = self.mask
         unit_x, unit_y = self.unit_x, self.unit_y
         X, Y = np.meshgrid(self.axe_y, self.axe_x)
-        # masking
-        values[mask] = np.nan
         # displaying according to 'kind'
         if kind == 'contour':
             if (not 'cmap' in plotargs.keys()
@@ -2932,9 +2944,10 @@ class VectorField(Field):
 
     def __init__(self):
         Field.__init__(self)
-        self.comp_x = np.array([], dtype=float)
-        self.comp_y = np.array([], dtype=float)
-        self.unit_values = make_unit('')
+        self.__comp_x = np.array([], dtype=float)
+        self.__comp_y = np.array([], dtype=float)
+        self.__mask = np.array([], dtype=bool)
+        self.__unit_values = make_unit('')
 
     def __neg__(self):
         tmpvf = self.copy()
@@ -2944,8 +2957,8 @@ class VectorField(Field):
 
     def __add__(self, other):
         if isinstance(other, VectorField):
-            axe_x, axe_y = self.get_axes()
-            oaxe_x, oaxe_y = other.get_axes()
+            axe_x, axe_y = self.axe_x, self.axe_y
+            oaxe_x, oaxe_y = other.axe_x, other.axe_y
             if (all(axe_x != oaxe_x) or all(axe_y != oaxe_y)):
                 raise ValueError("Vector fields have to be consistent "
                                  "(same dimensions)")
@@ -2956,14 +2969,15 @@ class VectorField(Field):
             except:
                 raise ValueError("I think these units don't match, fox")
             tmpvf = self.copy()
-            fact = (other.get_comp('unit_values')
-                    / self.get_comp('unit_values')).asNumber()
-            values_x = (self.get_comp('Vx', raw=True)
-                        + other.get_comp('Vx', raw=True)*fact)
-            tmpvf.set_comp('Vx', values_x)
-            values_y = (self.get_comp('Vy', raw=True)
-                        + other.get_comp('Vy', raw=True)*fact)
-            tmpvf.set_comp('Vy', values_y)
+            fact = (other.unit_values / self.unit_values).asNumber()
+            tmpvf.comp_x = self.comp_x + other.comp_x*fact
+            tmpvf.comp_y = self.comp_y + other.comp_y*fact
+            return tmpvf
+        elif isinstance(other, unum.Unum):
+            tmpvf = self.copy()
+            fact = (other / self.unit_values).asNumber()
+            tmpvf.comp_x = self.comp_x + fact
+            tmpvf.comp_y = self.comp_y + fact
             return tmpvf
         else:
             raise TypeError("You can only add a velocity field "
@@ -3024,22 +3038,130 @@ class VectorField(Field):
         return tmpvf
 
     def __iter__(self):
-        try:
-            maskx = self.comp_x.mask
-            masky = self.comp_y.mask
-            datax = self.comp_x.data
-            datay = self.comp_y.data
-        except AttributeError:
-            datax = self.comp_x
-            datay = self.comp_y
-            maskx = np.zeros(datax.shape)
-            masky = np.zeros(datay.shape)
-        mask = np.logical_or(maskx, masky)
+        mask = self.mask
+        datax = self.comp_x
+        datay = self.comp_y
         for ij, xy in Field.__iter__(self):
             i = ij[0]
             j = ij[1]
             if not mask[j, i]:
                 yield ij, xy, [datax[j, i], datay[j, i]]
+
+    @property
+    def comp_x(self):
+        return self.__comp_x
+
+    @comp_x.setter
+    def comp_x(self, new_comp_x):
+        if not isinstance(new_comp_x, ARRAYTYPES):
+            raise TypeError()
+        new_comp_x = np.array(new_comp_x)
+        if not new_comp_x.shape == self.shape:
+            raise ValueError()
+        # adapting mask to 'nan' values
+        add_mask = np.isnan(new_comp_x)
+        if self.mask.shape == (0,):
+            self.mask = add_mask
+        else:
+            self.mask = np.logical_or(self.mask, add_mask)
+        # storing data
+        self.__comp_x = new_comp_x
+
+    @comp_x.deleter
+    def comp_x(self):
+        raise Exception("Nope, can't do that")
+
+    @property
+    def comp_x_as_sf(self):
+        tmp_sf = ScalarField()
+        tmp_sf.import_from_arrays(self.axe_x, self.axe_y, self.comp_x,
+                                  mask=self.mask, unit_x=self.unit_x,
+                                  unit_y=self.unit_y,
+                                  unit_values=self.unit_values)
+        return tmp_sf
+
+    @property
+    def comp_y(self):
+        return self.__comp_y
+
+    @comp_y.setter
+    def comp_y(self, new_comp_y):
+        if not isinstance(new_comp_y, ARRAYTYPES):
+            raise TypeError()
+        new_comp_y = np.array(new_comp_y)
+        if not new_comp_y.shape == self.shape:
+            raise ValueError()
+        # adapting mask to 'nan' values
+        add_mask = np.isnan(new_comp_y)
+        if self.mask.shape == (0,):
+            self.mask = add_mask
+        else:
+            self.mask = np.logical_or(self.mask, add_mask)
+        # storing data
+        self.__comp_y = new_comp_y
+
+    @comp_y.deleter
+    def comp_y(self):
+        raise Exception("Nope, can't do that")
+
+    @property
+    def comp_y_as_sf(self):
+        tmp_sf = ScalarField()
+        tmp_sf.import_from_arrays(self.axe_x, self.axe_y, self.comp_y,
+                                  mask=self.mask, unit_x=self.unit_x,
+                                  unit_y=self.unit_y,
+                                  unit_values=self.unit_values)
+        return tmp_sf
+
+    @property
+    def mask(self):
+        return self.__mask
+
+    @mask.setter
+    def mask(self, new_mask):
+        # check 'new_mask' coherence
+        if isinstance(new_mask, bool):
+            new_mask = np.empty(self.shape).fill(new_mask)
+        elif isinstance(new_mask, ARRAYTYPES):
+            new_mask = np.array(new_mask)
+        else:
+            raise TypeError("'mask' should be an array or a boolean,"
+                            " not a {}".format(type(new_mask)))
+        if self.shape != new_mask.shape:
+            raise ValueError()
+        # check if the new mask don'r reveal masked values
+        if np.any(new_mask[self.mask]):
+            raise Exception("This mask reveal masked values, maybe you should"
+                            "use the 'fill' function instead")
+        # store mask
+        self.__mask = new_mask
+        # put nan values in "values" if necessary
+        if self.values.shape != (0,):
+            self.values[self.mask] = np.nan
+
+    @mask.deleter
+    def mask(self):
+        raise Exception("Nope, can't do that")
+
+    @property
+    def unit_values(self):
+        return self.__unit_values
+
+    @unit_values.setter
+    def unit_values(self, new_unit_values):
+        if isinstance(new_unit_values, unum.Unum):
+            if new_unit_values.asNumber() == 1:
+                self.__unit_values = new_unit_values
+            else:
+                raise ValueError()
+        elif isinstance(new_unit_values, STRINGTYPES):
+            self.__unit_values == make_unit(new_unit_values)
+        else:
+            raise TypeError()
+
+    @unit_values.deleter
+    def unit_values(self):
+        raise Exception("Nope, can't do that")
 
 #    def import_from_davis(self, filename):
 #        """
@@ -3159,9 +3281,8 @@ class VectorField(Field):
 #        self.import_from_arrays(x_org, y_org, vx_org, vy_org, unit_x, unit_y,
 #                                unit_values)
 
-    def import_from_arrays(self, axe_x, axe_y, comp_x, comp_y,
-                           unit_x=make_unit(""), unit_y=make_unit(""),
-                           unit_values=make_unit("")):
+    def import_from_arrays(self, axe_x, axe_y, comp_x, comp_y, mask=False,
+                           unit_x="", unit_y="", unit_values=""):
         """
         Set the vector field from a set of arrays.
 
@@ -3175,73 +3296,36 @@ class VectorField(Field):
             Values of the x component at the discritized points
         comp_y : array or masked array
             Values of the y component at the discritized points
-        unit_x : Unit object, optionnal
+        mask : array of boolean, optional
+            Mask on comp_x and comp_y
+        unit_x : string, optionnal
             Unit for the values of axe_x
-        unit_y : Unit object, optionnal
+        unit_y : string, optionnal
             Unit for the values of axe_y
-        unit_values : Unit object, optionnal
+        unit_values : string, optionnal
             Unit for the field components.
         """
-        if not isinstance(axe_x, ARRAYTYPES):
-            raise TypeError("'axe_x' must be an array")
-        else:
-            axe_x = np.array(axe_x, dtype=float)
-        if not axe_x.ndim == 1:
-            raise ValueError("'axe_x' must be a one dimension array")
-        if not isinstance(axe_y, ARRAYTYPES):
-            raise TypeError("'axe_y' must be an array")
-        else:
-            axe_y = np.array(axe_y, dtype=float)
-        if not axe_y.ndim == 1:
-            raise ValueError("'axe_y' must be a one dimension array")
-        if not isinstance(comp_x, ARRAYTYPES):
-            raise TypeError("'comp_x' must be an array")
-        elif not isinstance(comp_x, np.ma.MaskedArray):
-            comp_x = np.ma.masked_array(comp_x, mask=False, dtype=float)
-        if not comp_x.ndim == 2:
-            raise ValueError("'comp_x' must be a two dimension array")
-        if not isinstance(comp_y, ARRAYTYPES):
-            raise TypeError("'comp_y' must be an array")
-        elif not isinstance(comp_y, np.ma.MaskedArray):
-            comp_y = np.ma.masked_array(comp_y, mask=False, dtype=float)
-        if not comp_y.ndim == 2:
-            raise ValueError("'comp_y' must be a two dimension array")
-        if unit_x is not None:
-            if not isinstance(unit_x, unum.Unum):
-                raise TypeError("'unit_x' must be an Unit object")
-        if unit_y is not None:
-            if not isinstance(unit_y, unum.Unum):
-                raise TypeError("'unit_y' must be an Unit object")
-        if unit_values is not None:
-            if not isinstance(unit_values, unum.Unum):
-                raise TypeError("'unit_values' must be an Unit object")
-        if (comp_x.shape[0] != axe_y.shape[0] or
-                comp_x.shape[1] != axe_x.shape[0]):
-            raise ValueError("Dimensions of 'axe_x', 'axe_y' and 'comp_x' must"
-                             " be consistents")
-        if (comp_y.shape[0] != axe_y.shape[0] or
-                comp_y.shape[1] != axe_x.shape[0]):
-            raise ValueError("Dimensions of 'axe_x', 'axe_y' and 'comp_y' must"
-                             " be consistents")
-        self.axe_x = axe_x.copy()
-        self.axe_y = axe_y.copy()
-        self.comp_x = comp_x.copy()
-        self.comp_y = comp_y.copy()
-        self.unit_x = unit_x.copy()
-        self.unit_y = unit_y.copy()
-        self.unit_values = unit_values.copy()
+        self.axe_x = axe_x
+        self.axe_y = axe_y
+        self.comp_x = comp_x
+        self.comp_y = comp_y
+        self.unit_x = unit_x
+        self.unit_y = unit_y
+        self.unit_values = unit_values
 
-    def export_to_velocityfield(self, time=None, unit_time=make_unit('')):
+    def export_to_velocityfield(self, time=None, unit_time=''):
         if time is None:
             time = 0
-        axe_x, axe_y = self.get_axes()
-        unit_x, unit_y = self.get_axe_units()
-        value_x, value_y = (self.get_comp('Vx', raw=True),
-                            self.get_comp('Vy', raw=True))
-        unit_values = self.get_comp('unit_values')
+        axe_x, axe_y = self.axe_x, self.axe_y
+        unit_x, unit_y = self.unti_x, self.unit_y
+        value_x = self.comp_x
+        value_y = self.comp_y
+        mask = self.mask
+        unit_values = self.iunit_values
         tmpvf = VelocityField()
-        tmpvf.import_from_arrays(axe_x, axe_y, value_x, value_y, time,
-                                 unit_x, unit_y, unit_values, unit_time)
+        tmpvf.import_from_arrays(axe_x, axe_y, value_x, value_y, mask=mask,
+                                 time=time, unit_x=unit_x, unit_y=unit_y,
+                                 unit_values=unit_values, unit_time=unit_time)
         return tmpvf
 
 #    def import_from_scalarfields(self, comp_x, comp_y):
@@ -3425,119 +3509,119 @@ class VectorField(Field):
 #        Vx.mask = mask
 #        Vy.mask = mask
 
-    def get_comp(self, componentname, raw=False, masked=True):
-        """
-        Return a ScalarField object representing a component of the
-        Vectorfield object.
+#    def get_comp(self, componentname, raw=False, masked=True):
+#        """
+#        Return a ScalarField object representing a component of the
+#        Vectorfield object.
+#
+#        Parameters
+#        ----------
+#        componentname : string
+#            Can be 'Vx', 'Vy', 'mask' or 'unit_values'.
+#        raw : boolean, optional
+#            If 'False' (default), return a ScalarField object,
+#            if 'True', return a masked array.
+#        masked : boolean, optional
+#            If 'True' (default), returned np.array can be masked array,
+#            If 'False', returned array are always brut np.array
+#
+#        Returns
+#        -------
+#        component : ScalarField object or numpy masked array
+#        """
+#        if not isinstance(componentname, STRINGTYPES):
+#            raise TypeError("'componentname' must be a string")
+#        if componentname == 'V':
+#            if masked:
+#                values = (self.comp_x.copy(), self.comp_y.copy())
+#            else:
+#                values = (self.comp_x.data.copy(), self.comp_y.data.copy())
+#        if componentname == 'Vx':
+#            if masked:
+#                values = self.comp_x.copy()
+#            else:
+#                values = self.comp_x.data.copy()
+#        elif componentname == 'Vy':
+#            if masked:
+#                values = self.comp_y.copy()
+#            else:
+#                values = self.comp_y.data.copy()
+#        elif componentname == 'mask':
+#            values = np.logical_or(self.comp_x.mask, self.comp_y.mask)
+#            if isinstance(values, np.bool_):
+#                if values:
+#                    values = np.ones(self.get_dim(), dtype=bool)
+#                else:
+#                    values = np.zeros(self.get_dim(), dtype=bool)
+#        elif componentname == "unit_values":
+#            return self.unit_values.copy()
+#        else:
+#            raise ValueError("unknown value of 'componentname'")
+#        if raw:
+#            return values
+#        elif isinstance(values, tuple):
+#            axe_x, axe_y = self.get_axes()
+#            unit_x, unit_y = self.get_axe_units()
+#            unit_values = self.get_comp('unit_values')
+#            tmpsf = VectorField()
+#            tmpsf.import_from_arrays(axe_x, axe_y, values[0], values[1],
+#                                     unit_x, unit_y, unit_values)
+#        else:
+#            axe_x, axe_y = self.get_axes()
+#            unit_x, unit_y = self.get_axe_units()
+#            unit_values = self.get_comp('unit_values')
+#            tmpsf = ScalarField()
+#            tmpsf.import_from_arrays(axe_x, axe_y, values, unit_x, unit_y,
+#                                     unit_values)
+#            return tmpsf
 
-        Parameters
-        ----------
-        componentname : string
-            Can be 'Vx', 'Vy', 'mask' or 'unit_values'.
-        raw : boolean, optional
-            If 'False' (default), return a ScalarField object,
-            if 'True', return a masked array.
-        masked : boolean, optional
-            If 'True' (default), returned np.array can be masked array,
-            If 'False', returned array are always brut np.array
-
-        Returns
-        -------
-        component : ScalarField object or numpy masked array
-        """
-        if not isinstance(componentname, STRINGTYPES):
-            raise TypeError("'componentname' must be a string")
-        if componentname == 'V':
-            if masked:
-                values = (self.comp_x.copy(), self.comp_y.copy())
-            else:
-                values = (self.comp_x.data.copy(), self.comp_y.data.copy())
-        if componentname == 'Vx':
-            if masked:
-                values = self.comp_x.copy()
-            else:
-                values = self.comp_x.data.copy()
-        elif componentname == 'Vy':
-            if masked:
-                values = self.comp_y.copy()
-            else:
-                values = self.comp_y.data.copy()
-        elif componentname == 'mask':
-            values = np.logical_or(self.comp_x.mask, self.comp_y.mask)
-            if isinstance(values, np.bool_):
-                if values:
-                    values = np.ones(self.get_dim(), dtype=bool)
-                else:
-                    values = np.zeros(self.get_dim(), dtype=bool)
-        elif componentname == "unit_values":
-            return self.unit_values.copy()
-        else:
-            raise ValueError("unknown value of 'componentname'")
-        if raw:
-            return values
-        elif isinstance(values, tuple):
-            axe_x, axe_y = self.get_axes()
-            unit_x, unit_y = self.get_axe_units()
-            unit_values = self.get_comp('unit_values')
-            tmpsf = VectorField()
-            tmpsf.import_from_arrays(axe_x, axe_y, values[0], values[1],
-                                     unit_x, unit_y, unit_values)
-        else:
-            axe_x, axe_y = self.get_axes()
-            unit_x, unit_y = self.get_axe_units()
-            unit_values = self.get_comp('unit_values')
-            tmpsf = ScalarField()
-            tmpsf.import_from_arrays(axe_x, axe_y, values, unit_x, unit_y,
-                                     unit_values)
-            return tmpsf
-
-    def set_comp(self, componentname, value):
-        """
-        Fill the component 'componentname' with 'value'.
-
-        Parameters
-        ----------
-        componentname : string
-            Can be 'Vx', 'Vy', 'mask'.
-        value : array
-            Array with the same shape as the initial component
-        """
-        if not isinstance(componentname, STRINGTYPES):
-            raise TypeError("'componentname' must be a string")
-        if componentname == 'Vx':
-            if not isinstance(value, ARRAYTYPES):
-                raise TypeError("'value' must be an array")
-            if not isinstance(value, np.ma.MaskedArray):
-                value = np.ma.masked_array(value)
-            if self.get_dim() != value.shape:
-                raise ValueError("'value' dimensions are inconsistent with the"
-                                 " ScalarField shape")
-            self.comp_x = value
-        elif componentname == 'Vy':
-            if not isinstance(value, ARRAYTYPES):
-                raise TypeError("'value' must be an array")
-            if not isinstance(value, np.ma.MaskedArray):
-                value = np.ma.masked_array(value)
-            if self.get_dim() != value.shape:
-                raise ValueError("'value' dimensions are inconsistent with the"
-                                 " ScalarField shape")
-            self.comp_y = value
-        elif componentname == 'mask':
-            if not isinstance(value, ARRAYTYPES):
-                raise TypeError("'value' must be an array")
-            if not isinstance(value, np.ma.MaskedArray):
-                value = np.ma.masked_array(value)
-            if self.get_dim() != value.shape:
-                raise ValueError("'value' dimensions are inconsistent with the"
-                                 " ScalarField shape")
-            self.comp_x.mask = value
-            self.comp_y.mask = value
-        elif componentname == "unit_values":
-            if not isinstance(value, unum.Unum):
-                raise TypeError("'unit_value' should be a unit object")
-            self.unit_values = value
-        else:
-            raise ValueError("Unknown 'componentname' value")
+#    def set_comp(self, componentname, value):
+#        """
+#        Fill the component 'componentname' with 'value'.
+#
+#        Parameters
+#        ----------
+#        componentname : string
+#            Can be 'Vx', 'Vy', 'mask'.
+#        value : array
+#            Array with the same shape as the initial component
+#        """
+#        if not isinstance(componentname, STRINGTYPES):
+#            raise TypeError("'componentname' must be a string")
+#        if componentname == 'Vx':
+#            if not isinstance(value, ARRAYTYPES):
+#                raise TypeError("'value' must be an array")
+#            if not isinstance(value, np.ma.MaskedArray):
+#                value = np.ma.masked_array(value)
+#            if self.get_dim() != value.shape:
+#                raise ValueError("'value' dimensions are inconsistent with the"
+#                                 " ScalarField shape")
+#            self.comp_x = value
+#        elif componentname == 'Vy':
+#            if not isinstance(value, ARRAYTYPES):
+#                raise TypeError("'value' must be an array")
+#            if not isinstance(value, np.ma.MaskedArray):
+#                value = np.ma.masked_array(value)
+#            if self.get_dim() != value.shape:
+#                raise ValueError("'value' dimensions are inconsistent with the"
+#                                 " ScalarField shape")
+#            self.comp_y = value
+#        elif componentname == 'mask':
+#            if not isinstance(value, ARRAYTYPES):
+#                raise TypeError("'value' must be an array")
+#            if not isinstance(value, np.ma.MaskedArray):
+#                value = np.ma.masked_array(value)
+#            if self.get_dim() != value.shape:
+#                raise ValueError("'value' dimensions are inconsistent with the"
+#                                 " ScalarField shape")
+#            self.comp_x.mask = value
+#            self.comp_y.mask = value
+#        elif componentname == "unit_values":
+#            if not isinstance(value, unum.Unum):
+#                raise TypeError("'unit_value' should be a unit object")
+#            self.unit_values = value
+#        else:
+#            raise ValueError("Unknown 'componentname' value")
 
     def copy(self):
         """
@@ -3545,50 +3629,50 @@ class VectorField(Field):
         """
         return copy.deepcopy(self)
 
-    def get_dim(self):
-        """
-        Return the vector field dimensions.
+#    def get_dim(self):
+#        """
+#        Return the vector field dimensions.
+#
+#        Returns
+#        -------
+#        shape : tuple
+#            Tuple of the dimensions (along X and Y) of the scalar field.
+#        """
+#        return self.comp_x.shape
 
-        Returns
-        -------
-        shape : tuple
-            Tuple of the dimensions (along X and Y) of the scalar field.
-        """
-        return self.comp_x.shape
+#    def get_min(self, unit=False):
+#        """
+#        Return the minima of the magnitude of the field.
+#
+#        Parameters
+#        ----------
+#        unit : boolean, optinal
+#            If True, a unit object is returned,
+#            else (default), a float is returned.
+#
+#        Returns
+#        -------
+#        mini : float
+#            Minima on the field
+#        """
+#        return self.get_magnitude().get_min(unit)
 
-    def get_min(self, unit=False):
-        """
-        Return the minima of the magnitude of the field.
-
-        Parameters
-        ----------
-        unit : boolean, optinal
-            If True, a unit object is returned,
-            else (default), a float is returned.
-
-        Returns
-        -------
-        mini : float
-            Minima on the field
-        """
-        return self.get_magnitude().get_min(unit)
-
-    def get_max(self, unit=False):
-        """
-        Return the maxima of the magnitude of the field.
-
-        Parameters
-        ----------
-        unit : boolean, optinal
-            If True, a unit object is returned,
-            else (default), a float is returned.
-
-        Returns
-        -------
-        maxi: float
-            Maxima on the field
-        """
-        return self.get_magnitude().get_max(unit)
+#    def get_max(self, unit=False):
+#        """
+#        Return the maxima of the magnitude of the field.
+#
+#        Parameters
+#        ----------
+#        unit : boolean, optinal
+#            If True, a unit object is returned,
+#            else (default), a float is returned.
+#
+#        Returns
+#        -------
+#        maxi: float
+#            Maxima on the field
+#        """
+#        return self.get_magnitude().get_max(unit)
 
     def get_profile(self, component, direction, position):
         """
@@ -3620,9 +3704,9 @@ class VectorField(Field):
         if not isinstance(component, int):
             raise TypeError("'component' must be an integer")
         if component == 1:
-            return self.get_comp('Vx').get_profile(direction, position)
+            return self.comp_x_as_sf.get_profile(direction, position)
         elif component == 2:
-            return self.get_comp('Vy').get_profile(direction, position)
+            return self.comp_y_as_sf.get_profile(direction, position)
         else:
             raise ValueError("'component' must have the value of 1 or 2")
 
@@ -3685,7 +3769,7 @@ class VectorField(Field):
         reverse_direction : boolean, optional
             If True, the streamline goes upstream.
         """
-        axe_x, axe_y = self.get_axes()
+        axe_x, axe_y = self.axe_x, self.axe_y
         # checking parameters coherence
         if not isinstance(xy, ARRAYTYPES):
             raise TypeError("'xy' must be a tuple of arrays")
@@ -3709,11 +3793,15 @@ class VectorField(Field):
         # getting datas
         tmpvf = self.copy()
         tmpvf.fill()
-        unit_x, unit_y = tmpvf.get_axe_units()
-        Vx, Vy = tmpvf.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
+        unit_x, unit_y = self.unit_x, self.unit_y
+        Vx, Vy = self.comp_x, self.comp_y
+        mask = self.mask
         deltaabs = delta * ((axe_x[-1]-axe_x[0])/len(axe_x)
                             + (axe_y[-1]-axe_y[0])/len(axe_y))/2.
         deltaabs2 = deltaabs**2
+        # check if there are masked values
+        if np.any(mask):
+            raise Exception()
         # interpolation lineaire du champ de vitesse
         if interp == 'linear':
             interp_vx = spinterp.RectBivariateSpline(axe_y, axe_x, Vx,
@@ -3807,11 +3895,11 @@ class VectorField(Field):
             pass
         else:
             raise ValueError("'xy' must be a tuple of arrays")
-        axe_x, axe_y = self.get_axes()
-        Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
+        axe_x, axe_y = self.axe_x, self.axe_y
+        Vx, Vy = self.comp_x, self.comp_y
         Vx = Vx.flatten()
         Vy = Vy.flatten()
-        Magn = self.get_magnitude().get_comp('values').flatten()
+        Magn = self.magnitude.flatten()
         if not isinstance(delta, NUMBERTYPES):
             raise TypeError("'delta' must be a number")
         if delta <= 0:
@@ -3901,16 +3989,14 @@ class VectorField(Field):
             return streams[0]
         else:
             return streams
-
-    def get_magnitude(self, raw=False):
+    @property
+    def magnitude(self):
         """
         Return a scalar field with the velocity field magnitude.
         """
-        comp_x, comp_y = (self.get_comp('Vx', raw=True, masked=False),
-                          self.get_comp('Vy', raw=True, masked=False))
-        mask = self.get_comp('mask', raw=True)
+        comp_x, comp_y = self.comp_x, self.comp_y
+        mask = self.mask
         values = (comp_x**2 + comp_y**2)**(.5)
-        values = np.ma.masked_array(values, mask)
         if raw:
             return values
         else:
