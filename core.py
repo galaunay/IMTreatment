@@ -1790,14 +1790,12 @@ class ScalarField(Field):
         if self.shape != new_mask.shape:
             raise ValueError()
         # check if the new mask don'r reveal masked values
-        if np.any(new_mask[self.mask]):
-            raise Exception("This mask reveal masked values, maybe you should"
+        if np.any(np.logical_not(new_mask[self.mask])):
+            raise Warning("This mask reveal masked values, maybe you should"
                             "use the 'fill' function instead")
         # store mask
         self.__mask = new_mask
-        # put nan values in "values" if necessary
-        if self.values.shape != (0,):
-            self.values[new_mask] = np.nan
+
 
     @mask.deleter
     def mask(self):
@@ -2328,23 +2326,28 @@ class ScalarField(Field):
             maxi = self.max
             if maxi < bornes[0] or mini > bornes[1]:
                 return None
+        # getting data
+        values = self.values
+        mask = self.mask
+        if np.any(mask):
+            raise UserWarning("There is masked values, algorithm can give strange"
+                          " results")
         # check if there is more than one point superior
-        aoi = np.logical_and(self.values >= bornes[0],
-                             self.values <= bornes[1])
+        aoi = np.logical_and(values >= bornes[0], values <= bornes[1])
         if np.sum(aoi) == 1:
             inds = np.where(aoi)
             x = self.axe_x[inds[1][0]]
             y = self.axe_y[inds[0][0]]
             return Points([[x, y]], unit_x=self.unit_x,
                           unit_y=self.unit_y)
-        zones = np.logical_and(np.logical_and(self.values >= bornes[0],
-                                              self.values <= bornes[1]),
-                               np.logical_not(np.ma.getmaskarray(self.values)))
+        zones = np.logical_and(np.logical_and(values >= bornes[0],
+                                              values <= bornes[1]),
+                               np.logical_not(mask))
         # compute the center with labelzones
         labeledzones, nmbzones = msr.label(zones)
         inds = []
         if kind == 'extremum':
-            mins, _, ind_min, ind_max = msr.extrema(self.values,
+            mins, _, ind_min, ind_max = msr.extrema(values,
                                                     labeledzones,
                                                     np.arange(nmbzones) + 1)
             for i in np.arange(len(mins)):
@@ -2357,7 +2360,7 @@ class ScalarField(Field):
                                       labeledzones,
                                       np.arange(nmbzones) + 1)
         elif kind == 'ponderated':
-            inds = msr.center_of_mass(np.abs(self.values), labeledzones,
+            inds = msr.center_of_mass(np.abs(values), labeledzones,
                                       np.arange(nmbzones) + 1)
         else:
             raise ValueError("Invalid value for 'kind'")
@@ -2693,7 +2696,9 @@ class ScalarField(Field):
                 if masked:
                     values[inds[0], inds[1]] = f(inds[0], inds[1])
             self.values = values
-            self.__mask = np.empty(self.shape).fill(False, dtype=bool)
+            mask =  np.empty(self.shape, dtype=bool)
+            mask.fill(False)
+            self.__mask = mask
         elif tof == 'interpcub':
             inds_x = np.arange(values.shape[1])
             inds_y = np.arange(values.shape[0])
@@ -2706,11 +2711,13 @@ class ScalarField(Field):
                 if masked:
                     values[inds[1], inds[0]] = f(inds[1], inds[0])
             self.values = values
-            self.__mask = np.empty(self.shape).fill(False, dtype=bool)
+            self.__ScalarField_mask = np.empty(self.shape).fill(False)
         elif tof == 'value':
             values[mask] = value
             self.values = values
-            self.__mask = np.empty(self.shape).fill(False, dtype=bool)
+            mask =  np.empty(self.shape, dtype=bool)
+            mask.fill(False)
+            self.__mask = mask
         else:
             raise ValueError("unknown 'tof' value")
 
@@ -2835,6 +2842,7 @@ class ScalarField(Field):
         values = self.values
         unit_x, unit_y = self.unit_x, self.unit_y
         X, Y = np.meshgrid(self.axe_y, self.axe_x)
+        values[self.mask] = np.nan
         # displaying according to 'kind'
         if kind == 'contour':
             if (not 'cmap' in plotargs.keys()
@@ -3057,7 +3065,7 @@ class VectorField(Field):
             raise TypeError()
         new_comp_x = np.array(new_comp_x)
         if not new_comp_x.shape == self.shape:
-            raise ValueError()
+            raise ValueError("'comp_x' must be coherent with axis system")
         # adapting mask to 'nan' values
         add_mask = np.isnan(new_comp_x)
         if self.mask.shape == (0,):
@@ -3130,14 +3138,11 @@ class VectorField(Field):
         if self.shape != new_mask.shape:
             raise ValueError()
         # check if the new mask don'r reveal masked values
-        if np.any(new_mask[self.mask]):
-            raise Exception("This mask reveal masked values, maybe you should"
+        if np.any(np.logical_not(new_mask[self.mask])):
+            raise Warning("This mask reveal masked values, maybe you should"
                             "use the 'fill' function instead")
         # store mask
         self.__mask = new_mask
-        # put nan values in "values" if necessary
-        if self.values.shape != (0,):
-            self.values[self.mask] = np.nan
 
     @mask.deleter
     def mask(self):
@@ -3989,6 +3994,7 @@ class VectorField(Field):
             return streams[0]
         else:
             return streams
+
     @property
     def magnitude(self):
         """
@@ -3997,24 +4003,16 @@ class VectorField(Field):
         comp_x, comp_y = self.comp_x, self.comp_y
         mask = self.mask
         values = (comp_x**2 + comp_y**2)**(.5)
-        if raw:
-            return values
-        else:
-            unit_x, unit_y = self.get_axe_units()
-            unit_values = (unit_x**2 + unit_y**2)**(.5)
-            magn = self.get_comp('Vx')
-            magn.set_comp('values', values)
-            magn.set_comp('unit_values', unit_values)
-            return magn
+        values[mask] == np.nan
+        return values
 
     def get_shear_stress(self, raw=False):
         """
         Return a vector field with the shear stress
         """
         # Getting gradients and axes
-        axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = (self.get_comp('Vx', raw=True),
-                          self.get_comp('Vy', raw=True))
+        axe_x, axe_y = self.axe_x, self.axe_y
+        comp_x, comp_y = self.comp_x, self.comp_y
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         du_dy, _ = np.gradient(comp_x, dy, dx)
@@ -4035,9 +4033,8 @@ class VectorField(Field):
         """
         Return a scalar field with the z component of the vorticity.
         """
-        axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = (self.get_comp('Vx', raw=True),
-                          self.get_comp('Vy', raw=True))
+        axe_x, axe_y = self.axe_x, self.axe_y
+        comp_x, comp_y = self.comp_x, self.comp_y
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         _, Exy = np.gradient(comp_x, dy, dx)
@@ -4056,9 +4053,8 @@ class VectorField(Field):
         (imaginary part of the eigenvalue of the velocity laplacian matrix)
         """
         # Getting gradients and axes
-        axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = (self.get_comp('Vx', raw=True),
-                          self.get_comp('Vy', raw=True))
+        axe_x, axe_y = self.axe_x, self.axe_y
+        comp_x, comp_y = self.comp_x, self.comp_y
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         du_dy, du_dx = np.gradient(comp_x, dy, dx)
@@ -4094,9 +4090,8 @@ class VectorField(Field):
         and eigen vectors take ?)
         """
         # Getting gradients and axes
-        axe_x, axe_y = self.get_axes()
-        comp_x, comp_y = (self.get_comp('Vx', raw=True),
-                          self.get_comp('Vy', raw=True))
+        axe_x, axe_y = self.axe_x, self.axe_y
+        comp_x, comp_y = self.comp_x, self.comp_y
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
         du_dy, du_dx = np.gradient(comp_x, dy, dx)
@@ -4148,9 +4143,8 @@ class VectorField(Field):
             Contening theta field.
         """
         # get data
-        Vx, Vy = (self.get_comp('Vx', raw=True, masked=False),
-                  self.get_comp('Vy', raw=True, masked=False))
-        mask = self.get_comp('mask', raw=True)
+        comp_x, comp_y = self.comp_x, self.comp_y
+        mask = self.mask
         theta = np.zeros(self.get_dim())
         # getting angle
         norm = np.sqrt(Vx**2 + Vy**2)
@@ -4197,8 +4191,8 @@ class VectorField(Field):
         # filling up the field before smoothing
         self.fill()
         # getting data
-        Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
-        mask = self.get_comp('mask', raw=True)
+        Vx, Vy = self.comp_x, self.comp_y
+        mask = self.mask
         # smoothing
         if tos == "uniform":
             Vx = ndimage.uniform_filter(Vx, size, **kw)
@@ -4209,10 +4203,8 @@ class VectorField(Field):
         else:
             raise ValueError("'tos' must be 'uniform' or 'gaussian'")
         # storing
-        Vx = np.ma.masked_array(Vx, mask)
-        Vy = np.ma.masked_array(Vy, mask)
-        self.set_comp('Vx', Vx)
-        self.set_comp('Vy', Vy)
+        self.comp_x = Vx
+        self.comp_y = Vy
 
     def fill(self, tof='interplin', value=0., crop_border=True):
         # TODO : Make this fucking functionnality work !
@@ -4240,7 +4232,8 @@ class VectorField(Field):
         # deleting the masked border (useless field part)
         if crop_border:
             self.crop_masked_border()
-        mask = self.get_comp('mask', raw=True)
+        mask = self.mask
+        not_mask = np.logical_not(mask)
         # if there is nothing to do...
         if not np.any(mask):
             pass
@@ -4248,14 +4241,14 @@ class VectorField(Field):
             inds_x = np.arange(self.get_dim()[1])
             inds_y = np.arange(self.get_dim()[0])
             grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            Vx = self.get_comp('Vx', raw=True, masked=False)
-            Vy = self.get_comp('Vy', raw=True, masked=False)
-            fx = spinterp.interp2d(grid_y[~mask],
-                                   grid_x[~mask],
-                                   Vx[~mask])
-            fy = spinterp.interp2d(grid_y[~mask],
-                                   grid_x[~mask],
-                                   Vy[~mask])
+            Vx = self.comp_x
+            Vy = self.comp_y
+            fx = spinterp.interp2d(grid_y[not_mask],
+                                   grid_x[not_mask],
+                                   Vx[not_mask])
+            fy = spinterp.interp2d(grid_y[not_mask],
+                                   grid_x[not_mask],
+                                   Vy[not_mask])
             for inds, masked in np.ndenumerate(mask):
                 if masked:
                     Vx[inds[0], inds[1]] = fx(inds[0], inds[1])
@@ -4316,46 +4309,46 @@ class VectorField(Field):
         """
         Crop the masked border of the field in place.
         """
-        axe_x, axe_y = self.get_axes()
+        axe_x, axe_y = self.axe_x, self.axe_y
         # checking masked values presence
-        Vx, Vy = (self.get_comp('Vx', raw=True, masked=False),
-                  self.get_comp('Vy', raw=True, masked=False))
-        if not (np.ma.is_masked(Vx), np.ma.is_masked(Vy)):
+        Vx, Vy = self.comp_x, self.comp_y
+        mask = self.mask
+        if not np.any(mask):
             return None
-        # getting datas
-        mask = self.get_comp('mask', raw=True)
         # crop border along y
         axe_y_m = ~np.all(mask, axis=1)
         if np.any(axe_y_m):
-            Vx = Vx[axe_y_m, :]
-            Vy = Vy[axe_y_m, :]
-            mask = mask[axe_y_m, :]
+            Vx = Vx[:, axe_y_m]
+            Vy = Vy[:, axe_y_m]
+            mask = mask[:, axe_y_m]
         # crop values along x
         axe_x_m = ~np.all(mask, axis=0)
         if np.any(axe_x_m):
-            Vx = Vx[:, axe_x_m]
-            Vy = Vy[:, axe_x_m]
-            mask = mask[:, axe_x_m]
+            Vx = Vx[axe_x_m, :]
+            Vy = Vy[axe_x_m, :]
+            mask = mask[axe_x_m, :]
         # storing cropped values
-        self.comp_x = np.ma.masked_array(Vx, mask)
-        self.comp_y = np.ma.masked_array(Vy, mask)
-        # crop axis
-        self.axe_x = axe_x[axe_x_m]
-        self.axe_y = axe_y[axe_y_m]
+        unit_x, unit_y = self.unit_x, self.unit_y
+        unit_values = self.unit_values
+        tmp_vf = self.__class__()
+        VectorField.import_from_arrays(tmp_vf, axe_x, axe_y, Vx, Vy, mask=mask,
+                                       unit_x=unit_x, unit_y=unit_y,
+                                       unit_values=unit_values)
+        self = tmp_vf
 
     def _display(self, component=None, kind=None, **plotargs):
         if kind is not None:
             if not isinstance(kind, STRINGTYPES):
                 raise TypeError("'kind' must be a string")
-        axe_x, axe_y = self.get_axes()
+        axe_x, axe_y = self.axe_x, self.axe_y
         if component is None:
-            Vx = self.get_comp('Vx', raw=True)
-            Vy = self.get_comp('Vy', raw=True)
-            magn = self.get_magnitude().get_comp('values', raw=True)
-            unit_x, unit_y = self.get_axe_units()
+            Vx = np.transpose(self.comp_x)
+            Vy = np.transpose(self.comp_y)
+            magn = np.transpose(self.magnitude)
+            unit_x, unit_y = self.unit_x, self.unit_y
             if kind == 'stream':
                 if not 'color' in plotargs.keys():
-                    plotargs['color'] = magn.data
+                    plotargs['color'] = magn
                 displ = plt.streamplot(axe_x, axe_y, Vx, Vy, **plotargs)
             elif kind == 'quiver' or kind is None:
                 if 'C' in plotargs.keys():
@@ -4372,14 +4365,14 @@ class VectorField(Field):
                 raise ValueError("Unknown value of 'kind'")
         elif component == "x":
             if kind == '3D':
-                displ = self.get_comp('Vx').Display3D()
+                displ = self.comp_x_as_sf.Display3D()
             else:
-                displ = self.get_comp('Vx')._display(kind)
+                displ = self.comp_x_as_sf._display(kind)
         elif component == "y":
             if kind == '3D':
-                displ = self.get_comp('Vy').Display3D()
+                displ = self.comp_y_as_sf.Display3D()
             else:
-                displ = self.get_comp('Vy')._display(kind)
+                displ = self.comp_y_as_sf._display(kind)
         else:
             raise TypeError("Unknown value of 'component'")
         return displ
@@ -4414,9 +4407,9 @@ class VectorField(Field):
             Reference to the displayed figure
         """
         displ = self._display(component, kind, **plotargs)
-        unit_x, unit_y = self.get_axe_units()
-        unit_values = self.get_comp('unit_values')
-        Vx, Vy = self.get_comp('Vx', raw=True), self.get_comp('Vy', raw=True)
+        unit_x, unit_y = self.axe_x, self.axe_y
+        unit_values = self.unit_values
+        Vx, Vy = self.comp_x, self.comp_y
         if component is None:
             if kind == 'quiver' or kind is None:
                 cb = plt.colorbar()
