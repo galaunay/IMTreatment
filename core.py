@@ -4177,9 +4177,7 @@ class VelocityFields(object):
         """
         Return a copy of the velocityfields
         """
-        tmp_vfs = VelocityFields()
-        tmp_vfs.import_from_vfs(self)
-        return tmp_vfs
+        return copy.deepcopy(self)
 
     def set_origin(self, x=None, y=None):
         """
@@ -4202,7 +4200,7 @@ class VelocityFields(object):
                 field.set_origin(None, y)
 
 
-class TemporalVelocityFields(VelocityFields):
+class TemporalVelocityFields(VelocityFields, Field):
     """
     Class representing a set of time-evolving velocity fields.
 
@@ -4276,6 +4274,33 @@ class TemporalVelocityFields(VelocityFields):
             except KeyError:
                 pass
 
+    @Field.axe_x.setter
+    def axe_x(self, value):
+        Field.axe_x = value
+        for field in self.fields:
+            field.axe_x = value
+
+    @Field.axe_y.setter
+    def axe_y(self, value):
+        Field.axe_y = value
+        for field in self.fields:
+            field.axe_y = value
+
+    @Field.unit_x.setter
+    def unit_x(self, value):
+        Field.unit_x = value
+        for field in self.fields:
+            field.unit_x = value
+
+    @Field.unit_y.setter
+    def unit_y(self, value):
+        Field.unit_y = value
+        for field in self.fields:
+            field.unit_y = value
+
+    def set_origin(self, ):
+        # continuer à surcharger les méthode de Field nécessaires
+
     def add_field(self, velocityfield):
         """
         Add a field to the existing fields.
@@ -4295,114 +4320,115 @@ class TemporalVelocityFields(VelocityFields):
         VelocityFields.add_field(self, velocityfield)
         self._clear_derived()
 
-    def get_comp(self, componentname, raw=False, masked=True):
-        """
-        Return a reference to the field designed by 'fieldname'.
+#    def get_comp(self, componentname, raw=False, masked=True):
+#        """
+#        Return a reference to the field designed by 'fieldname'.
+#
+#        Parameters
+#        ----------
+#        componentname : string
+#            Name of the component.
+#        raw : boolean, optional
+#            .
+#        masked : boolean, optional
+#            .
+#
+#        Returns
+#        -------
+#        component : VelocityField, VectorField or ScalarField object or array
+#        of these objects
+#            Reference to the field.
+#        """
+#        values = None
+#        if not isinstance(componentname, str):
+#            raise TypeError("'componentname' must be a string")
+#        # Temporal Velocity Field attributes
+#        elif componentname == "fields":
+#            values = copy.deepcopy(self.fields)
+#        elif componentname == "mean_vf":
+#            try:
+#                values = self.mean_vf.copy()
+#            except AttributeError:
+#                self.calc_mean_vf()
+#                values = self.mean_vf.copy()
+#        elif componentname == "turbulent_vf":
+#            try:
+#                values = self.turbulent_vf.copy()
+#            except AttributeError:
+#                self.calc_turbulent_vf()
+#                values = self.turbulent_vf.copy()
+#        elif componentname == "mean_kinetic_energy":
+#            try:
+#                values = self.mean_kinetic_energy.copy()
+#            except AttributeError:
+#                self.calc_mean_kinetic_energy()
+#                values = self.mean_kinetic_energy.copy()
+#        elif componentname == "turbulent_kinetic_energy":
+#            try:
+#                values = self.turbulent_kinetic_energy.copy()
+#            except AttributeError:
+#                self.calc_turbulent_kinetic_energy()
+#                values = self.turbulent_kinetic_energy.copy()
+#        elif componentname == "rs_xx":
+#            try:
+#                values = self.rs_xx.copy()
+#            except AttributeError:
+#                self.calc_reynolds_stress()
+#                values = self.rs_xx.copy()
+#        elif componentname == "rs_yy":
+#            try:
+#                values = self.rs_yy.copy()
+#            except AttributeError:
+#                self.calc_reynolds_stress()
+#                values = self.rs_yy.copy()
+#        elif componentname == "rs_xy":
+#            try:
+#                values = self.rs_xy.copy()
+#            except AttributeError:
+#                self.calc_reynolds_stress()
+#                values = self.rs_xy.copy()
+#        elif componentname == "tke":
+#            try:
+#                values = self.tke.copy()
+#            except AttributeError:
+#                self.calc_tke()
+#                values = copy.deepcopy(self.tke)
+#        elif componentname == "mean_tke":
+#            try:
+#                values = self.mean_tke.copy()
+#            except AttributeError:
+#                self.calc_mean_tke()
+#                values = self.mean_tke.copy()
+#        # values treatment
+#        if values is not None:
+#            if not raw:
+#                return values
+#            elif isinstance(values, ScalarField):
+#                return values.get_comp('values', raw=raw, masked=masked)
+#            elif isinstance(values, VectorField):
+#                return values.get_comp('V', raw=raw, masked=masked)
+#            elif isinstance(values[0], ScalarField):
+#                return [sf.get_comp('values', raw=raw, masked=masked)
+#                        for sf in values]
+#            elif isinstance(values[0], VectorField):
+#                return [vf.get_comp('V', raw=raw, masked=masked)
+#                        for vf in values]
+#            else:
+#                raise StandardError()
+#        # Velocity Field attributes
+#        elif len(self.fields) != 0:
+#            try:
+#                self.fields[0].get_comp(componentname, raw=raw)
+#            except ValueError:
+#                pass
+#            else:
+#                tmp_fields = np.zeros((len(self.fields),), dtype=np.ndarray)
+#                for i, field in enumerate(self.fields):
+#                    tmp_fields[i] = field.get_comp(componentname, raw=raw,
+#                                                   masked=masked)
+#                return np.array(tmp_fields)
+#        raise ValueError("Unknown component : {}".format(componentname))
 
-        Parameters
-        ----------
-        componentname : string
-            Name of the component.
-        raw : boolean, optional
-            .
-        masked : boolean, optional
-            .
-
-        Returns
-        -------
-        component : VelocityField, VectorField or ScalarField object or array
-        of these objects
-            Reference to the field.
-        """
-        values = None
-        if not isinstance(componentname, str):
-            raise TypeError("'componentname' must be a string")
-        # Temporal Velocity Field attributes
-        elif componentname == "fields":
-            values = copy.deepcopy(self.fields)
-        elif componentname == "mean_vf":
-            try:
-                values = self.mean_vf.copy()
-            except AttributeError:
-                self.calc_mean_vf()
-                values = self.mean_vf.copy()
-        elif componentname == "turbulent_vf":
-            try:
-                values = self.turbulent_vf.copy()
-            except AttributeError:
-                self.calc_turbulent_vf()
-                values = self.turbulent_vf.copy()
-        elif componentname == "mean_kinetic_energy":
-            try:
-                values = self.mean_kinetic_energy.copy()
-            except AttributeError:
-                self.calc_mean_kinetic_energy()
-                values = self.mean_kinetic_energy.copy()
-        elif componentname == "turbulent_kinetic_energy":
-            try:
-                values = self.turbulent_kinetic_energy.copy()
-            except AttributeError:
-                self.calc_turbulent_kinetic_energy()
-                values = self.turbulent_kinetic_energy.copy()
-        elif componentname == "rs_xx":
-            try:
-                values = self.rs_xx.copy()
-            except AttributeError:
-                self.calc_reynolds_stress()
-                values = self.rs_xx.copy()
-        elif componentname == "rs_yy":
-            try:
-                values = self.rs_yy.copy()
-            except AttributeError:
-                self.calc_reynolds_stress()
-                values = self.rs_yy.copy()
-        elif componentname == "rs_xy":
-            try:
-                values = self.rs_xy.copy()
-            except AttributeError:
-                self.calc_reynolds_stress()
-                values = self.rs_xy.copy()
-        elif componentname == "tke":
-            try:
-                values = self.tke.copy()
-            except AttributeError:
-                self.calc_tke()
-                values = copy.deepcopy(self.tke)
-        elif componentname == "mean_tke":
-            try:
-                values = self.mean_tke.copy()
-            except AttributeError:
-                self.calc_mean_tke()
-                values = self.mean_tke.copy()
-        # values treatment
-        if values is not None:
-            if not raw:
-                return values
-            elif isinstance(values, ScalarField):
-                return values.get_comp('values', raw=raw, masked=masked)
-            elif isinstance(values, VectorField):
-                return values.get_comp('V', raw=raw, masked=masked)
-            elif isinstance(values[0], ScalarField):
-                return [sf.get_comp('values', raw=raw, masked=masked)
-                        for sf in values]
-            elif isinstance(values[0], VectorField):
-                return [vf.get_comp('V', raw=raw, masked=masked)
-                        for vf in values]
-            else:
-                raise StandardError()
-        # Velocity Field attributes
-        elif len(self.fields) != 0:
-            try:
-                self.fields[0].get_comp(componentname, raw=raw)
-            except ValueError:
-                pass
-            else:
-                tmp_fields = np.zeros((len(self.fields),), dtype=np.ndarray)
-                for i, field in enumerate(self.fields):
-                    tmp_fields[i] = field.get_comp(componentname, raw=raw,
-                                                   masked=masked)
-                return np.array(tmp_fields)
-        raise ValueError("Unknown component : {}".format(componentname))
 
     def get_axes(self):
         """)
