@@ -1748,20 +1748,16 @@ class ScalarField(Field):
 
     @property
     def values(self):
-        return self.__values
+        return self.__values.copy()
 
     @values.setter
     def values(self, new_values):
         if not isinstance(new_values, ARRAYTYPES):
             raise TypeError()
-        new_values = np.array(new_values)
+        new_values = np.array(new_values, dtype=float)
         if self.shape == new_values.shape:
             # adapting mask to 'nan' values
-            add_mask = np.isnan(new_values)
-            if self.mask.shape == (0,):
-                self.mask = add_mask
-            else:
-                self.mask = np.logical_or(self.mask, add_mask)
+            self.__mask = np.isnan(new_values)
             # storing data
             self.__values = new_values
         else:
@@ -1775,7 +1771,7 @@ class ScalarField(Field):
 
     @property
     def mask(self):
-        return self.__mask
+        return self.__mask.copy()
 
     @mask.setter
     def mask(self, new_mask):
@@ -1805,7 +1801,7 @@ class ScalarField(Field):
 
     @property
     def unit_values(self):
-        return self.__unit_values
+        return self.__unit_values.copy()
 
     @unit_values.setter
     def unit_values(self, new_unit_values):
@@ -2655,8 +2651,8 @@ class ScalarField(Field):
         cropped_field.values = values
         self = cropped_field
 
-    def fill(self, tof='interplin', value=0., crop_border=True):
-        # TODO : Make this fucking functionnality work !
+    def fill(self, tof='linear', value=0., remaining_values=np.nan, 
+             crop_border=True, ):
         """
         Fill the masked part of the array in place.
 
@@ -2664,11 +2660,16 @@ class ScalarField(Field):
         ----------
         tof : string, optional
             Type of algorithm used to fill.
-            'value' : fill with a given value
-            'interplin' : fill using linear interpolation
-            'interpcub' : fill using cubic interpolation
+            'fill' : fill with a given value
+            'nearest' : fill with nearest point value
+            'linear' : fill using linear interpolation
+            'cubic' : fill using cubic interpolation
         value : number
-            Value for filling (only usefull with tof='value')
+            Value used to fill (for 'tof=fill').
+        remaining_values:
+            Values used to fill the field, where mask remain after
+            interpolation (typicaly borders or corner).
+            can be 'nearest' for second pass with nearest filling.
         crop_border : boolean
             If 'True' (default), masked borders of the field are cropped
             before filling. Else, values on border are extrapolated (poorly).
@@ -2678,48 +2679,43 @@ class ScalarField(Field):
             raise TypeError("'tof' must be a string")
         if not isinstance(value, NUMBERTYPES):
             raise TypeError("'value' must be a number")
+        if not (isinstance(remaining_values, NUMBERTYPES)
+                or remaining_values == 'nearest'):
+            raise TypeError()
         # deleting the masked border (useless field part)
         if crop_border:
             self.crop_masked_border()
+        axe_x, axe_y = self.axe_x, self.axe_y
         mask = self.mask
         not_mask = np.logical_not(mask)
         values = self.values
+        values[mask] = np.nan
         # if there is nothing to do...
         if not np.any(mask):
             pass
-        elif tof == 'interplin':
-            inds_x = np.arange(values.shape[1])
-            inds_y = np.arange(values.shape[0])
-            grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            f = spinterp.interp2d(grid_y[not_mask],
-                                  grid_x[not_mask],
-                                  values[not_mask])
-            for inds, masked in np.ndenumerate(mask):
-                if masked:
-                    values[inds[0], inds[1]] = f(inds[0], inds[1])
-            self.values = values
-            mask = np.empty(self.shape, dtype=bool)
-            mask.fill(False)
-            self.__mask = mask
-        elif tof == 'interpcub':
-            inds_x = np.arange(values.shape[1])
-            inds_y = np.arange(values.shape[0])
-            grid_x, grid_y = np.meshgrid(inds_x, inds_y)
-            f = spinterp.interp2d(grid_y[not_mask],
-                                  grid_x[not_mask],
-                                  values[not_mask],
-                                  kind='cubic')
-            for inds, masked in np.ndenumerate(mask):
-                if masked:
-                    values[inds[1], inds[0]] = f(inds[1], inds[0])
-            self.values = values
-            self.__ScalarField_mask = np.empty(self.shape).fill(False)
-        elif tof == 'value':
+        elif tof in ['linear', 'cubic', 'nearest']:
+            X, Y = np.meshgrid(axe_x, axe_y)
+            xy = np.array(zip(X.flatten('F'), Y.flatten('F')), subok=True)
+            xy_nm = xy[not_mask.flatten()]
+            xy_m = xy[mask.flatten()]
+            values_nm = values[not_mask].flatten()
+            xy_interp = spinterp.griddata(xy_nm, values_nm, xy_m, method=tof)
+            values[mask] = xy_interp
+            if remaining_values == 'nearest':
+                self.values = values
+                self.mask = np.isnan(values)    
+                self.fill(tof='nearest', crop_border=False)
+            elif not np.isnan(remaining_values):
+                values[np.isnan(values)] = remaining_values
+                self.values = values
+                self.mask = np.isnan(values)
+            else:
+                self.values = values
+                self.mask = np.isnan(values)
+        elif tof == 'fill':
             values[mask] = value
             self.values = values
-            mask = np.empty(self.shape, dtype=bool)
-            mask.fill(False)
-            self.__mask = mask
+            self.mask = np.isnan(values)
         else:
             raise ValueError("unknown 'tof' value")
 
@@ -2843,7 +2839,6 @@ class ScalarField(Field):
         axe_x, axe_y = self.axe_x, self.axe_y
         values = np.transpose(self.values)
         mask = np.transpose(self.mask)
-        print(mask)
         unit_x, unit_y = self.unit_x, self.unit_y
         X, Y = np.meshgrid(self.axe_y, self.axe_x)
         values[mask] = np.nan
@@ -3062,22 +3057,22 @@ class VectorField(Field):
 
     @property
     def comp_x(self):
-        return self.__comp_x
+        return self.__comp_x.copy()
 
     @comp_x.setter
     def comp_x(self, new_comp_x):
         if not isinstance(new_comp_x, ARRAYTYPES):
             raise TypeError()
-        new_comp_x = np.array(new_comp_x)
+        new_comp_x = np.array(new_comp_x, dtype=float)
         if not new_comp_x.shape == self.shape:
             raise ValueError("'comp_x' must be coherent with axis system")
         # adapting mask to 'nan' values
-        add_mask = np.isnan(new_comp_x)
-        if self.mask.shape == (0,):
-            self.mask = add_mask
+        if self.__comp_y.shape != (0,):
+            self.__mask = np.logical_or(np.isnan(new_comp_x),
+                                        np.isnan(self.__comp_y))
         else:
-            self.mask = np.logical_or(self.mask, add_mask)
-        # storing data
+            self.__mask = np.isnan(new_comp_x)
+        # storing dat
         self.__comp_x = new_comp_x
 
     @comp_x.deleter
@@ -3095,21 +3090,21 @@ class VectorField(Field):
 
     @property
     def comp_y(self):
-        return self.__comp_y
+        return self.__comp_y.copy()
 
     @comp_y.setter
     def comp_y(self, new_comp_y):
         if not isinstance(new_comp_y, ARRAYTYPES):
             raise TypeError()
-        new_comp_y = np.array(new_comp_y)
+        new_comp_y = np.array(new_comp_y, dtype=float)
         if not new_comp_y.shape == self.shape:
             raise ValueError()
         # adapting mask to 'nan' values
-        add_mask = np.isnan(new_comp_y)
-        if self.mask.shape == (0,):
-            self.mask = add_mask
+        if self.__comp_x.shape != (0,):
+            self.__mask = np.logical_or(np.isnan(new_comp_y),
+                                        np.isnan(self.__comp_x))
         else:
-            self.mask = np.logical_or(self.mask, add_mask)
+            self.__mask = np.isnan(new_comp_y)
         # storing data
         self.__comp_y = new_comp_y
 
@@ -3128,7 +3123,7 @@ class VectorField(Field):
 
     @property
     def mask(self):
-        return self.__mask
+        return self.__mask.copy()
 
     @mask.setter
     def mask(self, new_mask):
@@ -3335,20 +3330,20 @@ class VectorField(Field):
         self.unit_y = unit_y
         self.unit_values = unit_values
 
-    def export_to_velocityfield(self, time=None, unit_time=''):
-        if time is None:
-            time = 0
-        axe_x, axe_y = self.axe_x, self.axe_y
-        unit_x, unit_y = self.unit_x, self.unit_y
-        value_x = self.comp_x
-        value_y = self.comp_y
-        mask = self.mask
-        unit_values = self.unit_values
-        tmpvf = VelocityField()
-        tmpvf.import_from_arrays(axe_x, axe_y, value_x, value_y, mask=mask,
-                                 time=time, unit_x=unit_x, unit_y=unit_y,
-                                 unit_values=unit_values, unit_time=unit_time)
-        return tmpvf
+#    def export_to_velocityfield(self, time=None, unit_time=''):
+#        if time is None:
+#            time = 0
+#        axe_x, axe_y = self.axe_x, self.axe_y
+#        unit_x, unit_y = self.unit_x, self.unit_y
+#        value_x = self.comp_x
+#        value_y = self.comp_y
+#        mask = self.mask
+#        unit_values = self.unit_values
+#        tmpvf = VelocityField()
+#        tmpvf.import_from_arrays(axe_x, axe_y, value_x, value_y, mask=mask,
+#                                 time=time, unit_x=unit_x, unit_y=unit_y,
+#                                 unit_values=unit_values, unit_time=unit_time)
+#        return tmpvf
 
 #    def import_from_scalarfields(self, comp_x, comp_y):
 #        """
@@ -3875,8 +3870,8 @@ class VectorField(Field):
         self.comp_x = Vx
         self.comp_y = Vy
 
-    def fill(self, tof='interplin', value=0., crop_border=True):
-        # TODO : Make this fucking functionnality work !
+    def fill(self, tof='linear', value=0., remaining_values=np.nan,
+             crop_border=True):
         """
         Fill the masked part of the field in place.
 
@@ -3884,11 +3879,16 @@ class VectorField(Field):
         ----------
         tof : string, optional
             Type of algorithm used to fill.
-            'value' : fill with a given value
-            'interplin' : fill using linear interpolation
-            'interpcub' : fill using cubic interpolation
+            'fill' : fill with a given value
+            'nearest' : fill with nearest point value
+            'linear' : fill using linear interpolation
+            'cubic' : fill using cubic interpolation
         value : number
-            Value for filling (only usefull with tof='value')
+            Value for filling (only usefull with tof='fill')
+        remaining_values: 2x1 array or string
+            Values used to fill the field, where mask remain after
+            interpolation (typicaly borders or corner).
+            can be 'nearest' for second pass with nearest filling.
         crop_border : boolean
             If 'True' (default), masked borders of the field are cropped
             before filling. Else, values on border are extrapolated (poorly).
@@ -3901,64 +3901,53 @@ class VectorField(Field):
         # deleting the masked border (useless field part)
         if crop_border:
             self.crop_masked_border()
+        axe_x, axe_y = self.axe_x, self.axe_y
         mask = self.mask
         not_mask = np.logical_not(mask)
+        comp_x = self.comp_x
+        comp_y = self.comp_y
+        comp_x[mask] = np.nan
+        comp_y[mask] = np.nan
         # if there is nothing to do...
         if not np.any(mask):
             pass
-        elif tof == 'interplin':
-            inds_x = np.arange(self.shape[0])
-            inds_y = np.arange(self.shape[1])
-            grid_y, grid_x = np.meshgrid(inds_y, inds_x)
-            Vx = self.comp_x
-            Vy = self.comp_y
-            fx = spinterp.interp2d(grid_x[not_mask],
-                                   grid_y[not_mask],
-                                   Vx[not_mask])
-            fy = spinterp.interp2d(grid_x[not_mask],
-                                   grid_y[not_mask],
-                                   Vy[not_mask])
-            for inds, masked in np.ndenumerate(mask):
-                if masked:
-                    Vx[inds[0], inds[1]] = fx(inds[0], inds[1])
-                    Vy[inds[0], inds[1]] = fy(inds[0], inds[1])
-            mask = np.zeros(Vx.shape)
-            self.comp_x = Vx
-            self.comp_y = Vy
-            self.__mask = np.empty(self.shape, dtype=bool)
-            self.__mask.fill(False)
-        elif tof == 'interpcub':
-            inds_x = np.arange(self.shape[0])
-            inds_y = np.arange(self.shape[1])
-            grid_y, grid_x = np.meshgrid(inds_y, inds_x)
-            Vx = self.comp_x
-            Vy = self.comp_y
-            fx = spinterp.interp2d(grid_x[not_mask],
-                                   grid_y[not_mask],
-                                   Vx[not_mask],
-                                   kind='cubic')
-            fy = spinterp.interp2d(grid_x[not_mask],
-                                   grid_y[not_mask],
-                                   Vy[not_mask],
-                                   kind='cubic')
-            for inds, masked in np.ndenumerate(mask):
-                if masked:
-                    Vx[inds[0], inds[1]] = fx(inds[0], inds[1])
-                    Vy[inds[0], inds[1]] = fy(inds[0], inds[1])
-            mask = np.zeros(Vx.shape)
-            self.comp_x = Vx
-            self.comp_y = Vy
-            self.__mask = np.empty(self.shape, dtype=bool)
-            self.__mask.fill(False)
-        elif tof == 'value':
+        elif tof in ['linear', 'cubic', 'nearest']:
+            X, Y = np.meshgrid(axe_x, axe_y)
+            xy = np.array(zip(X.flatten('F'), Y.flatten('F')), subok=True)
+            xy_nm = xy[not_mask.flatten()]
+            xy_m = xy[mask.flatten()]
+            comp_x_nm = comp_x[not_mask].flatten()
+            comp_y_nm = comp_y[not_mask].flatten()
+            comp_x_interp = spinterp.griddata(xy_nm, comp_x_nm, xy_m, method=tof)
+            comp_y_interp = spinterp.griddata(xy_nm, comp_y_nm, xy_m, method=tof)
+            comp_x[mask] = comp_x_interp
+            comp_y[mask] = comp_y_interp
+            if remaining_values == 'nearest':
+                self.comp_x = comp_x
+                self.comp_y = comp_y
+                self.mask = np.logical_or(np.isnan(comp_x),
+                                          np.isnan(comp_y))  
+                self.fill(tof='nearest', crop_border=False)
+            elif not np.isnan(remaining_values):
+                comp_x[np.isnan(comp_x)] = remaining_values[0]
+                comp_y[np.isnan(comp_x)] = remaining_values[1]
+                self.comp_x = comp_x
+                self.comp_y = comp_y
+                self.mask = np.logical_or(np.isnan(comp_x),
+                                          np.isnan(comp_y))
+            else:
+                self.comp_x = comp_x
+                self.comp_y = comp_y
+                self.mask = np.logical_or(np.isnan(comp_x),
+                                          np.isnan(comp_y)) 
+        elif tof == 'fill':
             Vx = self.comp_x
             Vy = self.comp_y
             Vx[mask] = value
             Vy[mask] = value
             self.comp_x = Vx
             self.comp_y = Vy
-            self.__mask = np.empty(self.shape, dtype=bool)
-            self.__mask.fill(False)
+            self.mask = np.logical_or(np.isnan(comp_x), np.isnan(comp_y))
         else:
             raise ValueError("unknown 'tof' value")
 
@@ -4020,7 +4009,11 @@ class VectorField(Field):
         if component is None:
             Vx = np.transpose(self.comp_x)
             Vy = np.transpose(self.comp_y)
+            mask = np.transpose(self.mask)
+            Vx = np.ma.masked_array(Vx, mask)
+            Vy = np.ma.masked_array(Vy, mask)
             magn = np.transpose(self.magnitude)
+            magn = np.ma.masked_array(magn, mask)
             unit_x, unit_y = self.unit_x, self.unit_y
             if kind == 'stream':
                 if not 'color' in plotargs.keys():
@@ -4035,8 +4028,9 @@ class VectorField(Field):
                         displ = plt.quiver(axe_x, axe_y, Vx, Vy, **plotargs)
                 else:
                     displ = plt.quiver(axe_x, axe_y, Vx, Vy, magn, **plotargs)
-                ax = plt.gca()
-                ax.set_aspect('equal')
+                plt.axis('equal')
+                plt.xlabel("X " + unit_x.strUnit())
+                plt.ylabel("Y " + unit_y.strUnit())
             else:
                 raise ValueError("Unknown value of 'kind'")
         elif component == "x":
@@ -4056,6 +4050,7 @@ class VectorField(Field):
                 displ = self.mask_as_sf._display(kind)
         else:
             raise TypeError("Unknown value of 'component'")
+        
         return displ
 
     def display(self, component=None, kind=None, **plotargs):
@@ -4120,8 +4115,7 @@ class VelocityFields(object):
     """
 
     def __init__(self):
-        self.fields = []
-        pass
+        self.fields = np.array([], dtype=object)
 
     def __len__(self):
         return len(self.fields)
@@ -4143,18 +4137,18 @@ class VelocityFields(object):
         """
         self.fields[fieldnumber:fieldnumber + 1] = []
 
-    def add_field(self, velocityfield):
+    def add_field(self, vectorfield, time, unit_time):
         """
         Add a field to the existing fields.
 
         Parameters
         ----------
-        velocityfield : VelocityField object
+        vectorfield : VectorField object
             The velocity field to add.
         """
-        if not isinstance(velocityfield, VelocityField):
-            raise TypeError("'velocityfield' must be a VelocityField object")
-        self.fields.append(velocityfield.copy())
+        if not isinstance(vectorfield, VectorField):
+            raise TypeError("'vectorfield' must be a VelocityField object")
+        self.fields.append(vectorfield.copy())
 
     def get_field(self, fieldnumber):
         """
@@ -4217,12 +4211,19 @@ class TemporalVelocityFields(VelocityFields, Field):
 
     "calc_*" : give access to a bunch of derived statistical fields.
     """
-
+    
+    def __init__(self):
+        Field.__init__(self)
+        VelocityFields.__init__(self)
+        self.__times = np.array([], dtpe=float)
+        self.unit_times = make_unit("")
+        
     def __add__(self, other):
         if isinstance(other, TemporalVelocityFields):
             tmp_tvfs = self.copy()
             tmp_tvfs._clear_derived()
-            tmp_tvfs.fields += other.fields
+            tmp_tvfs.fields = np.append(tmp_tvfs.fields, other.fields)
+            tmp_tvfs.times = np.append(tmp_tvfs.times, other.times)
             return tmp_tvfs
         else:
             raise TypeError("cannot concatenate temporal velocity fields with"
@@ -4261,18 +4262,22 @@ class TemporalVelocityFields(VelocityFields, Field):
             final_vfs.add_field(np.power(field, number))
         return final_vfs
 
-    def _clear_derived(self):
-        """
-        Delete all the derived fields, in case of changement in the base
-        fields.
-        """
-        derived = ["mean_vf", "turbulent_vf", "mean_kinetic_energy",
-                   "tke", "mean_tke", "rs_xx", "rs_xy", "rs_yy"]
-        for attr in derived:
-            try:
-                del self.__dict__[attr]
-            except KeyError:
-                pass
+#    def _clear_derived(self):
+#        """
+#        Delete all the derived fields, in case of changement in the base
+#        fields.
+#        """
+#        derived = ["mean_vf", "turbulent_vf", "mean_kinetic_energy",
+#                   "tke", "mean_tke", "rs_xx", "rs_xy", "rs_yy"]
+#        for attr in derived:
+#            try:
+#                del self.__dict__[attr]
+#            except KeyError:
+#                pass
+        
+    def __iter__(self):
+        for i in np.arange(len(self.fields)):
+            yield self.times[i], self.fields[i]
 
     @Field.axe_x.setter
     def axe_x(self, value):
@@ -4298,27 +4303,105 @@ class TemporalVelocityFields(VelocityFields, Field):
         for field in self.fields:
             field.unit_y = value
 
-    def set_origin(self, ):
-        # continuer à surcharger les méthode de Field nécessaires
+    @property
+    def times(self):
+        return self.__times.copy()
+        
+    @times.setter
+    def times(self, values):
+        if not isinstance(values, ARRAYTYPES):
+            raise TypeError()
+        if len(self.__times) != len(values):
+            raise ValueError()
+        self.__times = values
+        
+    @times.deleter
+    def times(self):
+        raise Exception("Nope, can't do that")
+    # TODO : HERE !!!!!
 
-    def add_field(self, velocityfield):
+    @property
+    def unit_times(self):
+        return self.__unit_time
+        
+    @unit_times.setter
+    def unit_values(self, new_unit_times):
+        if isinstance(new_unit_times, unum.Unum):
+            if new_unit_times.asNumber() == 1:
+                self.__unit_values = new_unit_times
+            else:
+                raise ValueError()
+        elif isinstance(new_unit_times, STRINGTYPES):
+            self.__unit_times == make_unit(new_unit_times)
+        else:
+            raise TypeError()
+
+    @unit_times.deleter
+    def unit_times(self):
+        raise Exception("Nope, can't do that")
+        
+    def add_field(self, vectorfield, time=0., unit_times=""):
         """
         Add a field to the existing fields.
 
         Parameters
         ----------
-        velocityfield : VelocityField object
-            The velocity field to add.
+        vectorfield : VectorField object
+            The vector field to add.
+        time : number
+            time associated to the field.
+        unit_time : Unum object
+            time unit.
         """
-        # delete derived fields because base fields are modified
-        if not len(self.fields) == 0:
-            axes = self.fields[0].get_axes()
-            vaxes = velocityfield.get_axes()
-            if not all(axes[0] == vaxes[0]) and all(axes[1] == vaxes[1]):
+        # checking parameters
+        if not isinstance(vectorfield, VectorField):
+            raise TypeError()
+        if not isinstance(time, NUMBERTYPES):
+            raise TypeError()
+        if isinstance(unit_times, unum.Unum):
+            if unit_times.asNumber() != 1:
+                raise ValueError()
+        elif isinstance(unit_times, STRINGTYPES):
+            unit_times = make_unit(unit_times)
+        else:
+            raise TypeError()
+        # if this is the first field
+        if len(self.fields) == 0:
+            self.axe_x = vectorfield.axe_x
+            self.axe_y = vectorfield.axe_y
+            self.unit_x = vectorfield.unit_x
+            self.unit_y = vectorfield.unit_y
+            self.unit_times = unit_times
+            self.times = np.array([time])
+        # if not
+        else:
+            # checking axis
+            axe_x, axe_y = self.axe_x, self.axe_y
+            vaxe_x, vaxe_y = vectorfield.axe_x, vectorfield.axe_y
+            if not np.all(axe_x == vaxe_x) and np.all(axe_y == vaxe_y):
                 raise ValueError("Axes of the new field must be consistent "
                                  "with current axes")
-        VelocityFields.add_field(self, velocityfield)
-        self._clear_derived()
+            # storing time
+            time = (time*self.unit_times/unit_times).asNumber()
+            self.times = np.append(self.times, time)
+        # use default constructor
+        VelocityFields.add_field(self, vectorfield)
+        # sorting the field with time
+        self.__sort_field_by_time()
+    
+    def remove_field(self, fieldnumber):
+          """
+          """
+          np.delete(self.times, fieldnumber)
+          VelocityFields.remove_field(self, fieldnumber)
+          
+    def __sort_field_by_time(self):
+        if len(self.fields) in [0, 1]:
+            return None
+        ind_sort = np.argsort(self.times)
+        self.times = self.times[ind_sort]
+        self.fields = self.fields[ind_sort]
+        +++ HERE +++
 
 #    def get_comp(self, componentname, raw=False, masked=True):
 #        """
@@ -4429,46 +4512,6 @@ class TemporalVelocityFields(VelocityFields, Field):
 #                return np.array(tmp_fields)
 #        raise ValueError("Unknown component : {}".format(componentname))
 
-
-    def get_axes(self):
-        """)
-        Return fields axis
-        """
-        return self[0].get_axes()
-
-    def get_axe_units(self):
-        """
-        Return fields axis unities
-        """
-        return self[0].get_axe_units()
-
-    def get_indice_on_axe(self, direction, value, nearest=False):
-        """
-        Return, on the given axe, the indices representing the positions
-        surrounding 'value'.
-        if 'value' is exactly an axe position, return just one indice.
-
-        Parameters
-        ----------
-        direction : int
-            1 or 2, for axes choice.
-        value : number
-        nearest : boolean
-            If 'True', only the nearest indice is returned.
-
-        Returns
-        -------
-        interval : 2x1 or 1x1 array of integer
-        """
-        return self.fields[0].get_indice_on_axe(direction, value, nearest)
-
-    def get_dim(self):
-        """
-        Return the fields dimension.
-        """
-        if len(self.fields) == 0:
-            return (0,)
-        return self.fields[0].get_dim()
 
     def copy(self):
         """
@@ -4994,7 +5037,39 @@ class TemporalVelocityFields(VelocityFields, Field):
             if i + nmb_in_interval > len(self):
                 break
         return tmp_TVFS
+        
+    def set_origin(self, x=None, y=None):
+        """
+        Modify the axis in order to place the origin at the givev point (x, y)
 
+        Parameters
+        ----------
+        x : number
+        y : number
+        """
+        Field.set_origin(self, x, y)
+        for field in self.fields:
+            field.set_origin(x, y)
+            
+    def trim_area(self, intervalx=None, intervaly=None, full_output=False):
+        """
+        Return a trimed field in respect with given intervals.
+
+        Parameters
+        ----------
+        intervalx : array, optional
+            interval wanted along x
+        intervaly : array, optional
+            interval wanted along y
+        full_output : boolean, optional
+            If 'True', cutting indices are alson returned
+        """
+        trimfield = \
+            Field.trim_area(self, intervalx, intervaly)
+        for field in trimfield.fields:
+            field.trim_area(intervalx, intervaly)
+        return trimfield
+        
     def fill(self, kind='temporal', tof='interplin', value=[0., 0.],
              crop_border=True):
         """
@@ -5085,23 +5160,6 @@ class TemporalVelocityFields(VelocityFields, Field):
 
         else:
             raise ValueError("Unknown parameter for 'kind' : {}".format(kind))
-
-    def trim_area(self, intervalx=None, intervaly=None):
-        """
-        Trim the area and the axes in respect with given intervals.
-
-        Parameters
-        ----------
-        intervalx : array, optional
-            interval wanted along x axe.
-        intervaly : array, optional
-            interval wanted along y axe.
-        """
-        tmp_vfs = TemporalVelocityFields()
-        for field in self.fields:
-            tmp_field = field.trim_area(intervalx, intervaly)
-            tmp_vfs.add_field(tmp_field)
-        return tmp_vfs
 
     def crop_masked_border(self):
         """

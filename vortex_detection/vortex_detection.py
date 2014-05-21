@@ -10,7 +10,7 @@ For performance
 
 import pdb
 from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
-    ARRAYTYPES, NUMBERTYPES, STRINGTYPES, VelocityField, TemporalVelocityFields
+    ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalVelocityFields
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline

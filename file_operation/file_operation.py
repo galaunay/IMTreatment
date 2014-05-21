@@ -17,7 +17,7 @@ except:
     pass
 from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
-    VelocityField, VelocityFields,\
+    VelocityFields,\
     TemporalVelocityFields, SpatialVelocityFields
 import numpy as np
 try:

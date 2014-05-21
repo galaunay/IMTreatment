@@ -40,8 +40,8 @@ It is strongly recommended not to use "import *" on this package.
 """
 from .core import make_unit,\
     Profile, Points,\
-    ScalarField, VectorField, VelocityField, VelocityFields,\
+    ScalarField, VectorField, VelocityFields,\
     TemporalVelocityFields, SpatialVelocityFields
 __all__ = ["ScalarField", "VectorField",
-           "VelocityField", "VelocityFields", "TemporalVelocityFields",
+           "VelocityFields", "TemporalVelocityFields",
            "SpatialVelocityFields", "Points", "Profile", "make_unit"]
