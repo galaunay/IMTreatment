@@ -2651,7 +2651,7 @@ class ScalarField(Field):
         cropped_field.values = values
         self = cropped_field
 
-    def fill(self, tof='linear', value=0., remaining_values=np.nan, 
+    def fill(self, tof='linear', value=0., remaining_values=np.nan,
              crop_border=True, ):
         """
         Fill the masked part of the array in place.
@@ -2703,7 +2703,7 @@ class ScalarField(Field):
             values[mask] = xy_interp
             if remaining_values == 'nearest':
                 self.values = values
-                self.mask = np.isnan(values)    
+                self.mask = np.isnan(values)
                 self.fill(tof='nearest', crop_border=False)
             elif not np.isnan(remaining_values):
                 values[np.isnan(values)] = remaining_values
@@ -3926,7 +3926,7 @@ class VectorField(Field):
                 self.comp_x = comp_x
                 self.comp_y = comp_y
                 self.mask = np.logical_or(np.isnan(comp_x),
-                                          np.isnan(comp_y))  
+                                          np.isnan(comp_y))
                 self.fill(tof='nearest', crop_border=False)
             elif not np.isnan(remaining_values):
                 comp_x[np.isnan(comp_x)] = remaining_values[0]
@@ -3939,7 +3939,7 @@ class VectorField(Field):
                 self.comp_x = comp_x
                 self.comp_y = comp_y
                 self.mask = np.logical_or(np.isnan(comp_x),
-                                          np.isnan(comp_y)) 
+                                          np.isnan(comp_y))
         elif tof == 'fill':
             Vx = self.comp_x
             Vy = self.comp_y
@@ -4050,7 +4050,7 @@ class VectorField(Field):
                 displ = self.mask_as_sf._display(kind)
         else:
             raise TypeError("Unknown value of 'component'")
-        
+
         return displ
 
     def display(self, component=None, kind=None, **plotargs):
@@ -4135,9 +4135,9 @@ class VelocityFields(object):
         fieldnumber : integer
             The number of the velocity field to remove.
         """
-        self.fields[fieldnumber:fieldnumber + 1] = []
+        self.fields = np.delete(self.fields, fieldnumber)
 
-    def add_field(self, vectorfield, time, unit_time):
+    def add_field(self, vectorfield):
         """
         Add a field to the existing fields.
 
@@ -4148,7 +4148,7 @@ class VelocityFields(object):
         """
         if not isinstance(vectorfield, VectorField):
             raise TypeError("'vectorfield' must be a VelocityField object")
-        self.fields.append(vectorfield.copy())
+        self.fields = np.append(self.fields, vectorfield.copy())
 
     def get_field(self, fieldnumber):
         """
@@ -4211,13 +4211,13 @@ class TemporalVelocityFields(VelocityFields, Field):
 
     "calc_*" : give access to a bunch of derived statistical fields.
     """
-    
+
     def __init__(self):
         Field.__init__(self)
         VelocityFields.__init__(self)
-        self.__times = np.array([], dtpe=float)
-        self.unit_times = make_unit("")
-        
+        self.__times = np.array([], dtype=float)
+        self.__unit_times = make_unit("")
+
     def __add__(self, other):
         if isinstance(other, TemporalVelocityFields):
             tmp_tvfs = self.copy()
@@ -4274,39 +4274,39 @@ class TemporalVelocityFields(VelocityFields, Field):
 #                del self.__dict__[attr]
 #            except KeyError:
 #                pass
-        
+
     def __iter__(self):
         for i in np.arange(len(self.fields)):
             yield self.times[i], self.fields[i]
 
     @Field.axe_x.setter
     def axe_x(self, value):
-        Field.axe_x = value
+        Field.axe_x.fset(self, value)
         for field in self.fields:
             field.axe_x = value
 
     @Field.axe_y.setter
     def axe_y(self, value):
-        Field.axe_y = value
+        Field.axe_y.fset(self, value)
         for field in self.fields:
             field.axe_y = value
 
     @Field.unit_x.setter
     def unit_x(self, value):
-        Field.unit_x = value
+        Field.unit_x.fset(self, value)
         for field in self.fields:
             field.unit_x = value
 
     @Field.unit_y.setter
     def unit_y(self, value):
-        Field.unit_y = value
+        Field.unit_y.fset(self, value)
         for field in self.fields:
             field.unit_y = value
 
     @property
     def times(self):
         return self.__times.copy()
-        
+
     @times.setter
     def times(self, values):
         if not isinstance(values, ARRAYTYPES):
@@ -4314,7 +4314,7 @@ class TemporalVelocityFields(VelocityFields, Field):
         if len(self.__times) != len(values):
             raise ValueError()
         self.__times = values
-        
+
     @times.deleter
     def times(self):
         raise Exception("Nope, can't do that")
@@ -4322,13 +4322,14 @@ class TemporalVelocityFields(VelocityFields, Field):
 
     @property
     def unit_times(self):
-        return self.__unit_time
-        
+        return self.__unit_times
+
+
     @unit_times.setter
-    def unit_values(self, new_unit_times):
+    def unit_times(self, new_unit_times):
         if isinstance(new_unit_times, unum.Unum):
             if new_unit_times.asNumber() == 1:
-                self.__unit_values = new_unit_times
+                self.__unit_times = new_unit_times
             else:
                 raise ValueError()
         elif isinstance(new_unit_times, STRINGTYPES):
@@ -4339,7 +4340,44 @@ class TemporalVelocityFields(VelocityFields, Field):
     @unit_times.deleter
     def unit_times(self):
         raise Exception("Nope, can't do that")
-        
+
+    @property
+    def Vx_as_sf(self):
+        dim = len(self)
+        values = np.empty(dim, dtype=object)
+        for i, field in enumerate(self.fields):
+            values[i] = field.comp_x_as_sf
+        return values
+
+    @property
+    def Vx(self):
+        dim = (len(self), self.shape[0], self.shape[1])
+        values = np.empty(dim, dtype=float)
+        for i, field in enumerate(self.fields):
+            values[i, :, :] = field.comp_x[:, :]
+        return values
+
+    @property
+    def Vy_as_sf(self):
+        dim = len(self)
+        values = np.empty(dim, dtype=object)
+        for i, field in enumerate(self.fields):
+            values[i] = field.comp_y_as_sf
+        return values
+
+    @property
+    def Vy(self):
+        dim = (len(self), self.shape[0], self.shape[1])
+        values = np.empty(dim, dtype=float)
+        for i, field in enumerate(self.fields):
+            values[i, :, :] = field.comp_y[:, :]
+        return values
+
+    @property
+    def unit_values(self):
+        if len(self.fields) != 0:
+            return self[0].unit_values
+
     def add_field(self, vectorfield, time=0., unit_times=""):
         """
         Add a field to the existing fields.
@@ -4372,7 +4410,7 @@ class TemporalVelocityFields(VelocityFields, Field):
             self.unit_x = vectorfield.unit_x
             self.unit_y = vectorfield.unit_y
             self.unit_times = unit_times
-            self.times = np.array([time])
+            self.__times = np.array([time])
         # if not
         else:
             # checking axis
@@ -4383,25 +4421,24 @@ class TemporalVelocityFields(VelocityFields, Field):
                                  "with current axes")
             # storing time
             time = (time*self.unit_times/unit_times).asNumber()
-            self.times = np.append(self.times, time)
+            self.__times = np.append(self.__times, time)
         # use default constructor
         VelocityFields.add_field(self, vectorfield)
         # sorting the field with time
         self.__sort_field_by_time()
-    
+
     def remove_field(self, fieldnumber):
-          """
-          """
-          np.delete(self.times, fieldnumber)
-          VelocityFields.remove_field(self, fieldnumber)
-          
+        """
+        """
+        self.__times = np.delete(self.times, fieldnumber)
+        VelocityFields.remove_field(self, fieldnumber)
+
     def __sort_field_by_time(self):
         if len(self.fields) in [0, 1]:
             return None
         ind_sort = np.argsort(self.times)
         self.times = self.times[ind_sort]
         self.fields = self.fields[ind_sort]
-        +++ HERE +++
 
 #    def get_comp(self, componentname, raw=False, masked=True):
 #        """
@@ -4526,6 +4563,7 @@ class TemporalVelocityFields(VelocityFields, Field):
         Parameters
         ----------
         component : string
+            Can be 'Vx' or 'Vy'.
         x, y : numbers
             Wanted position for the time profile, in axis units.
 
@@ -4539,29 +4577,29 @@ class TemporalVelocityFields(VelocityFields, Field):
             raise TypeError("'component' must be a string")
         if not isinstance(x, NUMBERTYPES) or not isinstance(y, NUMBERTYPES):
             raise TypeError("'x' and 'y' must be numbers")
-        axe_x, axe_y = self.get_axes()
+        axe_x, axe_y = self.axe_x, self.axe_y
         if x < np.min(axe_x) or x > np.max(axe_x)\
                 or y < np.min(axe_y) or y > np.max(axe_y):
             raise ValueError("'x' ans 'y' values out of bounds")
-        compo_init = self[0].get_comp(component)
-        compos = self.get_comp(component, raw=True)
-        # if the given object is a ScalarField
-        if isinstance(compo_init, ScalarField):
-            time = self.get_comp('time')
-            unit_time = self[0].unit_time
-            values = np.zeros(len(compos))
-            mask = np.zeros(len(compos))
-            unit_values = self[0].unit_values
-            # getting position indices
-            ind_x = compo_init.get_indice_on_axe(1, x, nearest=True)
-            ind_y = compo_init.get_indice_on_axe(2, y, nearest=True)
-            for i in np.arange(len(compos)):
-                values[i] = compos[i].data[ind_y, ind_x]
-                mask[i] = compos[i].mask[ind_y, ind_x]
-            values = np.ma.masked_array(values, mask)
-            return Profile(time, values, unit_x=unit_time, unit_y=unit_values)
-        else:
-            raise ValueError("Unvalid component for a time profile")
+        # getting component values
+        if component == 'Vx':
+            compo = self.Vx_as_sf
+        elif component == 'Vy':
+            compo = self.Vy_as_sf
+        # gettign others datas
+        time = self.times
+        unit_time = self.unit_times
+        values = np.zeros(len(compo))
+        mask = np.zeros(len(compo))
+        unit_values = self.unit_values
+        # getting position indices
+        ind_x = compo[0].get_indice_on_axe(1, x, nearest=True)
+        ind_y = compo[0].get_indice_on_axe(2, y, nearest=True)
+        for i in np.arange(len(compo)):
+            values[i] = compo[i].values[ind_y, ind_x]
+            mask[i] = compo[i].mask[ind_y, ind_x]
+        values = np.ma.masked_array(values, mask)
+        return Profile(time, values, unit_x=unit_time, unit_y=unit_values)
 
     def get_spectrum(self, component, pt, ind=False, zero_fill=False,
                      interp=False, raw_spec=False, mask_error=True):
@@ -4617,68 +4655,66 @@ class TemporalVelocityFields(VelocityFields, Field):
             raise TypeError("'raw_spec' must be a boolean")
         x = pt[0]
         y = pt[1]
-        axe_x, axe_y = self.get_axes()
-        comp = self.get_comp(component)
-        if isinstance(comp[0], ScalarField):
-            # getting indices points
-            ind_x = None
-            ind_y = None
-            if ind:
-                ind_x = int(x)
-                ind_y = int(y)
-            elif not interp:
-                inds_x = self.fields[0].get_indice_on_axe(1, pt[0])
-                if len(inds_x) == 1:
-                    ind_x = inds_x[0]
-                else:
-                    vals = [axe_x[inds_x[0]], axe_x[inds_x[1]]] - x
-                    ind_x = inds_x[np.argmin(vals)]
-                inds_y = self.fields[0].get_indice_on_axe(2, pt[1])
-                if len(inds_y) == 1:
-                    ind_y = inds_y[0]
-                else:
-                    vals = [axe_y[inds_y[0]], axe_y[inds_y[1]]] - y
-                    ind_y = inds_y[np.argmin(vals)]
-            # getting temporal evolution
-            time = []
-            values = []
-            for i in np.arange(len(comp)):
-                sf = comp[i]
-                time.append(self[i].time)
-                if interp:
-                    values.append(sf.get_value(x, y, ind=ind))
-                else:
-                    try:
-                        values.append(sf.get_value(ind_y, ind_x, ind=True))
-                    except:
-                        pdb.set_trace()
-            # checking if position is masked
-            for i, val in enumerate(values):
-                if np.ma.is_masked(val):
-                    if zero_fill:
-                        values[i] = 0
-                    else:
-                        if mask_error:
-                            raise StandardError("Masked values on time "
-                                                "profile")
-                        else:
-                            return None, None
-
-            # getting spectrum
-            n = len(values)
-            Y = np.fft.rfft(values)
-            if raw_spec:
-                magn = np.abs(Y)
+        # getting datas
+        axe_x, axe_y = self.axe_x, self.axe_y
+        if component == "Vx":
+            comp = self.Vx_as_sf
+        elif component == "Vy":
+            comp = self.Vy_as_sf
+        # getting indices points
+        ind_x = None
+        ind_y = None
+        if ind:
+            ind_x = int(x)
+            ind_y = int(y)
+        elif not interp:
+            inds_x = self.get_indice_on_axe(1, pt[0])
+            if len(inds_x) == 1:
+                ind_x = inds_x[0]
             else:
-                magn = np.abs(Y)/(n/2)
-            phase = np.angle(Y)
-            # getting frequencies
-            Ts = time[1] - time[0]
-            frq = np.fft.rfftfreq(n, Ts)
+                vals = [axe_x[inds_x[0]], axe_x[inds_x[1]]] - x
+                ind_x = inds_x[np.argmin(vals)]
+            inds_y = self.get_indice_on_axe(2, pt[1])
+            if len(inds_y) == 1:
+                ind_y = inds_y[0]
+            else:
+                vals = [axe_y[inds_y[0]], axe_y[inds_y[1]]] - y
+                ind_y = inds_y[np.argmin(vals)]
+        # getting temporal evolution
+        time = []
+        values = []
+        for i in np.arange(len(comp)):
+            sf = comp[i]
+            time.append(self.times[i])
+            if interp:
+                values.append(sf.get_value(x, y, ind=ind))
+            else:
+                values.append(sf.get_value(ind_y, ind_x, ind=True))
+        # checking if position is masked
+        for i, val in enumerate(values):
+            if np.ma.is_masked(val):
+                if zero_fill:
+                    values[i] = 0
+                else:
+                    if mask_error:
+                        raise StandardError("Masked values on time "
+                                            "profile")
+                    else:
+                        return None, None
+
+        # getting spectrum
+        n = len(values)
+        Y = np.fft.rfft(values)
+        if raw_spec:
+            magn = np.abs(Y)
         else:
-            raise ValueError("Not implemented yet on {}".format(type(comp[0])))
+            magn = np.abs(Y)/(n/2)
+        phase = np.angle(Y)
+        # getting frequencies
+        Ts = time[1] - time[0]
+        frq = np.fft.rfftfreq(n, Ts)
         magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
-                            unit_y=comp[0].get_comp('unit_values'))
+                            unit_y=comp[0].unit_values)
         phase_prof = Profile(frq, phase, unit_x=make_unit('Hz'),
                              unit_y=make_unit('rad'))
         return magn_prof, phase_prof
@@ -4729,7 +4765,7 @@ class TemporalVelocityFields(VelocityFields, Field):
             raise TypeError("'intervalx' must be an array of numbers")
         if not isinstance(intervaly[0], NUMBERTYPES):
             raise TypeError("'intervaly' must be an array of numbers")
-        axe_x, axe_y = self.get_axes()
+        axe_x, axe_y = self.axe_x, self.axe_y
         # checking interval values
         if ind:
             if not isinstance(intervalx[0], int)\
@@ -4789,6 +4825,7 @@ class TemporalVelocityFields(VelocityFields, Field):
         phase = phase/real_nmb_fields
         return magn, phase
 
+    # TODO : +++HERE+++
     def calc_mean_vf(self, nmb_min=1):
         """
         Calculate the mean velocity field, from all the fields.
@@ -5037,7 +5074,7 @@ class TemporalVelocityFields(VelocityFields, Field):
             if i + nmb_in_interval > len(self):
                 break
         return tmp_TVFS
-        
+
     def set_origin(self, x=None, y=None):
         """
         Modify the axis in order to place the origin at the givev point (x, y)
@@ -5050,7 +5087,7 @@ class TemporalVelocityFields(VelocityFields, Field):
         Field.set_origin(self, x, y)
         for field in self.fields:
             field.set_origin(x, y)
-            
+
     def trim_area(self, intervalx=None, intervaly=None, full_output=False):
         """
         Return a trimed field in respect with given intervals.
@@ -5069,7 +5106,7 @@ class TemporalVelocityFields(VelocityFields, Field):
         for field in trimfield.fields:
             field.trim_area(intervalx, intervaly)
         return trimfield
-        
+
     def fill(self, kind='temporal', tof='interplin', value=[0., 0.],
              crop_border=True):
         """
