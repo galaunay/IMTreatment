@@ -1353,7 +1353,8 @@ class Field(object):
                 raise TypeError("'y' must be a number")
             self.axe_y -= y
 
-    def trim_area(self, intervalx=None, intervaly=None, full_output=False):
+    def trim_area(self, intervalx=None, intervaly=None, full_output=False,
+                  ind=False):
         """
         Return a trimed field in respect with given intervals.
 
@@ -1365,12 +1366,21 @@ class Field(object):
             interval wanted along y
         full_output : boolean, optional
             If 'True', cutting indices are alson returned
+        ind : boolean, optional
+            If 'True', intervals are understood as indices along axis.
+            If 'False' (default), intervals are understood in axis units.
         """
         axe_x, axe_y = self.axe_x, self.axe_y
         if intervalx is None:
-            intervalx = [axe_x[0], axe_x[-1]]
+            if ind:
+                intervalx = [0, len(axe_x)]
+            else:
+                intervalx = [axe_x[0], axe_x[-1]]
         if intervaly is None:
-            intervaly = [axe_y[0], axe_y[-1]]
+            if ind:
+                intervaly = [0, len(axe_y)]
+            else:
+                intervaly = [axe_y[0], axe_y[-1]]
         if not isinstance(intervalx, ARRAYTYPES):
             raise TypeError("'intervalx' must be an array of two numbers")
         intervalx = np.array(intervalx, dtype=float)
@@ -1390,22 +1400,29 @@ class Field(object):
         if intervaly[0] > intervaly[1]:
             raise ValueError("'intervaly' values must be crescent")
         # finding interval indices
-        if intervalx[0] <= axe_x[0]:
-            indmin_x = 0
+        if ind:
+            indmin_x = intervalx[0]
+            indmax_x = intervalx[1]
+            indmin_y = intervaly[0]
+            indmax_y = intervaly[1]
         else:
-            indmin_x = self.get_indice_on_axe(1, intervalx[0])[-1]
-        if intervalx[1] >= axe_x[-1]:
-            indmax_x = len(axe_x) - 1
-        else:
-            indmax_x = self.get_indice_on_axe(1, intervalx[1])[0]
-        if intervaly[0] <= axe_y[0]:
-            indmin_y = 0
-        else:
-            indmin_y = self.get_indice_on_axe(2, intervaly[0])[-1]
-        if intervaly[1] >= axe_y[-1]:
-            indmax_y = len(axe_y) - 1
-        else:
-            indmax_y = self.get_indice_on_axe(2, intervaly[1])[0]
+            if intervalx[0] <= axe_x[0]:
+                indmin_x = 0
+            else:
+                indmin_x = self.get_indice_on_axe(1, intervalx[0])[-1]
+            if intervalx[1] >= axe_x[-1]:
+                indmax_x = len(axe_x) - 1
+            else:
+                indmax_x = self.get_indice_on_axe(1, intervalx[1])[0]
+            if intervaly[0] <= axe_y[0]:
+                indmin_y = 0
+            else:
+                indmin_y = self.get_indice_on_axe(2, intervaly[0])[-1]
+            if intervaly[1] >= axe_y[-1]:
+                indmax_y = len(axe_y) - 1
+            else:
+                indmax_y = self.get_indice_on_axe(2, intervaly[1])[0]
+        # trimming the field
         trimfield = self.__class__()
         trimfield.axe_x = self.axe_x[indmin_x:indmax_x + 1]
         trimfield.axe_y = self.axe_y[indmin_y:indmax_y + 1]
@@ -2605,7 +2622,7 @@ class ScalarField(Field):
         """
         return copy.deepcopy(self)
 
-    def trim_area(self, intervalx=None, intervaly=None):
+    def trim_area(self, intervalx=None, intervaly=None, ind=False):
         """
         Return a trimed  area in respect with given intervals.
 
@@ -2615,9 +2632,13 @@ class ScalarField(Field):
             interval wanted along x
         intervaly : array, optional
             interval wanted along y
+        ind : boolean, optional
+            If 'True', intervals are understood as indices along axis.
+            If 'False' (default), intervals are understood in axis units.
         """
         indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
-            Field.trim_area(self, intervalx, intervaly, full_output=True)
+            Field.trim_area(self, intervalx, intervaly, full_output=True,
+                            ind=ind)
         trimfield.values = self.values[indmin_x:indmax_x + 1,
                                        indmin_y:indmax_y + 1]
         return trimfield
@@ -2631,25 +2652,15 @@ class ScalarField(Field):
         mask = self.mask
         if np.any(mask):
             return None
-        # getting values
-        values = self.values
-        # crop border along y
-        axe_y_m = np.logical_not(np.all(mask, axis=0))
-        if np.any(axe_y_m):
-            values = values[:, axe_y_m]
-            mask = mask[:, axe_y_m]
-        # crop values along x
-        axe_x_m = np.logical_not(np.all(mask, axis=1))
-        if np.any(axe_x_m):
-            values = values[axe_x_m, :]
-            mask = mask[axe_x_m, :]
-        # storing cropped values
-        cropped_field = self.__class__()
-        Field.__init__(cropped_field)
-        cropped_field.axe_x = axe_x[axe_x_m]
-        cropped_field.axe_y = axe_y[axe_y_m]
-        cropped_field.values = values
-        self = cropped_field
+        # getting indices where we need to cut
+        axe_y_m = np.logical_not(np.all(mask, axis=1))
+        axe_x_m = np.logical_not(np.all(mask, axis=0))
+        axe_x_min = np.where(axe_x_m)[0][0]
+        axe_x_max = np.where(axe_x_m)[0][-1]
+        axe_y_min = np.where(axe_y_m)[0][0]
+        axe_y_max = np.where(axe_y_m)[0][-1]
+        self.trim_area([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
+                       ind=True)    
 
     def fill(self, tof='linear', value=0., remaining_values=np.nan,
              crop_border=True, ):
@@ -3951,7 +3962,7 @@ class VectorField(Field):
         else:
             raise ValueError("unknown 'tof' value")
 
-    def trim_area(self, intervalx=None, intervaly=None):
+    def trim_area(self, intervalx=None, intervaly=None, ind=False):
         """
         Return a trimed  area in respect with given intervals.
 
@@ -3961,9 +3972,13 @@ class VectorField(Field):
             interval wanted along x
         intervaly : array, optional
             interval wanted along y
+        ind : boolean, optional
+            If 'True', intervals are understood as indices along axis.
+            If 'False' (default), intervals are understood in axis units.
         """
         indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
-            Field.trim_area(self, intervalx, intervaly, full_output=True)
+            Field.trim_area(self, intervalx, intervaly, full_output=True,
+                            ind=ind)
         trimfield.comp_x = self.comp_x[indmin_x:indmax_x + 1,
                                        indmin_y:indmax_y + 1]
         trimfield.comp_y = self.comp_y[indmin_x:indmax_x + 1,
@@ -3976,30 +3991,18 @@ class VectorField(Field):
         """
         axe_x, axe_y = self.axe_x, self.axe_y
         # checking masked values presence
-        Vx, Vy = self.comp_x, self.comp_y
         mask = self.mask
-        if not np.any(mask):
+        if np.any(mask):
             return None
-        # crop border along y
-        axe_y_m = np.logical_not(np.all(mask, axis=0))
-        if not np.any(axe_y_m):
-            Vx = Vx[:, axe_y_m]
-            Vy = Vy[:, axe_y_m]
-            mask = mask[:, axe_y_m]
-        # crop values along x
-        axe_x_m = np.logical_not(np.all(mask, axis=1))
-        if np.any(axe_x_m):
-            Vx = Vx[axe_x_m, :]
-            Vy = Vy[axe_x_m, :]
-            mask = mask[axe_x_m, :]
-        # storing cropped values
-        unit_x, unit_y = self.unit_x, self.unit_y
-        unit_values = self.unit_values
-        tmp_vf = self.__class__()
-        VectorField.import_from_arrays(tmp_vf, axe_x, axe_y, Vx, Vy, mask=mask,
-                                       unit_x=unit_x, unit_y=unit_y,
-                                       unit_values=unit_values)
-        self = tmp_vf
+        # getting indices where we need to cut
+        axe_y_m = np.logical_not(np.all(mask, axis=1))
+        axe_x_m = np.logical_not(np.all(mask, axis=0))
+        axe_x_min = np.where(axe_x_m)[0][0]
+        axe_x_max = np.where(axe_x_m)[0][-1]
+        axe_y_min = np.where(axe_y_m)[0][0]
+        axe_y_max = np.where(axe_y_m)[0][-1]
+        self.trim_area([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
+                       ind=True)  
 
     def _display(self, component=None, kind=None, **plotargs):
         if kind is not None:
@@ -4106,12 +4109,12 @@ class VectorField(Field):
             raise ValueError("Unknown 'component' value")
         return displ
 
-class VelocityFields(object):
+class Fields(object):
     """
-    Class representing a set of velocity fields. These fields can have
+    Class representing a set of fields. These fields can have
     differente positions along axes, or be successive view of the same area.
     It's recommended to use TemporalVelocityFields or SpatialVelocityFields
-    insteas of this one.
+    instead of this one.
     """
 
     def __init__(self):
@@ -4137,35 +4140,18 @@ class VelocityFields(object):
         """
         self.fields = np.delete(self.fields, fieldnumber)
 
-    def add_field(self, vectorfield):
+    def add_field(self, field):
         """
         Add a field to the existing fields.
 
         Parameters
         ----------
-        vectorfield : VectorField object
-            The velocity field to add.
+        field : VectorField or ScalarField object
+            The field to add.
         """
-        if not isinstance(vectorfield, VectorField):
+        if not isinstance(field, (VectorField, ScalarField)):
             raise TypeError("'vectorfield' must be a VelocityField object")
-        self.fields = np.append(self.fields, vectorfield.copy())
-
-    def get_field(self, fieldnumber):
-        """
-        Return the velocity field referenced by the given fieldnumber.
-
-        Parameters
-        ----------
-        fieldnumber : integer
-            Reference to the wanted field number.
-
-        Returns
-        -------
-        field : VelocityField object
-            The wanted velocity field.
-        """
-        field = self.fields[fieldnumber]
-        return field
+        self.fields = np.append(self.fields, field.copy())
 
     def copy(self):
         """
@@ -4193,45 +4179,34 @@ class VelocityFields(object):
             for field in self.fields:
                 field.set_origin(None, y)
 
-
-class TemporalVelocityFields(VelocityFields, Field):
+class TemporalFields(Fields, Field):
     """
-    Class representing a set of time-evolving velocity fields.
-
-    Principal methods
-    -----------------
-    "add_field" : add a velocity field.
-
-    "remove_field" : remove a field.
-
-    "display" : display the vector field, with these unities.
-
-    "display_animate" : display an animation of a component of the velocity
-    fields set.
-
-    "calc_*" : give access to a bunch of derived statistical fields.
+    Class representing a set of time evolving fields.
+    All fields added to this object has to have the same axis system.
     """
-
+    
     def __init__(self):
         Field.__init__(self)
-        VelocityFields.__init__(self)
+        Fields.__init__(self)
         self.__times = np.array([], dtype=float)
         self.__unit_times = make_unit("")
-
+        self.field_type = None
+        
     def __add__(self, other):
-        if isinstance(other, TemporalVelocityFields):
-            tmp_tvfs = self.copy()
-            tmp_tvfs._clear_derived()
-            tmp_tvfs.fields = np.append(tmp_tvfs.fields, other.fields)
-            tmp_tvfs.times = np.append(tmp_tvfs.times, other.times)
-            return tmp_tvfs
+        if isinstance(other, self.__class__):
+            tmp_tfs = self.copy()
+            otimes = other.times
+            ounit_times = other.unit_times
+            for i, ofield in enumerate(other):
+                tmp_tfs.add_field(ofield, otimes[i], ounit_times)
+            return tmp_tfs
         else:
-            raise TypeError("cannot concatenate temporal velocity fields with"
-                            " {}.".format(type(other)))
-
+            raise TypeError("cannot concatenate {} with"
+                            " {}.".format(self.__class__, type(other)))
+                            
     def __mul__(self, other):
         if isinstance(other, (NUMBERTYPES, unum.Unum)):
-            final_vfs = TemporalVelocityFields()
+            final_vfs = self.__class__.__init__()
             for field in self.fields:
                 final_vfs.add_field(field*other)
             return final_vfs
@@ -4243,7 +4218,7 @@ class TemporalVelocityFields(VelocityFields, Field):
 
     def __truediv__(self, other):
         if isinstance(other, (NUMBERTYPES, unum.Unum)):
-            final_vfs = TemporalVelocityFields()
+            final_vfs = self.__class__.__init__()
             for field in self.fields:
                 final_vfs.add_field(field/other)
             return final_vfs
@@ -4257,28 +4232,15 @@ class TemporalVelocityFields(VelocityFields, Field):
         if not isinstance(number, NUMBERTYPES):
             raise TypeError("You only can use a number for the power "
                             "on a Vectorfield")
-        final_vfs = TemporalVelocityFields()
+        final_vfs = self.__class__.__init__()
         for field in self.fields:
             final_vfs.add_field(np.power(field, number))
         return final_vfs
 
-#    def _clear_derived(self):
-#        """
-#        Delete all the derived fields, in case of changement in the base
-#        fields.
-#        """
-#        derived = ["mean_vf", "turbulent_vf", "mean_kinetic_energy",
-#                   "tke", "mean_tke", "rs_xx", "rs_xy", "rs_yy"]
-#        for attr in derived:
-#            try:
-#                del self.__dict__[attr]
-#            except KeyError:
-#                pass
-
     def __iter__(self):
         for i in np.arange(len(self.fields)):
             yield self.times[i], self.fields[i]
-
+                            
     @Field.axe_x.setter
     def axe_x(self, value):
         Field.axe_x.fset(self, value)
@@ -4302,6 +4264,13 @@ class TemporalVelocityFields(VelocityFields, Field):
         Field.unit_y.fset(self, value)
         for field in self.fields:
             field.unit_y = value
+
+    @property
+    def mask(self):
+        dim = (len(self.fields), self.shape[0], self.shape[1])
+        mask_f = np.empty(dim)
+        for i, field in enumerate(self.fields):
+            mask_f[i, :, :] = field.mask[:, :]
 
     @property
     def times(self):
@@ -4340,6 +4309,487 @@ class TemporalVelocityFields(VelocityFields, Field):
     @unit_times.deleter
     def unit_times(self):
         raise Exception("Nope, can't do that")
+        
+    @property
+    def unit_values(self):
+        if len(self.fields) != 0:
+            return self[0].unit_values
+            
+    def __sort_field_by_time(self):
+        if len(self.fields) in [0, 1]:
+            return None
+        ind_sort = np.argsort(self.times)
+        self.times = self.times[ind_sort]
+        self.fields = self.fields[ind_sort]   
+
+    def add_field(self, field, time=0., unit_times=""):
+        """
+        Add a field to the existing fields.
+
+        Parameters
+        ----------
+        field : VectorField or ScalarField object
+            The field to add.
+        time : number
+            time associated to the field.
+        unit_time : Unum object
+            time unit.
+        """
+        # TODO : pas de vérification de la cohérence des unitées !
+        # checking parameters
+        if not isinstance(field, (VectorField, ScalarField)):
+            raise TypeError()
+        if not isinstance(time, NUMBERTYPES):
+            raise TypeError()
+        if isinstance(unit_times, unum.Unum):
+            if unit_times.asNumber() != 1:
+                raise ValueError()
+        elif isinstance(unit_times, STRINGTYPES):
+            unit_times = make_unit(unit_times)
+        else:
+            raise TypeError()
+        # if this is the first field
+        if len(self.fields) == 0:
+            self.axe_x = field.axe_x
+            self.axe_y = field.axe_y
+            self.unit_x = field.unit_x
+            self.unit_y = field.unit_y
+            self.unit_times = unit_times
+            self.__times = np.array([time])
+            self.field_type = field.__class__
+        # if not
+        else:
+            # checking field type
+            if not isinstance(field, self.field_type):
+                raise TypeError()
+            # checking axis
+            axe_x, axe_y = self.axe_x, self.axe_y
+            vaxe_x, vaxe_y = field.axe_x, field.axe_y
+            if not np.all(axe_x == vaxe_x) and np.all(axe_y == vaxe_y):
+                raise ValueError("Axes of the new field must be consistent "
+                                 "with current axes")
+            # storing time
+            time = (time*self.unit_times/unit_times).asNumber()
+            self.__times = np.append(self.__times, time)
+        # use default constructor
+        Fields.add_field(self, field)
+        # sorting the field with time
+        self.__sort_field_by_time()
+
+    def remove_field(self, fieldnumber):
+        """
+        Remove the wanted field.
+        """
+        self.__times = np.delete(self.times, fieldnumber)
+        Fields.remove_field(self, fieldnumber)
+
+    def copy(self):
+        """
+        Return a copy of the velocityfields
+        """
+        return copy.deepcopy(self)
+
+    def reduce_temporal_resolution(self, nmb_in_interval, mean=True):
+        """
+        Return a TemporalVelocityFields, contening one field for each
+        'nmb_in_interval' field in the initial TFVS.
+
+        Parameters
+        ----------
+        nmb_in_interval : integer
+            Length of the interval.
+            (one field is kept for each 'nmb_in_interval fields)
+        mean : boolean, optional
+            If 'True', the resulting fields are average over the interval.
+            Else, fields are taken directly.
+
+        Returns
+        -------
+        TVFS : TemporalVelocityFields
+        """
+        if not isinstance(nmb_in_interval, int):
+            raise TypeError("'nmb_in_interval' must be an integer")
+        if nmb_in_interval == 1:
+            return self.copy()
+        if nmb_in_interval >= len(self):
+            raise ValueError("'nmb_in_interval' is too big")
+        if not isinstance(mean, bool):
+            raise TypeError("'mean' must be a boolean")
+        tmp_TFS = self.__class__.__init__()
+        i = 0
+        while True:
+            tmp_f = self[i]
+            time = self[i].time
+            if mean:
+                for j in np.arange(i + 1, i + nmb_in_interval):
+                    tmp_f += self[j]
+                    time += self[j].time
+                tmp_f /= nmb_in_interval
+                time /= nmb_in_interval
+                tmp_f.time = time
+            tmp_TFS.add_field(tmp_f)
+            i += nmb_in_interval
+            if i + nmb_in_interval > len(self):
+                break
+        return tmp_TFS
+        
+    def crop_masked_border(self):
+        """
+        Crop the masked border of the velocity fields in place.
+        """
+        # getting big mask (where all the value are masked)
+        masks_temp = self.mask
+        mask_temp = np.sum(masks_temp)
+        mask_temp = mask_temp == len(masks_temp)
+        # checking masked values presence
+        if not np.any(mask_temp):
+            return None
+        # getting positions to remove (column or line with only masked values)
+        axe_y_m = ~np.all(mask_temp, axis=1)
+        axe_x_m = ~np.all(mask_temp, axis=0)
+        # skip if nothing to do
+        if not np.any(axe_y_m) or not np.any(axe_x_m):
+            return None
+        # getting indices where we need to cut
+        axe_x_min = np.where(axe_x_m)[0][0]
+        axe_x_max = np.where(axe_x_m)[0][-1]
+        axe_y_min = np.where(axe_y_m)[0][0]
+        axe_y_max = np.where(axe_y_m)[0][-1]
+        # trim
+        self.trim_area([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
+                       ind=True)     
+            
+    def trim_area(self, intervalx=None, intervaly=None, full_output=False,
+                  ind=False):
+        """
+        Return a trimed field in respect with given intervals.
+
+        Parameters
+        ----------
+        intervalx : array, optional
+            interval wanted along x
+        intervaly : array, optional
+            interval wanted along y
+        full_output : boolean, optional
+            If 'True', cutting indices are alson returned
+        """
+        trimfield = \
+            Field.trim_area(self, intervalx, intervaly, ind=ind)
+        for field in trimfield.fields:
+            field.trim_area(intervalx, intervaly, ind=ind)
+        return trimfield
+
+    def get_mean_field(self, nmb_min=1):
+        """
+        Calculate the mean velocity field, from all the fields.
+
+        Parameters
+        ----------
+        nmb_min : integer, optional
+            Minimum number of values used to make a mean. else, the value is
+            masked
+        """
+        if len(self.fields) == 0:
+            raise ValueError("There is no fields in this object")
+        result_f = self.fields[0].copy()
+        mask_cum = np.zeros(self.shape) 
+        for field in self.fields[1::]:
+            result_f += field
+            mask_cum += np.logical_not(field.mask)
+        result_f /= len(self.fields)
+        result_f.mask = mask_cum <= nmb_min
+        return result_f
+
+    def get_time_profile(self, component, x, y, ind=False):
+        """
+        Return a profile contening the time evolution of the given component.
+
+        Parameters
+        ----------
+        component : string
+            Should be an attribute name of the stored fields.
+        x, y : numbers
+            Wanted position for the time profile, in axis units.
+        ind : boolean, optional
+            If 'True', values are undersood as indices.
+
+        Returns
+        -------
+        profile : Profile object
+
+        """
+        # check parameters coherence
+        if not isinstance(component, STRINGTYPES):
+            raise TypeError("'component' must be a string")
+        if not isinstance(x, NUMBERTYPES) or not isinstance(y, NUMBERTYPES):
+            raise TypeError("'x' and 'y' must be numbers")
+        if ind:
+            if not (isinstance(x, int) and isinstance(y, int)):
+                raise TypeError()
+            ind_x = x
+            ind_y = y
+        else:
+            ind_x = self.get_indice_on_axe(1, x, nearest=True)
+            ind_y = self.get_indice_on_axe(2, y, nearest=True)            
+        axe_x, axe_y = self.axe_x, self.axe_y
+        if not (0 <= x < len(axe_x) and 0 <= y < len(axe_y)):
+            raise ValueError("'x' ans 'y' values out of bounds")
+        # getting component values
+        dim = (len(self.fields), self.shape[0], self.shape[1])
+        compo = np.empty(dim)
+        masks = np.empty(dim)
+        for i, field in enumerate(self.fields):
+            compo[i] = field.__getattribute__(component)
+            masks[i] = field.mask
+        # gettign others datas
+        time = self.times
+        unit_time = self.unit_times
+        prof_values = np.zeros(len(compo))
+        prof_mask = np.zeros(len(compo))
+        unit_values = self.unit_values
+        # getting position indices
+        ind_x = self.get_indice_on_axe(1, x, nearest=True)
+        ind_y = self.get_indice_on_axe(2, y, nearest=True)
+        for i in np.arange(len(compo)):
+            prof_values[i] = compo[i, ind_x, ind_y]
+            prof_mask[i] = masks[i, ind_x, ind_y]
+        prof_values = np.ma.masked_array(prof_values, prof_mask)
+        return Profile(time, prof_values, unit_x=unit_time, unit_y=unit_values)
+
+    def get_spectrum(self, component, pt, ind=False, zero_fill=False,
+                     raw_spec=False, mask_error=True):
+        """
+        Return a Profile object, with the frequential spectrum of 'component',
+        on the point 'pt'.
+
+        Parameters
+        ----------
+        component : string
+        pt : 2x1 array of numbers
+        ind : boolean
+            If true, 'pt' is read as indices,
+            else, 'pt' is read as coordinates.
+        zero_fill : boolean
+            If True, field masked values are filled by zeros.
+        raw_spec: boolean
+            If 'False' (default), returned spectrum is
+            'abs(raw_spec)/length_signal' in order to have coherent ordinate
+            axis.
+            Else, raw spectrum is returned.
+        mask_error : boolean
+            If 'False', instead of raising an error when masked value appear on
+            time profile, '(None, None)' is returned.
+
+        Returns
+        -------
+        magn_prof : Profile object
+            Magnitude spectrum.
+        phase_prof : Profile object
+            Phase spectrum
+        """
+        # checking parameters coherence
+        if not isinstance(pt, ARRAYTYPES):
+            raise TypeError("'pt' must be a 2x1 array")
+        if ind:
+            pt = np.array(pt, dtype=int)
+        else:
+            pt = np.array(pt, dtype=float)
+        if not pt.shape == (2,):
+            raise ValueError("'pt' must be a 2x1 array")
+        if ind and (not isinstance(pt[0], int) or not isinstance(pt[1], int)):
+            raise TypeError("If 'ind' is True, 'pt' must be an array of two"
+                            " integers")
+        if not isinstance(ind, bool):
+            raise TypeError("'ind' must be a boolean")
+        if not isinstance(raw_spec, bool):
+            raise TypeError("'raw_spec' must be a boolean")
+        x = pt[0]
+        y = pt[1]
+        # getting ime profile
+        time_prof = self.get_time_profile(component, x, y, ind=ind)
+        values = time_prof.y
+        time = time_prof.x
+        # checking if position is masked
+        for i, val in enumerate(values):
+            if np.ma.is_masked(val):
+                if zero_fill:
+                    values[i] = 0
+                else:
+                    if mask_error:
+                        raise StandardError("Masked values on time "
+                                            "profile")
+                    else:
+                        return None, None
+
+        # getting spectrum
+        n = len(values)
+        Y = np.fft.rfft(values)
+        if raw_spec:
+            magn = np.abs(Y)
+        else:
+            magn = np.abs(Y)/(n/2)
+        phase = np.angle(Y)
+        # getting frequencies
+        Ts = time[1] - time[0]
+        frq = np.fft.rfftfreq(n, Ts)
+        magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
+                            unit_y=self.unit_values)
+        phase_prof = Profile(frq, phase, unit_x=make_unit('Hz'),
+                             unit_y=make_unit('rad'))
+        return magn_prof, phase_prof
+
+    def get_spectrum_over_area(self, component, intervalx, intervaly,
+                               ind=False, zero_fill=False,
+                               raw_spec=False):
+        """
+        Return a Profile object, contening a mean spectrum of the given
+        component, on all the points included in the given intervals.
+
+        Parameters
+        ----------
+        component : string
+            Scalar component ('Vx', 'Vy', 'magnitude', ...).
+        intervalx, intervaly : 2x1 arrays of numbers
+            Defining the square on which averaging the spectrum.
+            (in axes values)
+        ind : boolean
+            If true, 'pt' is read as indices,
+            else, 'pt' is read as coordinates.
+        zero_fill : boolean
+            If True, field masked values are filled by zeros.
+        raw_spec: boolean
+            If 'False' (default), returned spectrum is
+            'abs(raw_spec)/length_signal' in order to have coherent ordinate
+            axis.
+            Else, raw spectrum is returned.
+
+        Returns
+        -------
+        magn_prof : Profile object
+            Averaged magnitude spectrum.
+        phase_prof : Profile object
+            Averaged phase spectrum
+        """
+        # checking parameters coherence
+        if not isinstance(component, STRINGTYPES):
+            raise TypeError("'component' must be a string")
+        if not isinstance(intervalx, ARRAYTYPES):
+            raise TypeError("'intervalx' must be an array")
+        if not isinstance(intervaly, ARRAYTYPES):
+            raise TypeError("'intervaly' must be an array")
+        if not isinstance(intervalx[0], NUMBERTYPES):
+            raise TypeError("'intervalx' must be an array of numbers")
+        if not isinstance(intervaly[0], NUMBERTYPES):
+            raise TypeError("'intervaly' must be an array of numbers")
+        axe_x, axe_y = self.axe_x, self.axe_y
+        # checking interval values and getting bound indices
+        if ind:
+            if not isinstance(intervalx[0], int)\
+                    or not isinstance(intervalx[1], int)\
+                    or not isinstance(intervaly[0], int)\
+                    or not isinstance(intervaly[1], int):
+                raise TypeError("'intervalx' and 'intervaly' must be arrays of"
+                                " integer if 'ind' is 'True'")
+            if intervalx[0] < 0 or intervaly[0] < 0\
+                    or intervalx[-1] >= len(axe_x)\
+                    or intervaly[-1] >= len(axe_y):
+                raise ValueError("intervals are out of bounds")
+            ind_x_min = intervalx[0]
+            ind_x_max = intervalx[1]
+            ind_y_min = intervaly[0]
+            ind_y_max = intervaly[1]
+        else:
+            axe_x_min = np.min(axe_x)
+            axe_x_max = np.max(axe_x)
+            axe_y_min = np.min(axe_y)
+            axe_y_max = np.max(axe_y)
+            if np.min(intervalx) < axe_x_min\
+                    or np.max(intervalx) > axe_x_max\
+                    or np.min(intervaly) < axe_y_min\
+                    or np.max(intervaly) > axe_y_max:
+                raise ValueError("intervals are out of bounds")
+            ind_x_min = self.get_indice_on_axe(1, intervalx[0])[0]
+            ind_x_max = self.get_indice_on_axe(1, intervalx[1])[-1]
+            ind_y_min = self.get_indice_on_axe(2, intervaly[0])[0]
+            ind_y_max = self.get_indice_on_axe(2, intervaly[1])[-1]
+        # Averaging ponctual spectrums
+        magn = 0.
+        phase = 0.
+        nmb_fields = (ind_x_max - ind_x_min + 1)*(ind_y_max - ind_y_min + 1)
+        real_nmb_fields = nmb_fields
+        for i in np.arange(ind_x_min, ind_x_max + 1):
+            for j in np.arange(ind_y_min, ind_y_max + 1):
+                tmp_m, tmp_p = self.get_spectrum(component, [i, j], ind=True,
+                                                 zero_fill=zero_fill,
+                                                 raw_spec=raw_spec,
+                                                 mask_error=False)
+                # check if the position is masked
+                if tmp_m is None:
+                    real_nmb_fields -= 1
+                else:
+                    magn = magn + tmp_m
+                    phase = phase + tmp_p
+        if real_nmb_fields == 0:
+            raise StandardError("I can't find a single non-masked time profile"
+                                ", maybe you will want to try 'zero_fill' "
+                                "option")
+        magn = magn/real_nmb_fields
+        phase = phase/real_nmb_fields
+        return magn, phase
+        
+
+class TemporalScalarFields(TemporalFields):
+    """
+    Class representing a set of time-evolving scalar fields.
+
+    Principal methods
+    -----------------
+    "add_field" : add a scalar field.
+
+    "remove_field" : remove a field.
+
+    "display" : display the scalar field, with these unities.
+
+    "display_animate" : display an animation of a component of the velocity
+    fields set.
+
+    "calc_*" : give access to a bunch of derived statistical fields.
+    """
+    
+    @property
+    def values(self):
+        dim = len(self)
+        values = np.empty(dim, dtype=object)
+        for i, field in enumerate(self.fields):
+            values[i] = field
+        return values
+
+    @property
+    def values_as_sf(self):
+        dim = (len(self), self.shape[0], self.shape[1])
+        values = np.empty(dim, dtype=float)
+        for i, field in enumerate(self.fields):
+            values[i, :, :] = field.values[:, :]
+        return values   
+
+
+class TemporalVectorFields(TemporalFields):
+    """
+    Class representing a set of time-evolving velocity fields.
+
+    Principal methods
+    -----------------
+    "add_field" : add a velocity field.
+
+    "remove_field" : remove a field.
+
+    "display" : display the vector field, with these unities.
+
+    "display_animate" : display an animation of a component of the velocity
+    fields set.
+
+    "calc_*" : give access to a bunch of derived statistical fields.
+    """
 
     @property
     def Vx_as_sf(self):
@@ -4372,507 +4822,6 @@ class TemporalVelocityFields(VelocityFields, Field):
         for i, field in enumerate(self.fields):
             values[i, :, :] = field.comp_y[:, :]
         return values
-
-    @property
-    def unit_values(self):
-        if len(self.fields) != 0:
-            return self[0].unit_values
-
-    def add_field(self, vectorfield, time=0., unit_times=""):
-        """
-        Add a field to the existing fields.
-
-        Parameters
-        ----------
-        vectorfield : VectorField object
-            The vector field to add.
-        time : number
-            time associated to the field.
-        unit_time : Unum object
-            time unit.
-        """
-        # checking parameters
-        if not isinstance(vectorfield, VectorField):
-            raise TypeError()
-        if not isinstance(time, NUMBERTYPES):
-            raise TypeError()
-        if isinstance(unit_times, unum.Unum):
-            if unit_times.asNumber() != 1:
-                raise ValueError()
-        elif isinstance(unit_times, STRINGTYPES):
-            unit_times = make_unit(unit_times)
-        else:
-            raise TypeError()
-        # if this is the first field
-        if len(self.fields) == 0:
-            self.axe_x = vectorfield.axe_x
-            self.axe_y = vectorfield.axe_y
-            self.unit_x = vectorfield.unit_x
-            self.unit_y = vectorfield.unit_y
-            self.unit_times = unit_times
-            self.__times = np.array([time])
-        # if not
-        else:
-            # checking axis
-            axe_x, axe_y = self.axe_x, self.axe_y
-            vaxe_x, vaxe_y = vectorfield.axe_x, vectorfield.axe_y
-            if not np.all(axe_x == vaxe_x) and np.all(axe_y == vaxe_y):
-                raise ValueError("Axes of the new field must be consistent "
-                                 "with current axes")
-            # storing time
-            time = (time*self.unit_times/unit_times).asNumber()
-            self.__times = np.append(self.__times, time)
-        # use default constructor
-        VelocityFields.add_field(self, vectorfield)
-        # sorting the field with time
-        self.__sort_field_by_time()
-
-    def remove_field(self, fieldnumber):
-        """
-        """
-        self.__times = np.delete(self.times, fieldnumber)
-        VelocityFields.remove_field(self, fieldnumber)
-
-    def __sort_field_by_time(self):
-        if len(self.fields) in [0, 1]:
-            return None
-        ind_sort = np.argsort(self.times)
-        self.times = self.times[ind_sort]
-        self.fields = self.fields[ind_sort]
-
-#    def get_comp(self, componentname, raw=False, masked=True):
-#        """
-#        Return a reference to the field designed by 'fieldname'.
-#
-#        Parameters
-#        ----------
-#        componentname : string
-#            Name of the component.
-#        raw : boolean, optional
-#            .
-#        masked : boolean, optional
-#            .
-#
-#        Returns
-#        -------
-#        component : VelocityField, VectorField or ScalarField object or array
-#        of these objects
-#            Reference to the field.
-#        """
-#        values = None
-#        if not isinstance(componentname, str):
-#            raise TypeError("'componentname' must be a string")
-#        # Temporal Velocity Field attributes
-#        elif componentname == "fields":
-#            values = copy.deepcopy(self.fields)
-#        elif componentname == "mean_vf":
-#            try:
-#                values = self.mean_vf.copy()
-#            except AttributeError:
-#                self.calc_mean_vf()
-#                values = self.mean_vf.copy()
-#        elif componentname == "turbulent_vf":
-#            try:
-#                values = self.turbulent_vf.copy()
-#            except AttributeError:
-#                self.calc_turbulent_vf()
-#                values = self.turbulent_vf.copy()
-#        elif componentname == "mean_kinetic_energy":
-#            try:
-#                values = self.mean_kinetic_energy.copy()
-#            except AttributeError:
-#                self.calc_mean_kinetic_energy()
-#                values = self.mean_kinetic_energy.copy()
-#        elif componentname == "turbulent_kinetic_energy":
-#            try:
-#                values = self.turbulent_kinetic_energy.copy()
-#            except AttributeError:
-#                self.calc_turbulent_kinetic_energy()
-#                values = self.turbulent_kinetic_energy.copy()
-#        elif componentname == "rs_xx":
-#            try:
-#                values = self.rs_xx.copy()
-#            except AttributeError:
-#                self.calc_reynolds_stress()
-#                values = self.rs_xx.copy()
-#        elif componentname == "rs_yy":
-#            try:
-#                values = self.rs_yy.copy()
-#            except AttributeError:
-#                self.calc_reynolds_stress()
-#                values = self.rs_yy.copy()
-#        elif componentname == "rs_xy":
-#            try:
-#                values = self.rs_xy.copy()
-#            except AttributeError:
-#                self.calc_reynolds_stress()
-#                values = self.rs_xy.copy()
-#        elif componentname == "tke":
-#            try:
-#                values = self.tke.copy()
-#            except AttributeError:
-#                self.calc_tke()
-#                values = copy.deepcopy(self.tke)
-#        elif componentname == "mean_tke":
-#            try:
-#                values = self.mean_tke.copy()
-#            except AttributeError:
-#                self.calc_mean_tke()
-#                values = self.mean_tke.copy()
-#        # values treatment
-#        if values is not None:
-#            if not raw:
-#                return values
-#            elif isinstance(values, ScalarField):
-#                return values.get_comp('values', raw=raw, masked=masked)
-#            elif isinstance(values, VectorField):
-#                return values.get_comp('V', raw=raw, masked=masked)
-#            elif isinstance(values[0], ScalarField):
-#                return [sf.get_comp('values', raw=raw, masked=masked)
-#                        for sf in values]
-#            elif isinstance(values[0], VectorField):
-#                return [vf.get_comp('V', raw=raw, masked=masked)
-#                        for vf in values]
-#            else:
-#                raise StandardError()
-#        # Velocity Field attributes
-#        elif len(self.fields) != 0:
-#            try:
-#                self.fields[0].get_comp(componentname, raw=raw)
-#            except ValueError:
-#                pass
-#            else:
-#                tmp_fields = np.zeros((len(self.fields),), dtype=np.ndarray)
-#                for i, field in enumerate(self.fields):
-#                    tmp_fields[i] = field.get_comp(componentname, raw=raw,
-#                                                   masked=masked)
-#                return np.array(tmp_fields)
-#        raise ValueError("Unknown component : {}".format(componentname))
-
-
-    def copy(self):
-        """
-        Return a copy of the velocityfields
-        """
-        return copy.deepcopy(self)
-
-    def get_time_profile(self, component, x, y):
-        """
-        Return a profile contening the time evolution of the given component.
-
-        Parameters
-        ----------
-        component : string
-            Can be 'Vx' or 'Vy'.
-        x, y : numbers
-            Wanted position for the time profile, in axis units.
-
-        Returns
-        -------
-        profile : Profile object
-
-        """
-        # check parameters coherence
-        if not isinstance(component, STRINGTYPES):
-            raise TypeError("'component' must be a string")
-        if not isinstance(x, NUMBERTYPES) or not isinstance(y, NUMBERTYPES):
-            raise TypeError("'x' and 'y' must be numbers")
-        axe_x, axe_y = self.axe_x, self.axe_y
-        if x < np.min(axe_x) or x > np.max(axe_x)\
-                or y < np.min(axe_y) or y > np.max(axe_y):
-            raise ValueError("'x' ans 'y' values out of bounds")
-        # getting component values
-        if component == 'Vx':
-            compo = self.Vx_as_sf
-        elif component == 'Vy':
-            compo = self.Vy_as_sf
-        # gettign others datas
-        time = self.times
-        unit_time = self.unit_times
-        values = np.zeros(len(compo))
-        mask = np.zeros(len(compo))
-        unit_values = self.unit_values
-        # getting position indices
-        ind_x = compo[0].get_indice_on_axe(1, x, nearest=True)
-        ind_y = compo[0].get_indice_on_axe(2, y, nearest=True)
-        for i in np.arange(len(compo)):
-            values[i] = compo[i].values[ind_y, ind_x]
-            mask[i] = compo[i].mask[ind_y, ind_x]
-        values = np.ma.masked_array(values, mask)
-        return Profile(time, values, unit_x=unit_time, unit_y=unit_values)
-
-    def get_spectrum(self, component, pt, ind=False, zero_fill=False,
-                     interp=False, raw_spec=False, mask_error=True):
-        """
-        Return a Profile object, with the frequential spectrum of 'component',
-        on the point 'pt'.
-
-        Parameters
-        ----------
-        component : string
-        pt : 2x1 array of numbers
-        ind : boolean
-            If true, 'pt' is read as indices,
-            else, 'pt' is read as coordinates.
-        zero_fill : boolean
-            If True, field masked values are filled by zeros.
-        interp : boolean
-            If 'True', linear interpolation is used to get component between
-            grid points, else, the nearest point is choosen.
-        raw_spec: boolean
-            If 'False' (default), returned spectrum is
-            'abs(raw_spec)/length_signal' in order to have coherent ordinate
-            axis.
-            Else, raw spectrum is returned.
-        mask_error : boolean
-            If 'False', instead of raising an error when masked value appear on
-            time profile, '(None, None)' is returned.
-
-        Returns
-        -------
-        magn_prof : Profile object
-            Magnitude spectrum.
-        phase_prof : Profile object
-            Phase spectrum
-        """
-        # checking parameters coherence
-        if not isinstance(pt, ARRAYTYPES):
-            raise TypeError("'pt' must be a 2x1 array")
-        if ind:
-            pt = np.array(pt, dtype=int)
-        else:
-            pt = np.array(pt, dtype=float)
-        if not pt.shape == (2,):
-            raise ValueError("'pt' must be a 2x1 array")
-        if ind and (not isinstance(pt[0], int) or not isinstance(pt[1], int)):
-            raise TypeError("If 'ind' is True, 'pt' must be an array of two"
-                            " integers")
-        if not isinstance(ind, bool):
-            raise TypeError("'ind' must be a boolean")
-        if not isinstance(interp, bool):
-            raise TypeError("'interp' must be a boolean")
-        if not isinstance(raw_spec, bool):
-            raise TypeError("'raw_spec' must be a boolean")
-        x = pt[0]
-        y = pt[1]
-        # getting datas
-        axe_x, axe_y = self.axe_x, self.axe_y
-        if component == "Vx":
-            comp = self.Vx_as_sf
-        elif component == "Vy":
-            comp = self.Vy_as_sf
-        # getting indices points
-        ind_x = None
-        ind_y = None
-        if ind:
-            ind_x = int(x)
-            ind_y = int(y)
-        elif not interp:
-            inds_x = self.get_indice_on_axe(1, pt[0])
-            if len(inds_x) == 1:
-                ind_x = inds_x[0]
-            else:
-                vals = [axe_x[inds_x[0]], axe_x[inds_x[1]]] - x
-                ind_x = inds_x[np.argmin(vals)]
-            inds_y = self.get_indice_on_axe(2, pt[1])
-            if len(inds_y) == 1:
-                ind_y = inds_y[0]
-            else:
-                vals = [axe_y[inds_y[0]], axe_y[inds_y[1]]] - y
-                ind_y = inds_y[np.argmin(vals)]
-        # getting temporal evolution
-        time = []
-        values = []
-        for i in np.arange(len(comp)):
-            sf = comp[i]
-            time.append(self.times[i])
-            if interp:
-                values.append(sf.get_value(x, y, ind=ind))
-            else:
-                values.append(sf.get_value(ind_y, ind_x, ind=True))
-        # checking if position is masked
-        for i, val in enumerate(values):
-            if np.ma.is_masked(val):
-                if zero_fill:
-                    values[i] = 0
-                else:
-                    if mask_error:
-                        raise StandardError("Masked values on time "
-                                            "profile")
-                    else:
-                        return None, None
-
-        # getting spectrum
-        n = len(values)
-        Y = np.fft.rfft(values)
-        if raw_spec:
-            magn = np.abs(Y)
-        else:
-            magn = np.abs(Y)/(n/2)
-        phase = np.angle(Y)
-        # getting frequencies
-        Ts = time[1] - time[0]
-        frq = np.fft.rfftfreq(n, Ts)
-        magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
-                            unit_y=comp[0].unit_values)
-        phase_prof = Profile(frq, phase, unit_x=make_unit('Hz'),
-                             unit_y=make_unit('rad'))
-        return magn_prof, phase_prof
-
-    def get_spectrum_over_area(self, component, intervalx, intervaly,
-                               ind=False, zero_fill=False, interp=False,
-                               raw_spec=False):
-        """
-        Return a Profile object, contening a mean spectrum of the given
-        component, on all the points included in the given intervals.
-
-        Parameters
-        ----------
-        component : string
-            Scalar component ('Vx', 'Vy', 'magnitude', ...).
-        intervalx, intervaly : 2x1 arrays of numbers
-            Defining the square on which averaging the spectrum.
-            (in axes values)
-        ind : boolean
-            If true, 'pt' is read as indices,
-            else, 'pt' is read as coordinates.
-        zero_fill : boolean
-            If True, field masked values are filled by zeros.
-        interp : boolean
-            If 'True', linear interpolation is used to get component between
-            grid points, else, the nearest point is choosen.
-        raw_spec: boolean
-            If 'False' (default), returned spectrum is
-            'abs(raw_spec)/length_signal' in order to have coherent ordinate
-            axis.
-            Else, raw spectrum is returned.
-
-        Returns
-        -------
-        magn_prof : Profile object
-            Averaged magnitude spectrum.
-        phase_prof : Profile object
-            Averaged phase spectrum
-        """
-        # checking parameters coherence
-        if not isinstance(component, STRINGTYPES):
-            raise TypeError("'component' must be a string")
-        if not isinstance(intervalx, ARRAYTYPES):
-            raise TypeError("'intervalx' must be an array")
-        if not isinstance(intervaly, ARRAYTYPES):
-            raise TypeError("'intervaly' must be an array")
-        if not isinstance(intervalx[0], NUMBERTYPES):
-            raise TypeError("'intervalx' must be an array of numbers")
-        if not isinstance(intervaly[0], NUMBERTYPES):
-            raise TypeError("'intervaly' must be an array of numbers")
-        axe_x, axe_y = self.axe_x, self.axe_y
-        # checking interval values
-        if ind:
-            if not isinstance(intervalx[0], int)\
-                    or not isinstance(intervalx[1], int)\
-                    or not isinstance(intervaly[0], int)\
-                    or not isinstance(intervaly[1], int):
-                raise TypeError("'intervalx' and 'intervaly' must be arrays of"
-                                " integer if 'ind' is 'True'")
-            if intervalx[0] < 0 or intervaly[0] < 0\
-                    or intervalx[-1] >= len(axe_x)\
-                    or intervaly[-1] >= len(axe_y):
-                raise ValueError("intervals are out of bounds")
-        else:
-            axe_x_min = np.min(axe_x)
-            axe_x_max = np.max(axe_x)
-            axe_y_min = np.min(axe_y)
-            axe_y_max = np.max(axe_y)
-            if np.min(intervalx) < axe_x_min\
-                    or np.max(intervalx) > axe_x_max\
-                    or np.min(intervaly) < axe_y_min\
-                    or np.max(intervaly) > axe_y_max:
-                raise ValueError("intervals are out of bounds")
-        # Getting indices bounds
-        if not ind:
-            ind_x_min = self.get_indice_on_axe(1, intervalx[0])[0]
-            ind_x_max = self.get_indice_on_axe(1, intervalx[1])[-1]
-            ind_y_min = self.get_indice_on_axe(2, intervaly[0])[0]
-            ind_y_max = self.get_indice_on_axe(2, intervaly[1])[-1]
-        else:
-            ind_x_min = intervalx[0]
-            ind_x_max = intervalx[1]
-            ind_y_min = intervaly[0]
-            ind_y_max = intervaly[1]
-        # Averaging ponctual spectrums
-        magn = 0.
-        phase = 0.
-        nmb_fields = (ind_x_max - ind_x_min + 1)*(ind_y_max - ind_y_min + 1)
-        real_nmb_fields = nmb_fields
-        for i in np.arange(ind_x_min, ind_x_max + 1):
-            for j in np.arange(ind_y_min, ind_y_max + 1):
-                tmp_m, tmp_p = self.get_spectrum(component, [i, j], ind=True,
-                                                 zero_fill=zero_fill,
-                                                 interp=interp,
-                                                 raw_spec=raw_spec,
-                                                 mask_error=False)
-                # check if the position is masked
-                if tmp_m is None:
-                    real_nmb_fields -= 1
-                else:
-                    magn = magn + tmp_m
-                    phase = phase + tmp_p
-        if real_nmb_fields == 0:
-            raise StandardError("I can't find a single non-masked time profile"
-                                ", maybe you will want to try 'zero_fill' "
-                                "option")
-        magn = magn/real_nmb_fields
-        phase = phase/real_nmb_fields
-        return magn, phase
-
-    # TODO : +++HERE+++
-    def calc_mean_vf(self, nmb_min=1):
-        """
-        Calculate the mean velocity field, from all the fields.
-
-        Parameters
-        ----------
-        nmb_min : integer, optional
-            Minimum number of values used to make a mean. else, the value is
-            masked
-        """
-        if len(self.fields) == 0:
-            raise ValueError("There is no fields in this object")
-        nmbvalues = np.zeros(self.get_dim())
-        mean_vx = np.zeros(self.get_dim())
-        mean_vy = np.zeros(self.get_dim())
-        mask_tot = np.zeros(self.get_dim())
-        time = 0
-        for field in self.fields:
-            mask = field.get_comp('mask', raw=True)
-            values_x = field.get_comp('Vx', raw=True, masked=False)
-            values_y = field.get_comp('Vy', raw=True, masked=False)
-            values_x[mask] = 0
-            values_y[mask] = 0
-            nmbvalues[np.logical_not(mask)] += 1
-            mean_vx += values_x
-            mean_vy += values_y
-            time += field.time
-        mask_tot[nmbvalues < nmb_min] = True
-        nmbvalues[nmbvalues == 0] = 1
-        mean_vx = mean_vx / nmbvalues
-        mean_vy = mean_vy / nmbvalues
-        time = time/len(self.fields)
-        #stockage
-        values_x = np.ma.masked_array(mean_vx, mask_tot)
-        values_y = np.ma.masked_array(mean_vy, mask_tot)
-        axe_x, axe_y = self.get_axes()
-        unit_x, unit_y = self.get_axe_units()
-        unit_time = self.fields[0].get_comp('unit_time')
-        unit_values = self.fields[0].get_comp('unit_values')
-        time = time
-        mean_vf = VelocityField()
-        mean_vf.import_from_arrays(axe_x, axe_y, values_x, values_y, time,
-                                   unit_x, unit_y, unit_values, unit_time)
-        if np.all(mask_tot):
-            raise Warning("All datas masked in this mean field."
-                          "Try a smaller 'nmb_min'")
-        self.mean_vf = mean_vf
 
     def calc_turbulent_vf(self):
         """
@@ -5031,81 +4980,11 @@ class TemporalVelocityFields(VelocityFields, Field):
 #            unit_x = self.fields[0].V.comp_x.unit_x
 #        return Profile(time, x, self.fields[0].unit_time, unit_x)
 
-    def reduce_temporal_resolution(self, nmb_in_interval, mean=True):
-        """
-        Return a TemporalVelocityFields, contening one field for each
-        'nmb_in_interval' field in the initial TFVS.
 
-        Parameters
-        ----------
-        nmb_in_interval : integer
-            Length of the interval.
-            (one field is kept for each 'nmb_in_interval fields)
-        mean : boolean, optional
-            If 'True', the resulting fields are average over the interval.
-            Else, fields are taken directly.
 
-        Returns
-        -------
-        TVFS : TemporalVelocityFields
-        """
-        if not isinstance(nmb_in_interval, int):
-            raise TypeError("'nmb_in_interval' must be an integer")
-        if nmb_in_interval == 1:
-            return self.copy()
-        if nmb_in_interval >= len(self):
-            raise ValueError("'nmb_in_interval' is too big")
-        if not isinstance(mean, bool):
-            raise TypeError("'mean' must be a boolean")
-        tmp_TVFS = TemporalVelocityFields()
-        i = 0
-        while True:
-            tmp_vf = self[i]
-            time = self[i].time
-            if mean:
-                for j in np.arange(i + 1, i + nmb_in_interval):
-                    tmp_vf += self[j]
-                    time += self[j].time
-                tmp_vf /= nmb_in_interval
-                time /= nmb_in_interval
-                tmp_vf.time = time
-            tmp_TVFS.add_field(tmp_vf)
-            i += nmb_in_interval
-            if i + nmb_in_interval > len(self):
-                break
-        return tmp_TVFS
 
-    def set_origin(self, x=None, y=None):
-        """
-        Modify the axis in order to place the origin at the givev point (x, y)
 
-        Parameters
-        ----------
-        x : number
-        y : number
-        """
-        Field.set_origin(self, x, y)
-        for field in self.fields:
-            field.set_origin(x, y)
 
-    def trim_area(self, intervalx=None, intervaly=None, full_output=False):
-        """
-        Return a trimed field in respect with given intervals.
-
-        Parameters
-        ----------
-        intervalx : array, optional
-            interval wanted along x
-        intervaly : array, optional
-            interval wanted along y
-        full_output : boolean, optional
-            If 'True', cutting indices are alson returned
-        """
-        trimfield = \
-            Field.trim_area(self, intervalx, intervaly)
-        for field in trimfield.fields:
-            field.trim_area(intervalx, intervaly)
-        return trimfield
 
     def fill(self, kind='temporal', tof='interplin', value=[0., 0.],
              crop_border=True):
@@ -5198,50 +5077,7 @@ class TemporalVelocityFields(VelocityFields, Field):
         else:
             raise ValueError("Unknown parameter for 'kind' : {}".format(kind))
 
-    def crop_masked_border(self):
-        """
-        Crop the masked border of the velocity fields in place.
-        """
-        # getting big mask (where all the value are masked)
-        masks_temp = self.get_comp('mask', raw=True)
-        mask_temp = np.sum(masks_temp)
-        mask_temp = mask_temp == len(masks_temp)
-        # checking masked values presence
-        if not np.any(mask_temp):
-            return None
-        # getting positions to remove (column or line with only masked values)
-        axe_y_m = ~np.all(mask_temp, axis=1)
-        axe_x_m = ~np.all(mask_temp, axis=0)
-        # skip if nothing to do
-        if not np.any(axe_y_m) or not np.any(axe_x_m):
-            return None
-        # else loop on fields
-        for i in np.arange(len(self.fields)):
-            #getting datas for one field
-            values_x = self.fields[i].get_comp('Vx', raw=True, masked=False)
-            values_y = self.fields[i].get_comp('Vy', raw=True, masked=False)
-            mask = self.fields[i].get_comp('mask', raw=True)
-            # crop values along y
-            if np.any(axe_y_m):
-                # deleting useless part along y
-                values_x = values_x[axe_y_m, :]
-                values_y = values_y[axe_y_m, :]
-                mask = mask[axe_y_m, :]
-            # crop values along x
-            if np.any(axe_y_m):
-                # deleting useless part along y
-                values_x = values_x[:, axe_x_m]
-                values_y = values_y[:, axe_x_m]
-                mask = mask[:, axe_x_m]
-            # storing croped values
-            self.fields[i].set_comp('Vx', np.ma.masked_array(values_x, mask))
-            self.fields[i].set_comp('Vy', np.ma.masked_array(values_y, mask))
-            self.fields[i]._clear_derived()
-            #crop axis
-            axe_x, axe_y = self.get_axes()
-            new_axe_x = axe_x[axe_x_m]
-            new_axe_y = axe_y[axe_y_m]
-            self.fields[i].set_axes(new_axe_x, new_axe_y)
+
 
     def display(self, fieldname="fields", **plotargs):
         """
@@ -5414,7 +5250,7 @@ class TemporalVelocityFields(VelocityFields, Field):
         return displ
 
 
-class SpatialVelocityFields(VelocityFields):
+class SpatialVelocityFields(Fields):
     """
     Class representing a set of spatial-evolving velocity fields.
 
