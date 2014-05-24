@@ -10,7 +10,8 @@ For performance
 
 import pdb
 from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
-    ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalVelocityFields
+    ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
+    TemporalVectorFields
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline
@@ -320,14 +321,14 @@ class VF(object):
 ### Critical points detection algorithm ###
 def get_cp_traj(TVFS, epsilon=None, kind='crit'):
     """
-    For a set of velocity field (TemporalVelocityFields object), return the
+    For a set of velocity field (TemporalVectorFields object), return the
     trajectory of critical points.
     If the number of points returned is low, you should smooth or filter your
     field (POD filtering for example).
 
     Parameters
     ----------
-    TVFS : TemporalVelocityFields object
+    TVFS : TemporalVectorFields object
         .
     epsilon : float, optional
         Maximum length between two consecutive points in trajectory.
@@ -355,8 +356,8 @@ def get_cp_traj(TVFS, epsilon=None, kind='crit'):
         Points get by PBI algorithm (with pbi=-1)
     """
     # check parameters coherence
-    if not isinstance(TVFS, TemporalVelocityFields):
-        raise TypeError("'TVFS' must be a TemporalVelocityFields")
+    if not isinstance(TVFS, TemporalVectorFields):
+        raise TypeError("'TVFS' must be a TemporalVectorFields")
     if epsilon is not None:
         if not isinstance(epsilon, NUMBERTYPES):
             raise TypeError("'epsilon' must be a positive real")
@@ -902,7 +903,7 @@ def get_separation_position(obj, wall_direction, wall_position,
     """
     # checking parameters coherence
     if not isinstance(obj, (ScalarField, VectorField, VelocityField,
-                            TemporalVelocityFields)):
+                            TemporalVectorFields)):
         raise TypeError("Unknown type for 'obj'")
     if not isinstance(wall_direction, NUMBERTYPES):
         raise TypeError("'wall_direction' must be a number")
@@ -939,7 +940,7 @@ def get_separation_position(obj, wall_direction, wall_position,
         else:
             V = obj.get_comp('Vx', raw=True)
             axe = axe_y
-    elif isinstance(obj, TemporalVelocityFields):
+    elif isinstance(obj, TemporalVectorFields):
         pts = []
         times = obj.get_comp('time')
         if wall_direction == 1:

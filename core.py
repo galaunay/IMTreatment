@@ -1817,6 +1817,15 @@ class ScalarField(Field):
         raise Exception("Nope, can't do that")
 
     @property
+    def mask_as_sf(self):
+        tmp_sf = ScalarField()
+        tmp_sf.import_from_arrays(self.axe_x, self.axe_y, self.mask,
+                                  mask=False, unit_x=self.unit_x,
+                                  unit_y=self.unit_y,
+                                  unit_values=self.unit_values)
+        return tmp_sf
+
+    @property
     def unit_values(self):
         return self.__unit_values.copy()
 
@@ -2660,7 +2669,7 @@ class ScalarField(Field):
         axe_y_min = np.where(axe_y_m)[0][0]
         axe_y_max = np.where(axe_y_m)[0][-1]
         self.trim_area([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
-                       ind=True)    
+                       ind=True)
 
     def fill(self, tof='linear', value=0., remaining_values=np.nan,
              crop_border=True, ):
@@ -2845,14 +2854,20 @@ class ScalarField(Field):
         unit = trimfield.unit_values*unit_x*unit_y
         return integral*unit
 
-    def _display(self, kind=None, **plotargs):
+    def _display(self, component=None, kind=None, **plotargs):
         # getting datas
         axe_x, axe_y = self.axe_x, self.axe_y
-        values = np.transpose(self.values)
-        mask = np.transpose(self.mask)
         unit_x, unit_y = self.unit_x, self.unit_y
         X, Y = np.meshgrid(self.axe_y, self.axe_x)
-        values[mask] = np.nan
+        # getting wanted component
+        if component is None or component == 'values':
+            values = np.transpose(self.values)
+            mask = np.transpose(self.mask)
+            values[mask] = np.nan
+        elif component == 'mask':
+            values = np.transpose(self.mask)
+        else:
+            raise ValueError()
         # displaying according to 'kind'
         if kind == 'contour':
             if (not 'cmap' in plotargs.keys()
@@ -2883,17 +2898,20 @@ class ScalarField(Field):
                                origin='lower', **plotargs)
         else:
             raise ValueError("Unknown 'kind' of plot for ScalarField object")
+        # setting labels
         plt.axis('equal')
         plt.xlabel("X " + unit_x.strUnit())
         plt.ylabel("Y " + unit_y.strUnit())
         return displ
 
-    def display(self, kind=None, **plotargs):
+    def display(self, component=None, kind=None, **plotargs):
         """
         Display the scalar field.
 
         Parameters
         ----------
+        component : string, optional
+            Component to display, can be 'values' or 'mask'
         kind : string, optinnal
             If 'imshow': (default) each datas are plotted (imshow),
             if 'contour': contours are ploted (contour),
@@ -2908,30 +2926,31 @@ class ScalarField(Field):
         fig : figure reference
             Reference to the displayed figure.
         """
-        displ = self._display(kind, **plotargs)
+        displ = self._display(component, kind,  **plotargs)
         plt.title("Scalar field Values " + self.unit_values.strUnit())
         cb = plt.colorbar(displ, shrink=1, aspect=5)
         cb.set_label(self.unit_values.strUnit())
         # search for limits in case of masked field
-        mask = self.mask
-        for i in np.arange(len(self.axe_x)):
-            if not np.all(mask[i, :]):
-                break
-        xmin = self.axe_x[i]
-        for i in np.arange(len(self.axe_x) - 1, -1, -1):
-            if not np.all(mask[i, :]):
-                break
-        xmax = self.axe_x[i]
-        for i in np.arange(len(self.axe_y)):
-            if not np.all(mask[:, i]):
-                break
-        ymin = self.axe_y[i]
-        for i in np.arange(len(self.axe_y) - 1, -1, -1):
-            if not np.all(mask[:, i]):
-                break
-        ymax = self.axe_y[i]
-        plt.xlim([xmin, xmax])
-        plt.ylim([ymin, ymax])
+        if component != 'mask':
+            mask = self.mask
+            for i in np.arange(len(self.axe_x)):
+                if not np.all(mask[i, :]):
+                    break
+            xmin = self.axe_x[i]
+            for i in np.arange(len(self.axe_x) - 1, -1, -1):
+                if not np.all(mask[i, :]):
+                    break
+            xmax = self.axe_x[i]
+            for i in np.arange(len(self.axe_y)):
+                if not np.all(mask[:, i]):
+                    break
+            ymin = self.axe_y[i]
+            for i in np.arange(len(self.axe_y) - 1, -1, -1):
+                if not np.all(mask[:, i]):
+                    break
+            ymax = self.axe_y[i]
+            plt.xlim([xmin, xmax])
+            plt.ylim([ymin, ymax])
         return displ
 
 
@@ -4002,14 +4021,14 @@ class VectorField(Field):
         axe_y_min = np.where(axe_y_m)[0][0]
         axe_y_max = np.where(axe_y_m)[0][-1]
         self.trim_area([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
-                       ind=True)  
+                       ind=True)
 
     def _display(self, component=None, kind=None, **plotargs):
         if kind is not None:
             if not isinstance(kind, STRINGTYPES):
                 raise TypeError("'kind' must be a string")
         axe_x, axe_y = self.axe_x, self.axe_y
-        if component is None:
+        if component is None or component == 'V':
             Vx = np.transpose(self.comp_x)
             Vy = np.transpose(self.comp_y)
             mask = np.transpose(self.mask)
@@ -4040,17 +4059,17 @@ class VectorField(Field):
             if kind == '3D':
                 displ = self.comp_x_as_sf.Display3D()
             else:
-                displ = self.comp_x_as_sf._display(kind)
+                displ = self.comp_x_as_sf._display(kind, **plotargs)
         elif component == "y":
             if kind == '3D':
                 displ = self.comp_y_as_sf.Display3D()
             else:
-                displ = self.comp_y_as_sf._display(kind)
+                displ = self.comp_y_as_sf._display(kind, **plotargs)
         elif component == "mask":
             if kind == '3D':
                 displ = self.mask_as_sf.Display3D()
             else:
-                displ = self.mask_as_sf._display(kind)
+                displ = self.mask_as_sf._display(kind, **plotargs)
         else:
             raise TypeError("Unknown value of 'component'")
 
@@ -4066,7 +4085,7 @@ class VectorField(Field):
         Parameters
         ----------
         component : string, optional
-            Component to display, can be 'Vx', 'Vy', 'mask'
+            Component to display, can be 'V', 'x', 'y', 'mask'
         kind : string, optinnal
             Scalar plots :
             if 'None': each datas are plotted (imshow),
@@ -4086,10 +4105,9 @@ class VectorField(Field):
             Reference to the displayed figure
         """
         displ = self._display(component, kind, **plotargs)
-        unit_x, unit_y = self.axe_x, self.axe_y
         unit_values = self.unit_values
         Vx, Vy = self.comp_x, self.comp_y
-        if component is None:
+        if component is None or component == 'V':
             if kind == 'quiver' or kind is None:
                 cb = plt.colorbar()
                 cb.set_label("Magnitude " + unit_values.strUnit())
@@ -4100,10 +4118,16 @@ class VectorField(Field):
                               labelpos='W', fontproperties={'weight': 'bold'})
             plt.title("Values " + unit_values.strUnit())
         elif component == 'x':
+            cb = plt.colorbar()
+            cb.set_label("Vx " + unit_values.strUnit())
             plt.title("Vx " + unit_values.strUnit())
         elif component == 'y':
+            cb = plt.colorbar()
+            cb.set_label("Vy " + unit_values.strUnit())
             plt.title("Vy " + unit_values.strUnit())
         elif component == 'mask':
+            cb = plt.colorbar()
+            cb.set_label("Mask ")
             plt.title("Mask")
         else:
             raise ValueError("Unknown 'component' value")
@@ -4184,14 +4208,14 @@ class TemporalFields(Fields, Field):
     Class representing a set of time evolving fields.
     All fields added to this object has to have the same axis system.
     """
-    
+
     def __init__(self):
         Field.__init__(self)
         Fields.__init__(self)
         self.__times = np.array([], dtype=float)
         self.__unit_times = make_unit("")
         self.field_type = None
-        
+
     def __add__(self, other):
         if isinstance(other, self.__class__):
             tmp_tfs = self.copy()
@@ -4203,7 +4227,7 @@ class TemporalFields(Fields, Field):
         else:
             raise TypeError("cannot concatenate {} with"
                             " {}.".format(self.__class__, type(other)))
-                            
+
     def __mul__(self, other):
         if isinstance(other, (NUMBERTYPES, unum.Unum)):
             final_vfs = self.__class__.__init__()
@@ -4240,7 +4264,8 @@ class TemporalFields(Fields, Field):
     def __iter__(self):
         for i in np.arange(len(self.fields)):
             yield self.times[i], self.fields[i]
-                            
+
+    ### Parameters
     @Field.axe_x.setter
     def axe_x(self, value):
         Field.axe_x.fset(self, value)
@@ -4271,6 +4296,13 @@ class TemporalFields(Fields, Field):
         mask_f = np.empty(dim)
         for i, field in enumerate(self.fields):
             mask_f[i, :, :] = field.mask[:, :]
+
+    @property
+    def mask_as_sf(self):
+        dim = len(self.fields)
+        mask_f = np.empty(dim)
+        for i, field in enumerate(self.fields):
+            mask_f[i] = field.mask_as_sf
 
     @property
     def times(self):
@@ -4309,19 +4341,13 @@ class TemporalFields(Fields, Field):
     @unit_times.deleter
     def unit_times(self):
         raise Exception("Nope, can't do that")
-        
+
     @property
     def unit_values(self):
         if len(self.fields) != 0:
             return self[0].unit_values
-            
-    def __sort_field_by_time(self):
-        if len(self.fields) in [0, 1]:
-            return None
-        ind_sort = np.argsort(self.times)
-        self.times = self.times[ind_sort]
-        self.fields = self.fields[ind_sort]   
 
+    ### Modifying Fields
     def add_field(self, field, time=0., unit_times=""):
         """
         Add a field to the existing fields.
@@ -4383,6 +4409,13 @@ class TemporalFields(Fields, Field):
         self.__times = np.delete(self.times, fieldnumber)
         Fields.remove_field(self, fieldnumber)
 
+    def __sort_field_by_time(self):
+        if len(self.fields) in [0, 1]:
+            return None
+        ind_sort = np.argsort(self.times)
+        self.times = self.times[ind_sort]
+        self.fields = self.fields[ind_sort]
+
     def copy(self):
         """
         Return a copy of the velocityfields
@@ -4432,7 +4465,7 @@ class TemporalFields(Fields, Field):
             if i + nmb_in_interval > len(self):
                 break
         return tmp_TFS
-        
+
     def crop_masked_border(self):
         """
         Crop the masked border of the velocity fields in place.
@@ -4457,8 +4490,8 @@ class TemporalFields(Fields, Field):
         axe_y_max = np.where(axe_y_m)[0][-1]
         # trim
         self.trim_area([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
-                       ind=True)     
-            
+                       ind=True)
+
     def trim_area(self, intervalx=None, intervaly=None, full_output=False,
                   ind=False):
         """
@@ -4479,6 +4512,7 @@ class TemporalFields(Fields, Field):
             field.trim_area(intervalx, intervaly, ind=ind)
         return trimfield
 
+    ### Getting information from fields
     def get_mean_field(self, nmb_min=1):
         """
         Calculate the mean velocity field, from all the fields.
@@ -4492,13 +4526,33 @@ class TemporalFields(Fields, Field):
         if len(self.fields) == 0:
             raise ValueError("There is no fields in this object")
         result_f = self.fields[0].copy()
-        mask_cum = np.zeros(self.shape) 
+        mask_cum = np.zeros(self.shape)
         for field in self.fields[1::]:
             result_f += field
             mask_cum += np.logical_not(field.mask)
         result_f /= len(self.fields)
         result_f.mask = mask_cum <= nmb_min
         return result_f
+
+    def get_fluctuant_fields(self, nmb_min_mean=1):
+        """
+        Calculate the fluctuant fields (fields minus mean field).
+
+        Parameters
+        ----------
+        nmb_min_mean : number, optional
+            Parameter for mean computation (see 'get_mean_field' doc).
+
+        Returns
+        -------
+        fluct_fields : TemporalScalarFields or TemporalVectorFields object
+            Contening fluctuant fields.
+        """
+        fluct_fields = self.__class__.init()
+        mean_field = self.get_mean_field(nmb_min=nmb_min_mean)
+        for field in self.fields:
+            fluct_fields.add_field(field - mean_field)
+        return fluct_fields
 
     def get_time_profile(self, component, x, y, ind=False):
         """
@@ -4530,7 +4584,7 @@ class TemporalFields(Fields, Field):
             ind_y = y
         else:
             ind_x = self.get_indice_on_axe(1, x, nearest=True)
-            ind_y = self.get_indice_on_axe(2, y, nearest=True)            
+            ind_y = self.get_indice_on_axe(2, y, nearest=True)
         axe_x, axe_y = self.axe_x, self.axe_y
         if not (0 <= x < len(axe_x) and 0 <= y < len(axe_y)):
             raise ValueError("'x' ans 'y' values out of bounds")
@@ -4736,7 +4790,193 @@ class TemporalFields(Fields, Field):
         magn = magn/real_nmb_fields
         phase = phase/real_nmb_fields
         return magn, phase
-        
+
+    ### Displaying
+    def display(self, component, kind=None,  fields_ind=None, samecb=False,
+                same_axes=False, **plotargs):
+        """
+        Display a component of the velocity fields.
+
+        Parameters
+        ----------
+        fieldname : string, optional
+            Fields to display ('fields', 'mean_vf', 'turbulent_vf')
+        kind : string, optional
+            Kind of display wanted.
+        fields_ind : array of indices
+            Indices of fields to display.
+        samecb : boolean, optional
+            If 'True', the same color system is used for all the fields.
+            You have to pass 'vmin' and 'vmax', to have correct results.
+        plotargs : dict, optional
+            Arguments passed to the function used to display the vector field.
+        """
+        # sharing the space between fields
+        nmb_fields = len(fields_ind)
+        nmb_col = int(np.sqrt(nmb_fields))
+        nmb_lines = int(np.ceil(float(nmb_fields)/nmb_col))
+        times = self.times
+        # If we want only one colorbar
+        if samecb:
+            if not 'vmin' in plotargs.keys() or not 'vmax' in plotargs.keys():
+                raise ValueError()
+            fig, axes = plt.subplots(nrows=nmb_lines, ncols=nmb_col,
+                                     sharex=same_axes, sharey=same_axes)
+            # displaying the wanted fields
+            for i, field_ind in enumerate(fields_ind):
+                plt.sca(axes.flat[i])
+                im = self.fields[field_ind]._display(component=component,
+                                                     kind=kind, **plotargs)
+                plt.title("t = {:.2f}{}".format(times[i],
+                                                self.unit_times.strUnit()))
+            # deleting the non-wanted axes
+            for ax in axes.flat[nmb_fields::]:
+                plt.sca(ax)
+                im = self.fields[field_ind]._display(component=component,
+                                                     kind=kind, **plotargs)
+                fig.delaxes(ax)
+            # adding the colorbar
+            fig.subplots_adjust(right=0.8)
+            cbar_ax = fig.add_axes([0.90, 0.1, 0.05, .8])
+            fig.colorbar(im, cax=cbar_ax)
+            plt.tight_layout(rect=[0., 0., 0.85, 1.])
+        else:
+            fig, axes = plt.subplots(nrows=nmb_lines, ncols=nmb_col,
+                                     sharex=same_axes, sharey=same_axes)
+            # displaying the wanted fields
+            for i, field_ind in enumerate(fields_ind):
+                plt.sca(axes.flat[i])
+                im = self.fields[field_ind].display(component=component,
+                                                    kind=kind, **plotargs)
+                plt.title("t = {:.2f}{}".format(times[i],
+                                                self.unit_times.strUnit()))
+            # deleting the non-wanted axes
+            for ax in axes.flat[nmb_fields::]:
+                plt.sca(ax)
+                im = self.fields[field_ind]._display(component=component,
+                                                     kind=kind, **plotargs)
+                fig.delaxes(ax)
+            plt.tight_layout()
+
+    def display_animate(self, compo='V', interval=500, fields_inds=None,
+                        repeat=True,
+                        **plotargs):
+        """
+        Display fields animated in time.
+
+        Parameters
+        ----------
+        compo : string
+            Composante to display
+        interval : number, optionnal
+            interval between two frames in milliseconds.
+        fields_ind : array of indices
+            Indices of wanted fields. by default, all the fields are displayed
+        repeat : boolean, optional
+            if True, the animation is repeated infinitely.
+        additional arguments can be passed (scale, vmin, vmax,...)
+        """
+        from matplotlib import animation
+        if fields_inds is None:
+            fields_inds = len(self.fields)
+        # getting data
+        if isinstance(self, TemporalVectorFields):
+            if compo == 'V' or compo is None:
+                comp = self.fields
+            elif compo == 'x':
+                comp = self.Vx_as_sf
+            elif compo == 'y':
+                comp = self.vy_as_sf
+            elif compo == 'mask':
+                comp = self.mask_as_sf
+            else:
+                raise ValueError()
+        elif isinstance(self, TemporalScalarFields):
+            if compo == 'values' or compo is None:
+                comp = self.values_as_sf
+            elif compo == 'mask':
+                comp = self.mask_as_sf
+            else:
+                raise ValueError()
+        else:
+            raise TypeError()
+        if 'kind' in plotargs.keys():
+            kind = plotargs['kind']
+        else:
+            kind = None
+        # display a vector field (quiver)
+        if isinstance(comp[0], VectorField)\
+                and (kind is None or kind == "quiver"):
+            fig = plt.figure()
+            ax = plt.gca()
+            displ = comp[0].display(**plotargs)
+            ttl = plt.title('')
+
+            def update(num, fig, ax, displ, ttl, comp):
+                vx = np.transpose(comp[num].comp_x)
+                vy = np.transpose(comp[num].comp_y)
+                magn = np.transpose(comp[num].magnitude)
+                displ.set_UVC(vx, vy, magn)
+                title = "{}, at t={:.2f} {}"\
+                    .format(compo, float(self.times[num]),
+                            self.unit_times.strUnit())
+                ttl.set_text(title)
+                return ax
+            anim = animation.FuncAnimation(fig, update,
+                                           frames=fields_inds,
+                                           interval=interval, blit=False,
+                                           repeat=repeat,
+                                           fargs=(fig, ax, displ, ttl, comp))
+            return anim,
+        # display a scalar field (contour, contourf or imshow) or a streamplot
+        elif isinstance(comp[0], ScalarField)\
+                or isinstance(comp[0], VectorField):
+            fig = plt.figure()
+            ax = plt.gca()
+            displ = comp[0].display(**plotargs)
+            ttl = plt.suptitle('')
+
+            def update(num, fig, ax, displ, ttl, comp):
+                ax.cla()
+                displ = comp[num]._display(**plotargs)
+                title = "{}, at t={:.3} {}"\
+                    .format(compo, float(self[num].time),
+                            self[num].unit_time.strUnit())
+                ttl.set_text(title)
+                return displ,
+            anim = animation.FuncAnimation(fig, update,
+                                           frames=fields_inds,
+                                           interval=interval, blit=False,
+                                           repeat=repeat,
+                                           fargs=(fig, ax, displ, ttl, comp))
+            return anim,
+        else:
+            raise ValueError("I don't know any '{}' composant".format(compo))
+
+    def record_animation(self, anim, filepath, kind='gif', fps=30, dpi=100,
+                         bitrate=50, imagemagick_path=None):
+        """
+        Record an animation in a gif file.
+        You must create an animation (using 'display_animate' for example)
+        before calling this method.
+        You may have to specify the path to imagemagick in orfer to use it.
+
+
+        Parameters
+        ----------
+
+        """
+        import matplotlib
+        if imagemagick_path is None:
+            imagemagick_path = r"C:\Program Files\ImageMagick\convert.exe"
+        matplotlib.rc('animation', convert_path=imagemagick_path)
+        if kind == 'gif':
+            writer = matplotlib.animation.ImageMagickWriter(fps=fps,
+                                                            bitrate=bitrate)
+            anim.save(filepath, writer=writer, fps=fps, dpi=dpi)
+        elif kind == 'mp4':
+            anim.save(filepath, writer='fmpeg', fps=fps, bitrate=bitrate)
+
 
 class TemporalScalarFields(TemporalFields):
     """
@@ -4755,7 +4995,8 @@ class TemporalScalarFields(TemporalFields):
 
     "calc_*" : give access to a bunch of derived statistical fields.
     """
-    
+
+    ### Parameters
     @property
     def values(self):
         dim = len(self)
@@ -4770,7 +5011,81 @@ class TemporalScalarFields(TemporalFields):
         values = np.empty(dim, dtype=float)
         for i, field in enumerate(self.fields):
             values[i, :, :] = field.values[:, :]
-        return values   
+        return values
+
+    ### Modifying fields
+    def fill(self, kind='temporal', tof='interplin', value=0.,
+             crop_border=True):
+        """
+        Fill the masked part of the array in place.
+
+        Parameters
+        ----------
+        kind : string
+            Can be 'temporal' for temporal interpolation, or 'spatial' for
+            spatial interpolation.
+        tof : string, optional
+            Type of algorithm used to fill.
+            'value' : fill with a given value
+            'interplin' : fill using linear interpolation
+            'interpcub' : fill using cubic interpolation
+        value : number
+            Value for filling (only usefull with tof='value')
+        crop_border : boolean
+            If 'True' (default), masked borders of the field are cropped
+            before filling. Else, values on border are extrapolated (poorly).
+        """
+        # checking parameters coherence
+        if len(self.fields) < 3 and kind == 'temporal':
+            raise ValueError("Not enough fields to fill with temporal"
+                             " interpolation")
+        # cropping masked borders if necessary
+        if crop_border:
+            self.crop_masked_border()
+        # temporal interpolation
+        if kind == 'temporal':
+            # getting datas
+            axe_x, axe_y = self.axe_x, self.axe_y
+            # getting super mask (0 where no value are masked and where all
+            # values are masked)
+            super_mask = self.mask
+            super_mask = np.sum(super_mask, axis=0)
+            super_mask[super_mask == len(self.fields)] = 0
+            # loop on each field position
+            for j, i in np.argwhere(super_mask):
+                prof = self.get_time_profile('values', axe_x[i], axe_y[j])
+                # checking if all time profile value are masked
+                if np.all(prof.y.mask):
+                    continue
+                # getting masked position on profile
+                inds_masked = np.where(prof.y.mask)
+                # creating interpolation function
+                if tof == 'value':
+                    def interp_x(x):
+                        return value
+                elif tof == 'interplin':
+                    interp = spinterp.interp1d(prof.x[~prof.y.mask],
+                                               prof.y[~prof.y.mask],
+                                               kind='linear')
+                elif tof == 'interpcub':
+                    interp = spinterp.interp1d(prof.x[~prof.y.mask],
+                                               prof.y[~prof.y.mask],
+                                               kind='cubic')
+                # loop on all profile masked points
+                for ind_masked in inds_masked[0]:
+                    try:
+                        interp_val = interp(prof.x[ind_masked])
+                    except ValueError:
+                        continue
+                    # putting interpolated value in the field
+                    self[ind_masked].values[j, i] = interp_val
+        # spatial interpolation
+        elif kind == 'spatial':
+            for field in self.fields:
+                field.fill(tof=tof, value=value, crop_border=True)
+
+        else:
+            raise ValueError("Unknown parameter for 'kind' : {}".format(kind))
 
 
 class TemporalVectorFields(TemporalFields):
@@ -4791,6 +5106,7 @@ class TemporalVectorFields(TemporalFields):
     "calc_*" : give access to a bunch of derived statistical fields.
     """
 
+    ### Parameters
     @property
     def Vx_as_sf(self):
         dim = len(self)
@@ -4823,169 +5139,7 @@ class TemporalVectorFields(TemporalFields):
             values[i, :, :] = field.comp_y[:, :]
         return values
 
-    def calc_turbulent_vf(self):
-        """
-        Calculate the turbulent fields (instantaneous fields minus mean field)
-        """
-        self.turbulent_vf = TemporalVelocityFields()
-        mean_vf = self.get_comp('mean_vf')
-        for field in self.fields:
-            tmp_field = field - mean_vf
-            tmp_field.time = field.time
-            self.turbulent_vf.add_field(tmp_field)
-
-    def calc_mean_kinetic_energy(self):
-        """
-        Calculate the mean kinetic energy.
-        """
-        final_sf = ScalarField()
-        mean_vf = self.get_comp('mean_vf')
-        values_x = mean_vf.get_comp('Vx')
-        values_y = mean_vf.get_comp('Vy')
-        final_sf = 1./2*(values_x**2 + values_y**2)
-        self.mean_kinetic_energy = final_sf
-
-    def calc_tke(self):
-        """
-        Calculate the turbulent kinetic energy.
-        """
-        turb_vfs = self.get_comp('turbulent_vf')
-        vx_p = turb_vfs.get_comp('Vx')
-        vy_p = turb_vfs.get_comp('Vy')
-        self.tke = []
-        for i in np.arange(len(vx_p)):
-            self.tke.append(1./2*(vx_p[i]**2 + vy_p[i]**2))
-
-    def calc_mean_tke(self):
-        self.mean_tke = self.get_comp('tke')[0]
-        values = self.tke[0].values
-        for field in self.tke:
-            values += field.values
-        values /= len(self.tke)
-        self.mean_tke.values = values
-
-    def calc_reynolds_stress(self, nmb_val_min=1):
-        """
-        Calculate the reynolds stress.
-        """
-        # getting fluctuating velocities
-        turb_vf = self.get_comp('turbulent_vf')
-        u_p = turb_vf.get_comp('Vx')
-        v_p = turb_vf.get_comp('Vy')
-        # rs_xx
-        rs_xx = np.zeros(u_p[0].get_dim())
-        mask_rs_xx = np.zeros(u_p[0].get_dim())
-        # boucle sur les points du champ
-        for i in np.arange(rs_xx.shape[0]):
-            for j in np.arange(rs_xx.shape[1]):
-                # boucle sur le nombre de champs
-                nmb_val = 0
-                for n in np.arange(len(turb_vf.fields)):
-                    # check if masked
-                    if not u_p[n].values.mask[i, j]:
-                        rs_xx[i, j] += u_p[n].get_value(j, i, ind=True)**2
-                        nmb_val += 1
-                if nmb_val > nmb_val_min:
-                    rs_xx[i, j] /= nmb_val
-                else:
-                    rs_xx[i, j] = 0
-                    mask_rs_xx[i, j] = True
-        # rs_yy
-        rs_yy = np.zeros(v_p[0].values.shape)
-        mask_rs_yy = np.zeros(v_p[0].values.shape)
-        # boucle sur les points du champ
-        for i in np.arange(rs_yy.shape[0]):
-            for j in np.arange(rs_yy.shape[1]):
-                # boucle sur le nombre de champs
-                nmb_val = 0
-                for n in np.arange(len(turb_vf.fields)):
-                    # check if masked
-                    if not v_p[n].values.mask[i, j]:
-                        rs_yy[i, j] += v_p[n].get_value(j, i, ind=True)**2
-                        nmb_val += 1
-                if nmb_val > nmb_val_min:
-                    rs_yy[i, j] /= nmb_val
-                else:
-                    rs_yy[i, j] = 0
-                    mask_rs_yy[i, j] = True
-        # rs_xy
-        rs_xy = np.zeros(u_p[0].get_dim())
-        mask_rs_xy = np.zeros(u_p[0].get_dim())
-        # boucle sur les points du champ
-        for i in np.arange(rs_xy.shape[0]):
-            for j in np.arange(rs_xy.shape[1]):
-                # boucle sur le nombre de champs
-                nmb_val = 0
-                for n in np.arange(len(turb_vf.fields)):
-                    # check if masked
-                    if not (u_p[n].get_comp('mask', raw=True)[i, j]
-                            or v_p[n].get_comp('mask', raw=True)[i, j]):
-                        rs_xy[i, j] += (u_p[n].get_value(j, i, ind=True)
-                                        * v_p[n].get_value(j, i, ind=True))
-                        nmb_val += 1
-                if nmb_val > nmb_val_min:
-                    rs_xy[i, j] /= nmb_val
-                else:
-                    rs_xy[i, j] = 0
-                    mask_rs_xy[i, j] = True
-        # masking and storing
-        axe_x, axe_y = self.fields[0].get_axes()
-        unit_x, unit_y = self.fields[0].get_axe_units()
-        unit_values = self.fields[0].get_comp('unit_values')
-        self.rs_xx = ScalarField()
-        rs_xx = np.ma.masked_array(rs_xx, mask_rs_xx)
-        self.rs_xx.import_from_arrays(axe_x, axe_y, rs_xx,
-                                      unit_x, unit_y, unit_values)
-        self.rs_yy = ScalarField()
-        rs_yy = np.ma.masked_array(rs_yy, mask_rs_yy)
-        self.rs_yy.import_from_arrays(axe_x, axe_y, rs_yy,
-                                      unit_x, unit_y, unit_values)
-        self.rs_xy = ScalarField()
-        rs_xy = np.ma.masked_array(rs_xy, mask_rs_xy)
-        self.rs_xy.import_from_arrays(axe_x, axe_y, rs_xy,
-                                      unit_x, unit_y, unit_values)
-
-#    def calc_detachment_positions(self, wall_direction=2, wall_position=None,
-#                                  interval=None):
-#        """
-#        Return a Profile object of the temporal evolution of the detachment
-#        point, using the 'calc_detachment_position' fonction of
-#        VelocityField objects.
-#
-#        Parameters
-#        ----------
-#        wall_direction : integer, optional
-#            1 for a wall at a given value of x,
-#            2 for a wall at a given value of y (default).
-#        wall_position : number, optional
-#            Position of the wall. The default position is the minimum value
-#            on the axe.
-#        interval : 2x1 array of numbers, optional
-#            Optional interval in which search for the detachment points.
-#
-#        """
-#        x = np.zeros(len(self.fields))
-#        time = np.zeros(len(self.fields))
-#        i = 0
-#        for field in self.fields:
-#            x[i] = field.calc_detachment_position(wall_direction=
-#                                                  wall_direction,
-#                                                  wall_position=wall_position,
-#                                                  interval=interval)
-#            time[i] = field.time
-#            i += 1
-#        if wall_direction == 1:
-#            unit_x = self.fields[0].V.comp_x.unit_y
-#        else:
-#            unit_x = self.fields[0].V.comp_x.unit_x
-#        return Profile(time, x, self.fields[0].unit_time, unit_x)
-
-
-
-
-
-
-
+    ### Modifying fields
     def fill(self, kind='temporal', tof='interplin', value=[0., 0.],
              crop_border=True):
         """
@@ -5017,16 +5171,16 @@ class TemporalVectorFields(TemporalFields):
         # temporal interpolation
         if kind == 'temporal':
             # getting datas
-            axe_x, axe_y = self.get_axes()
+            axe_x, axe_y = self.axe_x, self.axe_y
             # getting super mask (0 where no value are masked and where all
             # values are masked)
-            super_mask = self.get_comp('mask', raw=True)
+            super_mask = self.mask
             super_mask = np.sum(super_mask, axis=0)
             super_mask[super_mask == len(self.fields)] = 0
             # loop on each field position
             for j, i in np.argwhere(super_mask):
-                prof_x = self.get_time_profile('Vx', axe_x[i], axe_y[j])
-                prof_y = self.get_time_profile('Vy', axe_x[i], axe_y[j])
+                prof_x = self.get_time_profile('comp_x', axe_x[i], axe_y[j])
+                prof_y = self.get_time_profile('comp_y', axe_x[i], axe_y[j])
                 # checking if all time profile value are masked
                 if np.all(np.logical_or(prof_x.y.mask, prof_x.y.mask)):
                     continue
@@ -5077,180 +5231,90 @@ class TemporalVectorFields(TemporalFields):
         else:
             raise ValueError("Unknown parameter for 'kind' : {}".format(kind))
 
-
-
-    def display(self, fieldname="fields", **plotargs):
+    ### Getting informations from fields
+    def get_mean_kinetic_energy(self):
         """
-        Display a component of the velocity fields.
-        If 'component" is a component name, the coresponding component of the
-        field is displayed. Else, a quiver is displayed.
-
-        Parameters
-        ----------
-        fieldname : string, optional
-            Fields to display ('fields', 'mean_vf', 'turbulent_vf')
-        plotargs : dict, optional
-            Arguments passed to the function used to display the vector field.
+        Calculate the mean kinetic energy.
         """
-        fields = self.get_comp(fieldname)
-        if isinstance(fields, ARRAYTYPES):
-            nmbfields = len(fields)
-            colnmb = round(np.sqrt(nmbfields))
-            if len(fields) % colnmb == 0:
-                linenmb = nmbfields/colnmb
-            else:
-                linenmb = int(len(fields)/colnmb + 1)
-            i = 1
-            for field in fields:
-                displ = plt.subplot(linenmb, colnmb, i)
-                field.display(**plotargs)
-                plt.title(fieldname + " (field number " + str(i-1) +
-                          "), at t=" + str(self[i-1].time*self[i-1].unit_time))
-                i += 1
-            plt.suptitle(fieldname, fontsize=18)
-        elif isinstance(fields, (VelocityField, VectorField)):
-            displ = fields.display(**plotargs)
-            plt.title(fieldname)
-        else:
-            displ = fields.display(**plotargs)
-            plt.title(fieldname)
-        return displ
+        final_sf = ScalarField()
+        mean_vf = self.get_mean_vf()
+        values_x = mean_vf.comp_x_as_sf
+        values_y = mean_vf.comp_y_as_sf
+        final_sf = 1./2*(values_x**2 + values_y**2)
+        self.mean_kinetic_energy = final_sf
 
-    def display_animate(self, compo='V', interval=500, repeat=True,
-                        **plotargs):
+    def get_tke(self):
         """
-        Display fields animated in time.
-
-        Parameters
-        ----------
-        compo : string
-            Composante to display
-        interval : number, optionnal
-            interval between two frames in milliseconds.
-        repeat : boolean, optional
-            if True, the animation is repeated infinitely.
-        additional arguments can be passed (scale, vmin, vmax,...)
+        Calculate the turbulent kinetic energy.
         """
-        from matplotlib import animation
-        comp = self.get_comp(compo)
-        if 'kind' in plotargs.keys():
-            kind = plotargs['kind']
-        else:
-            kind = None
-        try:
-            comp[0]
-        except TypeError:
-            raise ValueError("Cannot display an animation on one field")
-        # display a vector field (quiver)
-        if isinstance(comp[0], VectorField)\
-                and (kind is None or kind == "quiver"):
-            fig = plt.figure()
-            ax = plt.gca()
-            displ = comp[0].display(**plotargs)
-            ttl = plt.title('')
+        turb_vfs = self.get_fluctuant_fields()
+        vx_p = turb_vfs.comp_x_as_sf
+        vy_p = turb_vfs.comp_y_as_sf
+        tke = []
+        for i in np.arange(len(vx_p)):
+            tke.append(1./2*(vx_p[i]**2 + vy_p[i]**2))
+        return tke
 
-            def update(num, fig, ax, displ, ttl, comp):
-                vx = comp[num].get_comp('Vx', raw=True)
-                vy = comp[num].get_comp('Vy', raw=True)
-                magn = comp[num].get_magnitude().get_comp('values', raw=True)
-                displ.set_UVC(vx, vy, magn)
-                title = "{}, at t={:.3} {}"\
-                    .format(compo, float(self[num].time),
-                            self[num].unit_time.strUnit())
-                ttl.set_text(title)
-                return ax
-            anim = animation.FuncAnimation(fig, update,
-                                           frames=len(comp),
-                                           interval=interval, blit=False,
-                                           repeat=repeat,
-                                           fargs=(fig, ax, displ, ttl, comp))
-            return anim,
-        # display a scalar field (contour, contourf or imshow) or a streamplot
-        elif isinstance(comp[0], ScalarField)\
-                or isinstance(comp[0], VectorField):
-            fig = plt.figure()
-            ax = plt.gca()
-            displ = comp[0].display(**plotargs)
-            ttl = plt.suptitle('')
+    def get_mean_tke(self):
+        tke = self.get_tke()
+        mean_tke = tke[0]
+        for field in self.tke[1::]:
+            mean_tke += field
+        mean_tke /= len(self.tke)
+        return mean_tke
 
-            def update(num, fig, ax, displ, ttl, comp):
-                ax.cla()
-                displ = comp[num]._display(**plotargs)
-                title = "{}, at t={:.3} {}"\
-                    .format(compo, float(self[num].time),
-                            self[num].unit_time.strUnit())
-                ttl.set_text(title)
-                return displ,
-            anim = animation.FuncAnimation(fig, update,
-                                           frames=len(comp),
-                                           interval=interval, blit=False,
-                                           repeat=repeat,
-                                           fargs=(fig, ax, displ, ttl, comp))
-            return anim,
-        else:
-            raise ValueError("I don't know any '{}' composant".format(compo))
-
-    def record_animation(self, anim, filepath, kind='gif', fps=30, dpi=100,
-                         bitrate=50, imagemagick_path=None):
+    def calc_reynolds_stress(self, nmb_val_min=1):
         """
-        Record an animation in a gif file.
-        You must create an animation (using 'display_animate' for example)
-        before calling this method.
-        You may have to specify the path to imagemagick in orfer to use it.
-
-
-        Parameters
-        ----------
-
+        Calculate the reynolds stress.
         """
-        import matplotlib
-        if imagemagick_path is None:
-            imagemagick_path = r"C:\Program Files\ImageMagick\convert.exe"
-        matplotlib.rc('animation', convert_path=imagemagick_path)
-        if kind == 'gif':
-            writer = matplotlib.animation.ImageMagickWriter(fps=fps,
-                                                            bitrate=bitrate)
-            anim.save(filepath, writer=writer, fps=fps, dpi=dpi)
-        elif kind == 'mp4':
-            anim.save(filepath, writer='fmpeg', fps=fps, bitrate=bitrate)
+        # getting fluctuating velocities
+        turb_vf = self.get_fluctuant_fields()
+        u_p = turb_vf.comp_x
+        v_p = turb_vf.comp_y
+        mask = turb_vf.mask
+        # rs_xx
+        rs_xx = np.zeros(self.shape, dtype=float)
+        rs_yy = np.zeros(self.shape, dtype=float)
+        rs_xy = np.zeros(self.shape, dtype=float)
+        mask_rs = np.zeros(self.shape, dtype=bool)
+        # boucle sur les points du champ
+        for i in np.arange(self.shape[0]):
+            for j in np.arange(self.shape[1]):
+                # boucle sur le nombre de champs
+                nmb_val = 0
+                for n in np.arange(len(turb_vf.fields)):
+                    # check if masked
+                    if not mask[i, j]:
+                        rs_yy[i, j] += v_p[n][i, j]**2
+                        rs_xx[i, j] += u_p[n][i, j]**2
+                        rs_xy[i, j] += u_p[n][i, j]*v_p[n][i, j]
+                        nmb_val += 1
+                if nmb_val > nmb_val_min:
+                    rs_xx[i, j] /= nmb_val
+                    rs_yy[i, j] /= nmb_val
+                    rs_xy[i, j] /= nmb_val
+                else:
+                    rs_xx[i, j] = 0
+                    rs_yy[i, j] = 0
+                    rs_xy[i, j] = 0
+                    mask_rs[i, j] = True
+        # masking and storing
+        axe_x, axe_y = self.axe_x, self.axe_y
+        unit_x, unit_y = self.unit_x, self.unit_y
+        unit_values = self.unit_values
+        rs_xx = ScalarField()
+        rs_xx.import_from_arrays(axe_x, axe_y, rs_xx, mask_rs,
+                                 unit_x, unit_y, unit_values)
+        rs_yy = ScalarField()
+        rs_yy.import_from_arrays(axe_x, axe_y, rs_yy, mask_rs,
+                                 unit_x, unit_y, unit_values)
+        rs_xy = ScalarField()
+        rs_xy.import_from_arrays(axe_x, axe_y, rs_xy, mask_rs,
+                                 unit_x, unit_y, unit_values)
+        return (rs_xx, rs_yy, rs_xy)
 
-    def display_time_profiles(self, componentname, direction, positions,
-                              **plotargs):
-        """
-        Display multiples profiles of the same cut, but for differents times.
 
-        Parameters
-        ----------
-        componentname : string
-            Component wanted for the profile.
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y).
-        positions : tuple of numbers
-            Positions in which we want a profile (possibly a slice))
-        **plotargs :
-            Supplementary arguments for the plot() function.
-        """
-        for field in self.fields:
-            profile, positions = field.get_profile(componentname, direction,
-                                                   positions)
-            if direction == 1:
-                displ = profile._display(label="t={0}".format(field.time *
-                                                              field.unit_time),
-                                         **plotargs)
-                plt.xlabel("{0} {1}".format(componentname, profile.unit_x))
-                plt.ylabel("Y {0}".format(profile.unit_y))
-            else:
-                displ = profile.display(label="t={0}".format(field.time *
-                                                             field.unit_time),
-                                        **plotargs)
-                plt.ylabel("{0} {1}".format(componentname, profile.unit_y))
-                plt.xlabel("X {0}".format(profile.unit_x))
-        plt.title(componentname)
-        plt.legend()
-        return displ
-
-
-class SpatialVelocityFields(Fields):
+class SpatialVectorFields(Fields):
     """
     Class representing a set of spatial-evolving velocity fields.
 

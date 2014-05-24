@@ -12,7 +12,7 @@ import scipy.interpolate as spinterp
 from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
     Fields,\
-    TemporalVelocityFields, SpatialVelocityFields
+    TemporalVectorFields, SpatialVectorFields
 
 
 def get_magnitude(vf, raw=False):

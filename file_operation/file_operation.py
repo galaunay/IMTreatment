@@ -18,7 +18,7 @@ except:
 from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
     Fields,\
-    TemporalVelocityFields, SpatialVelocityFields
+    TemporalVectorFields, SpatialVectorFields
 import numpy as np
 try:
     import cPickle as pickle
@@ -95,11 +95,11 @@ class MyDecoder(json.JSONDecoder):
             elif dic['__classname__'] == 'VelocityFields':
                 obj = VelocityFields()
                 obj.__dict__ = dic
-            elif dic['__classname__'] == 'SpatialVelocityFields':
-                obj = SpatialVelocityFields()
+            elif dic['__classname__'] == 'SpatialVectorFields':
+                obj = SpatialVectorFields()
                 obj.__dict__ = dic
-            elif dic['__classname__'] == 'TemporalVelocityFields':
-                obj = TemporalVelocityFields()
+            elif dic['__classname__'] == 'TemporalVectorFields':
+                obj = TemporalVectorFields()
                 obj.__dict__ = dic
             elif dic['__classname__'] == 'np.bool':
                 obj = np.bool(dic['value'])
