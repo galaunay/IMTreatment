@@ -2867,7 +2867,8 @@ class ScalarField(Field):
         elif component == 'mask':
             values = np.transpose(self.mask)
         else:
-            raise ValueError()
+            raise ValueError("unknown value of 'component' parameter : {}"
+                             .format(component))
         # displaying according to 'kind'
         if kind == 'contour':
             if (not 'cmap' in plotargs.keys()
@@ -3163,7 +3164,9 @@ class VectorField(Field):
             new_mask = np.empty(self.shape, dtype=bool)
             new_mask.fill(fill_value)
         elif isinstance(new_mask, ARRAYTYPES):
-            new_mask = np.array(new_mask)
+            if not isinstance(new_mask.flat[0], np.bool_):
+                raise TypeError()
+            new_mask = np.array(new_mask, dtype=bool)
         else:
             raise TypeError("'mask' should be an array or a boolean,"
                             " not a {}".format(type(new_mask)))
@@ -3804,7 +3807,10 @@ class VectorField(Field):
         comp_x, comp_y = self.comp_x, self.comp_y
         mask = self.mask
         values = (comp_x**2 + comp_y**2)**(.5)
-        values[mask] == np.nan
+        try:
+            values[mask] == np.nan
+        except:
+            pdb.set_trace()
         return values
 
     @property
@@ -3814,7 +3820,7 @@ class VectorField(Field):
         """
         tmp_sf = ScalarField()
         tmp_sf.import_from_arrays(self.axe_x, self.axe_y, self.magnitude,
-                                  mask=False, unit_x=self.unit_x,
+                                  mask=self.mask, unit_x=self.unit_x,
                                   unit_y=self.unit_y,
                                   unit_values=self.unit_values)
         return tmp_sf
@@ -4059,17 +4065,22 @@ class VectorField(Field):
             if kind == '3D':
                 displ = self.comp_x_as_sf.Display3D()
             else:
-                displ = self.comp_x_as_sf._display(kind, **plotargs)
+                displ = self.comp_x_as_sf._display(kind=kind, **plotargs)
         elif component == "y":
             if kind == '3D':
                 displ = self.comp_y_as_sf.Display3D()
             else:
-                displ = self.comp_y_as_sf._display(kind, **plotargs)
+                displ = self.comp_y_as_sf._display(kind=kind, **plotargs)
         elif component == "mask":
             if kind == '3D':
                 displ = self.mask_as_sf.Display3D()
             else:
-                displ = self.mask_as_sf._display(kind, **plotargs)
+                displ = self.mask_as_sf._display(kind=kind, **plotargs)
+        elif component == "magnitude":
+            if kind == '3D':
+                displ = self.magnitude_as_sf.Display3D()
+            else:
+                displ = self.magnitude_as_sf._display(kind=kind, **plotargs)
         else:
             raise TypeError("Unknown value of 'component'")
 
@@ -4129,6 +4140,10 @@ class VectorField(Field):
             cb = plt.colorbar()
             cb.set_label("Mask ")
             plt.title("Mask")
+        elif component == 'magnitude':
+            cb = plt.colorbar()
+            cb.set_label("Magnitude")
+            plt.title("Magnitude")
         else:
             raise ValueError("Unknown 'component' value")
         return displ
@@ -4293,9 +4308,10 @@ class TemporalFields(Fields, Field):
     @property
     def mask(self):
         dim = (len(self.fields), self.shape[0], self.shape[1])
-        mask_f = np.empty(dim)
+        mask_f = np.empty(dim, dtype=bool)
         for i, field in enumerate(self.fields):
             mask_f[i, :, :] = field.mask[:, :]
+        return mask_f
 
     @property
     def mask_as_sf(self):
@@ -4448,21 +4464,21 @@ class TemporalFields(Fields, Field):
             raise ValueError("'nmb_in_interval' is too big")
         if not isinstance(mean, bool):
             raise TypeError("'mean' must be a boolean")
-        tmp_TFS = self.__class__.__init__()
+        tmp_TFS = self.__class__()
         i = 0
+        times = self.times
         while True:
             tmp_f = self[i]
-            time = self[i].time
+            time = times[i]
             if mean:
                 for j in np.arange(i + 1, i + nmb_in_interval):
                     tmp_f += self[j]
-                    time += self[j].time
+                    time += times[j]
                 tmp_f /= nmb_in_interval
                 time /= nmb_in_interval
-                tmp_f.time = time
-            tmp_TFS.add_field(tmp_f)
+            tmp_TFS.add_field(tmp_f, time, self.unit_times)
             i += nmb_in_interval
-            if i + nmb_in_interval > len(self):
+            if i + nmb_in_interval >= len(self):
                 break
         return tmp_TFS
 
@@ -4548,7 +4564,7 @@ class TemporalFields(Fields, Field):
         fluct_fields : TemporalScalarFields or TemporalVectorFields object
             Contening fluctuant fields.
         """
-        fluct_fields = self.__class__.init()
+        fluct_fields = self.__class__()
         mean_field = self.get_mean_field(nmb_min=nmb_min_mean)
         for field in self.fields:
             fluct_fields.add_field(field - mean_field)
@@ -5237,7 +5253,7 @@ class TemporalVectorFields(TemporalFields):
         Calculate the mean kinetic energy.
         """
         final_sf = ScalarField()
-        mean_vf = self.get_mean_vf()
+        mean_vf = self.get_mean_field()
         values_x = mean_vf.comp_x_as_sf
         values_y = mean_vf.comp_y_as_sf
         final_sf = 1./2*(values_x**2 + values_y**2)
@@ -5248,8 +5264,8 @@ class TemporalVectorFields(TemporalFields):
         Calculate the turbulent kinetic energy.
         """
         turb_vfs = self.get_fluctuant_fields()
-        vx_p = turb_vfs.comp_x_as_sf
-        vy_p = turb_vfs.comp_y_as_sf
+        vx_p = turb_vfs.Vx_as_sf
+        vy_p = turb_vfs.Vy_as_sf
         tke = []
         for i in np.arange(len(vx_p)):
             tke.append(1./2*(vx_p[i]**2 + vy_p[i]**2))
@@ -5258,19 +5274,19 @@ class TemporalVectorFields(TemporalFields):
     def get_mean_tke(self):
         tke = self.get_tke()
         mean_tke = tke[0]
-        for field in self.tke[1::]:
+        for field in tke[1::]:
             mean_tke += field
-        mean_tke /= len(self.tke)
+        mean_tke /= len(tke)
         return mean_tke
 
-    def calc_reynolds_stress(self, nmb_val_min=1):
+    def get_reynolds_stress(self, nmb_val_min=1):
         """
         Calculate the reynolds stress.
         """
         # getting fluctuating velocities
         turb_vf = self.get_fluctuant_fields()
-        u_p = turb_vf.comp_x
-        v_p = turb_vf.comp_y
+        u_p = turb_vf.Vx
+        v_p = turb_vf.Vy
         mask = turb_vf.mask
         # rs_xx
         rs_xx = np.zeros(self.shape, dtype=float)
@@ -5284,7 +5300,7 @@ class TemporalVectorFields(TemporalFields):
                 nmb_val = 0
                 for n in np.arange(len(turb_vf.fields)):
                     # check if masked
-                    if not mask[i, j]:
+                    if not mask[n][i, j]:
                         rs_yy[i, j] += v_p[n][i, j]**2
                         rs_xx[i, j] += u_p[n][i, j]**2
                         rs_xy[i, j] += u_p[n][i, j]*v_p[n][i, j]
@@ -5302,16 +5318,16 @@ class TemporalVectorFields(TemporalFields):
         axe_x, axe_y = self.axe_x, self.axe_y
         unit_x, unit_y = self.unit_x, self.unit_y
         unit_values = self.unit_values
-        rs_xx = ScalarField()
-        rs_xx.import_from_arrays(axe_x, axe_y, rs_xx, mask_rs,
-                                 unit_x, unit_y, unit_values)
-        rs_yy = ScalarField()
-        rs_yy.import_from_arrays(axe_x, axe_y, rs_yy, mask_rs,
-                                 unit_x, unit_y, unit_values)
-        rs_xy = ScalarField()
-        rs_xy.import_from_arrays(axe_x, axe_y, rs_xy, mask_rs,
-                                 unit_x, unit_y, unit_values)
-        return (rs_xx, rs_yy, rs_xy)
+        rs_xx_sf = ScalarField()
+        rs_xx_sf.import_from_arrays(axe_x, axe_y, rs_xx, mask_rs,
+                                    unit_x, unit_y, unit_values)
+        rs_yy_sf = ScalarField()
+        rs_yy_sf.import_from_arrays(axe_x, axe_y, rs_yy, mask_rs,
+                                    unit_x, unit_y, unit_values)
+        rs_xy_sf = ScalarField()
+        rs_xy_sf.import_from_arrays(axe_x, axe_y, rs_xy, mask_rs,
+                                    unit_x, unit_y, unit_values)
+        return (rs_xx_sf, rs_yy_sf, rs_xy_sf)
 
 
 class SpatialVectorFields(Fields):

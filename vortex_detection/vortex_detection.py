@@ -20,20 +20,22 @@ import warnings
 import sets
 
 
-def velocityfield_to_vf(velocityfield):
+#TODO : Has to make a trnaposition between VF and vf.
+# maybe it shold be a good idea to pass vf in the same format.
+
+
+def velocityfield_to_vf(vectorfield, time):
     """
-    Create a VF object from a VelocityField object.
+    Create a VF object from a VectorField object.
     """
     # extracting data
-    vx = velocityfield.get_comp('Vx', raw=True).data
-    vy = velocityfield.get_comp('Vy', raw=True).data
-    ind_x, ind_y = velocityfield.get_axes()
-    mask = velocityfield.get_comp('mask', raw=True)
-    theta = velocityfield.get_comp('theta', raw=True)
-    time = velocityfield.get_comp('time')
+    vx = np.transpose(vectorfield.comp_x)
+    vy = np.transpose(vectorfield.comp_y)
+    ind_x, ind_y = vectorfield.axe_x, vectorfield.axe_y
+    mask = np.transpose(vectorfield.mask)
+    theta = np.transpose(vectorfield.theta)
     # TODO : add the following when fill will be optimized
     #THETA.fill()
-    theta = theta.data
     # using VF methods to get cp position
     vf = VF(vx, vy, ind_x, ind_y, mask, theta, time)
     return vf
@@ -54,11 +56,13 @@ class VF(object):
 
     def export_to_velocityfield(self):
         """
-        Return the field as VelocityField object.
+        Return the field as VectorField object.
         """
-        tmp_vf = VelocityField()
-        tmp_vf.import_from_arrays(self.axe_x, self.axe_y, self.vx, self.vy,
-                                  self.time)
+        tmp_vf = VectorField()
+        vx = np.transpose(self.vx)
+        vy = np.transpose(self.vy)
+        mask = np.transpose(self.mask)
+        tmp_vf.import_from_arrays(self.axe_x, self.axe_y, vx, vy, mask)
         return tmp_vf
 
     def get_cp_position(self):
@@ -94,6 +98,7 @@ class VF(object):
             pool = self._split_the_field(grid_x, grid_y)
         # loop on the pool (funny no ?)
         while True:
+            print(len(pool))
             # if the pool is empty we have finish !
             if len(pool) == 0:
                 break
@@ -102,16 +107,18 @@ class VF(object):
             nmb_struct = tmp_vf._check_struct_number()
             # check if there is something in it
             if nmb_struct == (0, 0):
+                pool = np.delete(pool, 0)
                 pass
             # if there is only one critical point and the field is as
             # small as possible, we store the cp position, the end !
             elif nmb_struct == (1, 1)\
-                    and np.all(self.shape[0] < (2*self._min_win_size,
-                                                2*self._min_win_size)):
+                    and np.all(tmp_vf.shape < (2*self._min_win_size,
+                                               2*self._min_win_size)):
                 cp_pos = tmp_vf._get_poi_position()
                 positions.append((tmp_vf.axe_x[cp_pos[0]] + delta_x/2.,
                                   tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
                 pbis.append(tmp_vf.pbi_x[-1])
+                pool = np.delete(pool, 0)
             # if there is only one critical point in it, we cut around
             # this point
             elif nmb_struct == (1, 1):
@@ -124,7 +131,7 @@ class VF(object):
                     tmp_pool = tmp_vf._split_the_field(tmp_grid_x, tmp_grid_y)
                     pool = np.append(pool, tmp_pool[:])
                 #else we just delete the field
-            pool = np.delete(pool, 0)
+                pool = np.delete(pool, 0)
         return positions, pbis
 
     def get_pbi(self, direction):
@@ -182,7 +189,7 @@ class VF(object):
         mask = self.mask[mask_y, :]
         mask = mask[:, mask_x]
         theta = self.theta[mask_y, :]
-        mask = theta[:, mask_x]
+        theta = theta[:, mask_x]
         time = self.time
         if len(axe_x) == 0 or len(axe_y) == 0:
             raise ValueError()
@@ -375,9 +382,10 @@ def get_cp_traj(TVFS, epsilon=None, kind='crit'):
     cp_pbi_p = []
     cp_pbi_m = []
     # getting first critical points for all fields
-    for field in TVFS.fields:
+    times = TVFS.times
+    for i, field in enumerate(TVFS.fields):
         if kind == 'crit':
-            foc, foc_c, nod_i, nod_o, sadd, pbi = get_cp_crit(field)
+            foc, foc_c, nod_i, nod_o, sadd, pbi = get_cp_crit(field, times[i])
             pbi_p, pbi_m = [], []
             if len(pbi) != 0:
                 for pbi_pt in pbi:
@@ -386,11 +394,11 @@ def get_cp_traj(TVFS, epsilon=None, kind='crit'):
                     else:
                         pbi_m.append(pbi_pt)
         elif kind == 'pbi':
-            pos, pbis = get_cp_pbi(field)
+            pos, pbis = get_cp_pbi(field, times[i])
             foc, foc_c, nod_i, nod_o, sadd = [], [], [], [], []
             pbi_p, pbi_m = [], []
             for i, pt in enumerate(pos):
-                tmp_pt = Points([pt], [field.time])
+                tmp_pt = Points([pt], [times[i]])
                 tmp_pt.pbi = pbis[i]
                 if pbis[i] == 1:
                     pbi_p.append(tmp_pt)
@@ -415,7 +423,7 @@ def get_cp_traj(TVFS, epsilon=None, kind='crit'):
         if len(pbi_m) != 0:
             cp_pbi_m += pbi_m
     # getting times
-    times = TVFS.get_comp('time')
+    times = TVFS.times
     # getting critical points trajectory for eachkind of point
     if len(focus) != 0:
         focus_traj = get_cp_time_evolution(focus, times, epsilon)
@@ -664,14 +672,14 @@ def get_cp_time_evolution(points, times=None, epsilon=None):
     return points_f
 
 
-def get_cp_pbi(velocityfield):
+def get_cp_pbi(vectorfield, time=0, unit_time=make_unit("")):
     """
-    For a VelocityField object, return the critical points positions and their
+    For a VectorField object, return the critical points positions and their
     PBI (Poincarre Bendixson indice)
 
     Parameters
     ----------
-    velocityfield : a VelocityField object.
+    vectorfield : a VectorField object.
         .
     Returns
     -------
@@ -681,22 +689,22 @@ def get_cp_pbi(velocityfield):
         PBI (1 indicate a node, -1 a saddle point)
     """
     # checking parameters coherence
-    if not isinstance(velocityfield, VelocityField):
-        raise TypeError("'velocityfield' must be a VelocityField")
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'vectorfield' must be a VectorField")
     # using VF methods to get cp position
-    field = velocityfield_to_vf(velocityfield)
+    field = velocityfield_to_vf(vectorfield, time)
     return field.get_cp_position()
 
 
-def get_cp_crit(velocityfield):
+def get_cp_crit(vectorfield, time=0, unit_time=make_unit("")):
     """
-    For a VelocityField object, return the position of critical points.
+    For a VectorField object, return the position of critical points.
     This algorithm use the PBI algorithm, then a method based on criterion to
     give more accurate results.
 
     Parameters
     ----------
-    velocityfield : VelocityField object
+    vectorfield : VectorField object
         .
 
     Returns
@@ -706,22 +714,22 @@ def get_cp_crit(velocityfield):
     cp_pbi : tuple of points
         Points too close to a wall to use criterion method.
     """
-    if not isinstance(velocityfield, VelocityField):
-        raise TypeError("'VF' must be a VelocityField")
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'VF' must be a VectorField")
     ### Getting pbi cp position and fields around ###
-    VF_field = velocityfield_to_vf(velocityfield)
+    VF_field = velocityfield_to_vf(vectorfield, time)
     cp_positions, pbis = VF_field.get_cp_position()
     # creating velocityfields around critical points
-    # and transforming into VelocityField objects
+    # and transforming into VectorField objects
     VF_tupl = []
     cp_pbi = []
     for i, cp_pos in enumerate(cp_positions):
         tmp_vf = VF_field.get_field_around_pt(cp_pos, 5)
         tmp_vf = tmp_vf.export_to_velocityfield()
         # trating small fields
-        axe_x, axe_y = tmp_vf.get_axes()
+        axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
         if len(axe_x) < 6 or len(axe_y) < 6:
-            pt = Points([cp_pos], [VF_field.time])
+            pt = Points([cp_pos], [time])
             pt.pbi = pbis[i]
             cp_pbi.append(pt)
         else:
@@ -737,10 +745,10 @@ def get_cp_crit(velocityfield):
             # checking if node or focus
             VF.gamma1 = get_gamma(VF, radius=1.9, ind=True)
             VF.kappa1 = get_kappa(VF, radius=1.9, ind=True)
-            max_gam = np.max([abs(VF.gamma1.get_max()),
-                             abs(VF.gamma1.get_min())])
-            max_kap = np.max([abs(VF.kappa1.get_max()),
-                             abs(VF.kappa1.get_min())])
+            max_gam = np.max([abs(VF.gamma1.max),
+                             abs(VF.gamma1.min)])
+            max_kap = np.max([abs(VF.kappa1.max),
+                             abs(VF.kappa1.min)])
             if max_gam > max_kap:
                 VF_focus.append(VF)
             else:
@@ -756,8 +764,8 @@ def get_cp_crit(velocityfield):
             pts = _min_detection(tmp_sigma)
             if pts is not None:
                 if pts.xy[0][0] is not None and len(pts) == 1:
-                    pts.v = [VF.time]
-                    pts.unit_v = VF.unit_time
+                    pts.v = [time]
+                    pts.unit_v = unit_time
                     saddles.append(pts)
     ### Computing focus positions (rotatives and contrarotatives) ###
     focus = []
@@ -765,23 +773,23 @@ def get_cp_crit(velocityfield):
     if len(VF_focus) != 0:
         for VF in VF_focus:
             tmp_gam = VF.gamma1
-            min_gam = tmp_gam.get_min()
-            max_gam = tmp_gam.get_max()
+            min_gam = tmp_gam.min
+            max_gam = tmp_gam.max
             # rotative vortex
             if abs(max_gam) > abs(min_gam):
                 pts = _min_detection(-1.*tmp_gam)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [VF.time]
-                        pts.unit_v = VF.unit_time
+                        pts.v = [time]
+                        pts.unit_v = unit_time
                         focus.append(pts)
             # contrarotative vortex
             else:
                 pts = _min_detection(tmp_gam)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [VF.time]
-                        pts.unit_v = VF.unit_time
+                        pts.v = [time]
+                        pts.unit_v = unit_time
                         focus_c.append(pts)
     ### Computing nodes points positions (in or out) ###
     nodes_i = []
@@ -789,23 +797,23 @@ def get_cp_crit(velocityfield):
     if len(VF_nodes) != 0:
         for VF in VF_nodes:
             tmp_kap = VF.kappa1
-            min_kap = tmp_kap.get_min()
-            max_kap = tmp_kap.get_max()
+            min_kap = tmp_kap.min
+            max_kap = tmp_kap.max
             # out nodes
             if abs(max_kap) > abs(min_kap):
                 pts = _min_detection(-1.*tmp_kap)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [VF.time]
-                        pts.unit_v = VF.unit_time
+                        pts.v = [time]
+                        pts.unit_v = unit_time
                         nodes_o.append(pts)
             # in nodes
             else:
                 pts = _min_detection(tmp_kap)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [VF.time]
-                        pts.unit_v = VF.unit_time
+                        pts.v = [time]
+                        pts.unit_v = unit_time
                         nodes_i.append(pts)
     return focus, focus_c, nodes_i, nodes_o, saddles, cp_pbi
 
@@ -815,8 +823,8 @@ def _min_detection(SF):
     Only for use in 'get_cp_crit'.
     """
     # interpolation on the field
-    axe_x, axe_y = SF.get_axes()
-    values = SF.get_comp('values', raw=True).data
+    axe_x, axe_y = SF.axe_x, SF.axe_y
+    values = SF.values
     try:
         interp = RectBivariateSpline(axe_y, axe_x, values, s=0, ky=2, kx=2)
     except:
@@ -867,8 +875,8 @@ def _gaussian_fit(SF):
                                            data)
         p, success = optimize.leastsq(errorfunction, params)
         return p
-    axe_x, axe_y = SF.get_axes()
-    values = SF.get_comp('values')
+    axe_x, axe_y = SF.axe_x, SF.axe_y
+    values = SF.values
     params = fitgaussian(values)
     delta_x = axe_x[1] - axe_x[0]
     delta_y = axe_y[1] - axe_y[0]
@@ -889,8 +897,8 @@ def get_separation_position(obj, wall_direction, wall_position,
 
     Parameters
     ----------
-    obj : ScalarField, VectorField, VelocityField or TemporalVelocityField
-        If 'VectorField' or 'VelocityField', wall_direction is used to
+    obj : ScalarField, VectorField, VectorField or TemporalVelocityField
+        If 'VectorField' or 'VectorField', wall_direction is used to
         determine the interesting velocity component.
     wall_direction : integer
         1 for a wall at a given value of x,
@@ -902,7 +910,7 @@ def get_separation_position(obj, wall_direction, wall_position,
 
     """
     # checking parameters coherence
-    if not isinstance(obj, (ScalarField, VectorField, VelocityField,
+    if not isinstance(obj, (ScalarField, VectorField, VectorField,
                             TemporalVectorFields)):
         raise TypeError("Unknown type for 'obj'")
     if not isinstance(wall_direction, NUMBERTYPES):
@@ -911,7 +919,7 @@ def get_separation_position(obj, wall_direction, wall_position,
         raise ValueError("'wall_direction' must be 1 or 2")
     if not isinstance(wall_position, NUMBERTYPES):
         raise ValueError("'wall_position' must be a number")
-    axe_x, axe_y = obj.get_axes()
+    axe_x, axe_y = obj.axe_x, obj.axe_y
     if interval is None:
         if wall_direction == 2:
             interval = [np.min(axe_x), np.max(axe_x)]
@@ -921,38 +929,31 @@ def get_separation_position(obj, wall_direction, wall_position,
         raise TypeError("'interval' must be a array")
     # checking 'obj' type
     if isinstance(obj, ScalarField):
-        V = obj.get_comp('values', raw=True)
+        V = obj.values
         if wall_direction == 1:
             axe = axe_x
         else:
             axe = axe_y
     elif isinstance(obj, VectorField):
         if wall_direction == 1:
-            V = obj.get_comp('Vy', raw=True)
+            V = obj.comp_y
             axe = axe_x
         else:
-            V = obj.get_comp('Vx', raw=True)
-            axe = axe_y
-    elif isinstance(obj, VelocityField):
-        if wall_direction == 1:
-            V = obj.get_comp('Vy', raw=True)
-            axe = axe_x
-        else:
-            V = obj.get_comp('Vx', raw=True)
+            V = obj.comp_x
             axe = axe_y
     elif isinstance(obj, TemporalVectorFields):
         pts = []
-        times = obj.get_comp('time')
+        times = obj.times
         if wall_direction == 1:
-            _, unit_axe = obj.get_axe_units()
+            unit_axe = obj.unit_y
         else:
-            unit_axe, _ = obj.get_axe_units()
+            unit_axe = obj.unit_x
         for field in obj:
             pts.append(get_separation_position(field,
                                                wall_direction=wall_direction,
                                                wall_position=wall_position,
                                                interval=interval))
-        return Profile(times, pts, unit_x=obj.get_comp('unit_time'),
+        return Profile(times, pts, unit_x=obj.unit_times,
                        unit_y=unit_axe)
     else:
         raise ValueError("Unknown type for 'obj'")
@@ -1006,7 +1007,7 @@ def get_critical_line(VF, source_point, direction, kol='stream',
 
     Parameters
     ----------
-    VF : VelocityField object
+    VF : VectorField object
         Base field for streamline
     source_point : Point object
         Source critical point.
@@ -1038,8 +1039,8 @@ def get_critical_line(VF, source_point, direction, kol='stream',
         'angle' (angle between the semi-axis)
     """
     # check parameters coherence
-    if not isinstance(VF, VelocityField):
-        raise TypeError("'VF' must be a VelocityField object")
+    if not isinstance(VF, VectorField):
+        raise TypeError("'VF' must be a VectorField object")
     if not isinstance(source_point, Points):
         raise TypeError("'source_point' must be a Point object")
     if not isinstance(direction, int):
@@ -1059,7 +1060,7 @@ def get_critical_line(VF, source_point, direction, kol='stream',
     # get initial position and axis steps
     x_pt = source_point.xy[0, 0]
     y_pt = source_point.xy[0, 1]
-    axe_x, axe_y = VF.get_axes()
+    axe_x, axe_y = VF.axe_x, VF.axe_y
     dx = axe_x[1] - axe_x[0]
     dy = axe_y[1] - axe_y[0]
     # get around positions
@@ -1149,13 +1150,13 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
     if not isinstance(ind, bool):
         raise TypeError("'ind' must be a boolean")
     if mask is None:
-        mask = np.zeros(vectorfield.get_dim())
+        mask = np.zeros(vectorfield.shape)
     elif not isinstance(mask, ARRAYTYPES):
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
     # Getting neighbouring points motif
-    axe_x, axe_y = vectorfield.get_axes()
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
     if ind:
         motif = vectorfield.get_points_around(indcentral, radius, ind)
@@ -1166,9 +1167,9 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
         motif = motif - indcentral
     nmbpts = len(motif)
     # Getting vector angles
-    theta = vectorfield.get_comp('theta', raw=True).data
+    theta = vectorfield.theta
     # récupération du masque du champ de vitesse
-    mask = np.logical_or(mask, vectorfield.get_comp('mask', raw=True))
+    mask = np.logical_or(mask, vectorfield.mask)
     # Ajout au masque des valeurs sur le bord
     if ind:
         indx = np.arange(len(axe_x))
@@ -1190,7 +1191,7 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
     # calcul de delta moyen
     deltamoy = 2.*np.pi/(nmbpts)
     # boucle sur les points
-    sigmas = np.zeros(vectorfield.get_dim())
+    sigmas = np.zeros(vectorfield.shape)
     mask2 = np.zeros(mask.shape)
     for inds, pos, _ in vectorfield:
         # On ne fait rien si la valeur est masquée
@@ -1226,13 +1227,12 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
     # masking
     mask = np.logical_or(mask, mask1)
     mask = np.logical_or(mask, mask2)
-    sigmas = np.ma.masked_array(sigmas, mask)
     if raw:
         return sigmas
     else:
         sigma_sf = ScalarField()
-        unit_x, unit_y = vectorfield.get_axe_units()
-        sigma_sf.import_from_arrays(axe_x, axe_y, sigmas,
+        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
+        sigma_sf.import_from_arrays(axe_x, axe_y, sigmas, mask,
                                     unit_x=unit_x, unit_y=unit_y,
                                     unit_values=make_unit(""))
         return sigma_sf
@@ -1277,25 +1277,25 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         raise TypeError("'radius' must be a number")
     if not isinstance(ind, bool):
         raise TypeError("'ind' must be a boolean")
-    axe_x, axe_y = vectorfield.get_axes()
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
     if not isinstance(kind, STRINGTYPES):
         raise TypeError("'kind' must be a string")
     if not kind in ['gamma1', 'gamma2']:
         raise ValueError("Unkown value for kind")
     if mask is None:
-        mask = np.zeros(vectorfield.get_dim())
+        mask = np.zeros(vectorfield.shape)
     elif not isinstance(mask, ARRAYTYPES):
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
     ### Importing data from vectorfield (velocity, axis and mask) ###
-    Vx = vectorfield.get_comp('Vx', raw=True).data
-    Vy = vectorfield.get_comp('Vy', raw=True).data
-    mask = np.logical_or(mask, vectorfield.get_comp('mask', raw=True))
-    norm_v = vectorfield.get_comp('magnitude', raw=True)
+    Vx = vectorfield.comp_x
+    Vy = vectorfield.comp_y
+    mask = np.logical_or(mask, vectorfield.mask)
+    norm_v = vectorfield.magnitude
     ### Compute motif and motif angles on an arbitrary point ###
-    axe_x, axe_y = vectorfield.get_axes()
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
     if ind:
         motif = vectorfield.get_points_around(indcentral, radius, ind)
@@ -1344,7 +1344,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         border_x, border_y = np.meshgrid(border_x, border_y)
         mask_border = np.logical_or(border_x, border_y)
     ### Loop on points ###
-    gammas = np.zeros(vectorfield.get_dim())
+    gammas = np.zeros(vectorfield.shape)
     for inds, pos, _ in vectorfield:
         ind_x = inds[0]
         ind_y = inds[1]
@@ -1383,14 +1383,13 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
     ### Applying masks ###
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
-    gammas = np.ma.masked_array(gammas, mask)
     ### Creating gamma ScalarField ###
     if raw:
         return gammas
     else:
         gamma_sf = ScalarField()
-        unit_x, unit_y = vectorfield.get_axe_units()
-        gamma_sf.import_from_arrays(axe_x, axe_y, gammas,
+        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
+        gamma_sf.import_from_arrays(axe_x, axe_y, gammas, mask,
                                     unit_x=unit_x, unit_y=unit_y,
                                     unit_values=make_unit(''))
         return gamma_sf
@@ -1435,25 +1434,25 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         raise TypeError("'radius' must be a number")
     if not isinstance(ind, bool):
         raise TypeError("'ind' must be a boolean")
-    axe_x, axe_y = vectorfield.get_axes()
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
     if not isinstance(kind, STRINGTYPES):
         raise TypeError("'kind' must be a string")
     if not kind in ['kappa1', 'kappa2']:
         raise ValueError("Unkown value for kind")
     if mask is None:
-        mask = np.zeros(vectorfield.get_dim())
+        mask = np.zeros(vectorfield.shape)
     elif not isinstance(mask, ARRAYTYPES):
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
     ### Importing data from vectorfield (velocity, axis and mask) ###
-    Vx = vectorfield.get_comp('Vx', raw=True).data
-    Vy = vectorfield.get_comp('Vy', raw=True).data
-    mask = np.logical_or(mask, vectorfield.get_comp('mask', raw=True))
-    norm_v = vectorfield.get_comp('magnitude', raw=True)
+    Vx = vectorfield.comp_x
+    Vy = vectorfield.comp_y
+    mask = np.logical_or(mask, vectorfield.mask)
+    norm_v = vectorfield.magnitude
     ### Compute motif and motif angles on an arbitrary point ###
-    axe_x, axe_y = vectorfield.get_axes()
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
     if ind:
         motif = vectorfield.get_points_around(indcentral, radius, ind)
@@ -1502,7 +1501,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         border_x, border_y = np.meshgrid(border_x, border_y)
         mask_border = np.logical_or(border_x, border_y)
     ### Loop on points ###
-    kappas = np.zeros(vectorfield.get_dim())
+    kappas = np.zeros(vectorfield.shape)
     for inds, pos, _ in vectorfield:
         ind_x = inds[0]
         ind_y = inds[1]
@@ -1543,14 +1542,13 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
     ### Applying masks ###
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
-    kappas = np.ma.masked_array(kappas, mask)
     ### Creating kappa ScalarField ###
     if raw:
         return kappas
     else:
         kappa_sf = ScalarField()
-        unit_x, unit_y = vectorfield.get_axe_units()
-        kappa_sf.import_from_arrays(axe_x, axe_y, kappas,
+        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
+        kappa_sf.import_from_arrays(axe_x, axe_y, kappas, mask,
                                     unit_x=unit_x, unit_y=unit_y,
                                     unit_values=make_unit(''))
         return kappa_sf
@@ -1575,14 +1573,14 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
     if mask is None:
-        mask = np.zeros(vectorfield.get_dim())
+        mask = np.zeros(vectorfield.shape)
     elif not isinstance(mask, ARRAYTYPES):
         raise TypeError("'mask' must be an array of boolean")
     else:
         mask = np.array(mask)
-    axe_x, axe_y = vectorfield.get_axes()
-    Vx = vectorfield.get_comp('Vx', raw=True)
-    Vy = vectorfield.get_comp('Vy', raw=True)
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+    Vx = vectorfield.comp_x
+    Vy = vectorfield.comp_y
     #calcul des gradients
     Exy, Exx = np.gradient(Vx)
     Eyy, Eyx = np.gradient(Vy)
@@ -1597,7 +1595,7 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
         return qcrit
     else:
         q_sf = ScalarField()
-        q_sf.import_from_arrays(axe_x, axe_y, qcrit,
+        q_sf.import_from_arrays(axe_x, axe_y, qcrit, mask,
                                 unit_x=vectorfield.comp_x.unit_x,
                                 unit_y=vectorfield.comp_x.unit_y)
         return q_sf
@@ -1624,21 +1622,21 @@ def get_iota(vectorfield, mask=None, raw=False):
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
     if mask is None:
-        mask = np.zeros(vectorfield.get_dim())
+        mask = np.zeros(vectorfield.shape)
     elif not isinstance(mask, ARRAYTYPES):
         raise TypeError("'mask' must be an array of boolean")
     else:
         mask = np.array(mask)
-    axe_x, axe_y = vectorfield.get_axes()
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     # récupération de theta et de son masque
-    theta = vectorfield.get_comp('theta', raw=True)
+    theta = vectorfield.theta
     mask = np.logical_or(mask, theta.mask)
     theta = theta.data
     # récupération des dx et dy
     dx = np.abs(axe_x[0] - axe_x[2])
     dy = np.abs(axe_y[0] - axe_y[2])
     # boucle sur les points
-    grad_theta_m = np.zeros(vectorfield.get_dim())
+    grad_theta_m = np.zeros(vectorfield.shape)
     maskf = mask.copy()
     for inds, _, _ in vectorfield:
         # arrete si on est sur un bords ou sur une valeurs masquée
@@ -1665,13 +1663,12 @@ def get_iota(vectorfield, mask=None, raw=False):
         # calcul de gradthetaM
         grad_theta_m[inds[1], inds[0]] = (grad_x**2 + grad_y**2)**(1./2)
     # application du masque
-    grad_theta_m = np.ma.masked_array(grad_theta_m, maskf)
     if raw:
         return grad_theta_m
     else:
         iota_sf = ScalarField()
-        unit_x, unit_y = vectorfield.get_axe_units()
-        iota_sf.import_from_arrays(axe_x, axe_y, grad_theta_m,
+        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
+        iota_sf.import_from_arrays(axe_x, axe_y, grad_theta_m, maskf,
                                    unit_x=unit_x, unit_y=unit_y,
                                    unit_values=make_unit(''))
         return iota_sf

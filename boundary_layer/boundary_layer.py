@@ -375,7 +375,10 @@ def get_bl_thickness(obj, direction=1, perc=0.95):
         value = obj.get_interpolated_value(y=maxi*perc)
         return value[0]
     elif isinstance(obj, ScalarField):
-        axe = obj.get_axes()[direction - 1]
+        if direction == 1:
+            axe = obj.axe_x
+        else:
+            axe = obj.axe_y
         profiles = [obj.get_profile(direction, x) for x in axe]
         values = [get_bl_thickness(prof) for prof, _ in profiles]
         return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
@@ -429,7 +432,10 @@ def get_displ_thickness(obj, direction=1):
         delta = np.trapz(fonct, pos_x)
         return delta
     elif isinstance(obj, ScalarField):
-        axe = obj.get_axes()[direction - 1]
+        if direction == 1:
+            axe = obj.axe_x
+        else:
+            axe = obj.axe_y
         profiles = [obj.get_profile(direction, x) for x in axe]
         values = [get_displ_thickness(prof) for prof, _ in profiles]
         return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
@@ -483,7 +489,10 @@ def get_momentum_thickness(obj, direction=1):
         delta = np.trapz(fonct, pos_x)
         return delta
     elif isinstance(obj, ScalarField):
-        axe = obj.get_axes()[direction - 1]
+        if direction == 1:
+            axe = obj.axe_x
+        else:
+            axe = obj.axe_y
         profiles = [obj.get_profile(direction, x) for x in axe]
         values = [get_momentum_thickness(prof) for prof, _ in profiles]
         return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
