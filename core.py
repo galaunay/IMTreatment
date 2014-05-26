@@ -1354,7 +1354,7 @@ class Field(object):
             self.axe_y -= y
 
     def trim_area(self, intervalx=None, intervaly=None, full_output=False,
-                  ind=False):
+                  ind=False, inplace=False):
         """
         Return a trimed field in respect with given intervals.
 
@@ -1369,6 +1369,8 @@ class Field(object):
         ind : boolean, optional
             If 'True', intervals are understood as indices along axis.
             If 'False' (default), intervals are understood in axis units.
+        inplace : boolean, optional
+            If 'True', the field is trimed in place.
         """
         axe_x, axe_y = self.axe_x, self.axe_y
         if intervalx is None:
@@ -1423,13 +1425,26 @@ class Field(object):
             else:
                 indmax_y = self.get_indice_on_axe(2, intervaly[1])[0]
         # trimming the field
-        trimfield = self.__class__()
-        trimfield.axe_x = self.axe_x[indmin_x:indmax_x + 1]
-        trimfield.axe_y = self.axe_y[indmin_y:indmax_y + 1]
-        if full_output:
-            return indmin_x, indmax_x, indmin_y, indmax_y, trimfield
+        if inplace:
+            axe_x = self.axe_x[indmin_x:indmax_x + 1]
+            axe_y = self.axe_y[indmin_y:indmax_y + 1]
+            unit_x = self.unit_x
+            unit_y = self.unit_y
+            self.__init__()
+            self.axe_x = axe_x
+            self.axe_y = axe_y
+            self.unit_x = unit_x
+            self.unit_y = unit_y
+            if full_output:
+                return indmin_x, indmax_x, indmin_y, indmax_y
         else:
-            return trimfield
+            trimfield = self.__class__()
+            trimfield.axe_x = self.axe_x[indmin_x:indmax_x + 1]
+            trimfield.axe_y = self.axe_y[indmin_y:indmax_y + 1]
+            if full_output:
+                return indmin_x, indmax_x, indmin_y, indmax_y, trimfield
+            else:
+                return trimfield
 
     def get_indice_on_axe(self, direction, value, nearest=False):
         """
@@ -1798,7 +1813,7 @@ class ScalarField(Field):
             new_mask = np.empty(self.shape, dtype=bool)
             new_mask.fill(fill_value)
         elif isinstance(new_mask, ARRAYTYPES):
-            new_mask = np.array(new_mask)
+            new_mask = np.array(new_mask, dtype=bool)
         else:
             raise TypeError("'mask' should be an array or a boolean,"
                             " not a {}".format(type(new_mask)))
@@ -2631,7 +2646,8 @@ class ScalarField(Field):
         """
         return copy.deepcopy(self)
 
-    def trim_area(self, intervalx=None, intervaly=None, ind=False):
+    def trim_area(self, intervalx=None, intervaly=None, ind=False,
+                  inplace=False):
         """
         Return a trimed  area in respect with given intervals.
 
@@ -2644,32 +2660,47 @@ class ScalarField(Field):
         ind : boolean, optional
             If 'True', intervals are understood as indices along axis.
             If 'False' (default), intervals are understood in axis units.
+        inplace : boolean, optional
+            If 'True', the field is trimed in place.
         """
-        indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
-            Field.trim_area(self, intervalx, intervaly, full_output=True,
-                            ind=ind)
-        trimfield.values = self.values[indmin_x:indmax_x + 1,
+        if inplace:
+            values = self.values
+            mask = self.mask
+            indmin_x, indmax_x, indmin_y, indmax_y = \
+                Field.trim_area(self, intervalx, intervaly, full_output=True,
+                                ind=ind, inplace=True)
+            self.values = values[indmin_x:indmax_x + 1,
+                                 indmin_y:indmax_y + 1]
+            self.mask = mask[indmin_x:indmax_x + 1,
+                             indmin_y:indmax_y + 1]
+        else:
+            indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
+                Field.trim_area(self, intervalx, intervaly, full_output=True,
+                                ind=ind)
+            trimfield.values = self.values[indmin_x:indmax_x + 1,
+                                           indmin_y:indmax_y + 1]
+            trimfield.mask = self.mask[indmin_x:indmax_x + 1,
                                        indmin_y:indmax_y + 1]
-        return trimfield
+            return trimfield
 
     def crop_masked_border(self):
         """
         Crop the masked border of the field in place.
         """
-        axe_x, axe_y = self.axe_x, self.axe_y
         # checking masked values presence
         mask = self.mask
-        if np.any(mask):
+        if not np.any(mask):
             return None
         # getting indices where we need to cut
-        axe_y_m = np.logical_not(np.all(mask, axis=1))
-        axe_x_m = np.logical_not(np.all(mask, axis=0))
+        axe_x_m = np.logical_not(np.all(mask, axis=1))
+        axe_y_m = np.logical_not(np.all(mask, axis=0))
         axe_x_min = np.where(axe_x_m)[0][0]
         axe_x_max = np.where(axe_x_m)[0][-1]
         axe_y_min = np.where(axe_y_m)[0][0]
         axe_y_max = np.where(axe_y_m)[0][-1]
-        self.trim_area([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
-                       ind=True)
+        self.trim_area([axe_x_min, axe_x_max],
+                       [axe_y_min, axe_y_max],
+                       ind=True, inplace=True)
 
     def fill(self, tof='linear', value=0., remaining_values=np.nan,
              crop_border=True, ):
@@ -3083,8 +3114,8 @@ class VectorField(Field):
         for ij, xy in Field.__iter__(self):
             i = ij[0]
             j = ij[1]
-            if not mask[j, i]:
-                yield ij, xy, [datax[j, i], datay[j, i]]
+            if not mask[i, j]:
+                yield ij, xy, [datax[i, j], datay[i, j]]
 
     @property
     def comp_x(self):
@@ -3987,7 +4018,8 @@ class VectorField(Field):
         else:
             raise ValueError("unknown 'tof' value")
 
-    def trim_area(self, intervalx=None, intervaly=None, ind=False):
+    def trim_area(self, intervalx=None, intervaly=None, ind=False,
+                  inplace=False):
         """
         Return a trimed  area in respect with given intervals.
 
@@ -4000,34 +4032,51 @@ class VectorField(Field):
         ind : boolean, optional
             If 'True', intervals are understood as indices along axis.
             If 'False' (default), intervals are understood in axis units.
+        inplace : boolean, optional
+            If 'True', the field is trimed in place.
         """
-        indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
-            Field.trim_area(self, intervalx, intervaly, full_output=True,
-                            ind=ind)
-        trimfield.comp_x = self.comp_x[indmin_x:indmax_x + 1,
+        if inplace:
+            comp_x = self.comp_x
+            comp_y = self.comp_y
+            mask = self.mask
+            indmin_x, indmax_x, indmin_y, indmax_y = \
+                Field.trim_area(self, intervalx, intervaly, full_output=True,
+                                ind=ind, inplace=True)
+            self.comp_x = comp_x[indmin_x:indmax_x + 1,
+                                 indmin_y:indmax_y + 1]
+            self.comp_y = comp_y[indmin_x:indmax_x + 1,
+                                 indmin_y:indmax_y + 1]
+            self.mask = mask[indmin_x:indmax_x + 1,
+                             indmin_y:indmax_y + 1]
+        else:
+            indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
+                Field.trim_area(self, intervalx, intervaly, full_output=True,
+                                ind=ind)
+            trimfield.comp_x = self.comp_x[indmin_x:indmax_x + 1,
+                                           indmin_y:indmax_y + 1]
+            trimfield.comp_y = self.comp_y[indmin_x:indmax_x + 1,
+                                           indmin_y:indmax_y + 1]
+            trimfield.mask = self.mask[indmin_x:indmax_x + 1,
                                        indmin_y:indmax_y + 1]
-        trimfield.comp_y = self.comp_y[indmin_x:indmax_x + 1,
-                                       indmin_y:indmax_y + 1]
-        return trimfield
+            return trimfield
 
     def crop_masked_border(self):
         """
         Crop the masked border of the field in place.
         """
-        axe_x, axe_y = self.axe_x, self.axe_y
         # checking masked values presence
         mask = self.mask
         if np.any(mask):
             return None
         # getting indices where we need to cut
-        axe_y_m = np.logical_not(np.all(mask, axis=1))
-        axe_x_m = np.logical_not(np.all(mask, axis=0))
+        axe_x_m = np.logical_not(np.all(mask, axis=1))
+        axe_y_m = np.logical_not(np.all(mask, axis=0))
         axe_x_min = np.where(axe_x_m)[0][0]
         axe_x_max = np.where(axe_x_m)[0][-1]
         axe_y_min = np.where(axe_y_m)[0][0]
         axe_y_max = np.where(axe_y_m)[0][-1]
         self.trim_area([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
-                       ind=True)
+                       ind=True, inplace=True)
 
     def _display(self, component=None, kind=None, **plotargs):
         if kind is not None:
@@ -4056,11 +4105,11 @@ class VectorField(Field):
                         displ = plt.quiver(axe_x, axe_y, Vx, Vy, **plotargs)
                 else:
                     displ = plt.quiver(axe_x, axe_y, Vx, Vy, magn, **plotargs)
-                plt.axis('equal')
-                plt.xlabel("X " + unit_x.strUnit())
-                plt.ylabel("Y " + unit_y.strUnit())
             else:
                 raise ValueError("Unknown value of 'kind'")
+            plt.axis('equal')
+            plt.xlabel("X " + unit_x.strUnit())
+            plt.ylabel("Y " + unit_y.strUnit())
         elif component == "x":
             if kind == '3D':
                 displ = self.comp_x_as_sf.Display3D()
@@ -4506,10 +4555,10 @@ class TemporalFields(Fields, Field):
         axe_y_max = np.where(axe_y_m)[0][-1]
         # trim
         self.trim_area([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
-                       ind=True)
+                       ind=True, inplace=True)
 
     def trim_area(self, intervalx=None, intervaly=None, full_output=False,
-                  ind=False):
+                  ind=False, inplace=False):
         """
         Return a trimed field in respect with given intervals.
 
@@ -4521,12 +4570,22 @@ class TemporalFields(Fields, Field):
             interval wanted along y
         full_output : boolean, optional
             If 'True', cutting indices are alson returned
+        inplace : boolean, optional
+            If 'True', fields are trimed in place.
         """
-        trimfield = \
-            Field.trim_area(self, intervalx, intervaly, ind=ind)
-        for field in trimfield.fields:
-            field.trim_area(intervalx, intervaly, ind=ind)
-        return trimfield
+        if inplace:
+            trimfield = \
+                Field.trim_area(self, intervalx, intervaly, ind=ind,
+                                inplace=inplace)
+            for field in trimfield.fields:
+                field.trim_area(intervalx, intervaly, ind=ind,
+                                inplace=inplace)
+        else:
+            trimfield = \
+                Field.trim_area(self, intervalx, intervaly, ind=ind)
+            for field in trimfield.fields:
+                field.trim_area(intervalx, intervaly, ind=ind)
+            return trimfield
 
     ### Getting information from fields
     def get_mean_field(self, nmb_min=1):

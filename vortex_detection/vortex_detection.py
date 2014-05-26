@@ -98,7 +98,6 @@ class VF(object):
             pool = self._split_the_field(grid_x, grid_y)
         # loop on the pool (funny no ?)
         while True:
-            print(len(pool))
             # if the pool is empty we have finish !
             if len(pool) == 0:
                 break
@@ -108,7 +107,6 @@ class VF(object):
             # check if there is something in it
             if nmb_struct == (0, 0):
                 pool = np.delete(pool, 0)
-                pass
             # if there is only one critical point and the field is as
             # small as possible, we store the cp position, the end !
             elif nmb_struct == (1, 1)\
@@ -119,17 +117,22 @@ class VF(object):
                                   tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
                 pbis.append(tmp_vf.pbi_x[-1])
                 pool = np.delete(pool, 0)
-            # if there is only one critical point in it, we cut around
-            # this point
             elif nmb_struct == (1, 1):
-                pass
-            # Else, we split again the field
+                # we cut around the point !
+                # TODO : implémenter, en attendant, on utilise la meme
+                # fonction qu'au dessus...
+                cp_pos = tmp_vf._get_poi_position()
+                positions.append((tmp_vf.axe_x[cp_pos[0]] + delta_x/2.,
+                                  tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
+                pbis.append(tmp_vf.pbi_x[-1])
+                pool = np.delete(pool, 0)
             else:
                 tmp_grid_x, tmp_grid_y = tmp_vf._find_cut_positions()
                 # if there is possible cutting, we do it
-                if len(tmp_grid_x) != 2 or len(tmp_grid_y) != 2:
-                    tmp_pool = tmp_vf._split_the_field(tmp_grid_x, tmp_grid_y)
-                    pool = np.append(pool, tmp_pool[:])
+                if not tmp_grid_x is None:
+                    if len(tmp_grid_x) != 2 or len(tmp_grid_y) != 2:
+                        tmp_pool = tmp_vf._split_the_field(tmp_grid_x, tmp_grid_y)
+                        pool = np.append(pool, tmp_pool[:])
                 #else we just delete the field
                 pool = np.delete(pool, 0)
         return positions, pbis
@@ -825,16 +828,18 @@ def _min_detection(SF):
     # interpolation on the field
     axe_x, axe_y = SF.axe_x, SF.axe_y
     values = SF.values
+    if np.any(SF.mask):
+        raise Exception("should not have masked values")
     try:
-        interp = RectBivariateSpline(axe_y, axe_x, values, s=0, ky=2, kx=2)
+        interp = RectBivariateSpline(axe_x, axe_y, values, s=0, ky=3, kx=3)
     except:
         pdb.set_trace()
     # extended field (resolution x100)
     x = np.linspace(axe_x[0], axe_x[-1], 100)
     y = np.linspace(axe_y[0], axe_y[-1], 100)
-    values = interp(y, x)
+    values = interp(x, y)
     ind_min = np.argmin(values)
-    ind_y, ind_x = np.unravel_index(ind_min, values.shape)
+    ind_x, ind_y = np.unravel_index(ind_min, values.shape)
     pos = (x[ind_x], y[ind_y])
     return Points([pos])
 
@@ -1107,6 +1112,8 @@ def get_critical_line(VF, source_point, direction, kol='stream',
 
 
 ### Criterion computation ###
+#+++ besoin de mettre les tableaux dans le meme sens que vectorfield (ou alors
+#on met un tranpose a l'entré et à la sortie...) +++
 def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
     """
     Return the sigma scalar field, reprensenting the homogeneity of the
@@ -1179,7 +1186,7 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
         border_y = np.logical_or(indy <= indy[0] + (radius - 1),
                                  indy >= indy[-1] - (radius - 1))
         border_x, border_y = np.meshgrid(border_x, border_y)
-        mask1 = np.logical_or(border_x, border_y)
+        mask1 = np.transpose(np.logical_or(border_x, border_y))
     else:
         delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
         border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
@@ -1187,29 +1194,31 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
         border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
                                  axe_y >= axe_y[-1] - (radius - delta))
         border_x, border_y = np.meshgrid(border_x, border_y)
-        mask1 = np.logical_or(border_x, border_y)
+        mask1 = np.transpose(np.logical_or(border_x, border_y))
     # calcul de delta moyen
     deltamoy = 2.*np.pi/(nmbpts)
     # boucle sur les points
     sigmas = np.zeros(vectorfield.shape)
     mask2 = np.zeros(mask.shape)
     for inds, pos, _ in vectorfield:
+        ind_x = inds[0]
+        ind_y = inds[1]
         # On ne fait rien si la valeur est masquée
-        if mask[inds[1], inds[0]]:
+        if mask[ind_x, ind_y]:
             continue
         # stop if on border
-        if mask1[inds[1], inds[0]]:
+        if mask1[ind_x, ind_y]:
             continue
         # stop if one surrounding point is masked
-        skip = [mask[i[1], i[0]] for i in motif + inds]
+        skip = [mask[i[0], i[1]] for i in motif + inds]
         if np.any(skip):
-            mask2[inds[1], inds[0]] = True
+            mask2[ind_x, ind_y] = True
             continue
         # Extraction des thetas interessants
         theta_nei = np.zeros((len(motif),))
         i = 0
         for indx, indy in motif + inds:
-            theta_nei[i] = theta[indy, indx]
+            theta_nei[i] = theta[indx, indy]
             i += 1
         # Tri des thetas et calcul de deltas
         theta_nei.sort()
@@ -1218,7 +1227,7 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
             delta[i] = theta_nei[i+1] - theta_nei[i]
         delta[-1] = np.pi*2 - (theta_nei[-1] - theta_nei[0])
         # calcul de sigma
-        sigmas[inds[1], inds[0]] = np.var(delta)
+        sigmas[ind_x, ind_y] = np.var(delta)
     # calcul (analytique) du sigma max
     sigma_max = ((np.pi*2 - deltamoy)**2
                  + (nmbpts - 1)*(0 - deltamoy)**2)/nmbpts
@@ -1334,7 +1343,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         border_y = np.logical_or(indy <= indy[0] + (int(radius) - 1),
                                  indy >= indy[-1] - (int(radius) - 1))
         border_x, border_y = np.meshgrid(border_x, border_y)
-        mask_border = np.logical_or(border_x, border_y)
+        mask_border = np.transpose(np.logical_or(border_x, border_y))
     else:
         delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
         border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
@@ -1342,15 +1351,15 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
                                  axe_y >= axe_y[-1] - (radius - delta))
         border_x, border_y = np.meshgrid(border_x, border_y)
-        mask_border = np.logical_or(border_x, border_y)
+        mask_border = np.transpose(np.logical_or(border_x, border_y))
     ### Loop on points ###
     gammas = np.zeros(vectorfield.shape)
     for inds, pos, _ in vectorfield:
         ind_x = inds[0]
         ind_y = inds[1]
         # stop if masked or on border or with a masked surrouinding point
-        if mask[ind_y, ind_x] or mask_surr[ind_y, ind_x]\
-                or mask_border[ind_y, ind_x]:
+        if mask[ind_x, ind_y] or mask_surr[ind_x, ind_y]\
+                or mask_border[ind_x, ind_y]:
             continue
         # getting neighbour points
         indsaround = motif + inds
@@ -1358,8 +1367,8 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         v_mean = [0., 0.]
         if kind == 'gamma2':
             for indaround in indsaround:
-                v_mean[0] += Vx[ind_y, ind_x]
-                v_mean[1] += Vy[ind_y, ind_x]
+                v_mean[0] += Vx[ind_x, ind_y]
+                v_mean[1] += Vy[ind_x, ind_y]
             v_mean[0] /= nmbpts
             v_mean[1] /= nmbpts
         ### Loop on neighbouring points ###
@@ -1368,10 +1377,10 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
             inda_x = indaround[0]
             inda_y = indaround[1]
             # getting vectors for scalar product
-            vector_b_x = Vx[inda_y, inda_x] - v_mean[0]
-            vector_b_y = Vy[inda_y, inda_x] - v_mean[1]
+            vector_b_x = Vx[inda_x, inda_y] - v_mean[0]
+            vector_b_y = Vy[inda_x, inda_y] - v_mean[1]
             if kind == 'gamma1':
-                denom = norm_v[inda_y, inda_x]*norm_vect_a[i]
+                denom = norm_v[inda_x, inda_y]*norm_vect_a[i]
             else:
                 denom = (vector_b_x**2 + vector_b_y**2)**.5*norm_vect_a[i]
             # getting scalar product
@@ -1379,7 +1388,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
                 gamma += (vector_a_x[i]*vector_b_y
                           - vector_a_y[i]*vector_b_x)/denom
         # storing computed gamma value
-        gammas[ind_y, ind_x] = gamma/nmbpts
+        gammas[ind_x, ind_y] = gamma/nmbpts
     ### Applying masks ###
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
@@ -1491,7 +1500,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         border_y = np.logical_or(indy <= indy[0] + (int(radius) - 1),
                                  indy >= indy[-1] - (int(radius) - 1))
         border_x, border_y = np.meshgrid(border_x, border_y)
-        mask_border = np.logical_or(border_x, border_y)
+        mask_border = np.transpose(np.logical_or(border_x, border_y))
     else:
         delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
         border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
@@ -1499,15 +1508,15 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
                                  axe_y >= axe_y[-1] - (radius - delta))
         border_x, border_y = np.meshgrid(border_x, border_y)
-        mask_border = np.logical_or(border_x, border_y)
+        mask_border = np.transpose(np.logical_or(border_x, border_y))
     ### Loop on points ###
     kappas = np.zeros(vectorfield.shape)
     for inds, pos, _ in vectorfield:
         ind_x = inds[0]
         ind_y = inds[1]
         # stop if masked or on border or with a masked surrouinding point
-        if mask[ind_y, ind_x] or mask_surr[ind_y, ind_x]\
-                or mask_border[ind_y, ind_x]:
+        if mask[ind_x, ind_y] or mask_surr[ind_x, ind_y]\
+                or mask_border[ind_x, ind_y]:
             continue
         # getting neighbour points
         indsaround = motif + np.array(inds)
@@ -1516,8 +1525,8 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         if kind == 'kappa2':
             nmbpts = len(indsaround)
             for indaround in indsaround:
-                v_mean[0] += Vx[ind_y, ind_x]
-                v_mean[1] += Vy[ind_y, ind_x]
+                v_mean[0] += Vx[ind_x, ind_y]
+                v_mean[1] += Vy[ind_x, ind_y]
             v_mean[0] /= nmbpts
             v_mean[1] /= nmbpts
         ### Loop on neighbouring points ###
@@ -1527,10 +1536,10 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
             inda_x = indaround[0]
             inda_y = indaround[1]
             # getting vectors for scalar product
-            vector_b_x = Vx[inda_y, inda_x] - v_mean[0]
-            vector_b_y = Vy[inda_y, inda_x] - v_mean[1]
+            vector_b_x = Vx[inda_x, inda_y] - v_mean[0]
+            vector_b_y = Vy[inda_x, inda_y] - v_mean[1]
             if kind == 'kappa1':
-                denom = norm_v[inda_y, inda_x]*norm_vect_a[i]
+                denom = norm_v[inda_x, inda_y]*norm_vect_a[i]
             else:
                 denom = (vector_b_x**2 + vector_b_y**2)**.5*norm_vect_a[i]
             # getting scalar product
@@ -1538,7 +1547,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
                 kappa += (vector_a_x[i]*vector_b_x
                           + vector_a_y[i]*vector_b_y)/denom
         # storing computed kappa value
-        kappas[ind_y, ind_x] = kappa/nmbpts
+        kappas[ind_x, ind_y] = kappa/nmbpts
     ### Applying masks ###
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
@@ -1582,8 +1591,8 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
     Vx = vectorfield.comp_x
     Vy = vectorfield.comp_y
     #calcul des gradients
-    Exy, Exx = np.gradient(Vx)
-    Eyy, Eyx = np.gradient(Vy)
+    Exx, Exy = np.gradient(Vx)
+    Eyx, Eyy = np.gradient(Vy)
     # calcul de 'sig**2' et 'S**2'
     sig = 2.*(Exy - Eyx)**2
     S = (2.*Exx)**2 + 2.*(Eyx + Exy)**2 + (2.*Eyy)**2
@@ -1596,8 +1605,8 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
     else:
         q_sf = ScalarField()
         q_sf.import_from_arrays(axe_x, axe_y, qcrit, mask,
-                                unit_x=vectorfield.comp_x.unit_x,
-                                unit_y=vectorfield.comp_x.unit_y)
+                                unit_x=vectorfield.unit_x,
+                                unit_y=vectorfield.unit_y)
         return q_sf
 
 
@@ -1630,8 +1639,7 @@ def get_iota(vectorfield, mask=None, raw=False):
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     # récupération de theta et de son masque
     theta = vectorfield.theta
-    mask = np.logical_or(mask, theta.mask)
-    theta = theta.data
+    mask = np.logical_or(mask, vectorfield.mask)
     # récupération des dx et dy
     dx = np.abs(axe_x[0] - axe_x[2])
     dy = np.abs(axe_y[0] - axe_y[2])
@@ -1639,29 +1647,31 @@ def get_iota(vectorfield, mask=None, raw=False):
     grad_theta_m = np.zeros(vectorfield.shape)
     maskf = mask.copy()
     for inds, _, _ in vectorfield:
+        ind_x = inds[0]
+        ind_y = inds[1]
         # arrete si on est sur un bords ou sur une valeurs masquée
-        if (inds[1] == 0 or inds[0] == 0 or inds[1] == len(axe_y)-1
-                or inds[0] == len(axe_x)-1):
-            maskf[inds[1], inds[0]] = True
+        if (ind_x == 0 or ind_y == 0 or ind_y == len(axe_y)-1
+                or ind_x == len(axe_x)-1):
+            maskf[ind_x, ind_y] = True
             continue
-        if np.any(mask[inds[1]-1:inds[1]+2, inds[0]-1:inds[0]+2]):
-            maskf[inds[1], inds[0]] = True
+        if np.any(mask[ind_x-1:ind_x+2, ind_y-1:ind_y+2]):
+            maskf[ind_x, ind_y] = True
             continue
         # calcul de theta_m autours
-        theta_m = [[theta[inds[1] - 1, inds[0] - 1] + 3./4*np.pi,
-                   theta[inds[1], inds[0] - 1] + np.pi/2,
-                   theta[inds[1] + 1, inds[0] - 1] + 1./4*np.pi],
-                  [theta[inds[1] - 1, inds[0]] + np.pi,
+        theta_m = [[theta[ind_x - 1, ind_y - 1] + 3./4*np.pi,
+                   theta[ind_x, ind_y - 1] + np.pi/2,
+                   theta[ind_x + 1, ind_y - 1] + 1./4*np.pi],
+                  [theta[ind_x - 1, ind_y] + np.pi,
                    0.,
-                   theta[inds[1] + 1, inds[0]]],
-                  [theta[inds[1] - 1, inds[0] + 1] - 3./4*np.pi,
-                   theta[inds[1], inds[0] + 1] - np.pi/2,
-                   theta[inds[1] + 1, inds[0] + 1] - np.pi/4]]
+                   theta[ind_x + 1, ind_y]],
+                  [theta[ind_x - 1, ind_y + 1] - 3./4*np.pi,
+                   theta[ind_x, ind_y + 1] - np.pi/2,
+                   theta[ind_x + 1, ind_y + 1] - np.pi/4]]
         theta_m = np.mod(theta_m, np.pi*2)
         grad_x = (theta_m[2, 1] - theta_m[0, 1])/dx
         grad_y = (theta_m[1, 2] - theta_m[1, 0])/dy
         # calcul de gradthetaM
-        grad_theta_m[inds[1], inds[0]] = (grad_x**2 + grad_y**2)**(1./2)
+        grad_theta_m[ind_x, ind_y] = (grad_x**2 + grad_y**2)**(1./2)
     # application du masque
     if raw:
         return grad_theta_m
