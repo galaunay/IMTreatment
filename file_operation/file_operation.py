@@ -29,98 +29,92 @@ import scipy.io as spio
 
 
 
-class MyEncoder(json.JSONEncoder):
-    """
-    Personnal encoder to write module class ass json.
-    """
-    def default(self, obj):
-        """
-        Overwritting the default encoder.
-        """
-        try:
-            obj.__classname__
-        except AttributeError:
-            pass
-        else:
-            dic = obj.__dict__
-            return dic
-        if isinstance(obj, (np.bool, np.bool_)):
-            dic = {'__classname__': 'np.bool', 'value': int(obj)}
-            return dic
-        elif isinstance(obj, unum.Unum):
-            dic = {'value': obj._value, 'unit': obj._unit,
-                   '__classname__': 'Unum'}
-            return dic
-        elif isinstance(obj, np.ma.MaskedArray):
-            dic = {'__classname__': 'MaskedArray', 'values': obj.data,
-                   'dtype': obj.dtype.name, 'mask': obj.mask}
-            return dic
-        elif isinstance(obj, np.ndarray):
-            dic = {'__classname__': 'ndarray', 'values': tuple(obj),
-                   'dtype': obj.dtype.name}
-            return dic
-        return json.JSONEncoder.default(self, obj)
-
-
-class MyDecoder(json.JSONDecoder):
-    """
-    Personnal decoder for module class.
-    """
-    def __init__(self, **kw):
-        """
-        Overwritting constructor.
-        """
-        json.JSONDecoder.__init__(self, object_hook=self.object_hook, **kw)
-
-    def object_hook(self, dic):
-        """
-        Defining object_hook.
-        """
-        if '__classname__' in dic:
-            if dic['__classname__'] == 'Points':
-                obj = Points(dic['xy'], dic['v'], dic['unit_x'],
-                             dic['unit_y'], dic['unit_v'])
-            elif dic['__classname__'] == 'Profile':
-                obj = Profile(dic['x'], dic['y'], dic['unit_x'],
-                              dic['unit_y'], str(dic['name']))
-            elif dic['__classname__'] == 'ScalarField':
-                obj = ScalarField()
-                obj.__dict__ = dic
-            elif dic['__classname__'] == 'VectorField':
-                obj = VectorField()
-                obj.__dict__ = dic
-            elif dic['__classname__'] == 'VelocityField':
-                obj = VelocityField()
-                obj.__dict__ = dic
-            elif dic['__classname__'] == 'VelocityFields':
-                obj = VelocityFields()
-                obj.__dict__ = dic
-            elif dic['__classname__'] == 'SpatialVectorFields':
-                obj = SpatialVectorFields()
-                obj.__dict__ = dic
-            elif dic['__classname__'] == 'TemporalVectorFields':
-                obj = TemporalVectorFields()
-                obj.__dict__ = dic
-            elif dic['__classname__'] == 'np.bool':
-                obj = np.bool(dic['value'])
-            elif dic['__classname__'] == 'Unum':
-                obj = unum.units.s*1
-                obj._value = dic['value']
-                obj._unit = dic['unit']
-            elif dic['__classname__'] == 'ndarray':
-                obj = np.array(dic['values'], dtype=dic['dtype'])
-            elif dic['__classname__'] == 'MaskedArray':
-                obj = np.ma.masked_array(dic['values'], dic['mask'],
-                                         dic['dtype'])
-            else:
-                raise IOError("I think i don't know this kind of "
-                              "variable yet... "
-                              "But i'm ready to learn what is a "
-                              "'{0}', buddy."
-                              .format(dic["__classname__"]))
-            return obj
-        else:
-            return dic
+#class MyEncoder(json.JSONEncoder):
+#    """
+#    Personnal encoder to write module class ass json.
+#    """
+#    def default(self, obj):
+#        """
+#        Overwritting the default encoder.
+#        """
+#        try:
+#            obj.__classname__
+#        except AttributeError:
+#            pass
+#        else:
+#            dic = obj.__dict__
+#            return dic
+#        if isinstance(obj, (np.bool, np.bool_)):
+#            dic = {'__classname__': 'np.bool', 'value': int(obj)}
+#            return dic
+#        elif isinstance(obj, unum.Unum):
+#            dic = {'value': obj._value, 'unit': obj._unit,
+#                   '__classname__': 'Unum'}
+#            return dic
+#        elif isinstance(obj, np.ma.MaskedArray):
+#            dic = {'__classname__': 'MaskedArray', 'values': obj.data,
+#                   'dtype': obj.dtype.name, 'mask': obj.mask}
+#            return dic
+#        elif isinstance(obj, np.ndarray):
+#            dic = {'__classname__': 'ndarray', 'values': tuple(obj),
+#                   'dtype': obj.dtype.name}
+#            return dic
+#        return json.JSONEncoder.default(self, obj)
+#
+#
+#class MyDecoder(json.JSONDecoder):
+#    """
+#    Personnal decoder for module class.
+#    """
+#    def __init__(self, **kw):
+#        """
+#        Overwritting constructor.
+#        """
+#        json.JSONDecoder.__init__(self, object_hook=self.object_hook, **kw)
+#
+#    def object_hook(self, dic):
+#        """
+#        Defining object_hook.
+#        """
+#        if '__classname__' in dic:
+#            if dic['__classname__'] == 'Points':
+#                obj = Points(dic['xy'], dic['v'], dic['unit_x'],
+#                             dic['unit_y'], dic['unit_v'])
+#            elif dic['__classname__'] == 'Profile':
+#                obj = Profile(dic['x'], dic['y'], dic['unit_x'],
+#                              dic['unit_y'], str(dic['name']))
+#            elif dic['__classname__'] == 'ScalarField':
+#                obj = ScalarField()
+#                obj.__dict__ = dic
+#            elif dic['__classname__'] == 'VectorField':
+#                obj = VectorField()
+#                obj.__dict__ = dic
+#            elif dic['__classname__'] == 'SpatialVectorFields':
+#                obj = SpatialVectorFields()
+#                obj.__dict__ = dic
+#            elif dic['__classname__'] == 'TemporalVectorFields':
+#                obj = TemporalVectorFields()
+#                obj.__dict__ = dic
+#            elif dic['__classname__'] == 'np.bool':
+#                obj = np.bool(dic['value'])
+#            elif dic['__classname__'] == 'Unum':
+#                obj = unum.units.s*1
+#                obj._value = dic['value']
+#                obj._unit = dic['unit']
+#            elif dic['__classname__'] == 'ndarray':
+#                obj = np.array(dic['values'], dtype=dic['dtype'])
+#            elif dic['__classname__'] == 'MaskedArray':
+#                obj = np.ma.masked_array(dic['values'], dic['mask'],
+#                                         dic['dtype'])
+#            else:
+#                raise IOError("I think i don't know this kind of "
+#                              "variable yet... "
+#                              "But i'm ready to learn what is a "
+#                              "'{0}', buddy."
+#                              .format(dic["__classname__"]))
+#            return obj
+#        else:
+#            return dic
 
 
 def matlab_parser(obj, name):
@@ -194,18 +188,18 @@ def export_to_file(obj, filepath, tof='pickle', compressed=True, **kw):
         f = open(filepath, 'wb')
         pickle.dump(obj, f, protocol=-1)
         f.close()
-    elif tof == 'json' and compressed:
-        if os.path.splitext(filepath)[1] != ".cjimt":
-            filepath = filepath + ".cjimt"
-        f = gzip.open(filepath, 'w')
-        json.dump(obj, f, cls=MyEncoder, **kw)
-        f.close()
-    elif tof == 'json' and not compressed:
-        if os.path.splitext(filepath)[1] != ".jimt":
-            filepath = filepath + ".jimt"
-        f = open(filepath, 'w')
-        json.dump(obj, f, cls=MyEncoder, **kw)
-        f.close()
+#    elif tof == 'json' and compressed:
+#        if os.path.splitext(filepath)[1] != ".cjimt":
+#            filepath = filepath + ".cjimt"
+#        f = gzip.open(filepath, 'w')
+#        json.dump(obj, f, cls=MyEncoder, **kw)
+#        f.close()
+#    elif tof == 'json' and not compressed:
+#        if os.path.splitext(filepath)[1] != ".jimt":
+#            filepath = filepath + ".jimt"
+#        f = open(filepath, 'w')
+#        json.dump(obj, f, cls=MyEncoder, **kw)
+#        f.close()
     else:
         raise ValueError("I don't even know how you get here...")
 
@@ -375,10 +369,10 @@ def import_from_file(filepath, **kw):
             filepath += ".imt"
         elif os.path.exists(filepath + ".cimt"):
             filepath += ".cimt"
-        elif os.path.exists(filepath + ".jimt"):
-            filepath += ".jimt"
-        elif os.path.exists(filepath + ".cjimt"):
-            filepath += ".cjimt"
+#        elif os.path.exists(filepath + ".jimt"):
+#            filepath += ".jimt"
+#        elif os.path.exists(filepath + ".cjimt"):
+#            filepath += ".cjimt"
         else:
             raise IOError("I think this file doesn't exist, buddy")
     extension = os.path.splitext(filepath)[1]
@@ -389,13 +383,13 @@ def import_from_file(filepath, **kw):
     elif extension == ".cimt":
         with gzip.open(filepath, 'rb') as f:
             obj = pickle.load(f)
-    elif extension == ".jimt":
-        f = open(filepath, 'r')
-        obj = json.load(f, cls=MyDecoder, **kw)
-        f.close()
-    elif extension == ".cjimt":
-        with gzip.GzipFile(filepath, 'r') as f:
-            obj = json.load(f, cls=MyDecoder, **kw)
+#    elif extension == ".jimt":
+#        f = open(filepath, 'r')
+#        obj = json.load(f, cls=MyDecoder, **kw)
+#        f.close()
+#    elif extension == ".cjimt":
+#        with gzip.GzipFile(filepath, 'r') as f:
+#            obj = json.load(f, cls=MyDecoder, **kw)
     else:
         raise IOError("File is not readable "
                       "(unknown extension : {})".format(extension))
@@ -442,13 +436,16 @@ def import_from_IM7(filename):
         axe_x = axe_x[::-1]
         values = values[:, ::-1]
     tmpsf = ScalarField()
+    mask = values.mask
+    values = values.data
     tmpsf.import_from_arrays(axe_x=axe_x, axe_y=axe_y, values=values,
+                             mask=mask,
                              unit_x=unit_x, unit_y=unit_y,
                              unit_values=unit_values)
     return tmpsf
 
 
-def import_from_VC7(filename, velocity=False, time=None, unit_time=None):
+def import_from_VC7(filename):
     """
     Import a vector field or a velocity field from a .VC7 file
 
@@ -466,15 +463,9 @@ def import_from_VC7(filename, velocity=False, time=None, unit_time=None):
         raise TypeError("'filename' must be a string")
     if not os.path.exists(filename):
         raise ValueError("'filename' must ne an existing file")
-    if os.path.isdir(filename):
-        filename = glob.glob(os.path.join(filename, '*.vc7'))[0]
     _, ext = os.path.splitext(filename)
     if not (ext == ".vc7" or ext == ".VC7"):
         raise ValueError("'filename' must be a vc7 file")
-    if time is None:
-        time = 0
-    if unit_time is None:
-        unit_time = make_unit('')
     v = IM.VC7(filename)
     # traitement des unités
     unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
@@ -489,29 +480,27 @@ def import_from_VC7(filename, velocity=False, time=None, unit_time=None):
     # vérification de l'ordre des axes (et correction)
     x = v.Px[0, :]
     y = v.Py[:, 0]
-    Vx = v.Vx[0]
-    Vy = v.Vy[0]
+    Vx = np.transpose(v.Vx[0])
+    Vy = np.transpose(v.Vy[0])
     if x[-1] < x[0]:
         x = x[::-1]
-        Vx = Vx[:, ::-1]
-        Vy = Vy[:, ::-1]
-    if y[-1] < y[0]:
-        y = y[::-1]
         Vx = Vx[::-1, :]
         Vy = Vy[::-1, :]
-    if velocity:
-        tmpvf = VelocityField()
-        tmpvf.import_from_arrays(x, y, Vx, Vy, time, make_unit(unit_x),
-                                 make_unit(unit_y), make_unit(unit_values),
-                                 unit_time)
-    else:
-        tmpvf = VectorField()
-        tmpvf.import_from_arrays(x, y, Vx, Vy, make_unit(unit_x),
-                                 make_unit(unit_y), make_unit(unit_values))
+    if y[-1] < y[0]:
+        y = y[::-1]
+        Vx = Vx[:, ::-1]
+        Vy = Vy[:, ::-1]
+    tmpvf = VectorField()
+    mask = np.logical_or(Vx.mask, Vy.mask)
+    Vx = Vx.data
+    Vy = Vy.data
+    tmpvf.import_from_arrays(x, y, Vx, Vy, mask=mask, unit_x=unit_x,
+                             unit_y=unit_y, unit_values=unit_values)
     return tmpvf
 
 
-def import_from_VC7s(self, fieldspath, dt=1, fieldnumbers=None, incr=1):
+def import_from_VC7s(fieldspath, kind='TVF',dt=1, unit_time='s',
+                     fieldnumbers=None, incr=1):
     """
     Import velocity fields from .VC7 files.
     'fieldspath' should be a tuple of path to vc7 files.
@@ -520,6 +509,9 @@ def import_from_VC7s(self, fieldspath, dt=1, fieldnumbers=None, incr=1):
     Parameters
     ----------
     fieldspath : string or tuple of string
+    kind : string, optional
+        Kind of object to create with VC7 files.
+        (can be 'TVF' or 'SVF').
     fieldnumbers : 2x1 tuple of int
         Interval of fields to import, default is all.
     incr : integer
@@ -528,7 +520,17 @@ def import_from_VC7s(self, fieldspath, dt=1, fieldnumbers=None, incr=1):
     dt : number
         interval of time between fields.
     """
-    self.fields = []
+    if isinstance(fieldspath, ARRAYTYPES):
+        if not isinstance(fieldspath[0], STRINGTYPES):
+            raise TypeError("'fieldspath' must be a string or a tuple of"
+                            " string")
+    elif isinstance(fieldspath, STRINGTYPES):
+        pattern = os.path.join(fieldspath, '*.VC7')
+        fieldspath = glob.glob(pattern)
+        if len(fieldspath) == 0:
+            raise ValueError()
+    else:
+        raise TypeError()
     if fieldnumbers is not None:
         if not isinstance(fieldnumbers, ARRAYTYPES):
             raise TypeError("'fieldnumbers' must be a 2x1 array")
@@ -537,30 +539,34 @@ def import_from_VC7s(self, fieldspath, dt=1, fieldnumbers=None, incr=1):
         if not isinstance(fieldnumbers[0], int) \
                 or not isinstance(fieldnumbers[1], int):
             raise TypeError("'fieldnumbers' must be an array of integers")
+    else:
+        fieldnumbers = [0, len(fieldspath)]
     if not isinstance(incr, int):
         raise TypeError("'incr' must be an integer")
     if incr <= 0:
         raise ValueError("'incr' must be positive")
     if not isinstance(dt, NUMBERTYPES):
         raise TypeError("'dt' must be a number")
-    # fields are defining by a set of file path
-    if not isinstance(fieldspath, ARRAYTYPES):
-        raise TypeError("'fieldspath' msut be a tuple of valid paths")
-    if not isinstance(fieldspath[0], STRINGTYPES):
-        raise TypeError("'fieldspath' must be a string or a tuple of"
-                        " string")
-    for path in fieldspath:
-        tmp_vf = VelocityField()
-        import_from_VC7(path)
-        self.add_field(tmp_vf)
-    # time implementation
+    # Import
+    if kind == 'TVF':
+        fields = TemporalVectorFields()
+    elif kind == 'SVF':
+        fields = SpatialVectorFields()
+    else:
+        raise ValueError()
+    # loop on files
+    start = fieldnumbers[0]
+    end = fieldnumbers[1]
     t = 0
-    for field in self.fields:
-        field.time = t
+    for path in fieldspath[start:end:incr]:
+        tmp_vf = import_from_VC7(path)
+        time = t
+        fields.add_field(tmp_vf, time, unit_time)
         t += dt*incr
+    return fields
 
 
-def import_sf_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
+def import_sf_from_ascii(filename, x_col=1, y_col=2, vx_col=3,
                          unit_x=make_unit(""),
                          unit_y=make_unit(""),
                          unit_values=make_unit(""), **kwargs):
@@ -629,7 +635,7 @@ def import_sf_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
     return tmpsf
 
 
-def import_vf_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
+def import_vf_from_ascii(filename, x_col=1, y_col=2, vx_col=3,
                          vy_col=4, unit_x=make_unit(""),
                          unit_y=make_unit(""),
                          unit_values=make_unit(""), **kwargs):
@@ -710,7 +716,7 @@ def import_vf_from_ascii(self, filename, x_col=1, y_col=2, vx_col=3,
     return tmpvf
 
 
-def import_vfs_from_ascii(self, filepath, incr=1, interval=None,
+def import_vfs_from_ascii(filepath, kind='TVF', incr=1, interval=None,
                           x_col=1, y_col=2, vx_col=3,
                           vy_col=4, unit_x=make_unit(""),
                           unit_y=make_unit(""),
@@ -769,6 +775,12 @@ def import_vfs_from_ascii(self, filepath, incr=1, interval=None,
     if len(paths) != len(times):
         raise ValueError("Not enough values in 'times'")
     ref_path_len = len(paths[0])
+    if kind == 'TVF':
+        fields = TemporalVectorFields()
+    elif kind == 'SVF':
+        fields = SpatialVectorFields()
+    else:
+        raise ValueError()
     for i in np.arange(interval[0], interval[1] + 1, incr):
         path = paths[i]
         if len(path) != ref_path_len:
@@ -778,4 +790,5 @@ def import_vfs_from_ascii(self, filepath, incr=1, interval=None,
         tmp_vf.import_from_ascii(path, x_col, y_col, vx_col, vy_col,
                                  unit_x, unit_y, unit_values, times[i],
                                  unit_time, **kwargs)
-        self.add_field(tmp_vf)
+        fields.add_field(tmp_vf)
+    return fields

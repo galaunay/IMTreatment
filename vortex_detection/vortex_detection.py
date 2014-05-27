@@ -400,10 +400,10 @@ def get_cp_traj(TVFS, epsilon=None, kind='crit'):
             pos, pbis = get_cp_pbi(field, times[i])
             foc, foc_c, nod_i, nod_o, sadd = [], [], [], [], []
             pbi_p, pbi_m = [], []
-            for i, pt in enumerate(pos):
+            for j, pt in enumerate(pos):
                 tmp_pt = Points([pt], [times[i]])
-                tmp_pt.pbi = pbis[i]
-                if pbis[i] == 1:
+                tmp_pt.pbi = pbis[j]
+                if pbis[j] == 1:
                     pbi_p.append(tmp_pt)
                 else:
                     pbi_m.append(tmp_pt)
@@ -829,6 +829,8 @@ def _min_detection(SF):
     axe_x, axe_y = SF.axe_x, SF.axe_y
     values = SF.values
     if np.any(SF.mask):
+        plt.figure()
+        SF.display()
         raise Exception("should not have masked values")
     try:
         interp = RectBivariateSpline(axe_x, axe_y, values, s=0, ky=3, kx=3)
@@ -917,7 +919,7 @@ def get_separation_position(obj, wall_direction, wall_position,
     # checking parameters coherence
     if not isinstance(obj, (ScalarField, VectorField, VectorField,
                             TemporalVectorFields)):
-        raise TypeError("Unknown type for 'obj'")
+        raise TypeError("Unknown type for 'obj' : {}".format(type(obj)))
     if not isinstance(wall_direction, NUMBERTYPES):
         raise TypeError("'wall_direction' must be a number")
     if wall_direction != 1 and wall_direction != 2:
@@ -934,17 +936,17 @@ def get_separation_position(obj, wall_direction, wall_position,
         raise TypeError("'interval' must be a array")
     # checking 'obj' type
     if isinstance(obj, ScalarField):
-        V = obj.values
+        V = obj.values_as_sf
         if wall_direction == 1:
             axe = axe_x
         else:
             axe = axe_y
     elif isinstance(obj, VectorField):
         if wall_direction == 1:
-            V = obj.comp_y
+            V = obj.comp_y_as_sf
             axe = axe_x
         else:
-            V = obj.comp_x
+            V = obj.comp_x_as_sf
             axe = axe_y
     elif isinstance(obj, TemporalVectorFields):
         pts = []
@@ -953,7 +955,7 @@ def get_separation_position(obj, wall_direction, wall_position,
             unit_axe = obj.unit_y
         else:
             unit_axe = obj.unit_x
-        for field in obj:
+        for field in obj.fields:
             pts.append(get_separation_position(field,
                                                wall_direction=wall_direction,
                                                wall_position=wall_position,

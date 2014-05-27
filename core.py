@@ -1222,7 +1222,7 @@ class Field(object):
             else:
                 raise ValueError()
         elif isinstance(new_unit_x, STRINGTYPES):
-            self.__unit_x == make_unit(new_unit_x)
+            self.__unit_x = make_unit(new_unit_x)
         else:
             raise TypeError()
 
@@ -1242,7 +1242,7 @@ class Field(object):
             else:
                 raise ValueError()
         elif isinstance(new_unit_y, STRINGTYPES):
-            self.__unit_y == make_unit(new_unit_y)
+            self.__unit_y = make_unit(new_unit_y)
         else:
             raise TypeError()
 
@@ -1428,19 +1428,14 @@ class Field(object):
         if inplace:
             axe_x = self.axe_x[indmin_x:indmax_x + 1]
             axe_y = self.axe_y[indmin_y:indmax_y + 1]
-            unit_x = self.unit_x
-            unit_y = self.unit_y
-            self.__init__()
-            self.axe_x = axe_x
-            self.axe_y = axe_y
-            self.unit_x = unit_x
-            self.unit_y = unit_y
+            self.__axe_x = axe_x
+            self.__axe_y = axe_y
             if full_output:
                 return indmin_x, indmax_x, indmin_y, indmax_y
         else:
-            trimfield = self.__class__()
-            trimfield.axe_x = self.axe_x[indmin_x:indmax_x + 1]
-            trimfield.axe_y = self.axe_y[indmin_y:indmax_y + 1]
+            trimfield = self.copy()
+            trimfield.__axe_x = self.axe_x[indmin_x:indmax_x + 1]
+            trimfield.__axe_y = self.axe_y[indmin_y:indmax_y + 1]
             if full_output:
                 return indmin_x, indmax_x, indmin_y, indmax_y, trimfield
             else:
@@ -1780,7 +1775,7 @@ class ScalarField(Field):
 
     @property
     def values(self):
-        return self.__values.copy()
+        return self.__values
 
     @values.setter
     def values(self, new_values):
@@ -1803,7 +1798,7 @@ class ScalarField(Field):
 
     @property
     def mask(self):
-        return self.__mask.copy()
+        return self.__mask
 
     @mask.setter
     def mask(self, new_mask):
@@ -1842,7 +1837,7 @@ class ScalarField(Field):
 
     @property
     def unit_values(self):
-        return self.__unit_values.copy()
+        return self.__unit_values
 
     @unit_values.setter
     def unit_values(self, new_unit_values):
@@ -2669,18 +2664,18 @@ class ScalarField(Field):
             indmin_x, indmax_x, indmin_y, indmax_y = \
                 Field.trim_area(self, intervalx, intervaly, full_output=True,
                                 ind=ind, inplace=True)
-            self.values = values[indmin_x:indmax_x + 1,
-                                 indmin_y:indmax_y + 1]
-            self.mask = mask[indmin_x:indmax_x + 1,
-                             indmin_y:indmax_y + 1]
+            self.__values = values[indmin_x:indmax_x + 1,
+                                   indmin_y:indmax_y + 1]
+            self.__mask = mask[indmin_x:indmax_x + 1,
+                               indmin_y:indmax_y + 1]
         else:
             indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
                 Field.trim_area(self, intervalx, intervaly, full_output=True,
                                 ind=ind)
-            trimfield.values = self.values[indmin_x:indmax_x + 1,
-                                           indmin_y:indmax_y + 1]
-            trimfield.mask = self.mask[indmin_x:indmax_x + 1,
-                                       indmin_y:indmax_y + 1]
+            trimfield.__values = self.values[indmin_x:indmax_x + 1,
+                                             indmin_y:indmax_y + 1]
+            trimfield.__mask = self.mask[indmin_x:indmax_x + 1,
+                                         indmin_y:indmax_y + 1]
             return trimfield
 
     def crop_masked_border(self):
@@ -3119,7 +3114,7 @@ class VectorField(Field):
 
     @property
     def comp_x(self):
-        return self.__comp_x.copy()
+        return self.__comp_x
 
     @comp_x.setter
     def comp_x(self, new_comp_x):
@@ -3152,7 +3147,7 @@ class VectorField(Field):
 
     @property
     def comp_y(self):
-        return self.__comp_y.copy()
+        return self.__comp_y
 
     @comp_y.setter
     def comp_y(self, new_comp_y):
@@ -3185,7 +3180,7 @@ class VectorField(Field):
 
     @property
     def mask(self):
-        return self.__mask.copy()
+        return self.__mask
 
     @mask.setter
     def mask(self, new_mask):
@@ -3235,7 +3230,7 @@ class VectorField(Field):
             else:
                 raise ValueError()
         elif isinstance(new_unit_values, STRINGTYPES):
-            self.__unit_values == make_unit(new_unit_values)
+            self.__unit_values = make_unit(new_unit_values)
         else:
             raise TypeError()
 
@@ -3838,10 +3833,7 @@ class VectorField(Field):
         comp_x, comp_y = self.comp_x, self.comp_y
         mask = self.mask
         values = (comp_x**2 + comp_y**2)**(.5)
-        try:
-            values[mask] == np.nan
-        except:
-            pdb.set_trace()
+        values[mask] = np.nan
         return values
 
     @property
@@ -4036,28 +4028,25 @@ class VectorField(Field):
             If 'True', the field is trimed in place.
         """
         if inplace:
-            comp_x = self.comp_x
-            comp_y = self.comp_y
-            mask = self.mask
             indmin_x, indmax_x, indmin_y, indmax_y = \
                 Field.trim_area(self, intervalx, intervaly, full_output=True,
                                 ind=ind, inplace=True)
-            self.comp_x = comp_x[indmin_x:indmax_x + 1,
-                                 indmin_y:indmax_y + 1]
-            self.comp_y = comp_y[indmin_x:indmax_x + 1,
-                                 indmin_y:indmax_y + 1]
-            self.mask = mask[indmin_x:indmax_x + 1,
-                             indmin_y:indmax_y + 1]
+            self.__comp_x = self.comp_x[indmin_x:indmax_x + 1,
+                                        indmin_y:indmax_y + 1]
+            self.__comp_y = self.comp_y[indmin_x:indmax_x + 1,
+                                        indmin_y:indmax_y + 1]
+            self.__mask = self.mask[indmin_x:indmax_x + 1,
+                                    indmin_y:indmax_y + 1]
         else:
             indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
                 Field.trim_area(self, intervalx, intervaly, full_output=True,
                                 ind=ind)
-            trimfield.comp_x = self.comp_x[indmin_x:indmax_x + 1,
-                                           indmin_y:indmax_y + 1]
-            trimfield.comp_y = self.comp_y[indmin_x:indmax_x + 1,
-                                           indmin_y:indmax_y + 1]
-            trimfield.mask = self.mask[indmin_x:indmax_x + 1,
-                                       indmin_y:indmax_y + 1]
+            trimfield.__comp_x = self.comp_x[indmin_x:indmax_x + 1,
+                                             indmin_y:indmax_y + 1]
+            trimfield.__comp_y = self.comp_y[indmin_x:indmax_x + 1,
+                                             indmin_y:indmax_y + 1]
+            trimfield.__mask = self.mask[indmin_x:indmax_x + 1,
+                                         indmin_y:indmax_y + 1]
             return trimfield
 
     def crop_masked_border(self):
@@ -4365,13 +4354,14 @@ class TemporalFields(Fields, Field):
     @property
     def mask_as_sf(self):
         dim = len(self.fields)
-        mask_f = np.empty(dim)
+        mask_f = np.empty(dim, dtype=object)
         for i, field in enumerate(self.fields):
             mask_f[i] = field.mask_as_sf
+        return mask_f
 
     @property
     def times(self):
-        return self.__times.copy()
+        return self.__times
 
     @times.setter
     def times(self, values):
@@ -4574,17 +4564,17 @@ class TemporalFields(Fields, Field):
             If 'True', fields are trimed in place.
         """
         if inplace:
-            trimfield = \
-                Field.trim_area(self, intervalx, intervaly, ind=ind,
-                                inplace=inplace)
-            for field in trimfield.fields:
+            Field.trim_area(self, intervalx, intervaly, ind=ind,
+                            inplace=inplace)
+            for field in self.fields:
                 field.trim_area(intervalx, intervaly, ind=ind,
                                 inplace=inplace)
         else:
-            trimfield = \
-                Field.trim_area(self, intervalx, intervaly, ind=ind)
-            for field in trimfield.fields:
-                field.trim_area(intervalx, intervaly, ind=ind)
+            trimfield = self.__class__()
+            for i, field in enumerate(self.fields):
+                trimfield.add_field(field.trim_area(intervalx, intervaly,
+                                                    ind=ind),
+                                    self.times[i], self.unit_times)
             return trimfield
 
     ### Getting information from fields
@@ -4661,8 +4651,8 @@ class TemporalFields(Fields, Field):
             ind_x = self.get_indice_on_axe(1, x, nearest=True)
             ind_y = self.get_indice_on_axe(2, y, nearest=True)
         axe_x, axe_y = self.axe_x, self.axe_y
-        if not (0 <= x < len(axe_x) and 0 <= y < len(axe_y)):
-            raise ValueError("'x' ans 'y' values out of bounds")
+        if not (0 <= ind_x < len(axe_x) and 0 <= ind_y < len(axe_y)):
+             raise ValueError("'x' ans 'y' values out of bounds")
         # getting component values
         dim = (len(self.fields), self.shape[0], self.shape[1])
         compo = np.empty(dim)
@@ -4677,8 +4667,6 @@ class TemporalFields(Fields, Field):
         prof_mask = np.zeros(len(compo))
         unit_values = self.unit_values
         # getting position indices
-        ind_x = self.get_indice_on_axe(1, x, nearest=True)
-        ind_y = self.get_indice_on_axe(2, y, nearest=True)
         for i in np.arange(len(compo)):
             prof_values[i] = compo[i, ind_x, ind_y]
             prof_mask[i] = masks[i, ind_x, ind_y]
@@ -4990,6 +4978,9 @@ class TemporalFields(Fields, Field):
             def update(num, fig, ax, displ, ttl, comp):
                 vx = np.transpose(comp[num].comp_x)
                 vy = np.transpose(comp[num].comp_y)
+                mask = np.transpose(comp[num].mask)
+                vx = np.ma.masked_array(vx, mask)
+                vy = np.ma.masked_array(vy, mask)
                 magn = np.transpose(comp[num].magnitude)
                 displ.set_UVC(vx, vy, magn)
                 title = "{}, at t={:.2f} {}"\
@@ -5015,8 +5006,8 @@ class TemporalFields(Fields, Field):
                 ax.cla()
                 displ = comp[num]._display(**plotargs)
                 title = "{}, at t={:.3} {}"\
-                    .format(compo, float(self[num].time),
-                            self[num].unit_time.strUnit())
+                    .format(compo, float(self.times[num]),
+                            self.unit_times.strUnit())
                 ttl.set_text(title)
                 return displ,
             anim = animation.FuncAnimation(fig, update,
@@ -5127,13 +5118,13 @@ class TemporalScalarFields(TemporalFields):
             super_mask = np.sum(super_mask, axis=0)
             super_mask[super_mask == len(self.fields)] = 0
             # loop on each field position
-            for j, i in np.argwhere(super_mask):
-                prof = self.get_time_profile('values', axe_x[i], axe_y[j])
+            for i, j in np.argwhere(super_mask):
+                prof = self.get_time_profile('values', i, j, ind=True)
                 # checking if all time profile value are masked
                 if np.all(prof.y.mask):
                     continue
                 # getting masked position on profile
-                inds_masked = np.where(prof.y.mask)
+                inds_masked = np.where(prof.y.mask)[0]
                 # creating interpolation function
                 if tof == 'value':
                     def interp_x(x):
@@ -5147,13 +5138,13 @@ class TemporalScalarFields(TemporalFields):
                                                prof.y[~prof.y.mask],
                                                kind='cubic')
                 # loop on all profile masked points
-                for ind_masked in inds_masked[0]:
+                for ind_masked in inds_masked:
                     try:
                         interp_val = interp(prof.x[ind_masked])
                     except ValueError:
                         continue
                     # putting interpolated value in the field
-                    self[ind_masked].values[j, i] = interp_val
+                    self[ind_masked].values[i, j] = interp_val
         # spatial interpolation
         elif kind == 'spatial':
             for field in self.fields:
@@ -5249,19 +5240,17 @@ class TemporalVectorFields(TemporalFields):
             axe_x, axe_y = self.axe_x, self.axe_y
             # getting super mask (0 where no value are masked and where all
             # values are masked)
-            super_mask = self.mask
-            super_mask = np.sum(super_mask, axis=0)
-            super_mask[super_mask == len(self.fields)] = 0
+            masks = self.mask
+            sum_masks = np.sum(masks, axis=0)
+            super_mask = np.logical_and(0 < sum_masks,
+                                       sum_masks < len(self.fields) - 2)
             # loop on each field position
-            for j, i in np.argwhere(super_mask):
-                prof_x = self.get_time_profile('comp_x', axe_x[i], axe_y[j])
-                prof_y = self.get_time_profile('comp_y', axe_x[i], axe_y[j])
-                # checking if all time profile value are masked
-                if np.all(np.logical_or(prof_x.y.mask, prof_x.y.mask)):
-                    continue
+            for i, j in np.argwhere(super_mask):
+                prof_x = self.get_time_profile('comp_x', i, j, ind=True)
+                prof_y = self.get_time_profile('comp_y', i, j, ind=True)
                 # getting masked position on profile
-                inds_masked_x = np.where(prof_x.y.mask)
-                inds_masked_y = np.where(prof_y.y.mask)
+                inds_masked_x = np.where(prof_x.y.mask)[0]
+                inds_masked_y = np.where(prof_y.y.mask)[0]
                 # creating interpolation function
                 if tof == 'value':
                     def interp_x(x):
@@ -5269,35 +5258,41 @@ class TemporalVectorFields(TemporalFields):
                     def interp_y(x):
                         return value[1]
                 elif tof == 'interplin':
-                    interp_x = spinterp.interp1d(prof_x.x[~prof_x.y.mask],
-                                                 prof_x.y[~prof_x.y.mask],
+                    prof_filt = np.logical_not(prof_x.y.mask)
+                    interp_x = spinterp.interp1d(prof_x.x[prof_filt],
+                                                 prof_x.y[prof_filt],
                                                  kind='linear')
-                    interp_y = spinterp.interp1d(prof_y.x[~prof_y.y.mask],
-                                                 prof_y.y[~prof_y.y.mask],
+                    prof_filt = np.logical_not(prof_y.y.mask)
+                    interp_y = spinterp.interp1d(prof_y.x[prof_filt],
+                                                 prof_y.y[prof_filt],
                                                  kind='linear')
                 elif tof == 'interpcub':
-                    interp_x = spinterp.interp1d(prof_x.x[~prof_x.y.mask],
-                                                 prof_x.y[~prof_x.y.mask],
+                    prof_filt = np.logical_not(prof_x.y.mask)
+                    interp_x = spinterp.interp1d(prof_x.x[prof_filt],
+                                                 prof_x.y[prof_filt],
                                                  kind='cubic')
-                    interp_y = spinterp.interp1d(prof_y.x[~prof_y.y.mask],
-                                                 prof_y.y[~prof_y.y.mask],
+                    prof_filt = np.logical_not(prof_y.y.mask)
+                    interp_y = spinterp.interp1d(prof_y.x[prof_filt],
+                                                 prof_y.y[prof_filt],
                                                  kind='cubic')
                 # loop on all x profile masked points
-                for ind_masked in inds_masked_x[0]:
+                for ind_masked in inds_masked_x:
                     try:
                         interp_val = interp_x(prof_x.x[ind_masked])
                     except ValueError:
                         continue
                     # putting interpolated value in the field
-                    self[ind_masked].comp_x[j, i] = interp_val
+                    self[ind_masked].comp_x[i, j] = interp_val
+                    self[ind_masked].mask[i, j] = False
                 # loop on all y profile masked points
-                for ind_masked in inds_masked_y[0]:
+                for ind_masked in inds_masked_y:
                     try:
                         interp_val = interp_y(prof_y.x[ind_masked])
                     except ValueError:
                         continue
                     # putting interpolated value in the field
-                    self[ind_masked].comp_y[j, i] = interp_val
+                    self[ind_masked].comp_y[i, j] = interp_val
+                    self[ind_masked].mask[i, j] = False
         # spatial interpolation
         elif kind == 'spatial':
             for field in self.fields:
