@@ -415,7 +415,7 @@ def import_from_IM7(filename):
     v = IM.IM7(filename)
     axe_x = v.Px[0, :]
     axe_y = v.Py[:, 0]
-    values = v.getmaI()[0]*v.buffer['scaleI']['factor']
+    values = np.transpose(v.I[0]*v.buffer['scaleI']['factor'])
     unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
     unit_x = unit_x.replace('[', '')
     unit_x = unit_x.replace(']', '')
@@ -431,10 +431,10 @@ def import_from_IM7(filename):
     # check if axe are crescent
     if axe_y[-1] < axe_y[0]:
         axe_y = axe_y[::-1]
-        values = values[::-1, :]
+        values = values[:, ::-1]
     if axe_x[-1] < axe_x[0]:
         axe_x = axe_x[::-1]
-        values = values[:, ::-1]
+        values = values[::-1, :]
     tmpsf = ScalarField()
     mask = values.mask
     values = values.data
