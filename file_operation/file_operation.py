@@ -10,7 +10,7 @@ import pdb
 import json
 import unum
 import gzip
-import glob
+from glob import glob
 try:
     import IM
 except:
@@ -18,7 +18,8 @@ except:
 from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
     Fields,\
-    TemporalVectorFields, SpatialVectorFields
+    TemporalVectorFields, SpatialVectorFields, TemporalScalarFields,\
+    SpatialScalarFields
 import numpy as np
 try:
     import cPickle as pickle
@@ -445,6 +446,73 @@ def import_from_IM7(filename):
     return tmpsf
 
 
+def import_from_IM7s(fieldspath, kind='TSF', dt=1, unit_time='s',
+                     fieldnumbers=None, incr=1):
+    """
+    Import scalar fields from .IM7 files.
+    'fieldspath' should be a tuple of path to im7 files.
+    All im7 file present in the folder are imported.
+
+    Parameters
+    ----------
+    fieldspath : string or tuple of string
+    kind : string, optional
+        Kind of object to create with IM7 files.
+        (can be 'TSF' or 'SSF').
+    fieldnumbers : 2x1 tuple of int
+        Interval of fields to import, default is all.
+    incr : integer
+        Incrementation between fields to take. Default is 1, meaning all
+        fields are taken.
+    dt : number
+        interval of time between fields.
+    """
+    if isinstance(fieldspath, ARRAYTYPES):
+        if not isinstance(fieldspath[0], STRINGTYPES):
+            raise TypeError("'fieldspath' must be a string or a tuple of"
+                            " string")
+    elif isinstance(fieldspath, STRINGTYPES):
+        pattern = os.path.join(fieldspath, '*.IM7')
+        fieldspath = glob.glob(pattern)
+        if len(fieldspath) == 0:
+            raise ValueError()
+    else:
+        raise TypeError()
+    if fieldnumbers is not None:
+        if not isinstance(fieldnumbers, ARRAYTYPES):
+            raise TypeError("'fieldnumbers' must be a 2x1 array")
+        if not len(fieldnumbers) == 2:
+            raise TypeError("'fieldnumbers' must be a 2x1 array")
+        if not isinstance(fieldnumbers[0], int) \
+                or not isinstance(fieldnumbers[1], int):
+            raise TypeError("'fieldnumbers' must be an array of integers")
+    else:
+        fieldnumbers = [0, len(fieldspath)]
+    if not isinstance(incr, int):
+        raise TypeError("'incr' must be an integer")
+    if incr <= 0:
+        raise ValueError("'incr' must be positive")
+    if not isinstance(dt, NUMBERTYPES):
+        raise TypeError("'dt' must be a number")
+    # Import
+    if kind == 'TSF':
+        fields = TemporalScalarFields()
+    elif kind == 'SSF':
+        fields = SpatialScalarFields()
+    else:
+        raise ValueError()
+    # loop on files
+    start = fieldnumbers[0]
+    end = fieldnumbers[1]
+    t = 0
+    for path in fieldspath[start:end:incr]:
+        tmp_sf = import_from_IM7(path)
+        time = t
+        fields.add_field(tmp_sf, time, unit_time)
+        t += dt*incr
+    return fields
+    
+
 def import_from_VC7(filename):
     """
     Import a vector field or a velocity field from a .VC7 file
@@ -792,3 +860,109 @@ def import_vfs_from_ascii(filepath, kind='TVF', incr=1, interval=None,
                                  unit_time, **kwargs)
         fields.add_field(tmp_vf)
     return fields
+
+
+def IM7_to_ScalarField(im7_path, imt_path, **kwargs):
+    """
+    Transfome an IM7 (davis) file into a, imt exploitable file.
+    
+    Parameters
+    ----------
+    im7_path : path to file or directory
+        Path to the IM7 file(s) , can be path to a single file or path to
+        a directory contening multiples files.
+    imt_path : path to file or directory
+        Path where to save imt files, has to be the same type of path
+        than 'im7_path' (path to file or path to directory)
+    kwargs : dict, optional
+        Additional arguments for 'import_from_***()'.
+    """
+    # checking parameters
+    if not isinstance(im7_path, STRINGTYPES):
+        raise TypeError()
+    if not isinstance(imt_path, STRINGTYPES):
+        raise TypeError()
+    # checking if file or directory
+    if os.path.isdir(im7_path):
+        TSF = import_from_IM7s(im7_path, **kwargs)
+        export_to_file(TSF, imt_path)
+    elif os.path.isfile(im7_path):
+        SF = import_from_IM7(im7_path, **kwargs)
+        export_to_file(SF, imt_path)
+    else:
+        raise ValueError()
+        
+def VC7_to_VectorField(vc7_path, imt_path, **kwargs):
+    """
+    Transfome an VC7 (davis) file into a, imt exploitable file.
+    
+    Parameters
+    ----------
+    vc7_path : path to file or directory
+        Path to the VC7 file(s) , can be path to a single file or path to
+        a directory contening multiples files.
+    imt_path : path to file
+        Path where to save imt file.
+    kwargs : dict, optional
+        Additional arguments for 'import_from_***()'.
+    """
+    # checking parameters
+    if not isinstance(vc7_path, STRINGTYPES):
+        raise TypeError()
+    if not isinstance(imt_path, STRINGTYPES):
+        raise TypeError()
+    # checking if file or directory
+    if os.path.isdir(vc7_path):
+        TVF = import_from_VC7s(vc7_path, **kwargs)
+        export_to_file(TVF, imt_path)
+    elif os.path.isfile(vc7_path):
+        VF = import_from_IM7(vc7_path, **kwargs)
+        export_to_file(VF, imt_path)
+    else:
+        raise ValueError()
+
+
+def davis_to_imt_gui():
+    from Tkinter import Tk
+    from tkFileDialog import askopenfilename, asksaveasfilename
+    # getting importing directory
+    win = Tk()
+    filetypes = [('Davis files', '.vc7 .im7'), ('other files', '.*')]
+    title = "Choose a file or a directory to import"
+    davis_path = askopenfilename(filetypes=filetypes, title=title, multiple=True)
+    print(davis_path)
+    davis_path = win.tk.splitlist(davis_path)
+    win.destroy()
+    # importing files
+    if len(davis_path) == 1:
+        davis_path = davis_path[0]
+        ext = os.path.splitext(davis_path)[-1]
+        if ext in ['.im7', '.IM7']:
+            obj = import_from_IM7(davis_path)
+        elif ext in ['.vc7', '.VC7']:
+            obj = import_from_VC7(davis_path)
+        else:
+            raise ValueError()
+    elif len(davis_path) > 1:
+        # getting extension
+        ext = os.path.splitext(davis_path[0])[-1]
+        # checking if all files have the same extension
+        for path in davis_path:
+            if not ext == os.path.splitext(path)[-1]:
+                raise ValueError()
+        if ext in [".im7", ".IM7"]:
+            obj = import_from_IM7s(davis_path)
+        if ext in [".vc7", ".VC7"]:
+            obj = import_from_VC7s(davis_path)
+        else:
+            raise ValueError()
+    else:
+        raise ValueError()
+    # getting saving directory
+    win = Tk()
+    filetypes = [('other files', '.*'), ('IMT files', '.cimt')]
+    title = "Choose a file or a directory to import"
+    imt_path = asksaveasfilename(filetypes=filetypes, title=title)
+    win.destroy()
+    # saving datas
+    export_to_file(obj, imt_path)

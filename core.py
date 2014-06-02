@@ -5384,6 +5384,10 @@ class TemporalVectorFields(TemporalFields):
         return (rs_xx_sf, rs_yy_sf, rs_xy_sf)
 
 
+class SpatialScalarFields(Fields):
+    pass
+
+
 class SpatialVectorFields(Fields):
     """
     Class representing a set of spatial-evolving velocity fields.
