@@ -6,77 +6,10 @@ Created on Fri May 16 22:37:21 2014
 """
 
 import pdb
-import unum
 import numpy as np
 import scipy.interpolate as spinterp
-from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
-    ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
-    Fields,\
-    TemporalVectorFields, SpatialVectorFields
-
-
-def get_magnitude(vf, raw=False):
-    """
-    Return a scalar field with the velocity field magnitude.
-    """
-    if not isinstance(vf, (VelocityField, VectorField)):
-        raise TypeError()
-    axe_x, axe_y = vf.axe_x, vf.axe_y
-    comp_x, comp_y = vf.comp_x, vf.comp_y
-    mask = vf.mask
-    values = (comp_x**2 + comp_y**2)**(.5)
-    values[mask] == np.nan
-    if raw:
-        return values
-    else:
-        unit_x, unit_y = vf.unit_x, vf.unit_y
-        unit_values = ""
-        # TODO : implémenter vorticité unité
-        tmp_sf = ScalarField()
-        tmp_sf.import_from_arrays(axe_x, axe_y, values, mask=mask,
-                                   unit_x=unit_x, unit_y=unit_y,
-                                   unit_values=unit_values)
-        return tmp_sf
-
-
-def get_theta(vf, raw=False):
-    """
-    Return a scalar field with the vector angle (in reference of the unit_y
-    vector [1, 0]).
-
-    Parameters:
-    -----------
-    low_velocity_filter : number
-        If not zero, points where V < Vmax*low_velocity_filter are masked.
-
-    Returns:
-    --------
-    theta_sf : ScalarField object
-        Contening theta field.
-    """
-    # get data
-    comp_x, comp_y = vf.comp_x, vf.comp_y
-    not_mask = np.logical_not(vf.mask)
-    mask = vf.mask
-    mask = np.logical_or(mask, np.logical_and(comp_x == 0, comp_y == 0))
-    theta = np.zeros(vf.shape)
-    # getting angle
-    norm = vf.magnitude
-    theta[not_mask] = comp_x[not_mask]/norm[not_mask]
-    theta[not_mask] = np.arccos(theta[not_mask])
-    theta[comp_y < 0] = 2*np.pi - theta[comp_y < 0]
-    if raw:
-        return theta
-    else:
-        axe_x, axe_y = vf.axe_x, vf.axe_y
-        unit_x, unit_y = vf.unit_x, vf.unit_y
-        unit_values = ""
-        # TODO : implémenter vorticité unité
-        tmp_sf = ScalarField()
-        tmp_sf.import_from_arrays(axe_x, axe_y, theta, mask=mask,
-                                  unit_x=unit_x, unit_y=unit_y,
-                                  unit_values=unit_values)
-        return tmp_sf
+from ..core import Points, ScalarField, VectorField,\
+    ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 
 
 def get_streamlines(vf, xy, delta=.25, interp='linear',
@@ -102,7 +35,7 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
     reverse_direction : boolean, optional
         If True, the streamline goes upstream.
     """
-    if not isinstance(vf, (VelocityField, VectorField)):
+    if not isinstance(vf, VectorField):
         raise TypeError()
     axe_x, axe_y = vf.axe_x, vf.axe_y
     # checking parameters coherence
@@ -224,7 +157,7 @@ def get_tracklines(vf, xy, delta=.25, interp='linear',
         Used interpolation for trackline computation.
         Can be 'linear'(default) or 'cubic'
     """
-    if not isinstance(vf, (VelocityField, VectorField)):
+    if not isinstance(vf, VectorField):
         raise TypeError()
     if not isinstance(xy, ARRAYTYPES):
         raise TypeError("'xy' must be a tuple of arrays")
@@ -343,7 +276,7 @@ def get_shear_stress(vf, raw=False):
         If 'True', return two arrays,
         if 'False' (default), return a VectorField object.
     """
-    if not isinstance(vf, (VelocityField, VectorField)):
+    if not isinstance(vf, VectorField):
         raise TypeError()
     # Getting gradients and axes
     axe_x, axe_y = vf.axe_x, vf.axe_y
@@ -381,7 +314,7 @@ def get_vorticity(vf, raw=False):
         If 'True', return an arrays,
         if 'False' (default), return a ScalarField object.
     """
-    if not isinstance(vf, (VelocityField, VectorField)):
+    if not isinstance(vf, VectorField):
         raise TypeError()
     axe_x, axe_y = vf.axe_x, vf.axe_y
     comp_x, comp_y = vf.comp_x, vf.comp_y
@@ -417,7 +350,7 @@ def get_swirling_strength(vf, raw=False):
         If 'True', return an arrays,
         if 'False' (default), return a ScalarField object.
     """
-    if not isinstance(vf, (VelocityField, VectorField)):
+    if not isinstance(vf, VectorField):
         raise TypeError()
     # Getting gradients and axes
     axe_x, axe_y = vf.axe_x, vf.axe_y
@@ -468,7 +401,7 @@ def get_swirling_vector(vf, raw=False):
         If 'True', return an arrays,
         if 'False' (default), return a ScalarField object.
     """
-    if not isinstance(vf, (VelocityField, VectorField)):
+    if not isinstance(vf, VectorField):
         raise TypeError()
     # Getting gradients and axes
     axe_x, axe_y = vf.axe_x, vf.axe_y

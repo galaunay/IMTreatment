@@ -7,17 +7,14 @@ Created on Mon Mar 10 19:16:04 2014
 
 import os
 import pdb
-import json
-import unum
 import gzip
 from glob import glob
 try:
     import IM
 except:
     pass
-from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
+from ..core import Points, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
-    Fields,\
     TemporalVectorFields, SpatialVectorFields, TemporalScalarFields,\
     SpatialScalarFields
 import numpy as np
@@ -25,99 +22,10 @@ try:
     import cPickle as pickle
 except:
     import pickle
-
 import scipy.io as spio
 
 
-
-#class MyEncoder(json.JSONEncoder):
-#    """
-#    Personnal encoder to write module class ass json.
-#    """
-#    def default(self, obj):
-#        """
-#        Overwritting the default encoder.
-#        """
-#        try:
-#            obj.__classname__
-#        except AttributeError:
-#            pass
-#        else:
-#            dic = obj.__dict__
-#            return dic
-#        if isinstance(obj, (np.bool, np.bool_)):
-#            dic = {'__classname__': 'np.bool', 'value': int(obj)}
-#            return dic
-#        elif isinstance(obj, unum.Unum):
-#            dic = {'value': obj._value, 'unit': obj._unit,
-#                   '__classname__': 'Unum'}
-#            return dic
-#        elif isinstance(obj, np.ma.MaskedArray):
-#            dic = {'__classname__': 'MaskedArray', 'values': obj.data,
-#                   'dtype': obj.dtype.name, 'mask': obj.mask}
-#            return dic
-#        elif isinstance(obj, np.ndarray):
-#            dic = {'__classname__': 'ndarray', 'values': tuple(obj),
-#                   'dtype': obj.dtype.name}
-#            return dic
-#        return json.JSONEncoder.default(self, obj)
-#
-#
-#class MyDecoder(json.JSONDecoder):
-#    """
-#    Personnal decoder for module class.
-#    """
-#    def __init__(self, **kw):
-#        """
-#        Overwritting constructor.
-#        """
-#        json.JSONDecoder.__init__(self, object_hook=self.object_hook, **kw)
-#
-#    def object_hook(self, dic):
-#        """
-#        Defining object_hook.
-#        """
-#        if '__classname__' in dic:
-#            if dic['__classname__'] == 'Points':
-#                obj = Points(dic['xy'], dic['v'], dic['unit_x'],
-#                             dic['unit_y'], dic['unit_v'])
-#            elif dic['__classname__'] == 'Profile':
-#                obj = Profile(dic['x'], dic['y'], dic['unit_x'],
-#                              dic['unit_y'], str(dic['name']))
-#            elif dic['__classname__'] == 'ScalarField':
-#                obj = ScalarField()
-#                obj.__dict__ = dic
-#            elif dic['__classname__'] == 'VectorField':
-#                obj = VectorField()
-#                obj.__dict__ = dic
-#            elif dic['__classname__'] == 'SpatialVectorFields':
-#                obj = SpatialVectorFields()
-#                obj.__dict__ = dic
-#            elif dic['__classname__'] == 'TemporalVectorFields':
-#                obj = TemporalVectorFields()
-#                obj.__dict__ = dic
-#            elif dic['__classname__'] == 'np.bool':
-#                obj = np.bool(dic['value'])
-#            elif dic['__classname__'] == 'Unum':
-#                obj = unum.units.s*1
-#                obj._value = dic['value']
-#                obj._unit = dic['unit']
-#            elif dic['__classname__'] == 'ndarray':
-#                obj = np.array(dic['values'], dtype=dic['dtype'])
-#            elif dic['__classname__'] == 'MaskedArray':
-#                obj = np.ma.masked_array(dic['values'], dic['mask'],
-#                                         dic['dtype'])
-#            else:
-#                raise IOError("I think i don't know this kind of "
-#                              "variable yet... "
-#                              "But i'm ready to learn what is a "
-#                              "'{0}', buddy."
-#                              .format(dic["__classname__"]))
-#            return obj
-#        else:
-#            return dic
-
-
+### Parsers ###
 def matlab_parser(obj, name):
     classic_types = (int, float, str, unicode)
     array_types = (list, float)
@@ -145,8 +53,44 @@ def matlab_parser(obj, name):
     else:
         raise IOError("Can't parser that : \n {}".format(obj))
 
+### IMT ###
+def import_from_file(filepath, **kw):
+    """
+    Load and return an object from the specified file using the JSON
+    format.
+    Additionnals arguments for the JSON decoder may be set with the **kw
+    argument. Such as'encoding' (to change the file
+    encoding, default='utf-8').
 
-def export_to_file(obj, filepath, tof='pickle', compressed=True, **kw):
+    Parameters
+    ----------
+    filepath : string
+        Path specifiing the file to load.
+    """
+    # getting/guessing wanted files
+    if not isinstance(filepath, STRINGTYPES):
+        raise TypeError("I need a string here, son")
+    if not os.path.exists(filepath):
+        if os.path.exists(filepath + ".imt"):
+            filepath += ".imt"
+        elif os.path.exists(filepath + ".cimt"):
+            filepath += ".cimt"
+        else:
+            raise IOError("I think this file doesn't exist, buddy")
+    extension = os.path.splitext(filepath)[1]
+    # importing file
+    if extension == ".imt":
+        with open(filepath, 'rb') as f:
+            obj = pickle.load(f)
+    elif extension == ".cimt":
+        with gzip.open(filepath, 'rb') as f:
+            obj = pickle.load(f)
+    else:
+        raise IOError("File is not readable "
+                      "(unknown extension : {})".format(extension))
+    return obj
+
+def export_to_file(obj, filepath, compressed=True, **kw):
     """
     Write the object in the specified file.
     Additionnals arguments for the JSON encoder may be set with the **kw
@@ -160,10 +104,6 @@ def export_to_file(obj, filepath, tof='pickle', compressed=True, **kw):
         Object to store (common and IMT objects are supported).
     filepath : string
         Path specifiing where to save the object.
-    tof : string
-        Type of resulting file, can be :
-        'pickle' (default) : create a binary file
-        'json' : create a readable xml-like file (but less efficient)
     compressed : boolean, optional
         If 'True' (default), the file is compressed using gzip.
     """
@@ -172,39 +112,24 @@ def export_to_file(obj, filepath, tof='pickle', compressed=True, **kw):
         raise TypeError("I need a string here, son")
     if not os.path.exists(os.path.dirname(filepath)):
         raise IOError("I think this kind of path is invalid, buddy")
-    if not isinstance(tof, STRINGTYPES):
-        raise TypeError("'tof' must be 'pickle' or 'json'")
     if not isinstance(compressed, bool):
         raise TypeError("'compressed' must be a boolean")
     # creating/filling up the file
-    if tof == 'pickle' and compressed:
+    if compressed:
         if os.path.splitext(filepath)[1] != ".cimt":
             filepath = filepath + ".cimt"
         f = gzip.open(filepath, 'wb')
         pickle.dump(obj, f, protocol=-1)
         f.close()
-    elif tof == 'pickle' and not compressed:
+    else:
         if os.path.splitext(filepath)[1] != ".imt":
             filepath = filepath + ".imt"
         f = open(filepath, 'wb')
         pickle.dump(obj, f, protocol=-1)
         f.close()
-#    elif tof == 'json' and compressed:
-#        if os.path.splitext(filepath)[1] != ".cjimt":
-#            filepath = filepath + ".cjimt"
-#        f = gzip.open(filepath, 'w')
-#        json.dump(obj, f, cls=MyEncoder, **kw)
-#        f.close()
-#    elif tof == 'json' and not compressed:
-#        if os.path.splitext(filepath)[1] != ".jimt":
-#            filepath = filepath + ".jimt"
-#        f = open(filepath, 'w')
-#        json.dump(obj, f, cls=MyEncoder, **kw)
-#        f.close()
-    else:
-        raise ValueError("I don't even know how you get here...")
 
 
+### MATLAB ###
 def export_to_matlab(obj, name, filepath, **kw):
     if not isinstance(filepath, STRINGTYPES):
         raise TypeError("I need a string here, son")
@@ -214,6 +139,7 @@ def export_to_matlab(obj, name, filepath, **kw):
     spio.savemat(filepath, dic, **kw)
 
 
+### VTK ###
 def export_to_vtk(obj, filepath, axis=None):
     """
     Export the field to a .vtk file, for Mayavi use.
@@ -287,6 +213,7 @@ def __export_sf_to_vtk(obj, filepath, axis=None):
     data = pyvtk.VtkData(grid, 'Scalar Field from python', point_data)
     data.tofile(filepath)
 
+
 def __export_vf_to_vtk(obj, filepath, axis=None):
     """
     Export the vector field to a .vtk file, for Mayavi use.
@@ -349,54 +276,8 @@ def __export_vf_to_vtk(obj, filepath, axis=None):
     data = pyvtk.VtkData(grid, 'Vector Field from python', point_data)
     data.tofile(filepath)
 
-def import_from_file(filepath, **kw):
-    """
-    Load and return an object from the specified file using the JSON
-    format.
-    Additionnals arguments for the JSON decoder may be set with the **kw
-    argument. Such as'encoding' (to change the file
-    encoding, default='utf-8').
 
-    Parameters
-    ----------
-    filepath : string
-        Path specifiing the file to load.
-    """
-    # getting/guessing wanted files
-    if not isinstance(filepath, STRINGTYPES):
-        raise TypeError("I need a string here, son")
-    if not os.path.exists(filepath):
-        if os.path.exists(filepath + ".imt"):
-            filepath += ".imt"
-        elif os.path.exists(filepath + ".cimt"):
-            filepath += ".cimt"
-#        elif os.path.exists(filepath + ".jimt"):
-#            filepath += ".jimt"
-#        elif os.path.exists(filepath + ".cjimt"):
-#            filepath += ".cjimt"
-        else:
-            raise IOError("I think this file doesn't exist, buddy")
-    extension = os.path.splitext(filepath)[1]
-    # importing file
-    if extension == ".imt":
-        with open(filepath, 'rb') as f:
-            obj = pickle.load(f)
-    elif extension == ".cimt":
-        with gzip.open(filepath, 'rb') as f:
-            obj = pickle.load(f)
-#    elif extension == ".jimt":
-#        f = open(filepath, 'r')
-#        obj = json.load(f, cls=MyDecoder, **kw)
-#        f.close()
-#    elif extension == ".cjimt":
-#        with gzip.GzipFile(filepath, 'r') as f:
-#            obj = json.load(f, cls=MyDecoder, **kw)
-    else:
-        raise IOError("File is not readable "
-                      "(unknown extension : {})".format(extension))
-    return obj
-
-
+### DAVIS ###
 def import_from_IM7(filename):
     """
     Import a scalar field from a .IM7 file.
@@ -513,7 +394,7 @@ def import_from_IM7s(fieldspath, kind='TSF', dt=1, t0=0, unit_time='s',
         fields.add_field(tmp_sf, time, unit_time)
         t += dt*incr
     return fields
-    
+
 
 def import_from_VC7(filename):
     """
@@ -569,7 +450,7 @@ def import_from_VC7(filename):
     return tmpvf
 
 
-def import_from_VC7s(fieldspath, kind='TVF',dt=1, t0=0, unit_time='s',
+def import_from_VC7s(fieldspath, kind='TVF', dt=1, t0=0, unit_time='s',
                      fieldnumbers=None, incr=1):
     """
     Import velocity fields from .VC7 files.
@@ -638,6 +519,118 @@ def import_from_VC7s(fieldspath, kind='TVF',dt=1, t0=0, unit_time='s',
     return fields
 
 
+def IM7_to_imt(im7_path, imt_path, **kwargs):
+    """
+    Transfome an IM7 (davis) file into a, imt exploitable file.
+
+    Parameters
+    ----------
+    im7_path : path to file or directory
+        Path to the IM7 file(s) , can be path to a single file or path to
+        a directory contening multiples files.
+    imt_path : path to file or directory
+        Path where to save imt files, has to be the same type of path
+        than 'im7_path' (path to file or path to directory)
+    kwargs : dict, optional
+        Additional arguments for 'import_from_***()'.
+    """
+    # checking parameters
+    if not isinstance(im7_path, STRINGTYPES):
+        raise TypeError()
+    if not isinstance(imt_path, STRINGTYPES):
+        raise TypeError()
+    # checking if file or directory
+    if os.path.isdir(im7_path):
+        TSF = import_from_IM7s(im7_path, **kwargs)
+        export_to_file(TSF, imt_path)
+    elif os.path.isfile(im7_path):
+        SF = import_from_IM7(im7_path, **kwargs)
+        export_to_file(SF, imt_path)
+    else:
+        raise ValueError()
+
+
+def VC7_to_imt(vc7_path, imt_path, **kwargs):
+    """
+    Transfome an VC7 (davis) file into a, imt exploitable file.
+
+    Parameters
+    ----------
+    vc7_path : path to file or directory
+        Path to the VC7 file(s) , can be path to a single file or path to
+        a directory contening multiples files.
+    imt_path : path to file
+        Path where to save imt file.
+    kwargs : dict, optional
+        Additional arguments for 'import_from_***()'.
+    """
+    # checking parameters
+    if not isinstance(vc7_path, STRINGTYPES):
+        raise TypeError()
+    if not isinstance(imt_path, STRINGTYPES):
+        raise TypeError()
+    # checking if file or directory
+    if os.path.isdir(vc7_path):
+        TVF = import_from_VC7s(vc7_path, **kwargs)
+        export_to_file(TVF, imt_path)
+    elif os.path.isfile(vc7_path):
+        VF = import_from_IM7(vc7_path, **kwargs)
+        export_to_file(VF, imt_path)
+    else:
+        raise ValueError()
+
+
+def davis_to_imt_gui():
+    from Tkinter import Tk
+    from tkFileDialog import askopenfilename, asksaveasfilename
+    # getting importing directory
+    win = Tk()
+    filetypes = [('Davis files', '.vc7 .im7'), ('other files', '.*')]
+    title = "Choose a file or a directory to import"
+    davis_path = askopenfilename(filetypes=filetypes, title=title,
+                                 multiple=True)
+    # exit if no file selected
+    if len(davis_path) == 0:
+        return None
+    davis_path = win.tk.splitlist(davis_path)
+    win.destroy()
+    pdb.set_trace()
+    # importing files
+    if len(davis_path) == 1:
+        davis_path = davis_path[0]
+        ext = os.path.splitext(davis_path)[-1]
+        if ext in ['.im7', '.IM7']:
+            obj = import_from_IM7(davis_path)
+        elif ext in ['.vc7', '.VC7']:
+            obj = import_from_VC7(davis_path)
+        else:
+            raise ValueError()
+    elif len(davis_path) > 1:
+        # getting extension
+        ext = os.path.splitext(davis_path[0])[-1]
+        # checking if all files have the same extension
+        for path in davis_path:
+            if not ext == os.path.splitext(path)[-1]:
+                raise ValueError()
+        if ext in [".im7", ".IM7"]:
+            obj = import_from_IM7s(davis_path)
+        if ext in [".vc7", ".VC7"]:
+            obj = import_from_VC7s(davis_path)
+        else:
+            raise ValueError()
+    else:
+        raise ValueError()
+    # getting saving directory
+    win = Tk()
+    filetypes = [('other files', '.*'), ('IMT files', '.cimt')]
+    title = "Choose a file or a directory to import"
+    imt_path = asksaveasfilename(filetypes=filetypes, title=title)
+    win.destroy()
+    # saving datas
+    export_to_file(obj, imt_path)
+
+
+### ASCII ###
 def import_sf_from_ascii(filename, x_col=1, y_col=2, vx_col=3,
                          unit_x=make_unit(""),
                          unit_y=make_unit(""),
@@ -703,7 +696,7 @@ def import_sf_from_ascii(filename, x_col=1, y_col=2, vx_col=3,
     #store field in attributes
     tmpsf = ScalarField()
     tmpsf.import_from_arrays(x_org, y_org, vx_org, unit_x, unit_y,
-                        unit_values)
+                             unit_values)
     return tmpsf
 
 
@@ -858,118 +851,9 @@ def import_vfs_from_ascii(filepath, kind='TVF', incr=1, interval=None,
         if len(path) != ref_path_len:
             raise Warning("You should check your files names,"
                           "i may have taken them in the wrong order.")
-        tmp_vf = VelocityField()
+        tmp_vf = VectorField()
         tmp_vf.import_from_ascii(path, x_col, y_col, vx_col, vy_col,
                                  unit_x, unit_y, unit_values, times[i],
                                  unit_time, **kwargs)
         fields.add_field(tmp_vf)
     return fields
-
-
-def IM7_to_ScalarField(im7_path, imt_path, **kwargs):
-    """
-    Transfome an IM7 (davis) file into a, imt exploitable file.
-    
-    Parameters
-    ----------
-    im7_path : path to file or directory
-        Path to the IM7 file(s) , can be path to a single file or path to
-        a directory contening multiples files.
-    imt_path : path to file or directory
-        Path where to save imt files, has to be the same type of path
-        than 'im7_path' (path to file or path to directory)
-    kwargs : dict, optional
-        Additional arguments for 'import_from_***()'.
-    """
-    # checking parameters
-    if not isinstance(im7_path, STRINGTYPES):
-        raise TypeError()
-    if not isinstance(imt_path, STRINGTYPES):
-        raise TypeError()
-    # checking if file or directory
-    if os.path.isdir(im7_path):
-        TSF = import_from_IM7s(im7_path, **kwargs)
-        export_to_file(TSF, imt_path)
-    elif os.path.isfile(im7_path):
-        SF = import_from_IM7(im7_path, **kwargs)
-        export_to_file(SF, imt_path)
-    else:
-        raise ValueError()
-        
-def VC7_to_VectorField(vc7_path, imt_path, **kwargs):
-    """
-    Transfome an VC7 (davis) file into a, imt exploitable file.
-    
-    Parameters
-    ----------
-    vc7_path : path to file or directory
-        Path to the VC7 file(s) , can be path to a single file or path to
-        a directory contening multiples files.
-    imt_path : path to file
-        Path where to save imt file.
-    kwargs : dict, optional
-        Additional arguments for 'import_from_***()'.
-    """
-    # checking parameters
-    if not isinstance(vc7_path, STRINGTYPES):
-        raise TypeError()
-    if not isinstance(imt_path, STRINGTYPES):
-        raise TypeError()
-    # checking if file or directory
-    if os.path.isdir(vc7_path):
-        TVF = import_from_VC7s(vc7_path, **kwargs)
-        export_to_file(TVF, imt_path)
-    elif os.path.isfile(vc7_path):
-        VF = import_from_IM7(vc7_path, **kwargs)
-        export_to_file(VF, imt_path)
-    else:
-        raise ValueError()
-
-
-def davis_to_imt_gui():
-    from Tkinter import Tk
-    from tkFileDialog import askopenfilename, asksaveasfilename
-    # getting importing directory
-    win = Tk()
-    filetypes = [('Davis files', '.vc7 .im7'), ('other files', '.*')]
-    title = "Choose a file or a directory to import"
-    davis_path = askopenfilename(filetypes=filetypes, title=title, multiple=True)
-    # exit if no file selected
-    if len(davis_path) == 0:
-        return None
-    davis_path = win.tk.splitlist(davis_path)
-    win.destroy()
-    pdb.set_trace()
-    # importing files
-    if len(davis_path) == 1:
-        davis_path = davis_path[0]
-        ext = os.path.splitext(davis_path)[-1]
-        if ext in ['.im7', '.IM7']:
-            obj = import_from_IM7(davis_path)
-        elif ext in ['.vc7', '.VC7']:
-            obj = import_from_VC7(davis_path)
-        else:
-            raise ValueError()
-    elif len(davis_path) > 1:
-        # getting extension
-        ext = os.path.splitext(davis_path[0])[-1]
-        # checking if all files have the same extension
-        for path in davis_path:
-            if not ext == os.path.splitext(path)[-1]:
-                raise ValueError()
-        if ext in [".im7", ".IM7"]:
-            obj = import_from_IM7s(davis_path)
-        if ext in [".vc7", ".VC7"]:
-            obj = import_from_VC7s(davis_path)
-        else:
-            raise ValueError()
-    else:
-        raise ValueError()
-    # getting saving directory
-    win = Tk()
-    filetypes = [('other files', '.*'), ('IMT files', '.cimt')]
-    title = "Choose a file or a directory to import"
-    imt_path = asksaveasfilename(filetypes=filetypes, title=title)
-    win.destroy()
-    # saving datas
-    export_to_file(obj, imt_path)

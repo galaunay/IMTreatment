@@ -328,7 +328,7 @@ class VF(object):
         return num_x, num_y
 
 
-### Critical points detection algorithm ###
+### Critical points ###
 def get_cp_traj(TVFS, epsilon=None, kind='crit'):
     """
     For a set of velocity field (TemporalVectorFields object), return the
@@ -892,7 +892,7 @@ def _gaussian_fit(SF):
     return Points([(x, y)])
 
 
-### Separation point detection algorithm ###
+### Separation point ###
 def get_separation_position(obj, wall_direction, wall_position,
                             interval=None):
     """
@@ -1004,7 +1004,7 @@ def get_separation_position(obj, wall_direction, wall_position,
     return interp(wall_position)
 
 
-### Critical lines detection algorithm ###
+### Critical lines ###
 
 def get_critical_line(VF, source_point, direction, kol='stream',
                       delta=1, fit='None', order=2):
@@ -1113,7 +1113,7 @@ def get_critical_line(VF, source_point, direction, kol='stream',
         raise ValueError("Unknown kind of fitting")
 
 
-### Criterion computation ###
+### Criterion ###
 #+++ besoin de mettre les tableaux dans le meme sens que vectorfield (ou alors
 #on met un tranpose a l'entré et à la sortie...) +++
 def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
