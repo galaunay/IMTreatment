@@ -446,7 +446,7 @@ def import_from_IM7(filename):
     return tmpsf
 
 
-def import_from_IM7s(fieldspath, kind='TSF', dt=1, unit_time='s',
+def import_from_IM7s(fieldspath, kind='TSF', dt=1, t0=0, unit_time='s',
                      fieldnumbers=None, incr=1):
     """
     Import scalar fields from .IM7 files.
@@ -466,6 +466,8 @@ def import_from_IM7s(fieldspath, kind='TSF', dt=1, unit_time='s',
         fields are taken.
     dt : number
         interval of time between fields.
+    t0: number, optional
+        Time for the first field.
     """
     if isinstance(fieldspath, ARRAYTYPES):
         if not isinstance(fieldspath[0], STRINGTYPES):
@@ -504,7 +506,7 @@ def import_from_IM7s(fieldspath, kind='TSF', dt=1, unit_time='s',
     # loop on files
     start = fieldnumbers[0]
     end = fieldnumbers[1]
-    t = 0
+    t = t0
     for path in fieldspath[start:end:incr]:
         tmp_sf = import_from_IM7(path)
         time = t
@@ -567,7 +569,7 @@ def import_from_VC7(filename):
     return tmpvf
 
 
-def import_from_VC7s(fieldspath, kind='TVF',dt=1, unit_time='s',
+def import_from_VC7s(fieldspath, kind='TVF',dt=1, t0=0, unit_time='s',
                      fieldnumbers=None, incr=1):
     """
     Import velocity fields from .VC7 files.
@@ -587,6 +589,8 @@ def import_from_VC7s(fieldspath, kind='TVF',dt=1, unit_time='s',
         fields are taken.
     dt : number
         interval of time between fields.
+    t0 : number, optional
+        Time for the first field.
     """
     if isinstance(fieldspath, ARRAYTYPES):
         if not isinstance(fieldspath[0], STRINGTYPES):
@@ -594,7 +598,7 @@ def import_from_VC7s(fieldspath, kind='TVF',dt=1, unit_time='s',
                             " string")
     elif isinstance(fieldspath, STRINGTYPES):
         pattern = os.path.join(fieldspath, '*.VC7')
-        fieldspath = glob.glob(pattern)
+        fieldspath = glob(pattern)
         if len(fieldspath) == 0:
             raise ValueError()
     else:
@@ -625,7 +629,7 @@ def import_from_VC7s(fieldspath, kind='TVF',dt=1, unit_time='s',
     # loop on files
     start = fieldnumbers[0]
     end = fieldnumbers[1]
-    t = 0
+    t = t0
     for path in fieldspath[start:end:incr]:
         tmp_vf = import_from_VC7(path)
         time = t
@@ -930,9 +934,12 @@ def davis_to_imt_gui():
     filetypes = [('Davis files', '.vc7 .im7'), ('other files', '.*')]
     title = "Choose a file or a directory to import"
     davis_path = askopenfilename(filetypes=filetypes, title=title, multiple=True)
-    print(davis_path)
+    # exit if no file selected
+    if len(davis_path) == 0:
+        return None
     davis_path = win.tk.splitlist(davis_path)
     win.destroy()
+    pdb.set_trace()
     # importing files
     if len(davis_path) == 1:
         davis_path = davis_path[0]
