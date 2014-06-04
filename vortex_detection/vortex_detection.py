@@ -1239,7 +1239,7 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
     mask = np.logical_or(mask, mask1)
     mask = np.logical_or(mask, mask2)
     if raw:
-        return sigmas
+        return np.ma.masked_array(sigmas, mask)
     else:
         sigma_sf = ScalarField()
         unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
@@ -1396,7 +1396,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
     mask = np.logical_or(mask, mask_surr)
     ### Creating gamma ScalarField ###
     if raw:
-        return gammas
+        return np.ma.masked_array(gammas, mask)
     else:
         gamma_sf = ScalarField()
         unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
@@ -1555,7 +1555,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
     mask = np.logical_or(mask, mask_surr)
     ### Creating kappa ScalarField ###
     if raw:
-        return kappas
+        return np.ma.masked_array(kappas, mask)
     else:
         kappa_sf = ScalarField()
         unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
@@ -1603,7 +1603,7 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
     qcrit = np.ma.masked_array(qcrit, mask)
     qcrit = qcrit/np.abs(qcrit).max()
     if raw:
-        return qcrit
+        return np.ma.masked_array(qcrit, mask)
     else:
         q_sf = ScalarField()
         q_sf.import_from_arrays(axe_x, axe_y, qcrit, mask,
@@ -1676,7 +1676,7 @@ def get_iota(vectorfield, mask=None, raw=False):
         grad_theta_m[ind_x, ind_y] = (grad_x**2 + grad_y**2)**(1./2)
     # application du masque
     if raw:
-        return grad_theta_m
+        return np.ma.masked_array(grad_theta_m, maskf)
     else:
         iota_sf = ScalarField()
         unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
