@@ -1944,8 +1944,8 @@ class ScalarField(Field):
         aoi = np.logical_and(values >= bornes[0], values <= bornes[1])
         if np.sum(aoi) == 1:
             inds = np.where(aoi)
-            x = self.axe_x[inds[1][0]]
-            y = self.axe_y[inds[0][0]]
+            x = self.axe_x[inds[0][0]]
+            y = self.axe_y[inds[1][0]]
             return Points([[x, y]], unit_x=self.unit_x,
                           unit_y=self.unit_y)
         zones = np.logical_and(np.logical_and(values >= bornes[0],
@@ -1974,8 +1974,8 @@ class ScalarField(Field):
             raise ValueError("Invalid value for 'kind'")
         coords = []
         for ind in inds:
-            indx = ind[1]
-            indy = ind[0]
+            indx = ind[0]
+            indy = ind[1]
             if indx % 1 == 0:
                 x = self.axe_x[indx]
             else:

@@ -731,7 +731,7 @@ def get_cp_crit(vectorfield, time=0, unit_time=make_unit("")):
         tmp_vf = tmp_vf.export_to_velocityfield()
         # trating small fields
         axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
-        if len(axe_x) < 6 or len(axe_y) < 6:
+        if len(axe_x) < 6 or len(axe_y) < 6 or np.any(tmp_vf.mask):
             pt = Points([cp_pos], [time])
             pt.pbi = pbis[i]
             cp_pbi.append(pt)

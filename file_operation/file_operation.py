@@ -594,7 +594,6 @@ def davis_to_imt_gui():
         return None
     davis_path = win.tk.splitlist(davis_path)
     win.destroy()
-    pdb.set_trace()
     # importing files
     if len(davis_path) == 1:
         davis_path = davis_path[0]
