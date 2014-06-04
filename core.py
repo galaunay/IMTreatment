@@ -31,6 +31,70 @@ MYTYPES = ('Profile', 'ScalarField', 'VectorField', 'VelocityField',
            'VelocityFields', 'TemporalVelocityFields', 'patialVelocityFields')
 
 
+class PTest(object):
+    """
+    Decorator used to test input parameters types.
+    """
+    +++ need to use OrderedDict instead of classical dicts +++
+
+    def __init__(self, *types, **kwtypes):
+        print("Making a test !")
+        self.types = list(types)
+        self.ktypes = list([None]*len(types))
+        self.ktypes += kwtypes.keys()
+        self.types += kwtypes.values()
+
+    def __call__(self, funct):
+        return self.decorator(funct)
+
+    def decorator(self, funct):
+        def new_funct(*args, **kwargs):
+            len_args = len(args)
+            types = self.types[0:len_args]
+            kwtypes = {}
+            # defining parameters name for error message
+            order_str = ['First', 'Second', 'Third', 'Fourth', 'Fifth',
+                         'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth']
+            # test if there is not too much arguments
+            if len_args + len(kwargs) > len(self.types):
+                return funct(*args, **kwargs)
+            # storing given keywords parameters
+            for i, key in enumerate(kwargs.keys()):
+                kwtypes.update({self.ktypes[i + len_args]:
+                                self.types[len_args + i]})
+            # treat non-keyword parameters
+            for i, arg in enumerate(args):
+                # raise error if argument type is not adequate
+                if not isinstance(args[i], types[i]):
+                    actual_types = str(types[i]).replace('type ', '')\
+                                                .replace('>', '')\
+                                                .replace('<', '')
+                    wanted_types = str(type(args[i])).replace('type ', '')\
+                                                     .replace('>', '')\
+                                                     .replace('<', '')
+                    raise TypeError("{} parameter should be {}, not {}."
+                                    .format(order_str[i], actual_types,
+                                            wanted_types))
+            # treat keyword parameters
+            for j, key in enumerate(kwargs.keys()):
+                # test if keyword param exist
+                if not key in kwtypes.keys():
+                    return funct(*args, **kwargs)
+                # return error if keyword argument type is not adequat
+                if not isinstance(kwargs[key], kwtypes[key]):
+                    actual_types = str(kwtypes[key]).replace('<type ', '')\
+                                                    .replace('>', '')
+                    wanted_types = str(type(kwargs[key])).replace('<type ', '')\
+                                                         .replace('>', '')
+                    raise TypeError("'{}' should be {}, not {}."
+                                    .format(key, actual_types, wanted_types))
+            return funct(*args, **kwargs)
+        new_funct.__doc__ = funct.__doc__
+        new_funct.__name__ = funct.__name__
+        return new_funct
+
+
+@PTest(STRINGTYPES)
 def make_unit(string):
     """
     Function helping for the creation of units. For more details, see the
@@ -201,6 +265,8 @@ class Points(object):
     name : string, optional
         Name of the points set
     """
+    @PTest(object, xy=ARRAYTYPES, v=(None, ARRAYTYPES), unit_x=unum.Unum,
+           unit_y=unum.Unum, unit_v=unum.Unum, name=(None, STRINGTYPES))
     def __init__(self, xy=[], v=None, unit_x=make_unit(''),
                  unit_y=make_unit(''),
                  unit_v=make_unit(''), name=None):
