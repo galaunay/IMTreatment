@@ -35,7 +35,7 @@ class PTest(object):
     """
     Decorator used to test input parameters types.
     """
-    +++ need to use OrderedDict instead of classical dicts +++
+    FIXME:  +++ need to use OrderedDict instead of classical dicts +++
 
     def __init__(self, *types, **kwtypes):
         print("Making a test !")
@@ -94,7 +94,7 @@ class PTest(object):
         return new_funct
 
 
-@PTest(STRINGTYPES)
+#@PTest(STRINGTYPES)
 def make_unit(string):
     """
     Function helping for the creation of units. For more details, see the
@@ -265,8 +265,8 @@ class Points(object):
     name : string, optional
         Name of the points set
     """
-    @PTest(object, xy=ARRAYTYPES, v=(None, ARRAYTYPES), unit_x=unum.Unum,
-           unit_y=unum.Unum, unit_v=unum.Unum, name=(None, STRINGTYPES))
+    #@PTest(object, xy=ARRAYTYPES, v=(None, ARRAYTYPES), unit_x=unum.Unum,
+    #       unit_y=unum.Unum, unit_v=unum.Unum, name=(None, STRINGTYPES))
     def __init__(self, xy=[], v=None, unit_x=make_unit(''),
                  unit_y=make_unit(''),
                  unit_v=make_unit(''), name=None):
@@ -3613,8 +3613,8 @@ class TemporalFields(Fields, Field):
         prof_values = np.ma.masked_array(prof_values, prof_mask)
         return Profile(time, prof_values, unit_x=unit_time, unit_y=unit_values)
 
-    def get_spectrum(self, component, pt, ind=False, zero_fill=False,
-                     raw_spec=False, mask_error=True):
+    def get_spectrum(self, component, pt, ind=False, welch_seglen=None,
+                     scaling='base', zero_fill=False, mask_error=True):
         """
         Return a Profile object, with the frequential spectrum of 'component',
         on the point 'pt'.
@@ -3626,13 +3626,16 @@ class TemporalFields(Fields, Field):
         ind : boolean
             If true, 'pt' is read as indices,
             else, 'pt' is read as coordinates.
+        welch_seglen : integer, optional
+            If specified, welch's method is used (dividing signal into
+            overlapping segments, and averaging periodogram) with the given
+            segments length (in number of points).
+        scaling : string, optional
+            If 'base' (default), result are in component unit.
+            If 'spectrum', the power spectrum is returned (in unit^2).
+            If 'density', the power spectral density is returned (in unit^2/Hz)
         zero_fill : boolean
             If True, field masked values are filled by zeros.
-        raw_spec: boolean
-            If 'False' (default), returned spectrum is
-            'abs(raw_spec)/length_signal' in order to have coherent ordinate
-            axis.
-            Else, raw spectrum is returned.
         mask_error : boolean
             If 'False', instead of raising an error when masked value appear on
             time profile, '(None, None)' is returned.
@@ -3641,8 +3644,6 @@ class TemporalFields(Fields, Field):
         -------
         magn_prof : Profile object
             Magnitude spectrum.
-        phase_prof : Profile object
-            Phase spectrum
         """
         # checking parameters coherence
         if not isinstance(pt, ARRAYTYPES):
@@ -3658,8 +3659,6 @@ class TemporalFields(Fields, Field):
                             " integers")
         if not isinstance(ind, bool):
             raise TypeError("'ind' must be a boolean")
-        if not isinstance(raw_spec, bool):
-            raise TypeError("'raw_spec' must be a boolean")
         x = pt[0]
         y = pt[1]
         # getting ime profile
@@ -3679,21 +3678,25 @@ class TemporalFields(Fields, Field):
                         return None, None
 
         # getting spectrum
-        n = len(values)
-        Y = np.fft.rfft(values)
-        if raw_spec:
-            magn = np.abs(Y)
+        from scipy.signal import periodogram, welch
+        fs = 1/(time[1] - time[0])
+        if welch_seglen is None or welch_seglen >= len(time):
+            if scaling == 'base':
+                frq, magn = periodogram(values, fs, scaling='spectrum')
+                magn = np.sqrt(magn)
+            else:
+                frq, magn = periodogram(values, fs, scaling=scaling)
         else:
-            magn = np.abs(Y)/(n/2)
-        phase = np.angle(Y)
-        # getting frequencies
-        Ts = time[1] - time[0]
-        frq = np.fft.rfftfreq(n, Ts)
+            if scaling == 'base':
+                frq, magn = welch(values, fs, scaling='spectrum',
+                                  nperseg=welch_seglen)
+                magn = np.sqrt(magn)
+            else:
+                frq, magn = welch(values, fs, scaling=scaling,
+                                  nperseg=welch_seglen)
         magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
                             unit_y=self.unit_values)
-        phase_prof = Profile(frq, phase, unit_x=make_unit('Hz'),
-                             unit_y=make_unit('rad'))
-        return magn_prof, phase_prof
+        return magn_prof
 
     def get_spectrum_over_area(self, component, intervalx, intervaly,
                                ind=False, zero_fill=False,
@@ -3714,18 +3717,11 @@ class TemporalFields(Fields, Field):
             else, 'pt' is read as coordinates.
         zero_fill : boolean
             If True, field masked values are filled by zeros.
-        raw_spec: boolean
-            If 'False' (default), returned spectrum is
-            'abs(raw_spec)/length_signal' in order to have coherent ordinate
-            axis.
-            Else, raw spectrum is returned.
 
         Returns
         -------
         magn_prof : Profile object
             Averaged magnitude spectrum.
-        phase_prof : Profile object
-            Averaged phase spectrum
         """
         # checking parameters coherence
         if not isinstance(component, STRINGTYPES):
@@ -3771,28 +3767,24 @@ class TemporalFields(Fields, Field):
             ind_y_max = self.get_indice_on_axe(2, intervaly[1])[-1]
         # Averaging ponctual spectrums
         magn = 0.
-        phase = 0.
         nmb_fields = (ind_x_max - ind_x_min + 1)*(ind_y_max - ind_y_min + 1)
         real_nmb_fields = nmb_fields
         for i in np.arange(ind_x_min, ind_x_max + 1):
             for j in np.arange(ind_y_min, ind_y_max + 1):
-                tmp_m, tmp_p = self.get_spectrum(component, [i, j], ind=True,
-                                                 zero_fill=zero_fill,
-                                                 raw_spec=raw_spec,
-                                                 mask_error=False)
+                tmp_m = self.get_spectrum(component, [i, j], ind=True,
+                                          zero_fill=zero_fill,
+                                          mask_error=False)
                 # check if the position is masked
                 if tmp_m is None:
                     real_nmb_fields -= 1
                 else:
                     magn = magn + tmp_m
-                    phase = phase + tmp_p
         if real_nmb_fields == 0:
             raise StandardError("I can't find a single non-masked time profile"
                                 ", maybe you will want to try 'zero_fill' "
                                 "option")
         magn = magn/real_nmb_fields
-        phase = phase/real_nmb_fields
-        return magn, phase
+        return magn
 
     ### Modifiers ###
     def add_field(self, field, time=0., unit_times=""):
