@@ -35,7 +35,7 @@ class PTest(object):
     """
     Decorator used to test input parameters types.
     """
-    FIXME:  +++ need to use OrderedDict instead of classical dicts +++
+    #FIXME:  +++ need to use OrderedDict instead of classical dicts +++
 
     def __init__(self, *types, **kwtypes):
         print("Making a test !")
@@ -4040,6 +4040,69 @@ class TemporalFields(Fields, Field):
                 fig.delaxes(ax)
             plt.tight_layout()
 
+    def display_controlled(self, compo='V', **plotargs):
+        """
+        Create a windows to display temporals field, controlled by buttons.
+        http://matplotlib.org/1.3.1/examples/widgets/buttons.html
+        """
+        from matplotlib.widgets import Button
+        # getting data
+        if isinstance(self, TemporalVectorFields):
+            if compo == 'V' or compo is None:
+                comp = self.fields
+            elif compo == 'x':
+                comp = self.Vx_as_sf
+            elif compo == 'y':
+                comp = self.vy_as_sf
+            elif compo == 'mask':
+                comp = self.mask_as_sf
+            else:
+                raise ValueError()
+        elif isinstance(self, TemporalScalarFields):
+            if compo == 'values' or compo is None:
+                comp = self.values_as_sf
+            elif compo == 'mask':
+                comp = self.mask_as_sf
+            else:
+                raise ValueError()
+        else:
+            raise TypeError()
+        if 'kind' in plotargs.keys():
+            kind = plotargs['kind']
+        else:
+            kind = None
+
+        # button gestion class
+        class Index(object):
+
+            def __init__(self, compo, comp, kind):
+                self.fig = plt.figure()
+                self.incr = 1
+                self.ind = 0
+                self.compo = compo
+                self.comp = comp
+                self.kind = kind
+                # display initial
+
+            def next(self, event, incr):
+                self.ind += incr
+
+            def prev(self, event, incr):
+                self.ind += incr
+
+            def update(self):
+                # use __uypdate_sf et __update_vf
+                pass
+
+        #window creation
+        callback = Index(compo, comp, kind)
+        axprev = plt.axes([0.7, 0.05, 0.1, 0.075])
+        axnext = plt.axes([0.81, 0.05, 0.1, 0.075])
+        bnext = Button(axnext, 'Next')
+        bnext.on_clicked(callback.next)
+        bprev = Button(axprev, 'Previous')
+        bprev.on_clicked(callback.prev)
+
     def display_animate(self, compo='V', interval=500, fields_inds=None,
                         repeat=True,
                         **plotargs):
@@ -4093,25 +4156,12 @@ class TemporalFields(Fields, Field):
             ax = plt.gca()
             displ = comp[0].display(**plotargs)
             ttl = plt.title('')
-
-            def update(num, fig, ax, displ, ttl, comp):
-                vx = np.transpose(comp[num].comp_x)
-                vy = np.transpose(comp[num].comp_y)
-                mask = np.transpose(comp[num].mask)
-                vx = np.ma.masked_array(vx, mask)
-                vy = np.ma.masked_array(vy, mask)
-                magn = np.transpose(comp[num].magnitude)
-                displ.set_UVC(vx, vy, magn)
-                title = "{}, at t={:.2f} {}"\
-                    .format(compo, float(self.times[num]),
-                            self.unit_times.strUnit())
-                ttl.set_text(title)
-                return ax
-            anim = animation.FuncAnimation(fig, update,
+            anim = animation.FuncAnimation(fig, self.__update_vf,
                                            frames=fields_inds,
                                            interval=interval, blit=False,
                                            repeat=repeat,
-                                           fargs=(fig, ax, displ, ttl, comp))
+                                           fargs=(fig, ax, displ, ttl, comp,
+                                                  compo, plotargs))
             return anim,
         # display a scalar field (contour, contourf or imshow) or a streamplot
         elif isinstance(comp[0], ScalarField)\
@@ -4120,20 +4170,12 @@ class TemporalFields(Fields, Field):
             ax = plt.gca()
             displ = comp[0].display(**plotargs)
             ttl = plt.suptitle('')
-
-            def update(num, fig, ax, displ, ttl, comp):
-                ax.cla()
-                displ = comp[num]._display(**plotargs)
-                title = "{}, at t={:.3} {}"\
-                    .format(compo, float(self.times[num]),
-                            self.unit_times.strUnit())
-                ttl.set_text(title)
-                return displ,
-            anim = animation.FuncAnimation(fig, update,
+            anim = animation.FuncAnimation(fig, self.__update_sf,
                                            frames=fields_inds,
                                            interval=interval, blit=False,
                                            repeat=repeat,
-                                           fargs=(fig, ax, displ, ttl, comp))
+                                           fargs=(fig, ax, displ, ttl, comp,
+                                                  compo, plotargs))
             return anim,
         else:
             raise ValueError("I don't know any '{}' composant".format(compo))
@@ -4162,6 +4204,28 @@ class TemporalFields(Fields, Field):
         elif kind == 'mp4':
             anim.save(filepath, writer='fmpeg', fps=fps, bitrate=bitrate)
 
+    def __update_sf(self, num, fig, ax, displ, ttl, comp, compo, plotargs):
+        ax.cla()
+        displ = comp[num]._display(**plotargs)
+        title = "{}, at t={:.3} {}"\
+            .format(compo, float(self.times[num]),
+                    self.unit_times.strUnit())
+        ttl.set_text(title)
+        return displ,
+
+    def __update_vf(self, num, fig, ax, displ, ttl, comp, compo, plotargs):
+        vx = np.transpose(comp[num].comp_x)
+        vy = np.transpose(comp[num].comp_y)
+        mask = np.transpose(comp[num].mask)
+        vx = np.ma.masked_array(vx, mask)
+        vy = np.ma.masked_array(vy, mask)
+        magn = np.transpose(comp[num].magnitude)
+        displ.set_UVC(vx, vy, magn)
+        title = "{}, at t={:.2f} {}"\
+            .format(compo, float(self.times[num]),
+                    self.unit_times.strUnit())
+        ttl.set_text(title)
+        return ax
 
 class TemporalScalarFields(TemporalFields):
     """
