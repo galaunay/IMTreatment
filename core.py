@@ -3663,7 +3663,7 @@ class TemporalFields(Fields, Field):
         y = pt[1]
         # getting ime profile
         time_prof = self.get_time_profile(component, x, y, ind=ind)
-        values = time_prof.y
+        values = time_prof.y - np.mean(time_prof.y)
         time = time_prof.x
         # checking if position is masked
         for i, val in enumerate(values):
@@ -3699,8 +3699,8 @@ class TemporalFields(Fields, Field):
         return magn_prof
 
     def get_spectrum_over_area(self, component, intervalx, intervaly,
-                               ind=False, zero_fill=False,
-                               raw_spec=False):
+                               ind=False, welch_seglen=None,
+                               scaling='base', zero_fill=False):
         """
         Return a Profile object, contening a mean spectrum of the given
         component, on all the points included in the given intervals.
@@ -3715,6 +3715,14 @@ class TemporalFields(Fields, Field):
         ind : boolean
             If true, 'pt' is read as indices,
             else, 'pt' is read as coordinates.
+        welch_seglen : integer, optional
+            If specified, welch's method is used (dividing signal into
+            overlapping segments, and averaging periodogram) with the given
+            segments length (in number of points).
+        scaling : string, optional
+            If 'base' (default), result are in component unit.
+            If 'spectrum', the power spectrum is returned (in unit^2).
+            If 'density', the power spectral density is returned (in unit^2/Hz)
         zero_fill : boolean
             If True, field masked values are filled by zeros.
 
@@ -3772,8 +3780,10 @@ class TemporalFields(Fields, Field):
         for i in np.arange(ind_x_min, ind_x_max + 1):
             for j in np.arange(ind_y_min, ind_y_max + 1):
                 tmp_m = self.get_spectrum(component, [i, j], ind=True,
-                                          zero_fill=zero_fill,
-                                          mask_error=False)
+                                          welch_seglen=welch_seglen, 
+                                          scaling=scaling, 
+                                          zero_fill=zero_fill, 
+                                          mask_error=True)
                 # check if the position is masked
                 if tmp_m is None:
                     real_nmb_fields -= 1
@@ -4131,7 +4141,7 @@ class TemporalFields(Fields, Field):
         callback = Index(self, compo, comp, kind, plotargs)
         axprev = callback.fig.add_axes(plt.axes([0.02, 0.02, 0.1, 0.05]))
         axnext = callback.fig.add_axes(plt.axes([0.88, 0.02, 0.1, 0.05]))
-        axslid = callback.fig.add_axes(plt.axes([0.2, 0.02, 0.6, 0.05]))
+        axslid = callback.fig.add_axes(plt.axes([0.15, 0.02, 0.6, 0.05]))
         callback.bnext = Button(axnext, 'Next')
         callback.bnext.on_clicked(callback.next)
         callback.bprev = Button(axprev, 'Previous')
