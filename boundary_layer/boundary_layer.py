@@ -347,7 +347,7 @@ class WakeLaw(WallLaw):
                 + 2.*Cc/self.k*np.sin(np.pi*y/(2.*self.delta))**2)
 
 
-def get_bl_thickness(obj, direction=1, perc=0.95):
+def get_bl_thickness(obj, direction=1,  perc=0.95):
     """
     Return a boundary layer thickness if 'obj' is a Profile.
     Return a profile of boundary layer thicknesses if 'obj' is a ScalarField.
@@ -380,7 +380,7 @@ def get_bl_thickness(obj, direction=1, perc=0.95):
         else:
             axe = obj.axe_y
         profiles = [obj.get_profile(direction, x) for x in axe]
-        values = [get_bl_thickness(prof) for prof, _ in profiles]
+        values = [get_bl_thickness(prof, perc=perc) for prof, _ in profiles]
         return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
     else:
         raise TypeError("Can't compute (yet ?) BL thickness on this kind of"

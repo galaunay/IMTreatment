@@ -2133,15 +2133,15 @@ class ScalarField(Field):
         else:
             axe_mask = np.logical_and(axe >= position[0], axe <= position[1])
             if direction == 1:
-                profile = self.values[axe_mask, :].mean(1)
+                profile = self.values[axe_mask, :].mean(0)
                 axe = self.axe_y
                 cutposition = self.axe_x[axe_mask]
             else:
-                profile = self.values[:, axe_mask].mean(0)
+                profile = self.values[:, axe_mask].mean(1)
                 axe = self.axe_x
                 cutposition = self.axe_y[axe_mask]
         return Profile(axe, profile, unit_x, unit_y, "Profile"), cutposition
-
+            
     def integrate_over_line(self, direction, interval):
         """
         Return the integral on an interval and along a direction
@@ -4077,6 +4077,24 @@ class TemporalFields(Fields, Field):
                 raise ValueError()
         else:
             raise TypeError()
+        # getting min and max data
+        if isinstance(comp[0], ScalarField):
+            if 'vmin' not in plotargs.keys():
+                mins = [field.min for field in comp]
+                plotargs['vmin'] = np.min(mins)
+            if 'vmax' not in plotargs.keys():
+                maxs = [field.max for field in comp]
+                plotargs['vmax'] = np.max(maxs) 
+        elif isinstance(comp[0], VectorField):
+            if 'clim' not in plotargs.keys():
+                mins = [np.min(field.magnitude[np.logical_not(field.mask)]) for field in comp]
+                maxs = [np.max(field.magnitude[np.logical_not(field.mask)]) for field in comp]
+                mini = np.min(mins)
+                maxi = np.max(maxs)
+                plotargs['clim'] = [mini, maxi]
+        else:
+            raise Exception()
+        # setting default kind of display
         if 'kind' in plotargs.keys():
             kind = plotargs['kind']
         else:
