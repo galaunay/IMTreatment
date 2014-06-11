@@ -1074,37 +1074,80 @@ class Profile(object):
         tmp_prof = Profile(x_new, y_new, self.unit_x, self.unit_y)
         return tmp_prof
 
-    def smooth(self, meandist=2):
+    def fill(self, kind='linear'):
         """
-        Return a smoothed profile using a mean on a given number of points
-
+        Return a filled profile.
+        
         Parameters
         ----------
-        meandist : int, optionnal
-            Number of points on which making a mean
-
+        kind : string or int, optional
+            Specifies the kind of interpolation as a string (‘linear’,
+            ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic, ‘cubic’ where ‘slinear’,
+            ‘quadratic’ and ‘cubic’ refer to a spline interpolation of first,
+            second or third order) or as an integer specifying the order of
+            the spline interpolator to use. Default is ‘linear’.
+            
         Returns
         -------
-        SProfile : Profile object
-            The smoothed profile
+        prof : Profile object
+            Filled profile
         """
-        if not isinstance(meandist, int):
-            raise TypeError("'meandist' must be an integer")
-        if meandist > len(self.x):
-            raise ValueError("'meandist' must be smaller than the length of "
-                             "the profile")
-        smoothx = np.array([], dtype=float)
-        smoothy = np.array([], dtype=float)
-        for i in np.arange(0, len(self.x)-meandist+1):
-            locsmoothx = 0
-            locsmoothy = 0
-            for j in np.arange(0, meandist):
-                locsmoothx += self.x[i+j]
-                locsmoothy += self.y[i+j]
-            smoothx = np.append(smoothx, locsmoothx/meandist)
-            smoothy = np.append(smoothy, locsmoothy/meandist)
-        return Profile(smoothx, smoothy, self.unit_x, self.unit_y,
-                       self.name + " (Smoothed)")
+        if not np.any(self.y.mask):
+            return self.copy()
+        mask = self.y.mask
+        filt = np.logical_not(mask)
+        if np.all(mask):
+            raise Exception("There is no values on this profile")
+        # making interpolation on existent values
+        x = self.x[filt]
+        y = self.y.data[filt]
+        interp = spinterp.interp1d(x, y, kind=kind,
+                                  bounds_error=False)
+        # replacing missing values
+        tmp_prof = self.copy()
+        missing_x = tmp_prof.x[mask]
+        tmp_prof.y[mask] = interp(missing_x)
+        return tmp_prof
+
+    def smooth(self, tos='uniform', size=None, **kw):
+        """
+        Return a smoothed profile.
+        Warning : fill up the field
+
+        Parameters :
+        ------------
+        tos : string, optional
+            Type of smoothing, can be 'uniform' (default) or 'gaussian'
+            (See ndimage module documentation for more details)
+        size : number, optional
+            Size of the smoothing (is radius for 'uniform' and
+            sigma for 'gaussian').
+            Default is 3 for 'uniform' and 1 for 'gaussian'.
+        kw : dic
+            Additional parameters for ndimage methods
+            (See ndimage documentation)
+        """
+        if not isinstance(tos, STRINGTYPES):
+            raise TypeError("'tos' must be a string")
+        if size is None and tos == 'uniform':
+            size = 3
+        elif size is None and tos == 'gaussian':
+            size = 1
+        tmp_prof = self.copy()
+        # filling up the field before smoothing
+        tmp_prof.fill()
+        # mask treatment
+        values = tmp_prof.y
+        # smoothing
+        if tos == "uniform":
+            values = ndimage.uniform_filter(values, size, **kw)
+        elif tos == "gaussian":
+            values = ndimage.gaussian_filter(values, size, **kw)
+        else:
+            raise ValueError("'tos' must be 'uniform' or 'gaussian'")
+        # storing
+        tmp_prof.y = values
+        return tmp_prof
 
     def _display(self, kind='plot', reverse=False, **plotargs):
         """
@@ -3614,7 +3657,7 @@ class TemporalFields(Fields, Field):
         return Profile(time, prof_values, unit_x=unit_time, unit_y=unit_values)
 
     def get_spectrum(self, component, pt, ind=False, welch_seglen=None,
-                     scaling='base', zero_fill=False, mask_error=True):
+                     scaling='base', fill='linear', mask_error=True):
         """
         Return a Profile object, with the frequential spectrum of 'component',
         on the point 'pt'.
@@ -3634,8 +3677,12 @@ class TemporalFields(Fields, Field):
             If 'base' (default), result are in component unit.
             If 'spectrum', the power spectrum is returned (in unit^2).
             If 'density', the power spectral density is returned (in unit^2/Hz)
-        zero_fill : boolean
-            If True, field masked values are filled by zeros.
+        fill : string or float
+            Specifies the way to treat missing values.
+            A value for value filling.
+            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
+            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline 
+            interpolation of first, second or third order) for interpolation.
         mask_error : boolean
             If 'False', instead of raising an error when masked value appear on
             time profile, '(None, None)' is returned.
@@ -3661,22 +3708,17 @@ class TemporalFields(Fields, Field):
             raise TypeError("'ind' must be a boolean")
         x = pt[0]
         y = pt[1]
-        # getting ime profile
+        # getting time profile
         time_prof = self.get_time_profile(component, x, y, ind=ind)
+        # fill if asked (and if necessary)
+        if isinstance(fill, NUMBERTYPES):
+            time_prof.y[time_prof.y.mask] = fill
+        elif isinstance(fill, STRINGTYPES):
+            time_prof.fill(kind=fill)
+        else:
+            raise Exception()
         values = time_prof.y - np.mean(time_prof.y)
         time = time_prof.x
-        # checking if position is masked
-        for i, val in enumerate(values):
-            if np.ma.is_masked(val):
-                if zero_fill:
-                    values[i] = 0
-                else:
-                    if mask_error:
-                        raise StandardError("Masked values on time "
-                                            "profile")
-                    else:
-                        return None, None
-
         # getting spectrum
         from scipy.signal import periodogram, welch
         fs = 1/(time[1] - time[0])
@@ -3694,13 +3736,22 @@ class TemporalFields(Fields, Field):
             else:
                 frq, magn = welch(values, fs, scaling=scaling,
                                   nperseg=welch_seglen)
+        # sretting unit
+        if scaling == 'base':
+            unit_values = self.unit_values
+        elif scaling == 'spectrum':
+            unit_values = self.unit_values**2
+        elif scaling == 'density':
+            unit_values = self.unit_values**2/make_unit('Hz')
+        else:
+            raise Exception()
         magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
-                            unit_y=self.unit_values)
+                            unit_y=unit_values)
         return magn_prof
 
     def get_spectrum_over_area(self, component, intervalx, intervaly,
                                ind=False, welch_seglen=None,
-                               scaling='base', zero_fill=False):
+                               scaling='base', fill='linear'):
         """
         Return a Profile object, contening a mean spectrum of the given
         component, on all the points included in the given intervals.
@@ -3723,8 +3774,12 @@ class TemporalFields(Fields, Field):
             If 'base' (default), result are in component unit.
             If 'spectrum', the power spectrum is returned (in unit^2).
             If 'density', the power spectral density is returned (in unit^2/Hz)
-        zero_fill : boolean
-            If True, field masked values are filled by zeros.
+        fill : string or float
+            Specifies the way to treat missing values.
+            A value for value filling.
+            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
+            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline 
+            interpolation of first, second or third order) for interpolation.
 
         Returns
         -------
@@ -3769,10 +3824,10 @@ class TemporalFields(Fields, Field):
                     or np.min(intervaly) < axe_y_min\
                     or np.max(intervaly) > axe_y_max:
                 raise ValueError("intervals are out of bounds")
-            ind_x_min = self.get_indice_on_axe(1, intervalx[0])[0]
-            ind_x_max = self.get_indice_on_axe(1, intervalx[1])[-1]
-            ind_y_min = self.get_indice_on_axe(2, intervaly[0])[0]
-            ind_y_max = self.get_indice_on_axe(2, intervaly[1])[-1]
+            ind_x_min = self.get_indice_on_axe(1, intervalx[0])[-1]
+            ind_x_max = self.get_indice_on_axe(1, intervalx[1])[0]
+            ind_y_min = self.get_indice_on_axe(2, intervaly[0])[-1]
+            ind_y_max = self.get_indice_on_axe(2, intervaly[1])[0]
         # Averaging ponctual spectrums
         magn = 0.
         nmb_fields = (ind_x_max - ind_x_min + 1)*(ind_y_max - ind_y_min + 1)
@@ -3782,8 +3837,7 @@ class TemporalFields(Fields, Field):
                 tmp_m = self.get_spectrum(component, [i, j], ind=True,
                                           welch_seglen=welch_seglen, 
                                           scaling=scaling, 
-                                          zero_fill=zero_fill, 
-                                          mask_error=True)
+                                          fill=fill, mask_error=True)
                 # check if the position is masked
                 if tmp_m is None:
                     real_nmb_fields -= 1
