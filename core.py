@@ -3984,7 +3984,7 @@ class TemporalFields(Fields, Field):
         self.fields = self.fields[ind_sort]
 
     ### Displayers ###
-    def display(self, component, kind=None,  fields_ind=None, samecb=False,
+    def display_multiple(self, component, kind=None,  fields_ind=None, samecb=False,
                 same_axes=False, **plotargs):
         """
         Display a component of the velocity fields.
@@ -4050,7 +4050,7 @@ class TemporalFields(Fields, Field):
                 fig.delaxes(ax)
             plt.tight_layout()
 
-    def display_controlled(self, compo='V', **plotargs):
+    def display(self, compo='V', **plotargs):
         """
         Create a windows to display temporals field, controlled by buttons.
         http://matplotlib.org/1.3.1/examples/widgets/buttons.html
@@ -4063,7 +4063,7 @@ class TemporalFields(Fields, Field):
             elif compo == 'x':
                 comp = self.Vx_as_sf
             elif compo == 'y':
-                comp = self.vy_as_sf
+                comp = self.Vy_as_sf
             elif compo == 'mask':
                 comp = self.mask_as_sf
             else:
