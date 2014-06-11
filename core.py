@@ -678,8 +678,8 @@ class Profile(object):
         A name for the profile.
     """
 
-    def __init__(self, x=[], y=[], unit_x=make_unit(""), unit_y=make_unit(""),
-                 name=""):
+    def __init__(self, x=[], y=[], mask=False, unit_x=make_unit(""),
+                 unit_y=make_unit(""), name=""):
         """
         Profile builder.
         """
@@ -691,6 +691,13 @@ class Profile(object):
             raise TypeError("'y' must be an array")
         if not isinstance(y, (np.ndarray, np.ma.MaskedArray)):
             y = np.array(y, dtype=float)
+        if isinstance(mask, bool):
+            mask = np.empty(x.shape, dtype=bool)
+            mask.fill(False)
+        if not isinstance(mask, ARRAYTYPES):
+            raise TypeError("'mask' must be an array")
+        if not isinstance(mask, (np.ndarray, np.ma.MaskedArray)):
+            mask = np.array(mask, dtype=bool)
         if not isinstance(name, STRINGTYPES):
             raise TypeError("'name' must be a string")
         if not isinstance(unit_x, unum.Unum):
@@ -703,6 +710,7 @@ class Profile(object):
         order = np.argsort(x)
         self.x = x[order]
         self.y = y[order]
+        self.mask = mask[order]
         self.name = name
         self.unit_x = unit_x.copy()
         self.unit_y = unit_y.copy()
@@ -816,66 +824,151 @@ class Profile(object):
     def __len__(self):
         return len(self.x)
 
-    def export_to_file(self, filepath, compressed=True, **kw):
-        """
-        Write the Profile object in the specified file usint the JSON format.
-        Additionnals arguments for the JSON encoder may be set with the **kw
-        argument. Such arguments may be 'indent' (for visual indentation in
-        file, default=0) or 'encoding' (to change the file encoding,
-        default='utf-8').
-        If existing, specified file will be truncated. If not, it will
-        be created.
+#    def export_to_file(self, filepath, compressed=True, **kw):
+#        """
+#        Write the Profile object in the specified file usint the JSON format.
+#        Additionnals arguments for the JSON encoder may be set with the **kw
+#        argument. Such arguments may be 'indent' (for visual indentation in
+#        file, default=0) or 'encoding' (to change the file encoding,
+#        default='utf-8').
+#        If existing, specified file will be truncated. If not, it will
+#        be created.
+#
+#        Parameters
+#        ----------
+#        filepath : string
+#            Path specifiing where to save the ScalarField.
+#        compressed : boolean, optional
+#            If 'True' (default), the json file is compressed using gzip.
+#        """
+#        import IMTreatment.io.io as imtio
+#        imtio.export_to_file(self, filepath, compressed, **kw)
 
-        Parameters
-        ----------
-        filepath : string
-            Path specifiing where to save the ScalarField.
-        compressed : boolean, optional
-            If 'True' (default), the json file is compressed using gzip.
-        """
-        import IMTreatment.io.io as imtio
-        imtio.export_to_file(self, filepath, compressed, **kw)
+#    def import_from_file(self, filepath, **kw):
+#        """
+#        Load a Profile object from the specified file using the JSON
+#        format.
+#        Additionnals arguments for the JSON decoder may be set with the **kw
+#        argument. Such as'encoding' (to change the file
+#        encoding, default='utf-8').
+#
+#        Parameters
+#        ----------
+#        filepath : string
+#            Path specifiing the Profile to load.
+#        """
+#        import IMTreatment.io.io as imtio
+#        tmp_p = imtio.import_from_file(filepath, **kw)
+#        if tmp_p.__classname__ != self.__classname__:
+#            raise IOError("This file do not contain a Profile, cabron")
+#        self.__init__(tmp_p.x, tmp_p.y, tmp_p.unit_x, tmp_p.unit_y, tmp_p.name)
 
-    def import_from_file(self, filepath, **kw):
-        """
-        Load a Profile object from the specified file using the JSON
-        format.
-        Additionnals arguments for the JSON decoder may be set with the **kw
-        argument. Such as'encoding' (to change the file
-        encoding, default='utf-8').
 
-        Parameters
-        ----------
-        filepath : string
-            Path specifiing the Profile to load.
-        """
-        import IMTreatment.io.io as imtio
-        tmp_p = imtio.import_from_file(filepath, **kw)
-        if tmp_p.__classname__ != self.__classname__:
-            raise IOError("This file do not contain a Profile, cabron")
-        self.__init__(tmp_p.x, tmp_p.y, tmp_p.unit_x, tmp_p.unit_y, tmp_p.name)
+    @property
+    def x(self):
+        return self.__x
 
-    def get_comp(self, comp):
-        """
-        Give access to the selected Profile component.
-        """
-        if not isinstance(comp, STRINGTYPES):
-            raise TypeError("'comp' must be a string")
-        if comp == "x":
-            return self.x
-        elif comp == 'y':
-            return self.y
-        elif comp == 'unit_y':
-            return self.unit_y
-        elif comp == 'unit_x':
-            return self.unit_x
+    @x.setter
+    def x(self, values):
+        if isinstance(values, ARRAYTYPES):
+            self.__x = np.array(values)
         else:
-            raise ValueError("Unknown component : {}".format(comp))
+            raise Exception()
+
+    @x.deleter
+    def x(self):
+        raise Exception("Nope, can't delete 'x'")
+
+    @property
+    def y(self):
+        self.__y[self.__mask] = np.nan
+        return self.__y
+
+    @y.setter
+    def y(self, values):
+        if isinstance(values, np.ma.MaskedArray):
+            self.__y = values.data
+            self.__mask = values.mask
+        elif isinstance(values, ARRAYTYPES):
+            self.__y =  np.array(values)
+            self.__mask = np.isnan(values)
+        else:
+            raise Exception()
+
+    @y.deleter
+    def y(self):
+        raise Exception("Nope, can't delete 'y'")
+
+    @property
+    def mask(self):
+        return self.__mask
+
+    @mask.setter
+    def mask(self, mask):
+        if isinstance(mask, bool):
+            self.__mask = np.empty(self.x.shape, dtype=bool)
+            self.__mask.fill(mask)
+        elif isinstance(mask, ARRAYTYPES):
+            self.__mask = np.array(mask)
+        else:
+            raise Exception()
+        self.__y[mask] = np.nan
+
+    @mask.deleter
+    def mask(self):
+        raise Exception("Nope, can't delete 'mask'")
+
+    @property
+    def unit_x(self):
+        return self.__unit_x
+
+    @unit_x.setter
+    def unit_x(self, unit):
+        if isinstance(unit, unum.Unum):
+            self.__unit_x = unit
+        else:
+            raise Exception()
+
+    @unit_x.deleter
+    def unit_x(self):
+        raise Exception("Nope, can't delete 'unit_x'")
+
+    @property
+    def unit_y(self):
+        return self.__unit_y
+
+    @unit_y.setter
+    def unit_y(self, unit):
+        if isinstance(unit, unum.Unum):
+            self.__unit_y = unit
+        else:
+            raise Exception()
+
+    @unit_y.deleter
+    def unit_y(self):
+        raise Exception("Nope, can't delete 'unit_y'")
+
+#    def get_comp(self, comp):
+#        """
+#        Give access to the selected Profile component.
+#        """
+#        if not isinstance(comp, STRINGTYPES):
+#            raise TypeError("'comp' must be a string")
+#        if comp == "x":
+#            return self.x
+#        elif comp == 'y':
+#            return self.y
+#        elif comp == 'unit_y':
+#            return self.unit_y
+#        elif comp == 'unit_x':
+#            return self.unit_x
+#        else:
+#            raise ValueError("Unknown component : {}".format(comp))
 
     def get_interpolated_value(self, x=None, y=None):
         """
         Get the interpolated (or not) value for a given 'x' or 'y' value.
-        It is obvious that you can't specify 'x' and 'y' at the same time.
+
         If several possibilities are possible, an array with all the results
         is returned.
 
@@ -906,10 +999,10 @@ class Profile(object):
         if x is not None:
             value = x
             values = np.array(self.x)
-            values2 = np.array(self.y)
+            values2 = np.ma.masked_array(self.y, self.mask)
         else:
             value = y
-            values = np.array(self.y)
+            values = np.ma.masked_array(self.y, self.mask)
             values2 = np.array(self.x)
         i_values = []
         for ind in np.arange(0, len(values) - 1):
@@ -929,9 +1022,10 @@ class Profile(object):
         """
         Return a copy of the Profile object.
         """
-        return Profile(self.x, self.y, self.unit_x, self.unit_y, self.name)
+        return copy.deepcopy(self)
 
-    def get_max(self, axe=2):
+    @property
+    def max(self):
         """
         Return the maxima along an axe.
 
@@ -945,26 +1039,12 @@ class Profile(object):
         max : number
             Maxima along 'axe'.
         """
-        if not isinstance(axe, int):
-            raise TypeError("'axe' must be an integer")
-        if not (axe == 1 or axe == 2):
-            raise ValueError("'axe' must be 1 or 2")
-        if axe == 1:
-            try:
-                if np.all(self.x.mask):
-                    return None
-            except AttributeError:
-                pass
-            return np.max(self.x)
-        if axe == 2:
-            try:
-                if np.all(self.y.mask):
-                    return None
-            except AttributeError:
-                pass
-            return np.max(self.y)
+        if np.all(self.mask):
+            return None
+        return np.max(self.y[np.logical_not(self.mask)])
 
-    def get_min(self, axe=2):
+    @property
+    def min(self):
         """
         Return the minima along an axe.
 
@@ -978,47 +1058,43 @@ class Profile(object):
         max : number
             Minima along 'axe'.
         """
-        if not isinstance(axe, int):
-            raise TypeError("'axe' must be an integer")
-        if not (axe == 1 or axe == 2):
-            raise ValueError("'axe' must be 1 or 2")
-        if axe == 1:
-            return np.min(self.x)
-        if axe == 2:
-            return np.min(self.y)
+        return np.min(self.y[np.logical_not(self.mask)])
 
     def get_integral(self):
         """
         Return the profile integral, and is unit.
         Use the trapezoidal aproximation.
         """
-        return np.trapz(self.y, self.x), self.unit_y*self.unit_x
+        filt = np.logical_not(self.mask)
+        x = self.x[filt]
+        y = self.y[filt]
+        return np.trapz(y, x), self.unit_y*self.unit_x
 
-    def set_unit(self, comp, unity):
-        """
-        Write the selected component in the given unity (if possible).
-
-        Parameters
-        ----------
-        comp : string
-            Profile component to change.
-        unity : Unum.unit object
-            Unity (you can use make_unit to make one).
-        """
-        if not isinstance(comp, STRINGTYPES):
-            raise TypeError("'comp' must be a string")
-        if not isinstance(unity, unum.Unum):
-            raise TypeError("'unity' must be a Unum object")
-        if comp == "x":
-            unit_tmp = self.unit_x.asUnit(unity)
-            self.x = self.x*unit_tmp.asNumber()
-            self.unit_x = unit_tmp/unit_tmp.asNumber()
-        elif comp == 'y':
-            unit_tmp = self.unit_y.asUnit(unity)
-            self.y = self.y*unit_tmp.asNumber()
-            self.unit_y = unit_tmp/unit_tmp.asNumber()
-        else:
-            raise ValueError("Unknown component : {}".format(comp))
+#    def set_unit(self, comp, unity):
+#        """
+#        Write the selected component in the given unity (if possible).
+#
+#        Parameters
+#        ----------
+#        comp : string
+#            Profile component to change.
+#        unity : Unum.unit object
+#            Unity (you can use make_unit to make one).
+#        """
+#        if not isinstance(comp, STRINGTYPES):
+#            raise TypeError("'comp' must be a string")
+#        if not isinstance(unity, unum.Unum):
+#            raise TypeError("'unity' must be a Unum object")
+#        if comp == "x":
+#            unit_tmp = self.unit_x.asUnit(unity)
+#            self.x = self.x*unit_tmp.asNumber()
+#            self.unit_x = unit_tmp/unit_tmp.asNumber()
+#        elif comp == 'y':
+#            unit_tmp = self.unit_y.asUnit(unity)
+#            self.y = self.y*unit_tmp.asNumber()
+#            self.unit_y = unit_tmp/unit_tmp.asNumber()
+#        else:
+#            raise ValueError("Unknown component : {}".format(comp))
 
     def trim(self, interval, ind=False):
         """
@@ -1065,48 +1141,59 @@ class Profile(object):
             #indices.sort()
             x_new = self.x[indices[0]:indices[1]]
             y_new = self.y[indices[0]:indices[1]]
+            mask_new = self.mask[indices[0]:indices[1]]
         # given position is an indice
         else:
-            if any(interval < 0) or any(interval > len(self.x) - 1):
+            if any(interval < 0) or any(interval > len(self.x)):
                 raise ValueError("'interval' indices are out of profile")
             x_new = self.x[interval[0]:interval[1]]
             y_new = self.y[interval[0]:interval[1]]
-        tmp_prof = Profile(x_new, y_new, self.unit_x, self.unit_y)
+            mask_new = self.mask[interval[0]:interval[1]]
+        tmp_prof = Profile(x_new, y_new, mask_new, self.unit_x, self.unit_y)
         return tmp_prof
 
-    def fill(self, kind='linear'):
+    def fill(self, kind='linear', fill_value=0):
         """
         Return a filled profile.
-        
+
         Parameters
         ----------
         kind : string or int, optional
-            Specifies the kind of interpolation as a string (‘linear’,
+            Specifies the kind of interpolation as a string ('value', ‘linear’,
             ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic, ‘cubic’ where ‘slinear’,
             ‘quadratic’ and ‘cubic’ refer to a spline interpolation of first,
             second or third order) or as an integer specifying the order of
             the spline interpolator to use. Default is ‘linear’.
-            
+        fill_value : number, optional
+            For kind = 'value', filling value.
+
         Returns
         -------
         prof : Profile object
             Filled profile
         """
-        if not np.any(self.y.mask):
+        if not np.any(self.mask):
             return self.copy()
-        mask = self.y.mask
+        mask = self.mask
         filt = np.logical_not(mask)
         if np.all(mask):
             raise Exception("There is no values on this profile")
-        # making interpolation on existent values
-        x = self.x[filt]
-        y = self.y.data[filt]
-        interp = spinterp.interp1d(x, y, kind=kind,
-                                  bounds_error=False)
-        # replacing missing values
-        tmp_prof = self.copy()
-        missing_x = tmp_prof.x[mask]
-        tmp_prof.y[mask] = interp(missing_x)
+        if kind == 'value':
+            tmp_prof = self.copy()
+            filt = np.logical_not(self.mask)
+            tmp_prof.__y[filt] = value
+            tmp_prof.mask = False
+        else:
+            # making interpolation on existent values
+            x = self.x[filt]
+            y = self.y[filt]
+            interp = spinterp.interp1d(x, y, kind=kind,
+                                      bounds_error=False)
+            # replacing missing values
+            tmp_prof = self.copy()
+            missing_x = tmp_prof.x[mask]
+            tmp_prof.y[mask] = interp(missing_x)
+            tmp_prof.mask = False
         return tmp_prof
 
     def smooth(self, tos='uniform', size=None, **kw):
@@ -2184,7 +2271,7 @@ class ScalarField(Field):
                 axe = self.axe_x
                 cutposition = self.axe_y[axe_mask]
         return Profile(axe, profile, unit_x, unit_y, "Profile"), cutposition
-            
+
     def integrate_over_line(self, direction, interval):
         """
         Return the integral on an interval and along a direction
@@ -3681,7 +3768,7 @@ class TemporalFields(Fields, Field):
             Specifies the way to treat missing values.
             A value for value filling.
             A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
-            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline 
+            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
             interpolation of first, second or third order) for interpolation.
         mask_error : boolean
             If 'False', instead of raising an error when masked value appear on
@@ -3778,7 +3865,7 @@ class TemporalFields(Fields, Field):
             Specifies the way to treat missing values.
             A value for value filling.
             A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
-            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline 
+            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
             interpolation of first, second or third order) for interpolation.
 
         Returns
@@ -3835,8 +3922,8 @@ class TemporalFields(Fields, Field):
         for i in np.arange(ind_x_min, ind_x_max + 1):
             for j in np.arange(ind_y_min, ind_y_max + 1):
                 tmp_m = self.get_spectrum(component, [i, j], ind=True,
-                                          welch_seglen=welch_seglen, 
-                                          scaling=scaling, 
+                                          welch_seglen=welch_seglen,
+                                          scaling=scaling,
                                           fill=fill, mask_error=True)
                 # check if the position is masked
                 if tmp_m is None:
@@ -4138,7 +4225,7 @@ class TemporalFields(Fields, Field):
                 plotargs['vmin'] = np.min(mins)
             if 'vmax' not in plotargs.keys():
                 maxs = [field.max for field in comp]
-                plotargs['vmax'] = np.max(maxs) 
+                plotargs['vmax'] = np.max(maxs)
         elif isinstance(comp[0], VectorField):
             if 'clim' not in plotargs.keys():
                 mins = [np.min(field.magnitude[np.logical_not(field.mask)]) for field in comp]
@@ -4172,7 +4259,7 @@ class TemporalFields(Fields, Field):
                 self.displ = comp[0].display(**self.plotargs)
                 self.ttl = plt.title('')
                 self.update()
-                
+
             def next(self, event):
                 new_ind = self.ind + self.incr
                 if new_ind <= self.ind_max:
@@ -4180,7 +4267,7 @@ class TemporalFields(Fields, Field):
                 else:
                     self.ind = self.ind_max
                 self.bslid.set_val(self.ind + 1)
-                
+
             def prev(self, event):
                 new_ind = self.ind - self.incr
                 if new_ind > 0:
@@ -4188,7 +4275,7 @@ class TemporalFields(Fields, Field):
                 else:
                     self.ind = 0
                 self.bslid.set_val(self.ind + 1)
-            
+
             def slid(self, event):
                 self.ind = int(event) - 1
                 self.update()
@@ -4208,7 +4295,7 @@ class TemporalFields(Fields, Field):
                 else:
                     raise TypeError()
                 plt.draw()
-                
+
         #window creation
         callback = Index(self, compo, comp, kind, plotargs)
         axprev = callback.fig.add_axes(plt.axes([0.02, 0.02, 0.1, 0.05]))
@@ -4222,7 +4309,7 @@ class TemporalFields(Fields, Field):
                                 valmax=callback.ind_max, valinit=1)
         callback.bslid.on_changed(callback.slid)
         return callback
-        
+
     def display_animate(self, compo='V', interval=500, fields_inds=None,
                         repeat=True,
                         **plotargs):
