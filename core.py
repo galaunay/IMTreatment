@@ -784,11 +784,13 @@ class Profile(object):
     def __truediv__(self, otherone):
         if isinstance(otherone, NUMBERTYPES):
             y = self.y/otherone
+            mask = self.mask
             name = self.name
             unit_y = self.unit_y
         elif isinstance(otherone, unum.Unum):
             tmpunit = self.unit_y/otherone
             y = self.y*(tmpunit.asNumber())
+            mask = self.mask
             name = self.name
             unit_y = tmpunit/tmpunit.asNumber()
         elif isinstance(otherone, Profile):
@@ -796,16 +798,17 @@ class Profile(object):
                 raise ValueError("Profile has to have identical x axis in "
                                  "order to divide them")
             else:
+                mask = np.logical_or(self.mask, otherone.mask)
                 tmp_unit = self.unit_y/otherone.unit_y
                 y_tmp = self.y.copy()
-                y_tmp[otherone.y == 0] = 0
+                y_tmp[otherone.y == 0] = np.nan
                 otherone.y[otherone.y == 0] = 1
                 y = y_tmp/otherone.y*tmp_unit.asNumber()
                 name = ""
                 unit_y = tmp_unit/tmp_unit.asNumber()
         else:
             raise TypeError("You only can divide Profile with number")
-        return Profile(self.x, y, self.unit_x, unit_y, name=name)
+        return Profile(self.x, y, mask, self.unit_x, unit_y, name=name)
 
     __div__ = __truediv__
 
@@ -2252,10 +2255,12 @@ class ScalarField(Field):
             else:
                 finalindice = i
             if direction == 1:
+                prof_mask = self.mask[finalindice, :]
                 profile = self.values[finalindice, :]
                 axe = self.axe_y
                 cutposition = self.axe_x[finalindice]
             else:
+                prof_mask = self.mask[:, finalindice]
                 profile = self.values[:, finalindice]
                 axe = self.axe_x
                 cutposition = self.axe_y[finalindice]
@@ -2263,14 +2268,16 @@ class ScalarField(Field):
         else:
             axe_mask = np.logical_and(axe >= position[0], axe <= position[1])
             if direction == 1:
+                prof_mask = self.mask[axe_mask, :].mean(0)
                 profile = self.values[axe_mask, :].mean(0)
                 axe = self.axe_y
                 cutposition = self.axe_x[axe_mask]
             else:
+                prof_mask = self.mask[:, axe_mask].mean(1)
                 profile = self.values[:, axe_mask].mean(1)
                 axe = self.axe_x
                 cutposition = self.axe_y[axe_mask]
-        return Profile(axe, profile, unit_x, unit_y, "Profile"), cutposition
+        return Profile(axe, profile, prof_mask, unit_x, unit_y, "Profile"), cutposition
 
     def integrate_over_line(self, direction, interval):
         """

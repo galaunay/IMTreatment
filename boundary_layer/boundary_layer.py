@@ -369,7 +369,7 @@ def get_bl_thickness(obj, direction=1,  perc=0.95):
         Boundary layer thickness, in axe x unit.
     """
     if isinstance(obj, Profile):
-        maxi = obj.get_max()
+        maxi = obj.max
         if maxi is None:
             return 0
         value = obj.get_interpolated_value(y=maxi*perc)
