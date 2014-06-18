@@ -743,9 +743,11 @@ class Profile(object):
         if isinstance(otherone, NUMBERTYPES):
             y = self.y + otherone
             name = self.name
+            mask = self.mask
         elif isinstance(otherone, unum.Unum):
             y = self.y + otherone/self.unit_y
             name = self.name
+            mask = self.mask
         elif isinstance(otherone, Profile):
             try:
                 self.unit_x + otherone.unit_x
@@ -758,10 +760,12 @@ class Profile(object):
                 raise ValueError("Profiles have not the same x axis")
             y = self.y + (self.unit_y/otherone.unit_y*otherone.y).asNumber()
             name = ""
+            mask = np.logical_or(self.mask, otherone.mask)
         else:
             raise TypeError("You only can substract Profile with "
                             "Profile or number")
-        return Profile(self.x, y, self.unit_x, self.unit_y, name=name)
+        return Profile(self.x, y, mask=mask, unit_x=self.unit_x,
+                       unit_y=self.unit_y, name=name)
 
     __radd__ = __add__
 
@@ -912,10 +916,10 @@ class Profile(object):
             self.__mask = np.empty(self.x.shape, dtype=bool)
             self.__mask.fill(mask)
         elif isinstance(mask, ARRAYTYPES):
-            self.__mask = np.array(mask)
+            self.__mask = np.array(mask, dtype=bool)
         else:
             raise Exception()
-        self.__y[mask] = np.nan
+        self.__y[self.__mask] = np.nan
 
     @mask.deleter
     def mask(self):
@@ -1071,7 +1075,52 @@ class Profile(object):
         filt = np.logical_not(self.mask)
         x = self.x[filt]
         y = self.y[filt]
-        return np.trapz(y, x), self.unit_y*self.unit_x
+        unit = self.unit_y*self.unit_x
+        return np.trapz(y, x)*unit.asNumber(), unit/unit.asNumber()
+
+    def get_gradient(self, position=None, wanted_dx=None):
+        """
+        Return the profile gradient.
+        If 'position' is renseigned, interpolations or finite differences
+        are used to get the gradient at x = position.
+        Else, a profile with gradient at profile points is returned.
+        Warning : only work with evenly spaced x
+        
+        Parameters
+        ----------
+        
+        position : number, optional
+            Wanted point position
+        wanted_dx : number, optional
+            interval on which compute gradient when position is
+            renseigned (default is dx similar to axis).
+        """
+        if position is None:
+            tmp_prof = self.copy()
+            tmp_prof.y = np.gradient(self.y, self.x[1] - self.x[0])
+            return tmp_prof
+        elif isinstance(position, NUMBERTYPES):
+            if wanted_dx is None:
+                dx = self.x[1] - self.x[0]
+            else:
+                dx = wanted_dx
+            interp = spinterp.UnivariateSpline(self.x, self.y, k=3, s=0)
+            if np.all(position < self.x):
+                x = [position, position + dx]
+                y = interp(x)
+                grad = np.gradient(y, dx)[0]
+            elif np.all(position > self.x):
+                x = [position - dx, position]
+                y = interp(x)
+                grad = np.gradient(y, dx)[1]
+            else:
+                x = [position - dx, position, position + dx]
+                y = interp(x)
+                grad = np.gradient(y, dx)[1]
+            return grad
+        else:
+            raise TypeError()
+            
 
 #    def set_unit(self, comp, unity):
 #        """
@@ -1155,9 +1204,12 @@ class Profile(object):
         tmp_prof = Profile(x_new, y_new, mask_new, self.unit_x, self.unit_y)
         return tmp_prof
 
-    def fill(self, kind='linear', fill_value=0):
+    def fill(self, kind='slinear', fill_value=0., inplace=False):
         """
         Return a filled profile.
+        
+        Warning : border masked values can't be interpolated and are filled
+        with 'fill_value'.
 
         Parameters
         ----------
@@ -1175,29 +1227,35 @@ class Profile(object):
         prof : Profile object
             Filled profile
         """
-        if not np.any(self.mask):
+        if not np.any(self.mask) and inplace:
+            return None,
+        elif not np.any(self.mask):
             return self.copy()
         mask = self.mask
         filt = np.logical_not(mask)
         if np.all(mask):
             raise Exception("There is no values on this profile")
         if kind == 'value':
-            tmp_prof = self.copy()
-            filt = np.logical_not(self.mask)
-            tmp_prof.__y[filt] = value
-            tmp_prof.mask = False
+            new_y = copy.copy(self.y)
+            new_y[filt] = fill_value
         else:
             # making interpolation on existent values
             x = self.x[filt]
             y = self.y[filt]
             interp = spinterp.interp1d(x, y, kind=kind,
-                                      bounds_error=False)
+                                      bounds_error=False,
+                                      fill_value=fill_value)
             # replacing missing values
-            tmp_prof = self.copy()
-            missing_x = tmp_prof.x[mask]
-            tmp_prof.y[mask] = interp(missing_x)
-            tmp_prof.mask = False
-        return tmp_prof
+            new_y = copy.copy(self.y)
+            missing_x = self.x[mask]
+            new_y[mask] = interp(missing_x)
+        if inplace:
+            self.y = new_y
+            self.mask = False
+        else:
+            tmp_prof = Profile(self.x, new_y, mask=False, unit_x=self.unit_x,
+                               unit_y=self.unit_y, name=self.name)
+            return tmp_prof
 
     def smooth(self, tos='uniform', size=None, **kw):
         """
@@ -1225,7 +1283,7 @@ class Profile(object):
             size = 1
         tmp_prof = self.copy()
         # filling up the field before smoothing
-        tmp_prof.fill()
+        tmp_prof.fill(inplace=True)
         # mask treatment
         values = tmp_prof.y
         # smoothing
@@ -1913,7 +1971,6 @@ class ScalarField(Field):
             raise ValueError()
         # check if the new mask don'r reveal masked values
         if np.any(np.logical_not(new_mask[self.mask])):
-            pdb.set_trace()
             raise Warning("This mask reveal masked values, maybe you should"
                           "use the 'fill' function instead")
         # store mask
@@ -2872,12 +2929,6 @@ class VectorField(Field):
         new_comp_x = np.array(new_comp_x, dtype=float)
         if not new_comp_x.shape == self.shape:
             raise ValueError("'comp_x' must be coherent with axis system")
-        # adapting mask to 'nan' values
-        if self.__comp_y.shape != (0,):
-            self.__mask = np.logical_or(np.isnan(new_comp_x),
-                                        np.isnan(self.__comp_y))
-        else:
-            self.__mask = np.isnan(new_comp_x)
         # storing dat
         self.__comp_x = new_comp_x
 
@@ -2905,12 +2956,6 @@ class VectorField(Field):
         new_comp_y = np.array(new_comp_y, dtype=float)
         if not new_comp_y.shape == self.shape:
             raise ValueError()
-        # adapting mask to 'nan' values
-        if self.__comp_x.shape != (0,):
-            self.__mask = np.logical_or(np.isnan(new_comp_y),
-                                        np.isnan(self.__comp_x))
-        else:
-            self.__mask = np.isnan(new_comp_y)
         # storing data
         self.__comp_y = new_comp_y
 
@@ -3663,13 +3708,26 @@ class TemporalFields(Fields, Field):
         """
         if len(self.fields) == 0:
             raise ValueError("There is no fields in this object")
-        result_f = self.fields[0].copy()
+        result_f = self.fields[0].__class__()
         mask_cum = np.zeros(self.shape)
-        for field in self.fields[1::]:
-            result_f += field
+        comp_x_cum = np.zeros(self.shape, dtype=float)
+        comp_y_cum = np.zeros(self.shape, dtype=float)
+        for field in self.fields:
+            comp_x = field.comp_x
+            comp_x[field.mask] = 0
+            comp_y = field.comp_y
+            comp_y[field.mask] = 0
+            comp_x_cum += comp_x
+            comp_y_cum += comp_y
             mask_cum += np.logical_not(field.mask)
-        result_f /= len(self.fields)
-        result_f.mask = mask_cum <= nmb_min
+        mask = mask_cum <= nmb_min
+        not_masked = np.logical_not(mask)
+        comp_x_cum[not_masked] /= mask_cum[not_masked]
+        comp_y_cum[not_masked] /= mask_cum[not_masked]
+        result_f.import_from_arrays(self.axe_x, self.axe_y, comp_x_cum,
+                                    comp_y_cum, mask=mask, unit_x=self.unit_x,
+                                    unit_y=self.unit_y,
+                                    unit_values=self.unit_values)
         return result_f
 
     def get_fluctuant_fields(self, nmb_min_mean=1):
@@ -3692,7 +3750,7 @@ class TemporalFields(Fields, Field):
             fluct_fields.add_field(field - mean_field)
         return fluct_fields
 
-    def get_time_profile(self, component, x, y, ind=False):
+    def get_time_profile(self, component, x, y, wanted_times=None, ind=False):
         """
         Return a profile contening the time evolution of the given component.
 
@@ -3702,6 +3760,8 @@ class TemporalFields(Fields, Field):
             Should be an attribute name of the stored fields.
         x, y : numbers
             Wanted position for the time profile, in axis units.
+        wanted_times : 2x1 array of numbers
+            Time interval in which getting profile (default is all).
         ind : boolean, optional
             If 'True', values are undersood as indices.
 
@@ -3715,6 +3775,13 @@ class TemporalFields(Fields, Field):
             raise TypeError("'component' must be a string")
         if not isinstance(x, NUMBERTYPES) or not isinstance(y, NUMBERTYPES):
             raise TypeError("'x' and 'y' must be numbers")
+        if wanted_times is None:
+            wanted_times = [self.times[0], self.times[-1]]
+        if (np.any(wanted_times < self.times[0])
+                or np.any(wanted_times > self.times[-1])):
+            raise ValueError()
+        if wanted_times[-1] <= wanted_times[0]:
+            raise ValueError()
         if ind:
             if not (isinstance(x, int) and isinstance(y, int)):
                 raise TypeError()
@@ -3726,6 +3793,14 @@ class TemporalFields(Fields, Field):
         axe_x, axe_y = self.axe_x, self.axe_y
         if not (0 <= ind_x < len(axe_x) and 0 <= ind_y < len(axe_y)):
             raise ValueError("'x' ans 'y' values out of bounds")
+        # getting wanted time if necessary
+        if wanted_times is not None:
+            times = self.times
+            w_times_ind = np.argwhere(np.logical_and(times <= wanted_times[1],
+                                                     times >= wanted_times[0]))
+            w_times_ind = w_times_ind.squeeze()
+        else:
+            w_times_ind = np.arange(len(self.times))
         # getting component values
         dim = (len(self.fields), self.shape[0], self.shape[1])
         compo = np.empty(dim)
@@ -3734,18 +3809,19 @@ class TemporalFields(Fields, Field):
             compo[i] = field.__getattribute__(component)
             masks[i] = field.mask
         # gettign others datas
-        time = self.times
+        time = self.times[w_times_ind]
         unit_time = self.unit_times
-        prof_values = np.zeros(len(compo))
-        prof_mask = np.zeros(len(compo), dtype=bool)
+        prof_values = np.zeros(len(w_times_ind))
+        prof_mask = np.zeros(len(w_times_ind), dtype=bool)
         unit_values = self.unit_values
         # getting position indices
-        for i in np.arange(len(compo)):
-            prof_values[i] = compo[i, ind_x, ind_y]
-            prof_mask[i] = masks[i, ind_x, ind_y]
+        for i, time_ind in enumerate(w_times_ind):
+            prof_values[i] = compo[time_ind, ind_x, ind_y]
+            prof_mask[i] = masks[time_ind, ind_x, ind_y]
         return Profile(time, prof_values, prof_mask, unit_x=unit_time, unit_y=unit_values)
 
-    def get_spectrum(self, component, pt, ind=False, welch_seglen=None,
+    def get_spectrum(self, component, pt, ind=False, wanted_times=None, 
+                     welch_seglen=None,
                      scaling='base', fill='linear', mask_error=True):
         """
         Return a Profile object, with the frequential spectrum of 'component',
@@ -3758,6 +3834,8 @@ class TemporalFields(Fields, Field):
         ind : boolean
             If true, 'pt' is read as indices,
             else, 'pt' is read as coordinates.
+        wanted_times : 2x1 array, optional
+            Time interval in which compute spectrum (default is all).
         welch_seglen : integer, optional
             If specified, welch's method is used (dividing signal into
             overlapping segments, and averaging periodogram) with the given
@@ -3798,12 +3876,13 @@ class TemporalFields(Fields, Field):
         x = pt[0]
         y = pt[1]
         # getting time profile
-        time_prof = self.get_time_profile(component, x, y, ind=ind)
+        time_prof = self.get_time_profile(component, x, y, ind=ind,
+                                          wanted_times=wanted_times)
         # fill if asked (and if necessary)
         if isinstance(fill, NUMBERTYPES):
-            time_prof.y[time_prof.y.mask] = fill
+            time_prof.fill(kind='value', fill_value=fill, inplace=True)
         elif isinstance(fill, STRINGTYPES):
-            time_prof.fill(kind=fill)
+            time_prof.fill(kind=fill, inplace=True)
         else:
             raise Exception()
         values = time_prof.y - np.mean(time_prof.y)
@@ -4111,7 +4190,6 @@ class TemporalFields(Fields, Field):
         y : number
         """
         Field.set_origin(self, x, y)
-        Fields.set_origin(self, x, y)
 
     def copy(self):
         """
@@ -4220,6 +4298,11 @@ class TemporalFields(Fields, Field):
                 raise ValueError()
         else:
             raise TypeError()
+        # setting default kind of display
+        if 'kind' in plotargs.keys():
+            kind = plotargs['kind']
+        else:
+            kind = None
         # getting min and max data
         if isinstance(comp[0], ScalarField):
             if 'vmin' not in plotargs.keys():
@@ -4229,7 +4312,7 @@ class TemporalFields(Fields, Field):
                 maxs = [field.max for field in comp]
                 plotargs['vmax'] = np.max(maxs)
         elif isinstance(comp[0], VectorField):
-            if 'clim' not in plotargs.keys():
+            if 'clim' not in plotargs.keys() and kind is not 'stream':
                 mins = [np.min(field.magnitude[np.logical_not(field.mask)]) for field in comp]
                 maxs = [np.max(field.magnitude[np.logical_not(field.mask)]) for field in comp]
                 mini = np.min(mins)
@@ -4237,12 +4320,6 @@ class TemporalFields(Fields, Field):
                 plotargs['clim'] = [mini, maxi]
         else:
             raise Exception()
-        # setting default kind of display
-        if 'kind' in plotargs.keys():
-            kind = plotargs['kind']
-        else:
-            kind = None
-
         # button gestion class
         class Index(object):
 
