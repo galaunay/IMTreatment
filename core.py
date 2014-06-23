@@ -678,6 +678,7 @@ class Profile(object):
         A name for the profile.
     """
 
+    ### Operators ###
     def __init__(self, x=[], y=[], mask=False, unit_x=make_unit(""),
                  unit_y=make_unit(""), name=""):
         """
@@ -871,6 +872,7 @@ class Profile(object):
 #        self.__init__(tmp_p.x, tmp_p.y, tmp_p.unit_x, tmp_p.unit_y, tmp_p.name)
 
 
+    ### Attributes ###
     @property
     def x(self):
         return self.__x
@@ -955,23 +957,71 @@ class Profile(object):
     def unit_y(self):
         raise Exception("Nope, can't delete 'unit_y'")
 
-#    def get_comp(self, comp):
-#        """
-#        Give access to the selected Profile component.
-#        """
-#        if not isinstance(comp, STRINGTYPES):
-#            raise TypeError("'comp' must be a string")
-#        if comp == "x":
-#            return self.x
-#        elif comp == 'y':
-#            return self.y
-#        elif comp == 'unit_y':
-#            return self.unit_y
-#        elif comp == 'unit_x':
-#            return self.unit_x
-#        else:
-#            raise ValueError("Unknown component : {}".format(comp))
+    ### Properties ###
+    @property
+    def max(self):
+        """
+        Return the maxima along an axe.
 
+        Parameters
+        ----------
+        axe : integer, optionnal
+            Axe along which we want the maxima.
+
+        Returns
+        -------
+        max : number
+            Maxima along 'axe'.
+        """
+        if np.all(self.mask):
+            return None
+        return np.max(self.y[np.logical_not(self.mask)])
+
+    @property
+    def min(self):
+        """
+        Return the minima along an axe.
+
+        Parameters
+        ----------
+        axe : integer, optionnal
+            Axe along which we want the minima.
+
+        Returns
+        -------
+        max : number
+            Minima along 'axe'.
+        """
+        if np.all(self.mask):
+            return None
+        return np.min(self.y[np.logical_not(self.mask)])
+
+    @property
+    def mean(self):
+        """
+        Return the minima along an axe.
+
+        Parameters
+        ----------
+        axe : integer, optionnal
+            Axe along which we want the minima.
+
+        Returns
+        -------
+        max : number
+            Minima along 'axe'.
+        """
+        if np.all(self.mask):
+            return None
+        return np.mean(self.y[np.logical_not(self.mask)])
+
+    ### Watchers ###
+    def copy(self):
+        """
+        Return a copy of the Profile object.
+        """
+        return copy.deepcopy(self)
+        
     def get_interpolated_value(self, x=None, y=None):
         """
         Get the interpolated (or not) value for a given 'x' or 'y' value.
@@ -1025,48 +1075,6 @@ class Profile(object):
                 i_values.append(i_value)
         return i_values
 
-    def copy(self):
-        """
-        Return a copy of the Profile object.
-        """
-        return copy.deepcopy(self)
-
-    @property
-    def max(self):
-        """
-        Return the maxima along an axe.
-
-        Parameters
-        ----------
-        axe : integer, optionnal
-            Axe along which we want the maxima.
-
-        Returns
-        -------
-        max : number
-            Maxima along 'axe'.
-        """
-        if np.all(self.mask):
-            return None
-        return np.max(self.y[np.logical_not(self.mask)])
-
-    @property
-    def min(self):
-        """
-        Return the minima along an axe.
-
-        Parameters
-        ----------
-        axe : integer, optionnal
-            Axe along which we want the minima.
-
-        Returns
-        -------
-        max : number
-            Minima along 'axe'.
-        """
-        return np.min(self.y[np.logical_not(self.mask)])
-
     def get_integral(self):
         """
         Return the profile integral, and is unit.
@@ -1085,10 +1093,10 @@ class Profile(object):
         are used to get the gradient at x = position.
         Else, a profile with gradient at profile points is returned.
         Warning : only work with evenly spaced x
-        
+
         Parameters
         ----------
-        
+
         position : number, optional
             Wanted point position
         wanted_dx : number, optional
@@ -1120,34 +1128,109 @@ class Profile(object):
             return grad
         else:
             raise TypeError()
-            
 
-#    def set_unit(self, comp, unity):
-#        """
-#        Write the selected component in the given unity (if possible).
-#
-#        Parameters
-#        ----------
-#        comp : string
-#            Profile component to change.
-#        unity : Unum.unit object
-#            Unity (you can use make_unit to make one).
-#        """
-#        if not isinstance(comp, STRINGTYPES):
-#            raise TypeError("'comp' must be a string")
-#        if not isinstance(unity, unum.Unum):
-#            raise TypeError("'unity' must be a Unum object")
-#        if comp == "x":
-#            unit_tmp = self.unit_x.asUnit(unity)
-#            self.x = self.x*unit_tmp.asNumber()
-#            self.unit_x = unit_tmp/unit_tmp.asNumber()
-#        elif comp == 'y':
-#            unit_tmp = self.unit_y.asUnit(unity)
-#            self.y = self.y*unit_tmp.asNumber()
-#            self.unit_y = unit_tmp/unit_tmp.asNumber()
-#        else:
-#            raise ValueError("Unknown component : {}".format(comp))
+    def get_spectrum(self, wanted_x=None, welch_seglen=None,
+                     scaling='base', fill='linear', mask_error=True):
+        """
+        Return a Profile object, with the frequential spectrum of 'component',
+        on the point 'pt'.
 
+        Parameters
+        ----------
+        wanted_x : 2x1 array, optional
+            Time interval in which compute spectrum (default is all).
+        welch_seglen : integer, optional
+            If specified, welch's method is used (dividing signal into
+            overlapping segments, and averaging periodogram) with the given
+            segments length (in number of points).
+        scaling : string, optional
+            If 'base' (default), result are in component unit.
+            If 'spectrum', the power spectrum is returned (in unit^2).
+            If 'density', the power spectral density is returned (in unit^2/Hz)
+        fill : string or float
+            Specifies the way to treat missing values.
+            A value for value filling.
+            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
+            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
+            interpolation of first, second or third order) for interpolation.
+        mask_error : boolean
+            If 'False', instead of raising an error when masked value appear on
+            time profile, '(None, None)' is returned.
+
+        Returns
+        -------
+        magn_prof : Profile object
+            Magnitude spectrum.
+        """
+        tmp_prof = self.copy()
+        # fill if asked (and if necessary)
+        if isinstance(fill, NUMBERTYPES):
+            tmp_prof.fill(kind='value', fill_value=fill, inplace=True)
+        elif isinstance(fill, STRINGTYPES):
+            tmp_prof.fill(kind=fill, inplace=True)
+        else:
+            raise Exception()
+        values = tmp_prof.y - np.mean(tmp_prof.y)
+        time = tmp_prof.x
+        # getting spectrum
+        from scipy.signal import periodogram, welch
+        fs = 1/(time[1] - time[0])
+        if welch_seglen is None or welch_seglen >= len(time):
+            if scaling == 'base':
+                frq, magn = periodogram(values, fs, scaling='spectrum')
+                magn = np.sqrt(magn)
+            else:
+                frq, magn = periodogram(values, fs, scaling=scaling)
+        else:
+            if scaling == 'base':
+                frq, magn = welch(values, fs, scaling='spectrum',
+                                  nperseg=welch_seglen)
+                magn = np.sqrt(magn)
+            else:
+                frq, magn = welch(values, fs, scaling=scaling,
+                                  nperseg=welch_seglen)
+        # sretting unit
+        if scaling == 'base':
+            unit_y = self.unit_y
+        elif scaling == 'spectrum':
+            unit_y = self.unit_y**2
+        elif scaling == 'density':
+            unit_y = self.unit_y**2/make_unit('Hz')
+        else:
+            raise Exception()
+        magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
+                            unit_y=unit_y)
+        return magn_prof
+
+    def get_auto_correlation(self, window_len=None):
+        """
+        Return the associated correlation profile.
+        
+        Parameters
+        ----------
+        window_len : integer, optional
+            Window length for sweep correlation. if 'None' (default), all the 
+            signal is used, and boundary effect can be seen.
+        """
+        if window_len is None:
+            x = self.x
+            corr = np.correlate(self.y, self.y, "same")
+        else:
+            if not isinstance(window_len, int):
+                raise TypeError()
+            if window_len > len(self.y):
+                raise ValueError()
+#            s = 0
+#            corr = np.zeros((len(self.y) - window_len + 1))
+#            for i in np.arange(0, len(self.y), window_len):
+#                corr += np.correlate(self.y, self.y[i:i + window_len])
+#                s += 1
+#            corr /= s
+            corr = np.correlate(self.y, self.y[0:window_len])
+            x = self.x[0:len(corr)]
+        return Profile(x, corr, unit_x=self.unit_x, unit_y=make_unit(''))
+
+    ### Modifiers ###
     def trim(self, interval, ind=False):
         """
         Return a trimed copy of the profile along x with respect to 'interval'.
@@ -1207,7 +1290,7 @@ class Profile(object):
     def fill(self, kind='slinear', fill_value=0., inplace=False):
         """
         Return a filled profile.
-        
+
         Warning : border masked values can't be interpolated and are filled
         with 'fill_value'.
 
@@ -1297,6 +1380,7 @@ class Profile(object):
         tmp_prof.y = values
         return tmp_prof
 
+    ### Displayers ###
     def _display(self, kind='plot', reverse=False, **plotargs):
         """
         Private Displayer.
@@ -2838,6 +2922,15 @@ class VectorField(Field):
             tmpvf.comp_y = self.comp_y + other.comp_y*fact
             tmpvf.mask = np.logical_or(self.mask, other.mask)
             return tmpvf
+        elif isinstance(other, ARRAYTYPES):
+            other = np.array(other, subok=True)
+            if other.shape != self.shape:
+                raise ValueError()
+            tmpvf = self.copy()
+            tmpvf.comp_x = self.comp_x + other
+            tmpvf.comp_y = self.comp_y + other
+            tmpvf.mask = self.mask
+            return tmpvf    
         elif isinstance(other, unum.Unum):
             tmpvf = self.copy()
             fact = (other / self.unit_values).asNumber()
@@ -3820,7 +3913,7 @@ class TemporalFields(Fields, Field):
             prof_mask[i] = masks[time_ind, ind_x, ind_y]
         return Profile(time, prof_values, prof_mask, unit_x=unit_time, unit_y=unit_values)
 
-    def get_spectrum(self, component, pt, ind=False, wanted_times=None, 
+    def get_spectrum(self, component, pt, ind=False, wanted_times=None,
                      welch_seglen=None,
                      scaling='base', fill='linear', mask_error=True):
         """
@@ -3878,43 +3971,9 @@ class TemporalFields(Fields, Field):
         # getting time profile
         time_prof = self.get_time_profile(component, x, y, ind=ind,
                                           wanted_times=wanted_times)
-        # fill if asked (and if necessary)
-        if isinstance(fill, NUMBERTYPES):
-            time_prof.fill(kind='value', fill_value=fill, inplace=True)
-        elif isinstance(fill, STRINGTYPES):
-            time_prof.fill(kind=fill, inplace=True)
-        else:
-            raise Exception()
-        values = time_prof.y - np.mean(time_prof.y)
-        time = time_prof.x
-        # getting spectrum
-        from scipy.signal import periodogram, welch
-        fs = 1/(time[1] - time[0])
-        if welch_seglen is None or welch_seglen >= len(time):
-            if scaling == 'base':
-                frq, magn = periodogram(values, fs, scaling='spectrum')
-                magn = np.sqrt(magn)
-            else:
-                frq, magn = periodogram(values, fs, scaling=scaling)
-        else:
-            if scaling == 'base':
-                frq, magn = welch(values, fs, scaling='spectrum',
-                                  nperseg=welch_seglen)
-                magn = np.sqrt(magn)
-            else:
-                frq, magn = welch(values, fs, scaling=scaling,
-                                  nperseg=welch_seglen)
-        # sretting unit
-        if scaling == 'base':
-            unit_values = self.unit_values
-        elif scaling == 'spectrum':
-            unit_values = self.unit_values**2
-        elif scaling == 'density':
-            unit_values = self.unit_values**2/make_unit('Hz')
-        else:
-            raise Exception()
-        magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
-                            unit_y=unit_values)
+        magn_prof = time_prof.get_spectrum(welch_seglen=welch_seglen,
+                                           scaling=scaling, fill=fill,
+                                           mask_error=mask_error)
         return magn_prof
 
     def get_spectrum_over_area(self, component, intervalx, intervaly,
@@ -4677,6 +4736,21 @@ class TemporalVectorFields(TemporalFields):
         return values
 
     ### Watchers ###
+    def get_time_auto_correlation(self):
+        """
+        Return auto correlation based on Vx and Vy.
+        """
+        Vx0 = self.fields[0].comp_x
+        Vy0 = self.fields[0].comp_y
+        norm = np.mean(Vx0*Vx0 + Vy0*Vy0)
+        corr = np.zeros((len(self.times),))
+        for i, time in enumerate(self.times):
+            Vxi = self.fields[i].comp_x
+            Vyi = self.fields[i].comp_y
+            corr[i] = np.mean(Vx0*Vxi + Vy0*Vyi)/norm
+        return Profile(self.times, corr, mask=False, unit_x=self.unit_times,
+                       unit_y=make_unit(''))
+
     def get_mean_kinetic_energy(self):
         """
         Calculate the mean kinetic energy.

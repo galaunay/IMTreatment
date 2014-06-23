@@ -356,7 +356,7 @@ def import_from_IM7s(fieldspath, kind='TSF', dt=1, t0=0, unit_time='s',
                             " string")
     elif isinstance(fieldspath, STRINGTYPES):
         pattern = os.path.join(fieldspath, '*.IM7')
-        fieldspath = glob.glob(pattern)
+        fieldspath = glob(pattern)
         if len(fieldspath) == 0:
             raise ValueError()
     else:
