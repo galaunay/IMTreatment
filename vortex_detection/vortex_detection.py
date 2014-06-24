@@ -85,17 +85,14 @@ class VF(object):
         delta_y = self.axe_y[1] - self.axe_y[0]
         positions = []
         pbis = []
-        # first splitting
-        grid_x, grid_y = self._find_cut_positions()
-        # If there is nothing or we really don't have luck...
-        # just a split in the middle to see
-        if grid_x is None:
-            len_x = self.shape[1]
-            len_y = self.shape[0]
-            pool = self._split_the_field([0, np.round(len_x/2.), len_x],
-                                         [0, np.round(len_y/2.), len_y])
-        else:
-            pool = self._split_the_field(grid_x, grid_y)
+        window_size = 2
+        grid_x = np.append(np.arange(0, self.shape[0] - window_size, window_size), self.shape[0])
+        grid_y = np.append(np.arange(0, self.shape[1] - window_size, window_size), self.shape[1])
+        pool = self._split_the_field(grid_x, grid_y)
+#        plt.figure()
+#        for vf in pool:
+#            print(vf.shape)
+#        pdb.set_trace()
         # loop on the pool (funny no ?)
         while True:
             # if the pool is empty we have finish !
@@ -109,31 +106,18 @@ class VF(object):
                 pool = np.delete(pool, 0)
             # if there is only one critical point and the field is as
             # small as possible, we store the cp position, the end !
-            elif nmb_struct == (1, 1)\
-                    and np.all(tmp_vf.shape < (2*self._min_win_size,
-                                               2*self._min_win_size)):
-                cp_pos = tmp_vf._get_poi_position()
-                positions.append((tmp_vf.axe_x[cp_pos[0]] + delta_x/2.,
-                                  tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
-                pbis.append(tmp_vf.pbi_x[-1])
-                pool = np.delete(pool, 0)
             elif nmb_struct == (1, 1):
-                # we cut around the point !
-                # TODO : implémenter, en attendant, on utilise la meme
-                # fonction qu'au dessus...
                 cp_pos = tmp_vf._get_poi_position()
-                positions.append((tmp_vf.axe_x[cp_pos[0]] + delta_x/2.,
-                                  tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
+                try:
+                    positions.append((tmp_vf.axe_x[cp_pos[0]] + delta_x/2.,
+                                      tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
+                except:
+                    pdb.set_trace()
                 pbis.append(tmp_vf.pbi_x[-1])
                 pool = np.delete(pool, 0)
+
             else:
-                tmp_grid_x, tmp_grid_y = tmp_vf._find_cut_positions()
-                # if there is possible cutting, we do it
-                if not tmp_grid_x is None:
-                    if len(tmp_grid_x) != 2 or len(tmp_grid_y) != 2:
-                        tmp_pool = tmp_vf._split_the_field(tmp_grid_x, tmp_grid_y)
-                        pool = np.append(pool, tmp_pool[:])
-                #else we just delete the field
+                print("need to cute finner")
                 pool = np.delete(pool, 0)
         return positions, pbis
 
@@ -198,12 +182,26 @@ class VF(object):
             raise ValueError()
         return VF(vx, vy, axe_x, axe_y, mask, theta, time)
 
+    def _find_arbitrary_cut_positions(self):
+        """
+        Return the position along x and y where the field can be cut.
+        (at middle positions along each axes)
+        """
+        if np.any(self.shape <= 4):
+            return None, None
+        len_x = self.shape[1]
+        len_y = self.shape[0]
+        grid_x = [0, np.round(len_x/2.), len_x]
+        grid_y = [0, np.round(len_y/2.), len_y]
+        return grid_x, grid_y
+
     def _find_cut_positions(self):
         """
         Return the position along x and y where the field has to be cut to
         isolate critical points.
         Return '(None, None)' if there is no possible cut position.
         """
+        raise Exception("WARNING : may be inusable with actual '_split_the_field'")
         self._calc_pbi()
         # Getting point of interest position
         poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
@@ -254,6 +252,8 @@ class VF(object):
                                  [len(self.pbi_x)]))
         grid_y = np.concatenate(([0], trim_y_1, cut_pos_y + 1, trim_y_2,
                                  [len(self.pbi_y)]))
+        if len(grid_x) == 2 and len(grid_y) == 2:
+            return None, None
         return grid_x, grid_y
 
     def _split_the_field(self, grid_x, grid_y):
@@ -265,25 +265,27 @@ class VF(object):
         """
         fields = []
         for i in np.arange(len(grid_x) - 1):
+            if grid_x[i] == 0:
+                slic_x = slice(grid_x[i], grid_x[i + 1] + 1)
+            else:
+                slic_x = slice(grid_x[i] - 1, grid_x[i + 1] + 1)
             for j in np.arange(len(grid_y) - 1):
-                if grid_x[i] == 0:
-                    slic_x = slice(grid_x[i], grid_x[i + 1] + 1)
-                else:
-                    slic_x = slice(grid_x[i] - 1, grid_x[i + 1] + 1)
                 if grid_y[j] == 0:
                     slic_y = slice(grid_y[j], grid_y[j + 1] + 1)
                 else:
                     slic_y = slice(grid_y[j] - 1, grid_y[j + 1] + 1)
-                vx_tmp = self.vx[slic_y, slic_x]
-                vy_tmp = self.vy[slic_y, slic_x]
-                mask_tmp = self.mask[slic_y, slic_x]
-                theta_tmp = self.theta[slic_y, slic_x]
+                vx_tmp = self.vx[slic_x, slic_y]
+                vy_tmp = self.vy[slic_x, slic_y]
+                mask_tmp = self.mask[slic_x, slic_y]
+                theta_tmp = self.theta[slic_x, slic_y]
                 time_tmp = self.time
-                axe_x_tmp = self.axe_x[slic_x]
-                axe_y_tmp = self.axe_y[slic_y]
+                axe_x_tmp = self.axe_x[slic_y]
+                axe_y_tmp = self.axe_y[slic_x]
                 vf_tmp = VF(vx_tmp, vy_tmp, axe_x_tmp, axe_y_tmp,
                             mask_tmp, theta_tmp, time_tmp)
                 fields.append(vf_tmp)
+                if len(axe_y_tmp) == 0:
+                    pdb.set_trace()
         return fields
 
     def _calc_pbi(self):
