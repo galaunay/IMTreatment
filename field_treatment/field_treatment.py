@@ -252,8 +252,7 @@ def get_tracklines(vf, xy, delta=.25, interp='linear',
             stream[i, :] = [x_tmp + dx, y_tmp + dy]
             i += 1
         stream = stream[:i-1]
-        pts = Points(stream, unit_x=vf.comp_x.unit_x,
-                     unit_y=vf.comp_y.unit_y,
+        pts = Points(stream, unit_x=vf.unit_x, unit_y=vf.unit_y,
                      name='streamline at x={:.3f}, y={:.3f}'.format(x, y))
         streams.append(pts)
     if len(streams) == 0:
@@ -278,14 +277,16 @@ def get_shear_stress(vf, raw=False):
     """
     if not isinstance(vf, VectorField):
         raise TypeError()
+    tmp_vf = vf.copy()
+    tmp_vf.fill(crop_border=True)
     # Getting gradients and axes
-    axe_x, axe_y = vf.axe_x, vf.axe_y
-    comp_x, comp_y = vf.comp_x, vf.comp_y
-    mask = vf.mask
+    axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
+    mask = tmp_vf.mask
     dx = axe_x[1] - axe_x[0]
     dy = axe_y[1] - axe_y[0]
-    du_dy, _ = np.gradient(comp_x, dy, dx)
-    _, dv_dx = np.gradient(comp_y, dy, dx)
+    du_dx, du_dy = np.gradient(comp_x, dx, dy)
+    dv_dx, dv_dy = np.gradient(comp_y, dx, dy)
     # swirling vectors matrix
     comp_x = dv_dx
     comp_y = du_dy
@@ -294,8 +295,8 @@ def get_shear_stress(vf, raw=False):
         return (comp_x, comp_y)
     else:
         tmpvf = VectorField()
-        unit_x, unit_y = vf.unit_x, vf.unit_y
-        unit_values = vf.unit_values
+        unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
+        unit_values = tmp_vf.unit_values
         tmpvf.import_from_arrays(axe_x, axe_y, comp_x, comp_y, mask=mask,
                                  unit_x=unit_x, unit_y=unit_y,
                                  unit_values=unit_values)
@@ -316,9 +317,11 @@ def get_vorticity(vf, raw=False):
     """
     if not isinstance(vf, VectorField):
         raise TypeError()
-    axe_x, axe_y = vf.axe_x, vf.axe_y
-    comp_x, comp_y = vf.comp_x, vf.comp_y
-    mask = vf.mask
+    tmp_vf = vf.copy()
+    tmp_vf.fill(crop_border=True)
+    axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
+    mask = tmp_vf.mask
     dx = axe_x[1] - axe_x[0]
     dy = axe_y[1] - axe_y[0]
     _, Exy = np.gradient(comp_x, dx, dy)
@@ -327,7 +330,7 @@ def get_vorticity(vf, raw=False):
     if raw:
         return vort
     else:
-        unit_x, unit_y = vf.unit_x, vf.unit_y
+        unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
         unit_values = ""
         # TODO : implémenter vorticité unité
         vort_sf = ScalarField()
@@ -352,16 +355,18 @@ def get_swirling_strength(vf, raw=False):
     """
     if not isinstance(vf, VectorField):
         raise TypeError()
+    tmp_vf = vf.copy()
+    tmp_vf.fill(crop_border=True)
     # Getting gradients and axes
-    axe_x, axe_y = vf.axe_x, vf.axe_y
-    comp_x, comp_y = vf.comp_x, vf.comp_y
-    mask = vf.mask
+    axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
+    mask = tmp_vf.mask
     dx = axe_x[1] - axe_x[0]
     dy = axe_y[1] - axe_y[0]
     du_dx, du_dy = np.gradient(comp_x, dx, dy)
     dv_dx, dv_dy = np.gradient(comp_y, dx, dy)
     # swirling stregnth matrix
-    swst = np.zeros(vf.shape)
+    swst = np.zeros(tmp_vf.shape)
     # loop on  points
     for i in np.arange(len(axe_x)):
         for j in np.arange(len(axe_y)):
@@ -375,7 +380,7 @@ def get_swirling_strength(vf, raw=False):
     if raw:
         return swst
     else:
-        unit_x, unit_y = vf.unit_x, vf.unit_y
+        unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
         # TODO: implémenter unité
         unit_values = ""
         tmp_sf = ScalarField()
@@ -401,46 +406,44 @@ def get_swirling_vector(vf, raw=False):
         If 'True', return an arrays,
         if 'False' (default), return a ScalarField object.
     """
+    raise Warning("Useless (not finished)")
     if not isinstance(vf, VectorField):
         raise TypeError()
+    tmp_vf = vf.copy()
+    tmp_vf.fill(crop_border=True)
     # Getting gradients and axes
-    axe_x, axe_y = vf.axe_x, vf.axe_y
-    comp_x, comp_y = vf.comp_x, vf.comp_y
+    axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
     dx = axe_x[1] - axe_x[0]
     dy = axe_y[1] - axe_y[0]
-    du_dy, du_dx = np.gradient(comp_x, dy, dx)
-    dv_dy, dv_dx = np.gradient(comp_y, dy, dx)
+    du_dx, du_dy = np.gradient(comp_x, dx, dy)
+    dv_dx, dv_dy = np.gradient(comp_y, dx, dy)
     # swirling vectors matrix
-    comp_x = np.zeros(vf.comp_x.values.shape)
-    comp_y = np.zeros(vf.comp_x.values.shape)
-    mask = np.logical_or(np.logical_or(du_dx.mask, du_dy.mask),
-                         np.logical_or(dv_dx.mask, dv_dy.mask))
+    comp_x = np.zeros(tmp_vf.shape)
+    comp_y = np.zeros(tmp_vf.shape)
     # loop on  points
-    for i in np.arange(0, len(axe_y)):
-        for j in np.arange(0, len(axe_x)):
-            if not mask[i, j]:
-                lapl = [[du_dx[i, j], du_dy[i, j]],
-                        [dv_dx[i, j], dv_dy[i, j]]]
-                eigvals, eigvect = np.linalg.eig(lapl)
-                eigvals = np.imag(eigvals)
-                eigvect = np.imag(eigvect)
-                if eigvals[0] > eigvals[1]:
-                    comp_x[i, j] = eigvect[0][0]
-                    comp_y[i, j] = eigvect[0][1]
-                else:
-                    comp_x[i, j] = eigvect[1][0]
-                    comp_y[i, j] = eigvect[1][1]
+    for i in np.arange(0, len(axe_x)):
+        for j in np.arange(0, len(axe_y)):
+            lapl = [[du_dx[i, j], du_dy[i, j]],
+                    [dv_dx[i, j], dv_dy[i, j]]]
+            eigvals, eigvect = np.linalg.eig(lapl)
+            eigvals = np.imag(eigvals)
+            eigvect = np.real(eigvect)
+            if eigvals[0] > eigvals[1]:
+                comp_x[i, j] = eigvect[0][0]
+                comp_y[i, j] = eigvect[0][1]
+            else:
+                comp_x[i, j] = eigvect[1][0]
+                comp_y[i, j] = eigvect[1][1]
     # creating vectorfield object
-    comp_x = np.ma.masked_array(comp_x, mask)
-    comp_y = np.ma.masked_array(comp_y, mask)
     if raw:
         return (comp_x, comp_y)
     else:
-        unit_x, unit_y = vf.unit_x, vf.unit_y
+        unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
         # TODO: implémenter unité
         unit_values = ""
         tmp_vf = VectorField()
-        tmp_vf.import_from_arrays(axe_x, axe_y, comp_x, comp_y, mask=mask,
+        tmp_vf.import_from_arrays(axe_x, axe_y, comp_x, comp_y, mask=False,
                                   unit_x=unit_x, unit_y=unit_y,
                                   unit_values=unit_values)
         return tmp_vf

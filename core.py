@@ -1021,7 +1021,7 @@ class Profile(object):
         Return a copy of the Profile object.
         """
         return copy.deepcopy(self)
-        
+
     def get_interpolated_value(self, x=None, y=None):
         """
         Get the interpolated (or not) value for a given 'x' or 'y' value.
@@ -1205,11 +1205,11 @@ class Profile(object):
     def get_auto_correlation(self, window_len=None):
         """
         Return the associated correlation profile.
-        
+
         Parameters
         ----------
         window_len : integer, optional
-            Window length for sweep correlation. if 'None' (default), all the 
+            Window length for sweep correlation. if 'None' (default), all the
             signal is used, and boundary effect can be seen.
         """
         if window_len is None:
@@ -2930,7 +2930,7 @@ class VectorField(Field):
             tmpvf.comp_x = self.comp_x + other
             tmpvf.comp_y = self.comp_y + other
             tmpvf.mask = self.mask
-            return tmpvf    
+            return tmpvf
         elif isinstance(other, unum.Unum):
             tmpvf = self.copy()
             fact = (other / self.unit_values).asNumber()
@@ -3337,13 +3337,15 @@ class VectorField(Field):
         if not value.shape == (2,):
             raise ValueError()
         # filling components
+        if crop_border:
+            self.crop_masked_border()
         sfx = self.comp_x_as_sf
         sfy = self.comp_y_as_sf
-        sfx.fill(tof=tof, order=order, value=value[0], crop_border=crop_border)
-        sfy.fill(tof=tof, order=order, value=value[1], crop_border=crop_border)
+        sfx.fill(tof=tof, order=order, value=value[0])
+        sfy.fill(tof=tof, order=order, value=value[1])
         self.comp_x = sfx.values
         self.comp_y = sfy.values
-        self.mask = np.logical_or(sfx.mask, sfy.mask)
+        self.__mask = np.logical_or(sfx.mask, sfy.mask)
 #        # deleting the masked border (useless field part)
 #        if crop_border:
 #            self.crop_masked_border()
@@ -3435,7 +3437,7 @@ class VectorField(Field):
         """
         # checking masked values presence
         mask = self.mask
-        if np.any(mask):
+        if not np.any(mask):
             return None
         # getting indices where we need to cut
         axe_x_m = np.logical_not(np.all(mask, axis=1))
@@ -3444,7 +3446,8 @@ class VectorField(Field):
         axe_x_max = np.where(axe_x_m)[0][-1]
         axe_y_min = np.where(axe_y_m)[0][0]
         axe_y_max = np.where(axe_y_m)[0][-1]
-        self.trim_area([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
+        self.trim_area([axe_x_min, axe_x_max],
+                       [axe_y_min, axe_y_max],
                        ind=True, inplace=True)
 
     ### Displayers ###
@@ -4189,14 +4192,15 @@ class TemporalFields(Fields, Field):
         """
         # getting big mask (where all the value are masked)
         masks_temp = self.mask
-        mask_temp = np.sum(masks_temp)
+        mask_temp = np.sum(masks_temp, axis=0)
         mask_temp = mask_temp == len(masks_temp)
         # checking masked values presence
         if not np.any(mask_temp):
+            pdb.set_trace()
             return None
         # getting positions to remove (column or line with only masked values)
-        axe_y_m = ~np.all(mask_temp, axis=1)
-        axe_x_m = ~np.all(mask_temp, axis=0)
+        axe_y_m = ~np.all(mask_temp, axis=0)
+        axe_x_m = ~np.all(mask_temp, axis=1)
         # skip if nothing to do
         if not np.any(axe_y_m) or not np.any(axe_x_m):
             return None
@@ -4206,7 +4210,8 @@ class TemporalFields(Fields, Field):
         axe_y_min = np.where(axe_y_m)[0][0]
         axe_y_max = np.where(axe_y_m)[0][-1]
         # trim
-        self.trim_area([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
+        self.trim_area([axe_x_min, axe_x_max],
+                       [axe_y_min, axe_y_max],
                        ind=True, inplace=True)
 
     def trim_area(self, intervalx=None, intervaly=None, full_output=False,
