@@ -4345,20 +4345,17 @@ class TemporalFields(Fields, Field):
         if isinstance(self, TemporalVectorFields):
             if compo == 'V' or compo is None:
                 comp = self.fields
-            elif compo == 'x':
-                comp = self.Vx_as_sf
-            elif compo == 'y':
-                comp = self.Vy_as_sf
-            elif compo == 'mask':
-                comp = self.mask_as_sf
             else:
-                raise ValueError()
+                try:
+                    comp = self.__getattribute__("{}_as_sf".format(compo))
+                except AttributeError:
+                    raise ValueError()
         elif isinstance(self, TemporalScalarFields):
-            if compo == 'values' or compo is None:
-                comp = self.values_as_sf
-            elif compo == 'mask':
-                comp = self.mask_as_sf
-            else:
+            if compo is None:
+                compo = "values"
+            try:
+                comp = self.__getattribute__("{}_as_sf".format(compo))
+            except AttributeError:
                 raise ValueError()
         else:
             raise TypeError()
@@ -4739,6 +4736,38 @@ class TemporalVectorFields(TemporalFields):
         for i, field in enumerate(self.fields):
             values[i, :, :] = field.comp_y[:, :]
         return values
+        
+    @property
+    def magnitude_as_sf(self):
+        dim = len(self)
+        values = np.empty(dim, dtype=object)
+        for i, field in enumerate(self.fields):
+            values[i] = field.magnitude_as_sf
+        return values
+
+    @property
+    def magnitude(self):
+        dim = (len(self), self.shape[0], self.shape[1])
+        values = np.empty(dim, dtype=float)
+        for i, field in enumerate(self.fields):
+            values[i, :, :] = field.magnitude[:, :]
+        return values
+
+    @property
+    def theta_as_sf(self):
+        dim = len(self)
+        values = np.empty(dim, dtype=object)
+        for i, field in enumerate(self.fields):
+            values[i] = field.theta_as_sf
+        return values
+
+    @property
+    def theta(self):
+        dim = (len(self), self.shape[0], self.shape[1])
+        values = np.empty(dim, dtype=float)
+        for i, field in enumerate(self.fields):
+            values[i, :, :] = field.theta[:, :]
+        return values       
 
     ### Watchers ###
     def get_time_auto_correlation(self):
