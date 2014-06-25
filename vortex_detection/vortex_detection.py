@@ -65,7 +65,7 @@ class VF(object):
         tmp_vf.import_from_arrays(self.axe_x, self.axe_y, vx, vy, mask)
         return tmp_vf
 
-    def get_cp_position(self):
+    def get_cp_position(self, window_size=2):
         """
         Return critical points positions and their associated PBI.
         (PBI : Poincarre_Bendixson indice)
@@ -73,6 +73,12 @@ class VF(object):
         always at the center of 4 points (maximum accuracy of this algorithm
         is limited by the field spatial resolution).
 
+        Parameters
+        ----------
+        window_size : integer, optional
+            Minimal window size for PBI detection.
+            Smaller window size allow detection where points are dense.
+            Default is finnest possible (2).
 
         Returns
         -------
@@ -81,18 +87,17 @@ class VF(object):
         pbis : 1xN array
             PBI (1 indicate a node, -1 a saddle point)
         """
+        if not isinstance(window_size, int):
+            raise TypeError()
+        if window_size < 2:
+            raise ValueError()
         delta_x = self.axe_x[1] - self.axe_x[0]
         delta_y = self.axe_y[1] - self.axe_y[0]
         positions = []
         pbis = []
-        window_size = 2
         grid_x = np.append(np.arange(0, self.shape[0] - window_size, window_size), self.shape[0])
         grid_y = np.append(np.arange(0, self.shape[1] - window_size, window_size), self.shape[1])
         pool = self._split_the_field(grid_x, grid_y)
-#        plt.figure()
-#        for vf in pool:
-#            print(vf.shape)
-#        pdb.set_trace()
         # loop on the pool (funny no ?)
         while True:
             # if the pool is empty we have finish !
@@ -115,9 +120,8 @@ class VF(object):
                     pdb.set_trace()
                 pbis.append(tmp_vf.pbi_x[-1])
                 pool = np.delete(pool, 0)
-
+            # if the cp density is too high, we can't do nothing
             else:
-                print("need to cute finner")
                 pool = np.delete(pool, 0)
         return positions, pbis
 
@@ -331,7 +335,7 @@ class VF(object):
 
 
 ### Critical points ###
-def get_cp_traj(TVFS, epsilon=None, kind='crit'):
+def get_cp_traj(TVFS, epsilon=None, kind='crit', window_size=4):
     """
     For a set of velocity field (TemporalVectorFields object), return the
     trajectory of critical points.
@@ -349,6 +353,10 @@ def get_cp_traj(TVFS, epsilon=None, kind='crit'):
         If 'pbi', return cp position given by PBI algorithm.
         If 'crit' (default), return cp position given by PBI + criterion.
         (more accurate, but slower).
+    window_size : integer, optional
+        Minimal window size for PBI detection.
+        Smaller window size allow detection where points are dense.
+        Default is 4 (smallest is 2).
 
     Returns
     -------
@@ -390,16 +398,12 @@ def get_cp_traj(TVFS, epsilon=None, kind='crit'):
     times = TVFS.times
     for i, field in enumerate(TVFS.fields):
         if kind == 'crit':
-            foc, foc_c, nod_i, nod_o, sadd, pbi = get_cp_crit(field, times[i])
-            pbi_p, pbi_m = [], []
-            if len(pbi) != 0:
-                for pbi_pt in pbi:
-                    if pbi_pt.pbi == 1:
-                        pbi_p.append(pbi_pt)
-                    else:
-                        pbi_m.append(pbi_pt)
+            foc, foc_c, nod_i, nod_o, sadd, pbi \
+                = get_cp_crit(field, times[i], window_size=window_size)
+            pbi_p = [pbi_pt for pbi_pt in pbi if pbi_pt.pbi == 1]
+            pbi_m = [pbi_pt for pbi_pt in pbi if pbi_pt.pbi == 0]
         elif kind == 'pbi':
-            pos, pbis = get_cp_pbi(field, times[i])
+            pos, pbis = get_cp_pbi(field, times[i], window_size=window_size)
             foc, foc_c, nod_i, nod_o, sadd = [], [], [], [], []
             pbi_p, pbi_m = [], []
             for j, pt in enumerate(pos):
@@ -409,7 +413,6 @@ def get_cp_traj(TVFS, epsilon=None, kind='crit'):
                     pbi_p.append(tmp_pt)
                 else:
                     pbi_m.append(tmp_pt)
-
         else:
             raise ValueError()
         # Concatenate result of each field in bigger entities
@@ -677,7 +680,7 @@ def get_cp_time_evolution(points, times=None, epsilon=None):
     return points_f
 
 
-def get_cp_pbi(vectorfield, time=0, unit_time=make_unit("")):
+def get_cp_pbi(vectorfield, time=0, unit_time=make_unit(""), window_size=4):
     """
     For a VectorField object, return the critical points positions and their
     PBI (Poincarre Bendixson indice)
@@ -686,6 +689,15 @@ def get_cp_pbi(vectorfield, time=0, unit_time=make_unit("")):
     ----------
     vectorfield : a VectorField object.
         .
+    time : number, optional
+        Time
+    unit_time : units object, optional
+        Time unit.
+    window_size : integer, optional
+        Minimal window size for PBI detection.
+        Smaller window size allow detection where points are dense.
+        Default is 4 (smallest is 2).
+
     Returns
     -------
     pos : 2xN array
@@ -698,10 +710,10 @@ def get_cp_pbi(vectorfield, time=0, unit_time=make_unit("")):
         raise TypeError("'vectorfield' must be a VectorField")
     # using VF methods to get cp position
     field = velocityfield_to_vf(vectorfield, time)
-    return field.get_cp_position()
+    return field.get_cp_position(window_size=window_size)
 
 
-def get_cp_crit(vectorfield, time=0, unit_time=make_unit("")):
+def get_cp_crit(vectorfield, time=0, unit_time=make_unit(""), window_size=4):
     """
     For a VectorField object, return the position of critical points.
     This algorithm use the PBI algorithm, then a method based on criterion to
@@ -709,8 +721,16 @@ def get_cp_crit(vectorfield, time=0, unit_time=make_unit("")):
 
     Parameters
     ----------
-    vectorfield : VectorField object
+    vectorfield : a VectorField object.
         .
+    time : number, optional
+        Time
+    unit_time : units object, optional
+        Time unit.
+    window_size : integer, optional
+        Minimal window size for PBI detection.
+        Smaller window size allow detection where points are dense.
+        Default is 4 (smallest is 2).
 
     Returns
     -------
@@ -723,7 +743,7 @@ def get_cp_crit(vectorfield, time=0, unit_time=make_unit("")):
         raise TypeError("'VF' must be a VectorField")
     ### Getting pbi cp position and fields around ###
     VF_field = velocityfield_to_vf(vectorfield, time)
-    cp_positions, pbis = VF_field.get_cp_position()
+    cp_positions, pbis = VF_field.get_cp_position(window_size=window_size)
     # creating velocityfields around critical points
     # and transforming into VectorField objects
     VF_tupl = []
