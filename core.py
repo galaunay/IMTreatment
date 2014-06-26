@@ -662,6 +662,115 @@ class Points(object):
             radii, center, alpha = fte.get_parameters(res)
             return radii, center, alpha
 
+    def get_points_density(self, res, subres=None, raw=False,
+                           ponderated=False):
+        """
+        Return a ScalarField with points density.
+
+        Parameters:
+        -----------
+        res : number or 2x1 array of numbers
+            fdensity field number of subdivision.
+            Can be the same number for both axis,  or one number per axis
+            (need to give a tuple).
+        raw : boolean, optional
+            If 'False' (default), return a ScalarField object,
+            if 'True', return numpy array.
+        ponderated : boolean, optiona
+            If 'True', values associated to points are used to ponderate the
+            density field. Default is 'False'.
+        subres : odd integer, optional
+            If specified, a subgrid of resolution res*subres is used to
+            make resulte more accurate.
+        """
+        # checking parameters
+        if isinstance(res, int):
+            res_x = res
+            res_y = res
+        elif isinstance(res, ARRAYTYPES):
+            if len(res) != 2:
+                raise ValueError()
+            res_x = res[0]
+            res_y = res[1]
+        else:
+            raise TypeError()
+        if not isinstance(raw, bool):
+            raise TypeError()
+        if not isinstance(ponderated, bool):
+            raise TypeError()
+        if isinstance(subres, int) and subres > 0:
+            subres = np.floor(subres/2)*2
+            subres2 = (subres)/2
+        elif subres is None:
+            pass
+        else:
+            raise TypeError()
+        # If we use a subgrid
+        if subres is not None:
+            # creating grid
+            min_x = np.min(self.xy[:, 0])
+            max_x = np.max(self.xy[:, 0])
+            min_y = np.min(self.xy[:, 1])
+            max_y = np.max(self.xy[:, 1])
+            dx = (max_x - min_x)/(res_x)
+            dy = (max_y - min_y)/(res_y)
+            sub_dx = dx/subres
+            sub_dy = dy/subres
+            axe_x = np.arange(min_x - dx/2, max_x + dx/2 + sub_dx, sub_dx)
+            axe_y = np.arange(min_y - dy/2, max_y + dy/2 + sub_dy, sub_dy)
+            values = np.zeros((len(axe_x), len(axe_y)))
+            print()
+            # filling grid with density
+            for i, pt in enumerate(self.xy):
+                x = pt[0]
+                y = pt[1]
+                ind_x = np.argmin(np.abs(axe_x - x))
+                ind_y = np.argmin(np.abs(axe_y - y))
+                slic_x = slice(ind_x - subres2 + 1, ind_x + subres2)
+                slic_y = slice(ind_y - subres2 + 1, ind_y + subres2)
+                if ponderated:
+                    values[slic_x, slic_y] += self.v[i]
+                else:
+                    values[slic_x, slic_y] += 1
+            values /= (dx*dy)
+            values = values[subres2:-subres2, subres2:-subres2]
+            axe_x = axe_x[subres2:-subres2]
+            axe_y = axe_y[subres2:-subres2]
+        # if we do not use a subgrid
+        else:
+            # creating grid
+            min_x = np.min(self.xy[:, 0])
+            max_x = np.max(self.xy[:, 0])
+            min_y = np.min(self.xy[:, 1])
+            max_y = np.max(self.xy[:, 1])
+            axe_x, dx = np.linspace(min_x, max_x, res_x, retstep=True)
+            axe_y, dy = np.linspace(min_y, max_y, res_y, retstep=True)
+            values = np.zeros((len(axe_x), len(axe_y)))
+            # filling grid with density
+            for i, pt in enumerate(self.xy):
+                x = pt[0]
+                y = pt[1]
+                ind_x = np.argmin(np.abs(axe_x - x))
+                ind_y = np.argmin(np.abs(axe_y - y))
+                if ponderated:
+                    values[ind_x, ind_y] += self.v[i]
+                else:
+                    values[ind_x, ind_y] += 1
+            values /= (dx*dy)
+        # return the field
+        if raw:
+            return values
+        else:
+            sf = ScalarField()
+            if ponderated:
+                unit_values = self.unit_v/self.unit_x/self.unit_y
+            else:
+                unit_values = 1/self.unit_x/self.unit_y
+            sf.import_from_arrays(axe_x, axe_y, values, mask=False,
+                                  unit_x=self.unit_x, unit_y=self.unit_y,
+                                  unit_values=unit_values)
+            return sf
+
 
 class Profile(object):
     """
@@ -4736,7 +4845,7 @@ class TemporalVectorFields(TemporalFields):
         for i, field in enumerate(self.fields):
             values[i, :, :] = field.comp_y[:, :]
         return values
-        
+
     @property
     def magnitude_as_sf(self):
         dim = len(self)
@@ -4767,7 +4876,7 @@ class TemporalVectorFields(TemporalFields):
         values = np.empty(dim, dtype=float)
         for i, field in enumerate(self.fields):
             values[i, :, :] = field.theta[:, :]
-        return values       
+        return values
 
     ### Watchers ###
     def get_time_auto_correlation(self):
