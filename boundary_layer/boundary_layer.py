@@ -519,6 +519,8 @@ def get_shape_factor(obj, direction=1):
     delta : float or Profile
         Boundary layer shape factor, in axe x unit.
     """
-    shape_factor = get_displ_thickness(obj, direction)\
-        / get_momentum_thickness(obj, direction)
+    displ = get_displ_thickness(obj, direction)
+    mom = get_momentum_thickness(obj, direction)
+    shape_factor = displ/mom
+    shape_factor.mask = np.logical_or(shape_factor.mask, mom.y<=0)
     return shape_factor

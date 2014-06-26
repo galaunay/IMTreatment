@@ -452,14 +452,18 @@ class Points(object):
             xy = another.xy
             xy[:, 0] = xy[:, 0]*(self.unit_x/another.unit_x).asNumber()
             xy[:, 1] = xy[:, 1]*(self.unit_y/another.unit_y).asNumber()
+            if self.xy.shape == (0,):
+                new_xy = xy
+            else:
+                new_xy = np.append(self.xy, xy, axis=0)
             if self.v is None or another.v is None:
-                return Points(np.append(self.xy, xy, axis=0),
+                return Points(new_xy,
                               unit_x=self.unit_x,
                               unit_y=self.unit_y)
             else:
                 v_tmp = another.v*(self.unit_v/another.unit_v).asNumber()
                 v = np.append(self.v, v_tmp)
-                return Points(np.append(self.xy, xy, axis=0), v,
+                return Points(new_xy, v,
                               unit_x=self.unit_x,
                               unit_y=self.unit_y,
                               unit_v=self.unit_v)
@@ -662,7 +666,101 @@ class Points(object):
             radii, center, alpha = fte.get_parameters(res)
             return radii, center, alpha
 
-    def get_points_density(self, res, subres=None, raw=False,
+    def get_points_density(self,raw=False, bw_method=None, resolution=100):
+        """
+        Return a ScalarField with points density.
+
+        Parameters:
+        -----------
+        bw_method : str, scalar or callable, optional
+            The method used to calculate the estimator bandwidth.
+            This can be ‘scott’, ‘silverman’, a scalar constant or
+            a callable. If a scalar, this will be used directly as kde.factor.
+            If a callable, it should take a gaussian_kde instance as only
+            parameter and return a scalar. If None (default), ‘scott’ is used.
+            See Notes for more details.
+        raw : boolean, optional
+            If 'False' (default), return a ScalarField object,
+            if 'True', return numpy array.
+        resolution : number, optional
+            Resolution for the resulting field.
+        """
+        import scipy
+        kernel = scipy.stats.gaussian_kde(self.xy.transpose(),
+                                          bw_method=bw_method)
+        dim = 100
+        min_x = np.min(self.xy[:, 0])
+        max_x = np.max(self.xy[:, 0])
+        min_y = np.min(self.xy[:, 1])
+        max_y = np.max(self.xy[:, 1])
+        axe_x = np.linspace(min_x, max_x, dim)
+        axe_y = np.linspace(min_y, max_y, dim)
+        X, Y = np.meshgrid(axe_x, axe_y)
+        X = X.flatten()
+        Y = Y.flatten()
+        positions = np.array([[X[i], Y[i]] for i in np.arange(len(X))]).transpose()
+        values = kernel(positions)
+        values = values.reshape((dim, dim)).transpose()
+        if raw:
+            return values
+        else:
+            sf = ScalarField()
+            unit_values = 1/self.unit_x/self.unit_y
+            sf.import_from_arrays(axe_x, axe_y, values, mask=False,
+                                  unit_x=self.unit_x, unit_y=self.unit_y,
+                                  unit_values=unit_values)
+            return sf
+
+
+    def get_points_density2(self, bins, raw=False,
+                           ponderated=False):
+        """
+        Return a ScalarField with points density.
+
+        Parameters:
+        -----------
+        bins : int or [int, int] or array_like or [array, array], optional
+            The bin specification:
+
+              * If int, the number of bins for the two dimensions (nx=ny=bins).
+              * If [int, int], the number of bins in each dimension (nx, ny = bins).
+              * If array_like, the bin edges for the two dimensions
+                (x_edges=y_edges=bins).
+              * If [array, array], the bin edges in each dimension
+                (x_edges, y_edges = bins).
+        raw : boolean, optional
+            If 'False' (default), return a ScalarField object,
+            if 'True', return numpy array.
+        ponderated : boolean, optiona
+            If 'True', values associated to points are used to ponderate the
+            density field. Default is 'False'.
+        """
+        # computing
+        if ponderated:
+            weights = self.v
+        else:
+            weights = None
+        values, axe_x, axe_y = np.histogram2d(self.xy[:, 0], self.xy[:, 1],
+                                              bins=bins, normed=True,
+                                              weights=weights)
+        axe_x = (axe_x[1::] + axe_x[:-1:])/2
+        axe_y = (axe_y[1::] + axe_y[:-1:])/2
+        # returning
+        if raw:
+            return values
+        else:
+            sf = ScalarField()
+            if ponderated:
+                unit_values = self.unit_v/self.unit_x/self.unit_y
+            else:
+                unit_values = 1/self.unit_x/self.unit_y
+            sf.import_from_arrays(axe_x, axe_y, values, mask=False,
+                                  unit_x=self.unit_x, unit_y=self.unit_y,
+                                  unit_values=unit_values)
+            return sf
+
+
+    def get_points_density3(self, res, subres=None, raw=False,
                            ponderated=False):
         """
         Return a ScalarField with points density.
