@@ -17,6 +17,7 @@ import unum.units as units
 import copy
 import os
 from scipy import ndimage
+from scipy import stats
 try:
     units.counts = unum.Unum.unit('counts')
     units.pixel = unum.Unum.unit('pixel')
@@ -449,13 +450,22 @@ class Points(object):
                     self.unit_v + another.unit_v
             except unum.IncompatibleUnitsError:
                 raise ValueError("Units system are not the same")
-            xy = another.xy
-            xy[:, 0] = xy[:, 0]*(self.unit_x/another.unit_x).asNumber()
-            xy[:, 1] = xy[:, 1]*(self.unit_y/another.unit_y).asNumber()
-            if self.xy.shape == (0,):
+            # compacting coordinates
+            if another.xy.shape == (0,):
+                new_xy = self.xy
+            elif self.xy.shape == (0,):
+                xy = another.xy
+                xy[:, 0] = xy[:, 0]*(self.unit_x/another.unit_x).asNumber()
+                xy[:, 1] = xy[:, 1]*(self.unit_y/another.unit_y).asNumber()
                 new_xy = xy
+            elif another.xy.shape == (0,) and self.xy.shape == (0,):
+                new_xy = np.array([[]])
             else:
+                xy = another.xy
+                xy[:, 0] = xy[:, 0]*(self.unit_x/another.unit_x).asNumber()
+                xy[:, 1] = xy[:, 1]*(self.unit_y/another.unit_y).asNumber()
                 new_xy = np.append(self.xy, xy, axis=0)
+            # compacting values
             if self.v is None or another.v is None:
                 return Points(new_xy,
                               unit_x=self.unit_x,
@@ -666,7 +676,8 @@ class Points(object):
             radii, center, alpha = fte.get_parameters(res)
             return radii, center, alpha
 
-    def get_points_density(self,raw=False, bw_method=None, resolution=100):
+    def get_points_density(self, bw_method=None, resolution=100,
+                           output_format=None, raw=False):
         """
         Return a ScalarField with points density.
 
@@ -679,88 +690,79 @@ class Points(object):
             If a callable, it should take a gaussian_kde instance as only
             parameter and return a scalar. If None (default), ‘scott’ is used.
             See Notes for more details.
+        resolution : integer or 2x1 tuple of integers, optional
+            Resolution for the resulting field.
+            Can be a tuple in order to specify resolution along x and y.
+        format : string, optional
+            'normalized' (default) : give position probability
+                                     (field integral is 1).
+            'perc' : give position probability in percentage.
+            'concentration' : give local concentration (in point per surface).
         raw : boolean, optional
             If 'False' (default), return a ScalarField object,
             if 'True', return numpy array.
-        resolution : number, optional
-            Resolution for the resulting field.
         """
-        import scipy
-        kernel = scipy.stats.gaussian_kde(self.xy.transpose(),
-                                          bw_method=bw_method)
-        dim = 100
+        # checking points length
+        if len(self.xy) < 2:
+            raise Exception()
+        # getting data
         min_x = np.min(self.xy[:, 0])
         max_x = np.max(self.xy[:, 0])
         min_y = np.min(self.xy[:, 1])
         max_y = np.max(self.xy[:, 1])
-        axe_x = np.linspace(min_x, max_x, dim)
-        axe_y = np.linspace(min_y, max_y, dim)
+        # checking parameters
+        if isinstance(resolution, int):
+            width_x = max_x - min_x
+            width_y = max_y - min_y
+            if width_x > width_y:
+                res_x = resolution
+                res_y = np.round(resolution*width_y/width_x)
+            else:
+                res_y = resolution
+                res_x = np.round(resolution*width_x/width_y)
+        elif isinstance(resolution, ARRAYTYPES):
+            if len(resolution) != 2:
+                raise ValueError()
+            res_x = resolution[0]
+            res_y = resolution[1]
+        else:
+            raise TypeError()
+        if res_x < 2 or res_y < 2:
+            raise ValueError()
+        # get kernel using scipy
+        kernel = stats.gaussian_kde(self.xy.transpose(), bw_method=bw_method)
+        # creating grid
+        axe_x = np.linspace(min_x, max_x, res_x)
+        axe_y = np.linspace(min_y, max_y, res_y)
         X, Y = np.meshgrid(axe_x, axe_y)
         X = X.flatten()
         Y = Y.flatten()
-        positions = np.array([[X[i], Y[i]] for i in np.arange(len(X))]).transpose()
+        positions = np.array([[X[i], Y[i]]
+                              for i in np.arange(len(X))]).transpose()
+        # estimate density
         values = kernel(positions)
-        values = values.reshape((dim, dim)).transpose()
-        if raw:
-            return values
-        else:
-            sf = ScalarField()
+        values = values.reshape((res_y, res_x)).transpose()
+        if output_format is None or output_format == "normalized":
+            unit_values = make_unit('')
+        elif output_format == "percentage":
+            values = values*100
+            unit_values = make_unit('')
+        elif output_format == "concentration":
             unit_values = 1/self.unit_x/self.unit_y
-            sf.import_from_arrays(axe_x, axe_y, values, mask=False,
-                                  unit_x=self.unit_x, unit_y=self.unit_y,
-                                  unit_values=unit_values)
-            return sf
-
-
-    def get_points_density2(self, bins, raw=False,
-                           ponderated=False):
-        """
-        Return a ScalarField with points density.
-
-        Parameters:
-        -----------
-        bins : int or [int, int] or array_like or [array, array], optional
-            The bin specification:
-
-              * If int, the number of bins for the two dimensions (nx=ny=bins).
-              * If [int, int], the number of bins in each dimension (nx, ny = bins).
-              * If array_like, the bin edges for the two dimensions
-                (x_edges=y_edges=bins).
-              * If [array, array], the bin edges in each dimension
-                (x_edges, y_edges = bins).
-        raw : boolean, optional
-            If 'False' (default), return a ScalarField object,
-            if 'True', return numpy array.
-        ponderated : boolean, optiona
-            If 'True', values associated to points are used to ponderate the
-            density field. Default is 'False'.
-        """
-        # computing
-        if ponderated:
-            weights = self.v
+            values  = values*len(self.xy)
         else:
-            weights = None
-        values, axe_x, axe_y = np.histogram2d(self.xy[:, 0], self.xy[:, 1],
-                                              bins=bins, normed=True,
-                                              weights=weights)
-        axe_x = (axe_x[1::] + axe_x[:-1:])/2
-        axe_y = (axe_y[1::] + axe_y[:-1:])/2
-        # returning
+            raise ValueError()
+        # return
         if raw:
             return values
         else:
             sf = ScalarField()
-            if ponderated:
-                unit_values = self.unit_v/self.unit_x/self.unit_y
-            else:
-                unit_values = 1/self.unit_x/self.unit_y
             sf.import_from_arrays(axe_x, axe_y, values, mask=False,
                                   unit_x=self.unit_x, unit_y=self.unit_y,
                                   unit_values=unit_values)
             return sf
 
-
-    def get_points_density3(self, res, subres=None, raw=False,
+    def get_points_density2(self, res, subres=None, raw=False,
                            ponderated=False):
         """
         Return a ScalarField with points density.
@@ -3114,7 +3116,7 @@ class VectorField(Field):
         if isinstance(other, VectorField):
             axe_x, axe_y = self.axe_x, self.axe_y
             oaxe_x, oaxe_y = other.axe_x, other.axe_y
-            if (all(axe_x != oaxe_x) or all(axe_y != oaxe_y)):
+            if (np.all(axe_x != oaxe_x) or np.all(axe_y != oaxe_y)):
                 raise ValueError("Vector fields have to be consistent "
                                  "(same dimensions)")
             try:
