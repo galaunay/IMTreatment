@@ -695,9 +695,13 @@ class Points(object):
             Can be a tuple in order to specify resolution along x and y.
         format : string, optional
             'normalized' (default) : give position probability
-                                     (field integral is 1).
-            'perc' : give position probability in percentage.
+                                     (integral egal 1).
+            'perc' : give position probability in percentage
+                     (integral egal 100).
+            'ponderated' : give position probability ponderated by the number
+                           or points (integral egal number of points).
             'concentration' : give local concentration (in point per surface).
+
         raw : boolean, optional
             If 'False' (default), return a ScalarField object,
             if 'True', return numpy array.
@@ -743,6 +747,9 @@ class Points(object):
         values = kernel(positions)
         values = values.reshape((res_y, res_x)).transpose()
         if output_format is None or output_format == "normalized":
+            unit_values = make_unit('')
+        elif output_format == 'ponderated':
+            values = values*len(self.xy)
             unit_values = make_unit('')
         elif output_format == "percentage":
             values = values*100
@@ -2694,9 +2701,9 @@ class ScalarField(Field):
         """
         axe_x, axe_y = self.axe_x, self.axe_y
         if intervalx is None:
-            intervalx = [axe_x[0], axe_x[-1]]
+            intervalx = [-np.inf, np.inf]
         if intervaly is None:
-            intervaly = [axe_y[0], axe_y[-1]]
+            intervaly = [-np.inf, np.inf]
         trimfield = self.trim_area(intervalx, intervaly)
         axe2_x, axe2_y = trimfield.axe_x, trimfield.axe_y
         unit_x, unit_y = trimfield.unit_x, trimfield.unit_y
