@@ -12,6 +12,86 @@ from ..core import Points, ScalarField, VectorField,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 
 
+def get_gradient(field):
+    """
+    Return ScalarFields object with gradients along x and y.
+
+    Parameters
+    ----------
+    vf : VelocityField or ScalarField object
+        Field to comput gradient from.
+
+    Returns
+    -------
+    grad : tuple of ScalarField
+        For VectorField : (dVx/dx, dVx/dy, dVy/dx, dVy/dy),
+        for ScalarField : (dV/dx, dV/dy).
+    """
+    dx = field.axe_x[1] - field.axe_x[0]
+    dy = field.axe_y[1] - field.axe_y[0]
+    if isinstance(field, ScalarField):
+        grad_x, grad_y = np.gradient(np.ma.masked_array(field.values,
+                                                        field.mask),
+                                     dx, dy)
+        gradx = ScalarField()
+        unit_values_x = field.unit_values/field.unit_x
+        factx = unit_values_x.asNumber()
+        unit_values_x /= factx
+        grad_x *= factx
+        unit_values_y = field.unit_values/field.unit_y
+        facty = unit_values_x.asNumber()
+        unit_values_y /= facty
+        grad_y *= facty
+        gradx.import_from_arrays(field.axe_x, field.axe_y, grad_x.data,
+                                 mask=grad_x.mask, unit_x=field.unit_x,
+                                 unit_y=field.unit_y,
+                                 unit_values=unit_values_x)
+        grady = ScalarField()
+        grady.import_from_arrays(field.axe_x, field.axe_y, grad_y.data,
+                                 mask=grad_x.mask, unit_x=field.unit_x,
+                                 unit_y=field.unit_y,
+                                 unit_values=unit_values_y)
+        return gradx, grady
+    elif isinstance(field, VectorField):
+        Vx_dx, Vx_dy = np.gradient(np.ma.masked_array(field.comp_x, field.mask)
+                                   ,dx, dy)
+        Vy_dx, Vy_dy = np.gradient(np.ma.masked_array(field.comp_y, field.mask)
+                                   ,dx, dy)
+        unit_values_x = field.unit_values/field.unit_x
+        factx = unit_values_x.asNumber()
+        unit_values_x /= factx
+        Vx_dx *= factx
+        Vy_dx *= factx
+        unit_values_y = field.unit_values/field.unit_y
+        facty = unit_values_y.asNumber()
+        unit_values_y /= facty
+        Vx_dy *= facty
+        Vy_dy *= facty
+        grad1 = ScalarField()
+        grad1.import_from_arrays(field.axe_x, field.axe_y, Vx_dx.data,
+                                 mask=Vx_dx.mask, unit_x=field.unit_x,
+                                 unit_y=field.unit_y,
+                                 unit_values=unit_values_x)
+        grad2 = ScalarField()
+        grad2.import_from_arrays(field.axe_x, field.axe_y, Vx_dy.data,
+                                 mask=Vx_dy.mask, unit_x=field.unit_x,
+                                 unit_y=field.unit_y,
+                                 unit_values=unit_values_y)
+        grad3 = ScalarField()
+        grad3.import_from_arrays(field.axe_x, field.axe_y, Vy_dx.data,
+                                 mask=Vy_dx.mask, unit_x=field.unit_x,
+                                 unit_y=field.unit_y,
+                                 unit_values=unit_values_x)
+        grad4 = ScalarField()
+        grad4.import_from_arrays(field.axe_x, field.axe_y, Vy_dy.data,
+                                 mask=Vy_dy.mask, unit_x=field.unit_x,
+                                 unit_y=field.unit_y,
+                                 unit_values=unit_values_y)
+        return grad1, grad2, grad3, grad4
+    else:
+        raise TypeError()
+
+
 def get_streamlines(vf, xy, delta=.25, interp='linear',
                     reverse_direction=False):
     """
