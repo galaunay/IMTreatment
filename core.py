@@ -268,17 +268,17 @@ class Points(object):
     """
     #@PTest(object, xy=ARRAYTYPES, v=(None, ARRAYTYPES), unit_x=unum.Unum,
     #       unit_y=unum.Unum, unit_v=unum.Unum, name=(None, STRINGTYPES))
-    def __init__(self, xy=[], v=None, unit_x=make_unit(''),
-                 unit_y=make_unit(''),
+    def __init__(self, xy=np.empty((0, 2), dtype=float), v=None,
+                 unit_x=make_unit(''), unit_y=make_unit(''),
                  unit_v=make_unit(''), name=None):
         """
         Points builder.
         """
         if not isinstance(xy, ARRAYTYPES):
-            raise TypeError("'xy' must be a tuple of 2x1 arrays")
+            raise TypeError("'xy' must be a tuple of nx2 arrays")
         xy = np.array(xy, subok=True, dtype=float)
-        if xy.shape != (0,) and (len(xy.shape) != 2 or xy.shape[1] != 2):
-            raise ValueError("'xy' must be a tuple of 2x1 arrays")
+        if xy.ndim != 2 or xy.shape[1] != 2:
+            raise ValueError("'xy' must be a tuple of nx2 arrays")
         if v is not None:
             if not isinstance(v, ARRAYTYPES):
                 raise TypeError("'v' must be an array")
@@ -526,6 +526,38 @@ class Points(object):
         elif kind == 'plot':
             plot = plt.plot(self.xy[:, 0], self.xy[:, 1], **plotargs)
         return plot
+
+    def add(self, pt, v=None):
+        """
+        Add a new point.
+
+        Parameters
+        ----------
+        pt : 2x1 array of numbers
+            Point to add.
+        v : number, optional
+            Value of the point (needed if other points have values).
+        """
+        if not isinstance(pt, ARRAYTYPES):
+            raise TypeError()
+        pt = np.array(pt, subok=True)
+        if not pt.shape == (2,):
+            raise ValueError()
+        if not isinstance(pt[0], NUMBERTYPES):
+            raise TypeError()
+        if v is not None:
+            if not isinstance(v, NUMBERTYPES):
+                raise TypeError()
+        self.xy = np.append(self.xy, [pt], axis=0)
+        if ((self.v is not None and v is not None)
+                or (len(self.xy) == 1 and v is not None)):
+            self.v = np.append(self.v, v)
+        elif self.v is None and v is None:
+            pass
+        else:
+            print(self.xy, self.v)
+            print(pt, v)
+            raise ValueError()
 
     def remove(self, ind):
         """

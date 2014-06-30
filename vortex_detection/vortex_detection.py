@@ -397,6 +397,53 @@ def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False):
         return radius, center
 
 
+def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
+                                     output_center=False):
+    """
+    Return the radius evolution in time for the given vortex center trajectory.
+
+    Use the criterion |gamma2| > 2/pi. The returned radius is an average value
+    if the vortex zone is not circular.
+
+    Parameters:
+    -----------
+    TVVF : TemporalField object
+        Velocity field on which compute gamma2.
+    traj : Points object
+        Trajectory of the vortex.
+    gamma2_radius : number, optional
+        Radius needed to compute gamma2.
+    output_center : boolean, optional
+        If 'True', return a Points object with associated vortex centers,
+        computed using center of mass algorythm.
+
+    Returns :
+    ---------
+    radius : number
+        Average radius of the vortex. If no vortex is found, 0 is returned.
+    center : 2x1 array of numbers
+        If 'output_center' is 'True', contain the newly computed vortex center.
+    """
+    radii = np.empty((len(TVFS.fields),))
+    centers = Points(unit_x=TVFS.unit_x, unit_y=TVFS.unit_y,
+                     unit_v=TVFS.unit_times)
+    if output_center:
+        for i, field in enumerate(TVFS.fields):
+            time = TVFS.times[i]
+            rad, cent = get_vortex_radius(field, traj.xy[i],
+                                          gamma2_radius=gamma2_radius,
+                                          output_center=True)
+            radii[i] = rad
+            centers.add(cent, time)
+        return radii, centers
+    else:
+        for i, field in enumerate(TVFS.fields):
+            radii[i] = get_vortex_radius(field, traj.xy[i],
+                                         gamma2_radius=gamma2_radius,
+                                         output_center=False)
+        return radii
+
+
 ### Critical points ###
 def get_cp_traj(TVFS, epsilon=None, kind='crit', window_size=4):
     """
