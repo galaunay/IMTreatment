@@ -18,6 +18,8 @@ from scipy.interpolate import UnivariateSpline, RectBivariateSpline
 from scipy import optimize
 import warnings
 import sets
+import scipy.ndimage.measurements as msr
+
 
 
 #TODO : Has to make a trnaposition between VF and vf.
@@ -332,6 +334,67 @@ class VF(object):
         num_x = len(poi_x[poi_x != 0])
         num_y = len(poi_y[poi_y != 0])
         return num_x, num_y
+
+### Vortex properties ###
+def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False):
+    """
+    Return the radius of the given vortex.
+
+    Use the criterion |gamma2| > 2/pi. The returned radius is an average value
+    if the vortex zone is not circular.
+
+    Parameters:
+    -----------
+    VF : vectorfield object
+        Velocity field on which compute gamma2.
+    vort_center : 2x1 array
+        Approximate position of the vortex center.
+    gamma2_radius : number, optional
+        Radius needed to compute gamma2.
+    output_center : boolean, optional
+        If 'True', return the associated vortex center, computed using center
+        of mass algorythm.
+
+    Returns :
+    ---------
+    radius : number
+        Average radius of the vortex. If no vortex is found, 0 is returned.
+    center : 2x1 array of numbers
+        If 'output_center' is 'True', contain the newly computed vortex center.
+    """
+    # getting data
+    gamma2 = get_gamma(VF, radius=gamma2_radius, ind=False, kind='gamma2',
+                       raw=True)
+    ind_x = VF.get_indice_on_axe(1, vort_center[0], nearest=True)
+    ind_y = VF.get_indice_on_axe(2, vort_center[1], nearest=True)
+    dx = VF.axe_x[1] - VF.axe_x[0]
+    dy = VF.axe_y[1] - VF.axe_y[0]
+    # find vortex zones adn label them
+    vort = np.abs(gamma2) > 2/np.pi
+    vort, nmb_vort = msr.label(vort)
+    # get wanted zone label
+    lab = vort[ind_x, ind_y]
+    # if we are outside a zone
+    if lab == 0:
+        if output_center:
+            return 0, vort_center
+        else:
+            return 0
+    # else, we compute the radius
+    area = dx*dy*np.sum(vort == lab)
+    radius = np.sqrt(area/np.pi)
+    # optional computed center
+    if output_center:
+        if gamma2[ind_x, ind_y] > 0:
+            pond = gamma2
+        else:
+            pond = -gamma2
+        center = np.array(msr.center_of_mass(pond, vort == lab))
+        center[0] = VF.axe_x[0] + center[0]*dx
+        center[1] = VF.axe_y[0] + center[1]*dy
+        return radius, center
+    else:
+        return radius, center
 
 
 ### Critical points ###

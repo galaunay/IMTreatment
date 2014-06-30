@@ -284,7 +284,7 @@ class Points(object):
                 raise TypeError("'v' must be an array")
             v = np.array(v, dtype=float)
             if not xy.shape[0] == v.shape[0]:
-                raise ValueError("'v' ans 'xy' must have the same dimensions")
+                raise ValueError("'v' and 'xy' must have the same dimensions")
         if not isinstance(unit_x, unum.Unum)   \
                 or not isinstance(unit_y, unum.Unum):
             raise TypeError("'unit_x' and 'unit_y' must be Unit objects")
@@ -443,6 +443,12 @@ class Points(object):
 
     def __add__(self, another):
         if isinstance(another, Points):
+            # trivial additions
+            if len(self.xy) == 0:
+                return another.copy()
+            elif len(another.xy) == 0:
+                return self.copy()
+            # checking unit systems
             try:
                 self.unit_x + another.unit_x
                 self.unit_y + another.unit_y
@@ -465,19 +471,39 @@ class Points(object):
                 xy[:, 0] = xy[:, 0]*(self.unit_x/another.unit_x).asNumber()
                 xy[:, 1] = xy[:, 1]*(self.unit_y/another.unit_y).asNumber()
                 new_xy = np.append(self.xy, xy, axis=0)
-            # compacting values
-            if self.v is None or another.v is None:
+            # testing v presence
+            v_presence = True
+            if self.v is None:
+                if len(self.xy) != 0:
+                    v_presence = False
+            else:
+                if len(self.xy) != len(self.v):
+                    v_presence = False
+            if another.v is None:
+                if len(another.xy) != 0:
+                    v_presence = False
+            else:
+                if len(another.xy) != len(another.v):
+                    v_presence = False
+            # compacting points and returning
+            if v_presence:
+                if self.v is None and another.v is None:
+                    v = np.array([])
+                elif self.v is None:
+                    v = another.v*(self.unit_v/another.unit_v).asNumber()
+                elif another.v is None:
+                    v = self.v
+                else:
+                    v_tmp = another.v*(self.unit_v/another.unit_v).asNumber()
+                    v = np.append(self.v, v_tmp)
+                    return Points(new_xy, v,
+                                  unit_x=self.unit_x,
+                                  unit_y=self.unit_y,
+                                  unit_v=self.unit_v)
+            else:
                 return Points(new_xy,
                               unit_x=self.unit_x,
                               unit_y=self.unit_y)
-            else:
-                v_tmp = another.v*(self.unit_v/another.unit_v).asNumber()
-                v = np.append(self.v, v_tmp)
-                return Points(new_xy, v,
-                              unit_x=self.unit_x,
-                              unit_y=self.unit_y,
-                              unit_v=self.unit_v)
-
         else:
             raise StandardError("You can't add {} to Points objects"
                                 .format(type(another)))
@@ -696,8 +722,6 @@ class Points(object):
         format : string, optional
             'normalized' (default) : give position probability
                                      (integral egal 1).
-            'perc' : give position probability in percentage
-                     (integral egal 100).
             'ponderated' : give position probability ponderated by the number
                            or points (integral egal number of points).
             'concentration' : give local concentration (in point per surface).
