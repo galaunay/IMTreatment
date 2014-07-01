@@ -496,10 +496,10 @@ class Points(object):
                 else:
                     v_tmp = another.v*(self.unit_v/another.unit_v).asNumber()
                     v = np.append(self.v, v_tmp)
-                    return Points(new_xy, v,
-                                  unit_x=self.unit_x,
-                                  unit_y=self.unit_y,
-                                  unit_v=self.unit_v)
+                return Points(new_xy, v,
+                              unit_x=self.unit_x,
+                              unit_y=self.unit_y,
+                              unit_v=self.unit_v)
             else:
                 return Points(new_xy,
                               unit_x=self.unit_x,

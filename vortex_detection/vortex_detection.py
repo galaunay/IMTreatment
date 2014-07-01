@@ -336,7 +336,8 @@ class VF(object):
         return num_x, num_y
 
 ### Vortex properties ###
-def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False):
+def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
+                      output_unit=False):
     """
     Return the radius of the given vortex.
 
@@ -354,6 +355,8 @@ def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False):
     output_center : boolean, optional
         If 'True', return the associated vortex center, computed using center
         of mass algorythm.
+    output_unit ; boolean, optional
+        If 'True', return the associated unit.
 
     Returns :
     ---------
@@ -361,6 +364,8 @@ def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False):
         Average radius of the vortex. If no vortex is found, 0 is returned.
     center : 2x1 array of numbers
         If 'output_center' is 'True', contain the newly computed vortex center.
+    unit_radius : Unit object
+        Radius unity
     """
     # getting data
     gamma2 = get_gamma(VF, radius=gamma2_radius, ind=False, kind='gamma2',
@@ -392,9 +397,18 @@ def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False):
         center = np.array(msr.center_of_mass(pond, vort == lab))
         center[0] = VF.axe_x[0] + center[0]*dx
         center[1] = VF.axe_y[0] + center[1]*dy
+    # optional computed unit
+    if output_unit:
+        unit_radius = VF.unit_x
+    # return
+    if not output_unit and not output_center:
+        return radius
+    elif output_unit and not output_center:
+        return radius, unit_radius
+    elif not output_unit and output_center:
         return radius, center
     else:
-        return radius, center
+        return radius, center, unit_radius
 
 
 def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
@@ -407,7 +421,7 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
 
     Parameters:
     -----------
-    TVVF : TemporalField object
+    TVFS : TemporalField object
         Velocity field on which compute gamma2.
     traj : Points object
         Trajectory of the vortex.
@@ -419,14 +433,15 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
 
     Returns :
     ---------
-    radius : number
+    radius : Profile object
         Average radius of the vortex. If no vortex is found, 0 is returned.
-    center : 2x1 array of numbers
+    center : Points object
         If 'output_center' is 'True', contain the newly computed vortex center.
     """
     radii = np.empty((len(TVFS.fields),))
     centers = Points(unit_x=TVFS.unit_x, unit_y=TVFS.unit_y,
                      unit_v=TVFS.unit_times)
+    # computing with vortex center
     if output_center:
         for i, field in enumerate(TVFS.fields):
             time = TVFS.times[i]
@@ -435,13 +450,85 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
                                           output_center=True)
             radii[i] = rad
             centers.add(cent, time)
-        return radii, centers
+    # computing without vortex centers
     else:
         for i, field in enumerate(TVFS.fields):
             radii[i] = get_vortex_radius(field, traj.xy[i],
                                          gamma2_radius=gamma2_radius,
                                          output_center=False)
-        return radii
+    # returning
+    radii_prof = Profile(TVFS.times, radii, mask=False, unit_x=TVFS.unit_times,
+                         unit_y=TVFS.unit_x)
+    if output_center:
+        centers_pts = Points(centers, v=TVFS.times, unit_x=TVFS.unit_x,
+                             unit_y=TVFS.unit_y, unit_v=TVFS.unit_times)
+        return radii_prof, centers_pts
+    else:
+        return radii_prof
+
+
+def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
+    """
+    Return the circulation of the given vortex.
+
+    $\Gamma = \int_S \omega dS$
+    avec : $S$ : surface su vortex ($| \omega | > \epsilon$)
+
+    Recirculation is representative of the swirling strength.
+
+    Warning : integral on complex domain is complex (you don't say?),
+    here is just implemented a sum of accessible values on the domain.
+
+    Parameters:
+    -----------
+    VF : vectorfield object
+        Velocity field on which compute gamma2.
+    vort_center : 2x1 array
+        Approximate position of the vortex center.
+    epsilon : float, optional
+        seuil for the vorticity integral (default is 0.1).
+    output_unit : boolean, optional
+        If 'True', circulation unit is returned.
+
+    Returns :
+    ---------
+    circ : float
+        Vortex virculation.
+    """
+    # getting data
+    ind_x = VF.get_indice_on_axe(1, vort_center[0], nearest=True)
+    ind_y = VF.get_indice_on_axe(2, vort_center[1], nearest=True)
+    dx = VF.axe_x[1] - VF.axe_x[0]
+    dy = VF.axe_y[1] - VF.axe_y[0]
+    import IMTreatment.field_treatment as imtft
+    vort = imtft.get_vorticity(VF)
+    # find omega > 0.1 zones and label them
+    vort_zone = np.abs(vort.values) > epsilon
+    vort_zone, nmb_zone = msr.label(vort_zone)
+    # get wanted zone label
+    lab = vort_zone[ind_x, ind_y]
+    # if we are outside a zone
+    if lab == 0:
+        if output_unit:
+            return 0., make_unit("")
+        else:
+            return 0.
+    # else, we compute the circulation
+    circ = np.sum(vort.values[vort_zone == lab])*dx*dy
+    # if necessary, we compute the unit
+    unit_circ = vort.unit_values*VF.unit_x*VF.unit_y
+    circ *= unit_circ.asNumber()
+    unit_circ /= unit_circ.asNumber()
+    # returning
+    plt.figure()
+    vort.display()
+    plt.plot(VF.axe_x[ind_x], VF.axe_y[ind_y], 'o')
+    plt.figure()
+    plt.imshow(vort_zone == lab, interpolation='nearest')
+    if output_unit:
+        return circ, unit_circ
+    else:
+        return circ
 
 
 ### Critical points ###

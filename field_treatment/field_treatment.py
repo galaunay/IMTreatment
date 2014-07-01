@@ -411,8 +411,9 @@ def get_vorticity(vf, raw=False):
         return vort
     else:
         unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
-        unit_values = ""
-        # TODO : implémenter vorticité unité
+        unit_values = vf.unit_values/vf.unit_x
+        vort *= unit_values.asNumber()
+        unit_values /= unit_values.asNumber()
         vort_sf = ScalarField()
         vort_sf.import_from_arrays(axe_x, axe_y, vort, mask=mask,
                                    unit_x=unit_x, unit_y=unit_y,
