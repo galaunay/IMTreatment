@@ -2918,24 +2918,60 @@ class ScalarField(Field):
                                          indmin_y:indmax_y + 1]
             return trimfield
 
-    def crop_masked_border(self):
+    def crop_masked_border(self, hard=False):
         """
         Crop the masked border of the field in place.
+
+        Parameters
+        ----------
+        hard : boolean, optional
+            If 'True', partially masked border are cropped as well.
         """
         # checking masked values presence
         mask = self.mask
         if not np.any(mask):
             return None
-        # getting indices where we need to cut
-        axe_x_m = np.logical_not(np.all(mask, axis=1))
-        axe_y_m = np.logical_not(np.all(mask, axis=0))
-        axe_x_min = np.where(axe_x_m)[0][0]
-        axe_x_max = np.where(axe_x_m)[0][-1]
-        axe_y_min = np.where(axe_y_m)[0][0]
-        axe_y_max = np.where(axe_y_m)[0][-1]
-        self.trim_area([axe_x_min, axe_x_max],
-                       [axe_y_min, axe_y_max],
-                       ind=True, inplace=True)
+        # hard cropping
+        if hard:
+            # remove trivial borders
+            self.crop_masked_border()
+            # until there is no more masked values
+            while np.any(self.mask):
+                # getting number of masked value on each border
+                bd1 = np.sum(self.mask[0, :])
+                bd2 = np.sum(self.mask[-1, :])
+                bd3 = np.sum(self.mask[:, 0])
+                bd4 = np.sum(self.mask[:, -1])
+                # getting more masked border
+                more_masked = np.argmax([bd1, bd2, bd3, bd4])
+                # deleting more masked border
+                if more_masked == 0:
+                    len_x = len(self.axe_x)
+                    self.trim_area(intervalx=[1, len_x], ind=True,
+                                   inplace=True)
+                elif more_masked == 1:
+                    len_x = len(self.axe_x)
+                    self.trim_area(intervalx=[0, len_x - 2], ind=True,
+                                   inplace=True)
+                elif more_masked == 2:
+                    len_y = len(self.axe_y)
+                    self.trim_area(intervaly=[1, len_y], ind=True,
+                                   inplace=True)
+                elif more_masked == 3:
+                    len_y = len(self.axe_y)
+                    self.trim_area(intervalx=[0, len_y - 2], ind=True,
+                                   inplace=True)
+        # soft cropping
+        else:
+            axe_x_m = np.logical_not(np.all(mask, axis=1))
+            axe_y_m = np.logical_not(np.all(mask, axis=0))
+            axe_x_min = np.where(axe_x_m)[0][0]
+            axe_x_max = np.where(axe_x_m)[0][-1]
+            axe_y_min = np.where(axe_y_m)[0][0]
+            axe_y_max = np.where(axe_y_m)[0][-1]
+            self.trim_area([axe_x_min, axe_x_max],
+                           [axe_y_min, axe_y_max],
+                           ind=True, inplace=True)
 
     def fill(self, tof='interp', order=3, value=0.,
              crop_border=True, ):
@@ -3703,24 +3739,60 @@ class VectorField(Field):
                                          indmin_y:indmax_y + 1]
             return trimfield
 
-    def crop_masked_border(self):
+    def crop_masked_border(self, hard=False):
         """
         Crop the masked border of the field in place.
+
+        Parameters
+        ----------
+        hard : boolean, optional
+            If 'True', partially masked border are cropped as well.
         """
         # checking masked values presence
         mask = self.mask
         if not np.any(mask):
             return None
-        # getting indices where we need to cut
-        axe_x_m = np.logical_not(np.all(mask, axis=1))
-        axe_y_m = np.logical_not(np.all(mask, axis=0))
-        axe_x_min = np.where(axe_x_m)[0][0]
-        axe_x_max = np.where(axe_x_m)[0][-1]
-        axe_y_min = np.where(axe_y_m)[0][0]
-        axe_y_max = np.where(axe_y_m)[0][-1]
-        self.trim_area([axe_x_min, axe_x_max],
-                       [axe_y_min, axe_y_max],
-                       ind=True, inplace=True)
+        # hard cropping
+        if hard:
+            # remove trivial borders
+            self.crop_masked_border()
+            # until there is no more masked values
+            while np.any(self.mask):
+                # getting number of masked value on each border
+                bd1 = np.sum(self.mask[0, :])
+                bd2 = np.sum(self.mask[-1, :])
+                bd3 = np.sum(self.mask[:, 0])
+                bd4 = np.sum(self.mask[:, -1])
+                # getting more masked border
+                more_masked = np.argmax([bd1, bd2, bd3, bd4])
+                # deleting more masked border
+                if more_masked == 0:
+                    len_x = len(self.axe_x)
+                    self.trim_area(intervalx=[1, len_x], ind=True,
+                                   inplace=True)
+                elif more_masked == 1:
+                    len_x = len(self.axe_x)
+                    self.trim_area(intervalx=[0, len_x - 2], ind=True,
+                                   inplace=True)
+                elif more_masked == 2:
+                    len_y = len(self.axe_y)
+                    self.trim_area(intervaly=[1, len_y], ind=True,
+                                   inplace=True)
+                elif more_masked == 3:
+                    len_y = len(self.axe_y)
+                    self.trim_area(intervalx=[0, len_y - 2], ind=True,
+                                   inplace=True)
+        # soft cropping
+        else:
+            axe_x_m = np.logical_not(np.all(mask, axis=1))
+            axe_y_m = np.logical_not(np.all(mask, axis=0))
+            axe_x_min = np.where(axe_x_m)[0][0]
+            axe_x_max = np.where(axe_x_m)[0][-1]
+            axe_y_min = np.where(axe_y_m)[0][0]
+            axe_y_max = np.where(axe_y_m)[0][-1]
+            self.trim_area([axe_x_min, axe_x_max],
+                           [axe_y_min, axe_y_max],
+                           ind=True, inplace=True)
 
     ### Displayers ###
     def _display(self, component=None, kind=None, **plotargs):
@@ -4458,9 +4530,14 @@ class TemporalFields(Fields, Field):
                 break
         return tmp_TFS
 
-    def crop_masked_border(self):
+    def crop_masked_border(self, hard=False):
         """
         Crop the masked border of the velocity fields in place.
+
+        Parameters
+        ----------
+        hard : boolean, optional
+            If 'True', partially masked border are cropped as well.
         """
         # getting big mask (where all the value are masked)
         masks_temp = self.mask
@@ -4468,23 +4545,61 @@ class TemporalFields(Fields, Field):
         mask_temp = mask_temp == len(masks_temp)
         # checking masked values presence
         if not np.any(mask_temp):
-            pdb.set_trace()
             return None
-        # getting positions to remove (column or line with only masked values)
-        axe_y_m = ~np.all(mask_temp, axis=0)
-        axe_x_m = ~np.all(mask_temp, axis=1)
-        # skip if nothing to do
-        if not np.any(axe_y_m) or not np.any(axe_x_m):
-            return None
-        # getting indices where we need to cut
-        axe_x_min = np.where(axe_x_m)[0][0]
-        axe_x_max = np.where(axe_x_m)[0][-1]
-        axe_y_min = np.where(axe_y_m)[0][0]
-        axe_y_max = np.where(axe_y_m)[0][-1]
-        # trim
-        self.trim_area([axe_x_min, axe_x_max],
-                       [axe_y_min, axe_y_max],
-                       ind=True, inplace=True)
+        # hard cropping
+        if hard:
+            # remove trivial borders
+            self.crop_masked_border()
+            # until there is no more masked values
+            while True:
+                # getting mask
+                masks = self.mask
+                mask = np.sum(masks, axis=0)
+                mask = mask == len(self.fields)
+                # leaving if no masked values
+                if not np.any(mask):
+                    break
+                # getting number of masked value on each border
+                bd1 = np.sum(mask[0, :])
+                bd2 = np.sum(mask[-1, :])
+                bd3 = np.sum(mask[:, 0])
+                bd4 = np.sum(mask[:, -1])
+                # getting more masked border
+                more_masked = np.argmax([bd1, bd2, bd3, bd4])
+                # deleting more masked border
+                if more_masked == 0:
+                    len_x = len(self.axe_x)
+                    self.trim_area(intervalx=[1, len_x], ind=True,
+                                   inplace=True)
+                elif more_masked == 1:
+                    len_x = len(self.axe_x)
+                    self.trim_area(intervalx=[0, len_x - 2], ind=True,
+                                   inplace=True)
+                elif more_masked == 2:
+                    len_y = len(self.axe_y)
+                    self.trim_area(intervaly=[1, len_y], ind=True,
+                                   inplace=True)
+                elif more_masked == 3:
+                    len_y = len(self.axe_y)
+                    self.trim_area(intervalx=[0, len_y - 2], ind=True,
+                                   inplace=True)
+        # soft cropping
+        else:
+            # getting positions to remove (column or line with only masked values)
+            axe_y_m = ~np.all(mask_temp, axis=0)
+            axe_x_m = ~np.all(mask_temp, axis=1)
+            # skip if nothing to do
+            if not np.any(axe_y_m) or not np.any(axe_x_m):
+                return None
+            # getting indices where we need to cut
+            axe_x_min = np.where(axe_x_m)[0][0]
+            axe_x_max = np.where(axe_x_m)[0][-1]
+            axe_y_min = np.where(axe_y_m)[0][0]
+            axe_y_max = np.where(axe_y_m)[0][-1]
+            # trim
+            self.trim_area([axe_x_min, axe_x_max],
+                           [axe_y_min, axe_y_max],
+                           ind=True, inplace=True)
 
     def trim_area(self, intervalx=None, intervaly=None, full_output=False,
                   ind=False, inplace=False):
