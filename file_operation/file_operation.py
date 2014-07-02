@@ -140,7 +140,7 @@ def export_to_matlab(obj, name, filepath, **kw):
 
 
 ### VTK ###
-def export_to_vtk(obj, filepath, axis=None):
+def export_to_vtk(obj, filepath, axis=None, **kw):
     """
     Export the field to a .vtk file, for Mayavi use.
 
@@ -153,14 +153,79 @@ def export_to_vtk(obj, filepath, axis=None):
         different axis, you have to specified them here.
         For example, "('z', 'y')", put the x field axis values
         in vtk z axis, and y field axis in y vtk axis.
+    line : boolean (only for Points object)
+        If 'True', lines between points are writen instead of points.
     """
     if isinstance(obj, ScalarField):
         __export_sf_to_vtk(obj, filepath, axis)
     elif isinstance(obj, VectorField):
         __export_vf_to_vtk(obj, filepath, axis)
+    elif isinstance(obj, Points):
+        __export_pts_to_vtk(obj, filepath, **kw)
     else:
         raise TypeError("Cannot (yet) export this kind of object to vtk")
 
+def __export_pts_to_vtk(pts, filepath, axis=None, line=False):
+    """
+    Export the scalar field to a .vtk file, for Mayavi use.
+
+    Parameters
+    ----------
+    filepath : string
+        Path where to write the vtk file.
+    axis : tuple of strings, optional
+        By default, points field axe are set to (x,y), if you want
+        different axis, you have to specified them here.
+        For example, "('z', 'y')", put the x points field axis values
+        in vtk z axis, and y points field axis in y vtk axis.
+    line : boolean, optional
+        If 'True', lines between points are writen instead of points.
+    """
+    import pyvtk
+    if not os.path.exists(os.path.dirname(filepath)):
+        raise ValueError("'filepath' is not a valid path")
+    if axis is None:
+        axis = ('x', 'y')
+    if not isinstance(axis, ARRAYTYPES):
+        raise TypeError("'axis' must be a 2x1 tuple")
+    if not isinstance(axis[0], STRINGTYPES) \
+            or not isinstance(axis[1], STRINGTYPES):
+        raise TypeError("'axis' must be a 2x1 tuple of strings")
+    if not axis[0] in ['x', 'y', 'z'] or not axis[1] in ['x', 'y', 'z']:
+        raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
+    if axis[0] == axis[1]:
+        raise ValueError("'axis' strings must be different")
+    if not isinstance(line, bool):
+        raise TypeError("'line' must be a boolean")
+    v = self.v
+    x = self.xy[:, 0]
+    y = self.xy[:, 1]
+    if v is None:
+        v = np.zeros(self.xy.shape[0])
+    point_data = pyvtk.PointData(pyvtk.Scalars(v, 'Points values'))
+    x_vtk = np.zeros(self.xy.shape[0])
+    y_vtk = np.zeros(self.xy.shape[0])
+    z_vtk = np.zeros(self.xy.shape[0])
+    if axis[0] == 'x':
+        x_vtk = x
+    elif axis[0] == 'y':
+        y_vtk = x
+    else:
+        z_vtk = x
+    if axis[1] == 'x':
+        x_vtk = y
+    elif axis[1] == 'y':
+        y_vtk = y
+    else:
+        z_vtk = y
+    pts = zip(x_vtk, y_vtk, z_vtk)
+    vertex = np.arange(x_vtk.shape[0])
+    if line:
+        grid = pyvtk.UnstructuredGrid(pts, line=vertex)
+    else:
+        grid = pyvtk.UnstructuredGrid(pts, vertex=vertex)
+    data = pyvtk.VtkData(grid, 'Scalar Field from python', point_data)
+    data.tofile(filepath)
 
 def __export_sf_to_vtk(obj, filepath, axis=None):
     """
@@ -630,6 +695,54 @@ def davis_to_imt_gui():
 
 
 ### ASCII ###
+def import_pts_from_ascii(pts, filename, x_col=1, y_col=2, v_col=None,
+                          unit_x=make_unit(""), unit_y=make_unit(""),
+                          unit_v=make_unit(""), **kwargs):
+        """
+        Import a Points object from an ascii file.
+
+        Parameters
+        ----------
+        pts : Points object
+            .
+        x_col, y_col, v_col : integer, optional
+            Colonne numbers for the given variables
+            (begining at 1).
+        unit_x, unit_y, unit_v : Unit objects, optional
+            Unities for the given variables.
+        **kwargs :
+            Possibles additional parameters are the same as those used in the
+            numpy function 'genfromtext()' :
+            'delimiter' to specify the delimiter between colonnes.
+            'skip_header' to specify the number of colonne to skip at file
+                begining
+            ...
+        """
+        # validating parameters
+        if not isinstance(pts, Points):
+            raise TypeError()
+        if v_col is None:
+            v_col = 0
+        if not isinstance(x_col, int) or not isinstance(y_col, int)\
+                or not isinstance(v_col, int):
+            raise TypeError("'x_col', 'y_col' and 'v_col' must be integers")
+        if x_col < 1 or y_col < 1:
+            raise ValueError("Colonne number out of range")
+        # 'names' deletion, if specified (dangereux pour la suite)
+        if 'names' in kwargs:
+            kwargs.pop('names')
+        # extract data from file
+        data = np.genfromtxt(filename, **kwargs)
+        # get axes
+        x = data[:, x_col-1]
+        y = data[:, y_col-1]
+        pts.xy = zip(x, y)
+        if v_col != 0:
+            v = data[:, v_col-1]
+        else:
+            v = None
+        pts.__init__(zip(x, y), v, unit_x, unit_y, unit_v)
+
 def import_sf_from_ascii(filename, x_col=1, y_col=2, vx_col=3,
                          unit_x=make_unit(""),
                          unit_y=make_unit(""),

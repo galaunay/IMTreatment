@@ -266,38 +266,19 @@ class Points(object):
     name : string, optional
         Name of the points set
     """
-    #@PTest(object, xy=ARRAYTYPES, v=(None, ARRAYTYPES), unit_x=unum.Unum,
-    #       unit_y=unum.Unum, unit_v=unum.Unum, name=(None, STRINGTYPES))
-    def __init__(self, xy=np.empty((0, 2), dtype=float), v=None,
-                 unit_x=make_unit(''), unit_y=make_unit(''),
-                 unit_v=make_unit(''), name=None):
+
+    ### Operators ###
+    def __init__(self, xy=np.empty((0, 2), dtype=float), v=[],
+                 unit_x='', unit_y='', unit_v='', name=''):
         """
         Points builder.
         """
-        if not isinstance(xy, ARRAYTYPES):
-            raise TypeError("'xy' must be a tuple of nx2 arrays")
-        xy = np.array(xy, subok=True, dtype=float)
-        if xy.ndim != 2 or xy.shape[1] != 2:
-            raise ValueError("'xy' must be a tuple of nx2 arrays")
-        if v is not None:
-            if not isinstance(v, ARRAYTYPES):
-                raise TypeError("'v' must be an array")
-            v = np.array(v, dtype=float)
-            if not xy.shape[0] == v.shape[0]:
-                raise ValueError("'v' and 'xy' must have the same dimensions")
-        if not isinstance(unit_x, unum.Unum)   \
-                or not isinstance(unit_y, unum.Unum):
-            raise TypeError("'unit_x' and 'unit_y' must be Unit objects")
-        if name is not None:
-            if not isinstance(name, STRINGTYPES):
-                raise TypeError("'name' must be a string")
-        self.__classname__ = 'Points'
+        self.__v = []
         self.xy = xy
         self.v = v
         self.unit_v = unit_v
         self.unit_x = unit_x
         self.unit_y = unit_y
-
         self.name = name
 
     def __iter__(self):
@@ -310,136 +291,6 @@ class Points(object):
 
     def __len__(self):
         return self.xy.shape[0]
-
-    def import_from_ascii(self, filename, x_col=1, y_col=2, v_col=None,
-                          unit_x=make_unit(""), unit_y=make_unit(""),
-                          unit_v=make_unit(""), **kwargs):
-        """
-        Import a Points object from an ascii file.
-
-        Parameters
-        ----------
-        x_col, y_col, v_col : integer, optional
-            Colonne numbers for the given variables
-            (begining at 1).
-        unit_x, unit_y, unit_v : Unit objects, optional
-            Unities for the given variables.
-        **kwargs :
-            Possibles additional parameters are the same as those used in the
-            numpy function 'genfromtext()' :
-            'delimiter' to specify the delimiter between colonnes.
-            'skip_header' to specify the number of colonne to skip at file
-                begining
-            ...
-        """
-        # validating parameters
-        if v_col is None:
-            v_col = 0
-        if not isinstance(x_col, int) or not isinstance(y_col, int)\
-                or not isinstance(v_col, int):
-            raise TypeError("'x_col', 'y_col' and 'v_col' must be integers")
-        if x_col < 1 or y_col < 1:
-            raise ValueError("Colonne number out of range")
-        # 'names' deletion, if specified (dangereux pour la suite)
-        if 'names' in kwargs:
-            kwargs.pop('names')
-        # extract data from file
-        data = np.genfromtxt(filename, **kwargs)
-        # get axes
-        x = data[:, x_col-1]
-        y = data[:, y_col-1]
-        self.xy = zip(x, y)
-        if v_col != 0:
-            v = data[:, v_col-1]
-        else:
-            v = None
-        self.__init__(zip(x, y), v, unit_x, unit_y, unit_v)
-
-    def export_to_vtk(self, filepath, axis=None, line=False):
-        """
-        Export the scalar field to a .vtk file, for Mayavi use.
-
-        Parameters
-        ----------
-        filepath : string
-            Path where to write the vtk file.
-        axis : tuple of strings, optional
-            By default, points field axe are set to (x,y), if you want
-            different axis, you have to specified them here.
-            For example, "('z', 'y')", put the x points field axis values
-            in vtk z axis, and y points field axis in y vtk axis.
-        line : boolean, optional
-            If 'True', lines between points are writen instead of points.
-        """
-        import pyvtk
-        if not os.path.exists(os.path.dirname(filepath)):
-            raise ValueError("'filepath' is not a valid path")
-        if axis is None:
-            axis = ('x', 'y')
-        if not isinstance(axis, ARRAYTYPES):
-            raise TypeError("'axis' must be a 2x1 tuple")
-        if not isinstance(axis[0], STRINGTYPES) \
-                or not isinstance(axis[1], STRINGTYPES):
-            raise TypeError("'axis' must be a 2x1 tuple of strings")
-        if not axis[0] in ['x', 'y', 'z'] or not axis[1] in ['x', 'y', 'z']:
-            raise ValueError("'axis' strings must be 'x', 'y' or 'z'")
-        if axis[0] == axis[1]:
-            raise ValueError("'axis' strings must be different")
-        if not isinstance(line, bool):
-            raise TypeError("'line' must be a boolean")
-        v = self.v
-        x = self.xy[:, 0]
-        y = self.xy[:, 1]
-        if v is None:
-            v = np.zeros(self.xy.shape[0])
-        point_data = pyvtk.PointData(pyvtk.Scalars(v, 'Points values'))
-        x_vtk = np.zeros(self.xy.shape[0])
-        y_vtk = np.zeros(self.xy.shape[0])
-        z_vtk = np.zeros(self.xy.shape[0])
-        if axis[0] == 'x':
-            x_vtk = x
-        elif axis[0] == 'y':
-            y_vtk = x
-        else:
-            z_vtk = x
-        if axis[1] == 'x':
-            x_vtk = y
-        elif axis[1] == 'y':
-            y_vtk = y
-        else:
-            z_vtk = y
-        pts = zip(x_vtk, y_vtk, z_vtk)
-        vertex = np.arange(x_vtk.shape[0])
-        if line:
-            grid = pyvtk.UnstructuredGrid(pts, line=vertex)
-        else:
-            grid = pyvtk.UnstructuredGrid(pts, vertex=vertex)
-        data = pyvtk.VtkData(grid, 'Scalar Field from python', point_data)
-        data.tofile(filepath)
-
-    def export_to_matlab(self, filepath, name, **kwargs):
-        """
-        Write the point object in a amatlab file.
-
-        Parameters
-        ----------
-        filepath : string
-        global_name : string, optional
-            If specified, 'x', 'y' and 'v' values are stored in a matlab
-            structure object name 'global_name'.
-        """
-        from .file_operation import export_to_matlab
-        dic = export_to_matlab(self, name)
-        spio.savemat(self, filepath, dic, **kwargs)
-
-    def copy(self):
-        """
-        Return a copy of the Points object.
-        """
-        tmp_pts = Points(copy.copy(self.xy), copy.copy(self.v),
-                         unit_x=self.unit_x.copy(), unit_y=self.unit_y.copy(),
-                         unit_v=self.unit_v.copy(), name=self.name)
-        return tmp_pts
 
     def __add__(self, another):
         if isinstance(another, Points):
@@ -508,25 +359,377 @@ class Points(object):
             raise StandardError("You can't add {} to Points objects"
                                 .format(type(another)))
 
-    def _display(self, kind=None, **plotargs):
-        if kind is None:
-            if self.v is None:
-                kind = 'plot'
-            else:
-                kind = 'scatter'
-        if kind == 'scatter':
-            if self.v is None:
-                plot = plt.scatter(self.xy[:, 0], self.xy[:, 1], **plotargs)
-            else:
-                if not 'cmap' in plotargs:
-                    plotargs['cmap'] = plt.cm.jet
-                if not 'c' in plotargs:
-                    plotargs['c'] = self.v
-                plot = plt.scatter(self.xy[:, 0], self.xy[:, 1], **plotargs)
-        elif kind == 'plot':
-            plot = plt.plot(self.xy[:, 0], self.xy[:, 1], **plotargs)
-        return plot
+    ### Attributes ###
+    @property
+    def xy(self):
+        return self.__xy
 
+    @xy.setter
+    def xy(self, values):
+        if not isinstance(values, ARRAYTYPES):
+            raise TypeError
+        values = np.array(values, subok=True)
+        if not values.ndim == 2:
+            raise ValueError("ndim of xy is {} and should be 2"
+                             .format(values.ndim))
+        if not values.shape[1] == 2:
+            raise ValueError()
+        self.__xy = values
+        if len(values) != len(self.__v):
+            self.__v == np.array([])
+
+    @xy.deleter
+    def xy(self):
+        raise Exception("Nope, can't do that")
+
+    @property
+    def v(self):
+        return self.__v
+
+    @v.setter
+    def v(self, values):
+        if not isinstance(values, ARRAYTYPES):
+            raise TypeError
+        values = np.array(values, subok=True)
+        if not values.ndim == 1:
+            raise ValueError()
+        if not len(values) == len(self.__xy):
+            raise ValueError()
+        self.__v = values
+
+    @v.deleter
+    def v(self):
+        raise Exception("Nope, can't do that")
+
+    @property
+    def unit_x(self):
+        return self.__unit_x
+
+    @unit_x.setter
+    def unit_x(self, unit):
+        if isinstance(unit, unum.Unum):
+            self.__unit_x = unit
+        elif isinstance(unit, STRINGTYPES):
+            try:
+                self.__unit_x = make_unit(unit)
+            except (ValueError, TypeError):
+                raise Exception()
+        else:
+            raise Exception()
+
+    @unit_x.deleter
+    def unit_x(self):
+        raise Exception("Nope, can't delete 'unit_x'")
+
+    @property
+    def unit_y(self):
+        return self.__unit_y
+
+    @unit_y.setter
+    def unit_y(self, unit):
+        if isinstance(unit, unum.Unum):
+            self.__unit_y = unit
+        elif isinstance(unit, STRINGTYPES):
+            try:
+                self.__unit_y = make_unit(unit)
+            except (ValueError, TypeError):
+                raise Exception()
+        else:
+            raise Exception()
+
+    @unit_y.deleter
+    def unit_y(self):
+        raise Exception("Nope, can't delete 'unit_y'")
+
+    @property
+    def unit_v(self):
+        return self.__unit_v
+
+    @unit_y.setter
+    def unit_v(self, unit):
+        if isinstance(unit, unum.Unum):
+            self.__unit_v = unit
+        elif isinstance(unit, STRINGTYPES):
+            try:
+                self.__unit_v = make_unit(unit)
+            except (ValueError, TypeError):
+                raise Exception()
+        else:
+            raise Exception()
+
+    @unit_v.deleter
+    def unit_v(self):
+        raise Exception("Nope, can't delete 'unit_v'")
+
+    @property
+    def name(self):
+        return self.__name
+
+    @name.setter
+    def name(self, name):
+        if isinstance(name, STRINGTYPES):
+            self.__name = name
+        else:
+            raise Exception()
+
+    @name.deleter
+    def name(self):
+        raise Exception("Nope, can't delete 'name'")
+
+    ### Properties ###
+
+    ### Watchers ###
+    def copy(self):
+        """
+        Return a copy of the Points object.
+        """
+        return copy.deepcopy(self)
+
+    def get_points_density(self, bw_method=None, resolution=100,
+                           output_format=None, raw=False):
+        """
+        Return a ScalarField with points density.
+
+        Parameters:
+        -----------
+        bw_method : str, scalar or callable, optional
+            The method used to calculate the estimator bandwidth.
+            This can be ‘scott’, ‘silverman’, a scalar constant or
+            a callable. If a scalar, this will be used directly as kde.factor.
+            If a callable, it should take a gaussian_kde instance as only
+            parameter and return a scalar. If None (default), ‘scott’ is used.
+            See Notes for more details.
+        resolution : integer or 2x1 tuple of integers, optional
+            Resolution for the resulting field.
+            Can be a tuple in order to specify resolution along x and y.
+        format : string, optional
+            'normalized' (default) : give position probability
+                                     (integral egal 1).
+            'ponderated' : give position probability ponderated by the number
+                           or points (integral egal number of points).
+            'concentration' : give local concentration (in point per surface).
+
+        raw : boolean, optional
+            If 'False' (default), return a ScalarField object,
+            if 'True', return numpy array.
+        """
+        # checking points length
+        if len(self.xy) < 2:
+            raise Exception()
+        # getting data
+        min_x = np.min(self.xy[:, 0])
+        max_x = np.max(self.xy[:, 0])
+        min_y = np.min(self.xy[:, 1])
+        max_y = np.max(self.xy[:, 1])
+        # checking parameters
+        if isinstance(resolution, int):
+            width_x = max_x - min_x
+            width_y = max_y - min_y
+            if width_x > width_y:
+                res_x = resolution
+                res_y = np.round(resolution*width_y/width_x)
+            else:
+                res_y = resolution
+                res_x = np.round(resolution*width_x/width_y)
+        elif isinstance(resolution, ARRAYTYPES):
+            if len(resolution) != 2:
+                raise ValueError()
+            res_x = resolution[0]
+            res_y = resolution[1]
+        else:
+            raise TypeError()
+        if res_x < 2 or res_y < 2:
+            raise ValueError()
+        # get kernel using scipy
+        kernel = stats.gaussian_kde(self.xy.transpose(), bw_method=bw_method)
+        # creating grid
+        axe_x = np.linspace(min_x, max_x, res_x)
+        axe_y = np.linspace(min_y, max_y, res_y)
+        X, Y = np.meshgrid(axe_x, axe_y)
+        X = X.flatten()
+        Y = Y.flatten()
+        positions = np.array([[X[i], Y[i]]
+                              for i in np.arange(len(X))]).transpose()
+        # estimate density
+        values = kernel(positions)
+        values = values.reshape((res_y, res_x)).transpose()
+        if output_format is None or output_format == "normalized":
+            unit_values = make_unit('')
+        elif output_format == 'ponderated':
+            values = values*len(self.xy)
+            unit_values = make_unit('')
+        elif output_format == "percentage":
+            values = values*100
+            unit_values = make_unit('')
+        elif output_format == "concentration":
+            unit_values = 1/self.unit_x/self.unit_y
+            values = values*len(self.xy)
+        else:
+            raise ValueError()
+        # return
+        if raw:
+            return values
+        else:
+            sf = ScalarField()
+            sf.import_from_arrays(axe_x, axe_y, values, mask=False,
+                                  unit_x=self.unit_x, unit_y=self.unit_y,
+                                  unit_values=unit_values)
+            return sf
+
+    def get_points_density2(self, res, subres=None, raw=False,
+                            ponderated=False):
+        """
+        Return a ScalarField with points density.
+
+        Parameters:
+        -----------
+        res : number or 2x1 array of numbers
+            fdensity field number of subdivision.
+            Can be the same number for both axis,  or one number per axis
+            (need to give a tuple).
+        raw : boolean, optional
+            If 'False' (default), return a ScalarField object,
+            if 'True', return numpy array.
+        ponderated : boolean, optiona
+            If 'True', values associated to points are used to ponderate the
+            density field. Default is 'False'.
+        subres : odd integer, optional
+            If specified, a subgrid of resolution res*subres is used to
+            make resulte more accurate.
+        """
+        # checking parameters
+        if isinstance(res, int):
+            res_x = res
+            res_y = res
+        elif isinstance(res, ARRAYTYPES):
+            if len(res) != 2:
+                raise ValueError()
+            res_x = res[0]
+            res_y = res[1]
+        else:
+            raise TypeError()
+        if not isinstance(raw, bool):
+            raise TypeError()
+        if not isinstance(ponderated, bool):
+            raise TypeError()
+        if isinstance(subres, int) and subres > 0:
+            subres = np.floor(subres/2)*2
+            subres2 = (subres)/2
+        elif subres is None:
+            pass
+        else:
+            raise TypeError()
+        # If we use a subgrid
+        if subres is not None:
+            # creating grid
+            min_x = np.min(self.xy[:, 0])
+            max_x = np.max(self.xy[:, 0])
+            min_y = np.min(self.xy[:, 1])
+            max_y = np.max(self.xy[:, 1])
+            dx = (max_x - min_x)/(res_x)
+            dy = (max_y - min_y)/(res_y)
+            sub_dx = dx/subres
+            sub_dy = dy/subres
+            axe_x = np.arange(min_x - dx/2, max_x + dx/2 + sub_dx, sub_dx)
+            axe_y = np.arange(min_y - dy/2, max_y + dy/2 + sub_dy, sub_dy)
+            values = np.zeros((len(axe_x), len(axe_y)))
+            # filling grid with density
+            for i, pt in enumerate(self.xy):
+                x = pt[0]
+                y = pt[1]
+                ind_x = np.argmin(np.abs(axe_x - x))
+                ind_y = np.argmin(np.abs(axe_y - y))
+                slic_x = slice(ind_x - subres2 + 1, ind_x + subres2)
+                slic_y = slice(ind_y - subres2 + 1, ind_y + subres2)
+                if ponderated:
+                    values[slic_x, slic_y] += self.v[i]
+                else:
+                    values[slic_x, slic_y] += 1
+            values /= (dx*dy)
+            values = values[subres2:-subres2, subres2:-subres2]
+            axe_x = axe_x[subres2:-subres2]
+            axe_y = axe_y[subres2:-subres2]
+        # if we do not use a subgrid
+        else:
+            # creating grid
+            min_x = np.min(self.xy[:, 0])
+            max_x = np.max(self.xy[:, 0])
+            min_y = np.min(self.xy[:, 1])
+            max_y = np.max(self.xy[:, 1])
+            axe_x, dx = np.linspace(min_x, max_x, res_x, retstep=True)
+            axe_y, dy = np.linspace(min_y, max_y, res_y, retstep=True)
+            values = np.zeros((len(axe_x), len(axe_y)))
+            # filling grid with density
+            for i, pt in enumerate(self.xy):
+                x = pt[0]
+                y = pt[1]
+                ind_x = np.argmin(np.abs(axe_x - x))
+                ind_y = np.argmin(np.abs(axe_y - y))
+                if ponderated:
+                    values[ind_x, ind_y] += self.v[i]
+                else:
+                    values[ind_x, ind_y] += 1
+            values /= (dx*dy)
+        # return the field
+        if raw:
+            return values
+        else:
+            sf = ScalarField()
+            if ponderated:
+                unit_values = self.unit_v/self.unit_x/self.unit_y
+            else:
+                unit_values = 1/self.unit_x/self.unit_y
+            sf.import_from_arrays(axe_x, axe_y, values, mask=False,
+                                  unit_x=self.unit_x, unit_y=self.unit_y,
+                                  unit_values=unit_values)
+            return sf
+
+    def fit(self, kind='polynomial', order=2, simplify=False):
+        """
+        Return the parametric coefficients of the fitting curve on the points.
+
+        Parameters
+        ----------
+        kind : string, optional
+            The kind of fitting used. Can be 'polynomial' or 'ellipse'.
+        order : integer
+            Approximation order for the fitting.
+        Simplify : boolean or string, optional
+            Can be False (default), 'x' or 'y'. Perform a simplification
+            (see Points.Siplify()) before the fitting.
+
+        Returns
+        -------
+        p : array, only for polynomial fitting
+            Polynomial coefficients, highest power first
+        radii : array, only for ellipse fitting
+            Ellipse demi-axes radii.
+        center : array, only for ellipse fitting
+           Ellipse center coordinates.
+        alpha : number
+            Angle between the x axis and the major axis.
+        """
+        if not isinstance(order, int):
+            raise TypeError("'order' must be an integer")
+        if not isinstance(kind, STRINGTYPES):
+            raise TypeError("'kind' must be a string")
+        if not simplify:
+            xytmp = self.xy
+        elif simplify == 'x':
+            xytmp = self.simplify(axe=0).xy
+        elif simplify == 'y':
+            xytmp = self.simplify(axe=1).xy
+
+        if kind == 'polynomial':
+            p = np.polyfit(xytmp[:, 0], xytmp[:, 1], order)
+            return p
+        elif kind == 'ellipse':
+            import fit_ellipse as fte
+            res = fte.fit_ellipse(xytmp)
+            radii, center, alpha = fte.get_parameters(res)
+            return radii, center, alpha
+
+    ### Modifiers ###
     def add(self, pt, v=None):
         """
         Add a new point.
@@ -555,8 +758,6 @@ class Points(object):
         elif self.v is None and v is None:
             pass
         else:
-            print(self.xy, self.v)
-            print(pt, v)
             raise ValueError()
 
     def remove(self, ind):
@@ -577,30 +778,9 @@ class Points(object):
             ind = np.array(ind)
         else:
             raise TypeError("'ind' must be an integer or an array of integer")
+        tmp_v = self.v.copy()
         self.xy = np.delete(self.xy, ind, axis=0)
-        self.v = np.delete(self.v, ind, axis=0)
-
-    def display(self, kind=None, **plotargs):
-        """
-        Display the set of points.
-
-        Parameters
-        ----------
-        kind : string, optional
-            Can be 'plot' (default if points have not values).
-            or 'scatter' (default if points have values).
-        """
-        plot = self._display(kind, **plotargs)
-        if self.v is not None and kind == 'scatter':
-            cb = plt.colorbar(plot)
-            cb.set_label(self.unit_v.strUnit())
-        plt.xlabel('X ' + self.unit_x.strUnit())
-        plt.ylabel('Y ' + self.unit_y.strUnit())
-        if self.name is None:
-            plt.title('Set of points')
-        else:
-            plt.title(self.name)
-        return plot
+        self.v = np.delete(tmp_v, ind, axis=0)
 
     def trim(self, interv_x=None, interv_y=None):
         """
@@ -689,250 +869,47 @@ class Points(object):
                                    self.unit_y, self.unit_v, self.name))
         return pts_tupl
 
-    def fit(self, kind='polynomial', order=2, simplify=False):
+    ### Displayers ###
+    def _display(self, kind=None, **plotargs):
+        if kind is None:
+            if self.v is None:
+                kind = 'plot'
+            else:
+                kind = 'scatter'
+        if kind == 'scatter':
+            if self.v is None:
+                plot = plt.scatter(self.xy[:, 0], self.xy[:, 1], **plotargs)
+            else:
+                if not 'cmap' in plotargs:
+                    plotargs['cmap'] = plt.cm.jet
+                if not 'c' in plotargs:
+                    plotargs['c'] = self.v
+                plot = plt.scatter(self.xy[:, 0], self.xy[:, 1], **plotargs)
+        elif kind == 'plot':
+            plot = plt.plot(self.xy[:, 0], self.xy[:, 1], **plotargs)
+        return plot
+
+    def display(self, kind=None, **plotargs):
         """
-        Return the parametric coefficients of the fitting curve on the points.
+        Display the set of points.
 
         Parameters
         ----------
         kind : string, optional
-            The kind of fitting used. Can be 'polynomial' or 'ellipse'.
-        order : integer
-            Approximation order for the fitting.
-        Simplify : boolean or string, optional
-            Can be False (default), 'x' or 'y'. Perform a simplification
-            (see Points.Siplify()) before the fitting.
-
-        Returns
-        -------
-        p : array, only for polynomial fitting
-            Polynomial coefficients, highest power first
-        radii : array, only for ellipse fitting
-            Ellipse demi-axes radii.
-        center : array, only for ellipse fitting
-           Ellipse center coordinates.
-        alpha : number
-            Angle between the x axis and the major axis.
+            Can be 'plot' (default if points have not values).
+            or 'scatter' (default if points have values).
         """
-        if not isinstance(order, int):
-            raise TypeError("'order' must be an integer")
-        if not isinstance(kind, STRINGTYPES):
-            raise TypeError("'kind' must be a string")
-        if not simplify:
-            xytmp = self.xy
-        elif simplify == 'x':
-            xytmp = self.simplify(axe=0).xy
-        elif simplify == 'y':
-            xytmp = self.simplify(axe=1).xy
-
-        if kind == 'polynomial':
-            p = np.polyfit(xytmp[:, 0], xytmp[:, 1], order)
-            return p
-        elif kind == 'ellipse':
-            import fit_ellipse as fte
-            res = fte.fit_ellipse(xytmp)
-            radii, center, alpha = fte.get_parameters(res)
-            return radii, center, alpha
-
-    def get_points_density(self, bw_method=None, resolution=100,
-                           output_format=None, raw=False):
-        """
-        Return a ScalarField with points density.
-
-        Parameters:
-        -----------
-        bw_method : str, scalar or callable, optional
-            The method used to calculate the estimator bandwidth.
-            This can be ‘scott’, ‘silverman’, a scalar constant or
-            a callable. If a scalar, this will be used directly as kde.factor.
-            If a callable, it should take a gaussian_kde instance as only
-            parameter and return a scalar. If None (default), ‘scott’ is used.
-            See Notes for more details.
-        resolution : integer or 2x1 tuple of integers, optional
-            Resolution for the resulting field.
-            Can be a tuple in order to specify resolution along x and y.
-        format : string, optional
-            'normalized' (default) : give position probability
-                                     (integral egal 1).
-            'ponderated' : give position probability ponderated by the number
-                           or points (integral egal number of points).
-            'concentration' : give local concentration (in point per surface).
-
-        raw : boolean, optional
-            If 'False' (default), return a ScalarField object,
-            if 'True', return numpy array.
-        """
-        # checking points length
-        if len(self.xy) < 2:
-            raise Exception()
-        # getting data
-        min_x = np.min(self.xy[:, 0])
-        max_x = np.max(self.xy[:, 0])
-        min_y = np.min(self.xy[:, 1])
-        max_y = np.max(self.xy[:, 1])
-        # checking parameters
-        if isinstance(resolution, int):
-            width_x = max_x - min_x
-            width_y = max_y - min_y
-            if width_x > width_y:
-                res_x = resolution
-                res_y = np.round(resolution*width_y/width_x)
-            else:
-                res_y = resolution
-                res_x = np.round(resolution*width_x/width_y)
-        elif isinstance(resolution, ARRAYTYPES):
-            if len(resolution) != 2:
-                raise ValueError()
-            res_x = resolution[0]
-            res_y = resolution[1]
+        plot = self._display(kind, **plotargs)
+        if self.v is not None and kind == 'scatter':
+            cb = plt.colorbar(plot)
+            cb.set_label(self.unit_v.strUnit())
+        plt.xlabel('X ' + self.unit_x.strUnit())
+        plt.ylabel('Y ' + self.unit_y.strUnit())
+        if self.name is None:
+            plt.title('Set of points')
         else:
-            raise TypeError()
-        if res_x < 2 or res_y < 2:
-            raise ValueError()
-        # get kernel using scipy
-        kernel = stats.gaussian_kde(self.xy.transpose(), bw_method=bw_method)
-        # creating grid
-        axe_x = np.linspace(min_x, max_x, res_x)
-        axe_y = np.linspace(min_y, max_y, res_y)
-        X, Y = np.meshgrid(axe_x, axe_y)
-        X = X.flatten()
-        Y = Y.flatten()
-        positions = np.array([[X[i], Y[i]]
-                              for i in np.arange(len(X))]).transpose()
-        # estimate density
-        values = kernel(positions)
-        values = values.reshape((res_y, res_x)).transpose()
-        if output_format is None or output_format == "normalized":
-            unit_values = make_unit('')
-        elif output_format == 'ponderated':
-            values = values*len(self.xy)
-            unit_values = make_unit('')
-        elif output_format == "percentage":
-            values = values*100
-            unit_values = make_unit('')
-        elif output_format == "concentration":
-            unit_values = 1/self.unit_x/self.unit_y
-            values  = values*len(self.xy)
-        else:
-            raise ValueError()
-        # return
-        if raw:
-            return values
-        else:
-            sf = ScalarField()
-            sf.import_from_arrays(axe_x, axe_y, values, mask=False,
-                                  unit_x=self.unit_x, unit_y=self.unit_y,
-                                  unit_values=unit_values)
-            return sf
-
-    def get_points_density2(self, res, subres=None, raw=False,
-                           ponderated=False):
-        """
-        Return a ScalarField with points density.
-
-        Parameters:
-        -----------
-        res : number or 2x1 array of numbers
-            fdensity field number of subdivision.
-            Can be the same number for both axis,  or one number per axis
-            (need to give a tuple).
-        raw : boolean, optional
-            If 'False' (default), return a ScalarField object,
-            if 'True', return numpy array.
-        ponderated : boolean, optiona
-            If 'True', values associated to points are used to ponderate the
-            density field. Default is 'False'.
-        subres : odd integer, optional
-            If specified, a subgrid of resolution res*subres is used to
-            make resulte more accurate.
-        """
-        # checking parameters
-        if isinstance(res, int):
-            res_x = res
-            res_y = res
-        elif isinstance(res, ARRAYTYPES):
-            if len(res) != 2:
-                raise ValueError()
-            res_x = res[0]
-            res_y = res[1]
-        else:
-            raise TypeError()
-        if not isinstance(raw, bool):
-            raise TypeError()
-        if not isinstance(ponderated, bool):
-            raise TypeError()
-        if isinstance(subres, int) and subres > 0:
-            subres = np.floor(subres/2)*2
-            subres2 = (subres)/2
-        elif subres is None:
-            pass
-        else:
-            raise TypeError()
-        # If we use a subgrid
-        if subres is not None:
-            # creating grid
-            min_x = np.min(self.xy[:, 0])
-            max_x = np.max(self.xy[:, 0])
-            min_y = np.min(self.xy[:, 1])
-            max_y = np.max(self.xy[:, 1])
-            dx = (max_x - min_x)/(res_x)
-            dy = (max_y - min_y)/(res_y)
-            sub_dx = dx/subres
-            sub_dy = dy/subres
-            axe_x = np.arange(min_x - dx/2, max_x + dx/2 + sub_dx, sub_dx)
-            axe_y = np.arange(min_y - dy/2, max_y + dy/2 + sub_dy, sub_dy)
-            values = np.zeros((len(axe_x), len(axe_y)))
-            print()
-            # filling grid with density
-            for i, pt in enumerate(self.xy):
-                x = pt[0]
-                y = pt[1]
-                ind_x = np.argmin(np.abs(axe_x - x))
-                ind_y = np.argmin(np.abs(axe_y - y))
-                slic_x = slice(ind_x - subres2 + 1, ind_x + subres2)
-                slic_y = slice(ind_y - subres2 + 1, ind_y + subres2)
-                if ponderated:
-                    values[slic_x, slic_y] += self.v[i]
-                else:
-                    values[slic_x, slic_y] += 1
-            values /= (dx*dy)
-            values = values[subres2:-subres2, subres2:-subres2]
-            axe_x = axe_x[subres2:-subres2]
-            axe_y = axe_y[subres2:-subres2]
-        # if we do not use a subgrid
-        else:
-            # creating grid
-            min_x = np.min(self.xy[:, 0])
-            max_x = np.max(self.xy[:, 0])
-            min_y = np.min(self.xy[:, 1])
-            max_y = np.max(self.xy[:, 1])
-            axe_x, dx = np.linspace(min_x, max_x, res_x, retstep=True)
-            axe_y, dy = np.linspace(min_y, max_y, res_y, retstep=True)
-            values = np.zeros((len(axe_x), len(axe_y)))
-            # filling grid with density
-            for i, pt in enumerate(self.xy):
-                x = pt[0]
-                y = pt[1]
-                ind_x = np.argmin(np.abs(axe_x - x))
-                ind_y = np.argmin(np.abs(axe_y - y))
-                if ponderated:
-                    values[ind_x, ind_y] += self.v[i]
-                else:
-                    values[ind_x, ind_y] += 1
-            values /= (dx*dy)
-        # return the field
-        if raw:
-            return values
-        else:
-            sf = ScalarField()
-            if ponderated:
-                unit_values = self.unit_v/self.unit_x/self.unit_y
-            else:
-                unit_values = 1/self.unit_x/self.unit_y
-            sf.import_from_arrays(axe_x, axe_y, values, mask=False,
-                                  unit_x=self.unit_x, unit_y=self.unit_y,
-                                  unit_values=unit_values)
-            return sf
+            plt.title(self.name)
+        return plot
 
 
 class Profile(object):
@@ -979,7 +956,6 @@ class Profile(object):
             raise TypeError("'unit_y' must be a 'Unit' object")
         if not len(x) == len(y):
             raise ValueError("'x' and 'y' must have the same length")
-        self.__classname__ = "Profile"
         order = np.argsort(x)
         self.x = x[order]
         self.y = y[order]
@@ -1207,6 +1183,11 @@ class Profile(object):
     def unit_x(self, unit):
         if isinstance(unit, unum.Unum):
             self.__unit_x = unit
+        elif isinstance(unit, STRINGTYPES):
+            try:
+                self.__unit_x = make_unit(unit)
+            except (ValueError, TypeError):
+                raise Exception()
         else:
             raise Exception()
 
@@ -1222,6 +1203,11 @@ class Profile(object):
     def unit_y(self, unit):
         if isinstance(unit, unum.Unum):
             self.__unit_y = unit
+        elif isinstance(unit, STRINGTYPES):
+            try:
+                self.__unit_y = make_unit(unit)
+            except (ValueError, TypeError):
+                raise Exception()
         else:
             raise Exception()
 
