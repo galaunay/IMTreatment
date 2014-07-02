@@ -4835,7 +4835,9 @@ class TemporalFields(Fields, Field):
         callback.bslid = Slider(axslid, "", valmin=1, valfmt='%d',
                                 valmax=callback.ind_max, valinit=1)
         callback.bslid.on_changed(callback.slid)
-        return callback
+        fig = callback.fig
+        del callback
+        return fig
 
     def display_animate(self, compo='V', interval=500, fields_inds=None,
                         repeat=True,
