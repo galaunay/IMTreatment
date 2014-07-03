@@ -522,5 +522,6 @@ def get_shape_factor(obj, direction=1):
     displ = get_displ_thickness(obj, direction)
     mom = get_momentum_thickness(obj, direction)
     shape_factor = displ/mom
-    shape_factor.mask = np.logical_or(shape_factor.mask, mom.y<=0)
+    if isinstance(shape_factor, Profile):
+        shape_factor.mask = np.logical_or(shape_factor.mask, mom.y<=0)
     return shape_factor
