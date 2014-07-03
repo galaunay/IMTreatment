@@ -362,12 +362,17 @@ class Points(object):
     ### Attributes ###
     @property
     def xy(self):
-        return self.__xy
+        # XXX: for compatibility purpose, to remove
+        try:
+            return self.__xy
+        except AttributeError:
+            return self.__dict__['xy']
 
     @xy.setter
     def xy(self, values):
         if not isinstance(values, ARRAYTYPES):
-            raise TypeError
+            raise TypeError("'xy' should be an array, not {}"
+                            .format(type(values)))
         values = np.array(values, subok=True)
         if not values.ndim == 2:
             raise ValueError("ndim of xy is {} and should be 2"
@@ -384,7 +389,11 @@ class Points(object):
 
     @property
     def v(self):
-        return self.__v
+        # XXX: for compatibility purpose, to remove
+        try:
+            return self.__v
+        except AttributeError:
+            return self.__dict__['v']
 
     @v.setter
     def v(self, values):
@@ -403,7 +412,11 @@ class Points(object):
 
     @property
     def unit_x(self):
-        return self.__unit_x
+        # XXX: for compatibility purpose, to remove
+        try:
+            return self.__unit_x
+        except AttributeError:
+            return self.__dict__['unit_x']
 
     @unit_x.setter
     def unit_x(self, unit):
@@ -423,7 +436,11 @@ class Points(object):
 
     @property
     def unit_y(self):
-        return self.__unit_y
+        # XXX: for compatibility purpose, to remove
+        try:
+            return self.__unit_y
+        except AttributeError:
+            return self.__dict__['unit_y']
 
     @unit_y.setter
     def unit_y(self, unit):
@@ -443,7 +460,11 @@ class Points(object):
 
     @property
     def unit_v(self):
-        return self.__unit_v
+        # XXX: for compatibility purpose, to remove
+        try:
+            return self.__unit_v
+        except AttributeError:
+            return self.__dict__['unit_v']
 
     @unit_y.setter
     def unit_v(self, unit):
@@ -463,7 +484,11 @@ class Points(object):
 
     @property
     def name(self):
-        return self.__name
+        # XXX: for compatibility purpose, to remove
+        try:
+            return self.__name
+        except AttributeError:
+            return self.__dict__['name']
 
     @name.setter
     def name(self, name):
@@ -2106,20 +2131,56 @@ class ScalarField(Field):
     def __add__(self, otherone):
         # if we add with a ScalarField object
         if isinstance(otherone, ScalarField):
-            if all(self.axe_x != otherone.axe_x) or \
-                    all(self.axe_y != otherone.axe_y):
-                raise ValueError("Scalar fields have to be consistent "
-                                 "(same dimensions)")
+            # test unities system
             try:
                 self.unit_values + otherone.unit_values
                 self.unit_x + otherone.unit_x
                 self.unit_y + otherone.unit_y
             except:
                 raise ValueError("I think these units don't match, fox")
-            tmpsf = self.copy()
-            fact = otherone.unit_values/self.unit_values
-            tmpsf.values += otherone.values*fact.asNumber()
-            tmpsf.mask = np.logical_or(self.mask, otherone.mask)
+            # identical shape and axis
+            if np.all(self.axe_x == otherone.axe_x) and \
+                    np.all(self.axe_y == otherone.axe_y):
+                tmpsf = self.copy()
+                fact = otherone.unit_values/self.unit_values
+                tmpsf.values += otherone.values*fact.asNumber()
+                tmpsf.mask = np.logical_or(self.mask, otherone.mask)
+            # different shape, partially same axis
+            else:
+                # getting shared points
+                new_ind_x = np.array([val in otherone.axe_x
+                                      for val in self.axe_x])
+                new_ind_y = np.array([val in otherone.axe_y
+                                      for val in self.axe_y])
+                new_ind_xo = np.array([val in self.axe_x
+                                       for val in otherone.axe_x])
+                new_ind_yo = np.array([val in self.axe_y
+                                       for val in otherone.axe_y])
+                if not np.any(new_ind_x) or not np.any(new_ind_y):
+                    raise ValueError("Incompatible shapes")
+                new_ind_Y, new_ind_X = np.meshgrid(new_ind_y, new_ind_x)
+                new_ind_value = np.logical_and(new_ind_X, new_ind_Y)
+                new_ind_Yo, new_ind_Xo = np.meshgrid(new_ind_yo, new_ind_xo)
+                new_ind_valueo = np.logical_and(new_ind_Xo, new_ind_Yo)
+                # getting new axis and values
+                new_axe_x = self.axe_x[new_ind_x]
+                new_axe_y = self.axe_y[new_ind_y]
+                fact = otherone.unit_values/self.unit_values
+                new_values = (self.values[new_ind_value]
+                              + otherone.values[new_ind_valueo]
+                              * fact.asNumber())
+                new_values = new_values.reshape((len(new_axe_x),
+                                                 len(new_axe_y)))
+                new_mask = np.logical_or(self.mask[new_ind_value],
+                                         otherone.mask[new_ind_valueo])
+                new_mask = new_mask.reshape((len(new_axe_x), len(new_axe_y)))
+                # creating sf
+                pdb.set_trace()
+                tmpsf = ScalarField()
+                tmpsf.import_from_arrays(new_axe_x, new_axe_y, new_values,
+                                         mask=new_mask, unit_x=self.unit_x,
+                                         unit_y=self.unit_y,
+                                         unit_values=self.unit_values)
             return tmpsf
         # if we add with a number
         elif isinstance(otherone, NUMBERTYPES):
@@ -3199,23 +3260,64 @@ class VectorField(Field):
 
     def __add__(self, other):
         if isinstance(other, VectorField):
-            axe_x, axe_y = self.axe_x, self.axe_y
-            oaxe_x, oaxe_y = other.axe_x, other.axe_y
-            if (np.all(axe_x != oaxe_x) or np.all(axe_y != oaxe_y)):
-                raise ValueError("Vector fields have to be consistent "
-                                 "(same dimensions)")
+            # test unities system
             try:
                 self.unit_values + other.unit_values
                 self.unit_x + other.unit_x
                 self.unit_y + other.unit_y
             except:
                 raise ValueError("I think these units don't match, fox")
-            tmpvf = self.copy()
-            fact = (other.unit_values / self.unit_values).asNumber()
-            tmpvf.comp_x = self.comp_x + other.comp_x*fact
-            tmpvf.comp_y = self.comp_y + other.comp_y*fact
-            tmpvf.mask = np.logical_or(self.mask, other.mask)
-            return tmpvf
+            # identical shape and axis
+            if np.all(self.axe_x == other.axe_x) and \
+                    np.all(self.axe_y == other.axe_y):
+                tmpvf = self.copy()
+                fact = other.unit_values/self.unit_values
+                tmpvf.comp_x = self.comp_x + other.comp_x*fact
+                tmpvf.comp_y = self.comp_y + other.comp_y*fact
+                tmpvf.mask = np.logical_or(self.mask, other.mask)
+                return tmpvf
+            # different shape, partially same axis
+            else:
+                # getting shared points
+                new_ind_x = np.array([val in other.axe_x
+                                      for val in self.axe_x])
+                new_ind_y = np.array([val in other.axe_y
+                                      for val in self.axe_y])
+                new_ind_xo = np.array([val in self.axe_x
+                                       for val in other.axe_x])
+                new_ind_yo = np.array([val in self.axe_y
+                                       for val in other.axe_y])
+                if not np.any(new_ind_x) or not np.any(new_ind_y):
+                    raise ValueError("Incompatible shapes")
+                new_ind_Y, new_ind_X = np.meshgrid(new_ind_y, new_ind_x)
+                new_ind_value = np.logical_and(new_ind_X, new_ind_Y)
+                new_ind_Yo, new_ind_Xo = np.meshgrid(new_ind_yo, new_ind_xo)
+                new_ind_valueo = np.logical_and(new_ind_Xo, new_ind_Yo)
+                # getting new axis and values
+                new_axe_x = self.axe_x[new_ind_x]
+                new_axe_y = self.axe_y[new_ind_y]
+                fact = other.unit_values/self.unit_values
+                new_comp_x = (self.comp_x[new_ind_value]
+                              + other.comp_x[new_ind_valueo]
+                              * fact.asNumber())
+                new_comp_y = (self.comp_y[new_ind_value]
+                              + other.comp_y[new_ind_valueo]
+                              * fact.asNumber())
+                new_comp_x = new_comp_x.reshape((len(new_axe_x),
+                                                 len(new_axe_y)))
+                new_comp_y = new_comp_y.reshape((len(new_axe_x),
+                                                 len(new_axe_y)))
+                new_mask = np.logical_or(self.mask[new_ind_value],
+                                         other.mask[new_ind_valueo])
+                new_mask = new_mask.reshape((len(new_axe_x), len(new_axe_y)))
+                # creating vf
+                tmpvf = VectorField()
+                tmpvf.import_from_arrays(new_axe_x, new_axe_y, new_comp_x,
+                                         new_comp_y,
+                                         mask=new_mask, unit_x=self.unit_x,
+                                         unit_y=self.unit_y,
+                                         unit_values=self.unit_values)
+                return tmpvf
         elif isinstance(other, ARRAYTYPES):
             other = np.array(other, subok=True)
             if other.shape != self.shape:
@@ -4087,7 +4189,7 @@ class TemporalFields(Fields, Field):
     def times(self, values):
         if not isinstance(values, ARRAYTYPES):
             raise TypeError()
-        if len(self.__times) != len(values):
+        if len(self.fields) != len(values):
             raise ValueError()
         self.__times = values
 

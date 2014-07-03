@@ -460,9 +460,7 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
     radii_prof = Profile(TVFS.times, radii, mask=False, unit_x=TVFS.unit_times,
                          unit_y=TVFS.unit_x)
     if output_center:
-        centers_pts = Points(centers, v=TVFS.times, unit_x=TVFS.unit_x,
-                             unit_y=TVFS.unit_y, unit_v=TVFS.unit_times)
-        return radii_prof, centers_pts
+        return radii_prof, centers
     else:
         return radii_prof
 
