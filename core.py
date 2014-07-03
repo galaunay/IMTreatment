@@ -1685,7 +1685,7 @@ class Profile(object):
                                unit_y=self.unit_y, name=self.name)
             return tmp_prof
 
-    def smooth(self, tos='uniform', size=None, **kw):
+    def smooth(self, tos='uniform', size=None, direction='y', **kw):
         """
         Return a smoothed profile.
         Warning : fill up the field
@@ -1699,6 +1699,8 @@ class Profile(object):
             Size of the smoothing (is radius for 'uniform' and
             sigma for 'gaussian').
             Default is 3 for 'uniform' and 1 for 'gaussian'.
+        dir : string, optional
+            In which direction smoothing (can be 'x', 'y' or 'xy').
         kw : dic
             Additional parameters for ndimage methods
             (See ndimage documentation)
@@ -1709,20 +1711,36 @@ class Profile(object):
             size = 3
         elif size is None and tos == 'gaussian':
             size = 1
+        if not direction in ['x', 'y', 'xy']:
+            raise ValueError()
         tmp_prof = self.copy()
         # filling up the field before smoothing
         tmp_prof.fill(inplace=True)
         # mask treatment
-        values = tmp_prof.y
+        y = tmp_prof.y
+        x = tmp_prof.x
         # smoothing
         if tos == "uniform":
-            values = ndimage.uniform_filter(values, size, **kw)
+            if direction == 'y':
+                y = ndimage.uniform_filter(y, size, **kw)
+            if direction == 'x':
+                x = ndimage.uniform_filter(x, size, **kw)
+            if direction == 'xy':
+                x = ndimage.uniform_filter(x, size, **kw)
+                y = ndimage.uniform_filter(y, size, **kw)
         elif tos == "gaussian":
-            values = ndimage.gaussian_filter(values, size, **kw)
+            if direction == 'y':
+                y = ndimage.gaussian_filter(y, size, **kw)
+            if direction == 'x':
+                x = ndimage.gaussian_filter(x, size, **kw)
+            if direction == 'xy':
+                x = ndimage.gaussian_filter(x, size, **kw)
+                y = ndimage.gaussian_filter(y, size, **kw)
         else:
             raise ValueError("'tos' must be 'uniform' or 'gaussian'")
         # storing
-        tmp_prof.y = values
+        tmp_prof.x = x
+        tmp_prof.y = y
         return tmp_prof
 
     ### Displayers ###
