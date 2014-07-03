@@ -3271,7 +3271,7 @@ class VectorField(Field):
             if np.all(self.axe_x == other.axe_x) and \
                     np.all(self.axe_y == other.axe_y):
                 tmpvf = self.copy()
-                fact = other.unit_values/self.unit_values
+                fact = (other.unit_values/self.unit_values).asNumber()
                 tmpvf.comp_x = self.comp_x + other.comp_x*fact
                 tmpvf.comp_y = self.comp_y + other.comp_y*fact
                 tmpvf.mask = np.logical_or(self.mask, other.mask)
@@ -3334,9 +3334,17 @@ class VectorField(Field):
             tmpvf.comp_y = self.comp_y + fact
             tmpvf.mask = self.mask
             return tmpvf
+        elif isinstance(other, NUMBERTYPES):
+            tmpvf = self.copy()
+            tmpvf.comp_x = self.comp_x + other
+            tmpvf.comp_y = self.comp_y + other
+            tmpvf.mask = self.mask
+            return tmpvf
         else:
             raise TypeError("You can only add a velocity field "
                             "with others velocity fields")
+
+    __radd__ = __add__
 
     def __sub__(self, other):
         other_tmp = other.__neg__()
