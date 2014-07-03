@@ -714,6 +714,63 @@ class Points(object):
                                   unit_values=unit_values)
             return sf
 
+    def get_velocity(self, smooth=None):
+        """
+        Assuming that associated 'v' values are times for each points,
+        compute the velocity of the trajectory.
+
+        Parameters
+        ----------
+        smooth : number, optional
+            Size of smoothing (gaussian smoothing) applied on x and y values,
+            before computing velocities.
+
+        Return
+        ------
+        Vx : Profile object
+            Profile of x velocity versus time.
+        Vy : Profile object
+            Profile of y velocity versus time.
+        """
+        if smooth is not None:
+            if not isinstance(smooth, NUMBERTYPES):
+                raise TypeError()
+            if smooth < 0:
+                raise ValueError()
+        # checking 'v' presence
+        if len(self.v) == 0:
+            raise Exception()
+        # sorting points by time
+        ind_sort = np.argsort(self.v)
+        times = self.v[ind_sort]
+        dt = times[1::] - times[:-1]
+        xy = self.xy[ind_sort]
+        x = xy[:, 0]
+        y = xy[:, 1]
+        # smoothing if necessary
+        if smooth is not None:
+            x = ndimage.gaussian_filter(x, smooth)
+            y = ndimage.gaussian_filter(y, smooth)
+        # getting velocity between points
+        Vx = np.array([ (x[i + 1] - x[i])/dt[i]
+                       for i in np.arange(len(x) - 1)])
+        Vy = np.array([ (y[i + 1] - y[i])/dt[i]
+                       for i in np.arange(len(y) - 1)])
+        # returning profiles
+        unit_Vx = self.unit_x/self.unit_v
+        Vx *= unit_Vx.asNumber()
+        unit_Vx /= unit_Vx.asNumber()
+        time_x = times[:-1] + dt/2.
+        prof_x = Profile(time_x, Vx, mask=False, unit_x=self.unit_v,
+                         unit_y=unit_Vx)
+        unit_Vy = self.unit_y/self.unit_v
+        Vy *= unit_Vy.asNumber()
+        unit_Vy /= unit_Vy.asNumber()
+        time_y = times[:-1] + dt/2.
+        prof_y = Profile(time_y, Vy, mask=False, unit_x=self.unit_v,
+                         unit_y=unit_Vy)
+        return prof_x, prof_y
+
     def fit(self, kind='polynomial', order=2, simplify=False):
         """
         Return the parametric coefficients of the fitting curve on the points.
