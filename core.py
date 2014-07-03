@@ -380,8 +380,13 @@ class Points(object):
         if not values.shape[1] == 2:
             raise ValueError()
         self.__xy = values
-        if len(values) != len(self.__v):
-            self.__v == np.array([])
+        # XXX: for compatibility purpose, to remove
+        try:
+            if len(values) != len(self.__v):
+                self.__v == np.array([])
+        except AttributeError:
+            if len(values) != len(self.__dict__['v']):
+                self.__dict__['v'] == np.array([])
 
     @xy.deleter
     def xy(self):

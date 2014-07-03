@@ -438,13 +438,16 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
     center : Points object
         If 'output_center' is 'True', contain the newly computed vortex center.
     """
-    radii = np.empty((len(TVFS.fields),))
+    radii = np.empty((len(traj.xy),))
     centers = Points(unit_x=TVFS.unit_x, unit_y=TVFS.unit_y,
                      unit_v=TVFS.unit_times)
     # computing with vortex center
     if output_center:
-        for i, field in enumerate(TVFS.fields):
-            time = TVFS.times[i]
+        for i, pt in enumerate(traj):
+            # getting time and associated velocity field
+            time = traj.v[i]
+            field = TVFS.fields[TVFS.times == time][0]
+            # getting radius and center
             rad, cent = get_vortex_radius(field, traj.xy[i],
                                           gamma2_radius=gamma2_radius,
                                           output_center=True)
@@ -452,12 +455,16 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
             centers.add(cent, time)
     # computing without vortex centers
     else:
-        for i, field in enumerate(TVFS.fields):
+        for i, pt in enumerate(traj):
+            # getting time and associated velocity field
+            time = pt.v
+            field = TVFS.fields[TVFS.times == time][0]
+            # getting radius
             radii[i] = get_vortex_radius(field, traj.xy[i],
                                          gamma2_radius=gamma2_radius,
                                          output_center=False)
     # returning
-    radii_prof = Profile(TVFS.times, radii, mask=False, unit_x=TVFS.unit_times,
+    radii_prof = Profile(traj.v, radii, mask=False, unit_x=TVFS.unit_times,
                          unit_y=TVFS.unit_x)
     if output_center:
         return radii_prof, centers
