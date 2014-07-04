@@ -2300,6 +2300,16 @@ class ScalarField(Field):
             tmpsf.values /= obj.asNumber()
             tmpsf.unit_values /= obj/obj.asNumber()
             return tmpsf
+        elif isinstance(obj, ARRAYTYPES):
+            obj = np.array(obj, subok=True)
+            if not obj.shape == self.shape:
+                raise ValueError()
+            tmpsf = self.copy()
+            mask = np.logical_or(self.mask, obj == 0)
+            not_mask = np.logical_not(mask)
+            tmpsf.values[not_mask] /= obj[not_mask]
+            tmpsf.mask = mask
+            return tmpsf
         elif isinstance(obj, ScalarField):
             if np.any(self.axe_x != obj.axe_x)\
                     or np.any(self.axe_y != obj.axe_y)\
@@ -2331,6 +2341,16 @@ class ScalarField(Field):
             tmpsf.values = obj.asNumber()/tmpsf.values
             tmpsf.unit_values = obj/obj.asNumber()/tmpsf.unit_values
             return tmpsf
+        elif isinstance(obj, ARRAYTYPES):
+            obj = np.array(obj, subok=True)
+            if not obj.shape == self.shape:
+                raise ValueError()
+            tmpsf = self.copy()
+            mask = np.logical_or(self.mask, obj == 0)
+            not_mask = np.logical_not(mask)
+            tmpsf.values[not_mask] = obj[not_mask] / tmpsf.values[not_mask]
+            tmpsf.mask = mask
+            return tmpsf
         elif isinstance(obj, ScalarField):
             if np.any(self.axe_x != obj.axe_x)\
                     or np.any(self.axe_y != obj.axe_y)\
@@ -2360,6 +2380,16 @@ class ScalarField(Field):
             tmpsf.values *= obj.asNumber()
             tmpsf.unit_values *= obj/obj.asNumber()
             tmpsf.mask = self.mask
+            return tmpsf
+        elif isinstance(obj, ARRAYTYPES):
+            obj = np.array(obj, subok=True)
+            if not obj.shape == self.shape:
+                raise ValueError()
+            tmpsf = self.copy()
+            mask = self.mask
+            not_mask = np.logical_not(mask)
+            tmpsf.values[not_mask] *= obj[not_mask]
+            tmpsf.mask = mask
             return tmpsf
         elif isinstance(obj, np.ma.MaskedArray):
             if obj.shape != self.values.shape:
@@ -2397,7 +2427,9 @@ class ScalarField(Field):
             raise TypeError("You only can use a number for the power "
                             "on a Scalar field")
         tmpsf = self.copy()
-        tmpsf.values = np.power(tmpsf.values, number)
+        tmpsf.values[np.logical_not(tmpsf.mask)] \
+            = np.power(tmpsf.values[np.logical_not(tmpsf.mask)], number)
+        tmpsf.mask = self.mask
         tmpsf.unit_values = np.power(tmpsf.unit_values, number)
         return tmpsf
 
@@ -2539,7 +2571,6 @@ class ScalarField(Field):
         self.unit_x = unit_x
         self.unit_y = unit_y
         self.unit_values = unit_values
-        self.crop_masked_border()
 
     ### Watchers ###
     def get_value(self, x, y, ind=False, unit=False):
@@ -3431,17 +3462,26 @@ class VectorField(Field):
         tmpvf = self.__add__(other_tmp)
         return tmpvf
 
-    def __truediv__(self, number):
-        if isinstance(number, unum.Unum):
+    def __truediv__(self, other):
+        if isinstance(other, ARRAYTYPES):
+            other = np.array(other, subok=True)
+            if other.shape != self.shape:
+                raise ValueError()
             tmpvf = self.copy()
-            tmpvf.comp_x /= (number/self.unit_values).asNumber()
-            tmpvf.comp_y /= (number/self.unit_values).asNumber()
+            tmpvf.comp_x = self.comp_x / other
+            tmpvf.comp_y = self.comp_y / other
+            tmpvf.mask = np.logical_or(self.mask, other == 0)
+            return tmpvf
+        elif isinstance(other, unum.Unum):
+            tmpvf = self.copy()
+            tmpvf.comp_x /= (other/self.unit_values).asNumber()
+            tmpvf.comp_y /= (other/self.unit_values).asNumber()
             tmpvf.mask = self.mask
             return tmpvf
-        elif isinstance(number, NUMBERTYPES):
+        elif isinstance(other, NUMBERTYPES):
             tmpvf = self.copy()
-            tmpvf.comp_x /= number
-            tmpvf.comp_y /= number
+            tmpvf.comp_x /= other
+            tmpvf.comp_y /= other
             tmpvf.mask = self.mask
             return tmpvf
         else:
@@ -3450,17 +3490,26 @@ class VectorField(Field):
 
     __div__ = __truediv__
 
-    def __mul__(self, number):
-        if isinstance(number, unum.Unum):
+    def __mul__(self, other):
+        if isinstance(other, ARRAYTYPES):
+            other = np.array(other, subok=True)
+            if other.shape != self.shape:
+                raise ValueError()
             tmpvf = self.copy()
-            tmpvf.comp_x *= (number/self.unit_values).asNumber()
-            tmpvf.comp_y *= (number/self.unit_values).asNumber()
+            tmpvf.comp_x = self.comp_x * other
+            tmpvf.comp_y = self.comp_y * other
             tmpvf.mask = self.mask
             return tmpvf
-        elif isinstance(number, NUMBERTYPES):
+        elif isinstance(other, unum.Unum):
             tmpvf = self.copy()
-            tmpvf.comp_x *= number
-            tmpvf.comp_y *= number
+            tmpvf.comp_x *= (other/self.unit_values).asNumber()
+            tmpvf.comp_y *= (other/self.unit_values).asNumber()
+            tmpvf.mask = self.mask
+            return tmpvf
+        elif isinstance(other, NUMBERTYPES):
+            tmpvf = self.copy()
+            tmpvf.comp_x *= other
+            tmpvf.comp_y *= other
             tmpvf.mask = self.mask
             return tmpvf
         else:
@@ -3815,18 +3864,21 @@ class VectorField(Field):
         # check parameters coherence
         if not isinstance(tof, STRINGTYPES):
             raise TypeError("'tof' must be a string")
-        if not isinstance(value, ARRAYTYPES):
-            raise TypeError("'value' must be a number")
-        value = np.array(value)
-        if not value.shape == (2,):
-            raise ValueError()
+        if isinstance(value, NUMBERTYPES):
+            value = np.array([0., 0.])
+        elif isinstance(value, ARRAYTYPES):
+            value = np.array(value)
+            if not value.shape == (2,):
+                raise ValueError()
+        else:
+            raise TypeError("'value' must be a number or a 2x1 array")
         # filling components
         if crop_border:
             self.crop_masked_border()
         sfx = self.comp_x_as_sf
         sfy = self.comp_y_as_sf
-        sfx.fill(tof=tof, order=order, value=value[0])
-        sfy.fill(tof=tof, order=order, value=value[1])
+        sfx.fill(tof=tof, order=order, value=value[0], crop_border=crop_border)
+        sfy.fill(tof=tof, order=order, value=value[1], crop_border=crop_border)
         self.comp_x = sfx.values
         self.comp_y = sfy.values
         self.__mask = np.logical_or(sfx.mask, sfy.mask)
@@ -4181,19 +4233,39 @@ class TemporalFields(Fields, Field):
 
     def __add__(self, other):
         if isinstance(other, self.__class__):
-            tmp_tfs = self.copy()
-            otimes = other.times
-            ounit_times = other.unit_times
-            for i, ofield in enumerate(other.fields):
-                tmp_tfs.add_field(ofield, otimes[i], ounit_times)
-            return tmp_tfs
+            if not len(self) == len(other):
+                raise Exception()
+            if not np.all(self.axe_x == other.axe_x) \
+                    and np.all(self.axe_y == other.axe_y):
+                raise Exception()
+            if not np.all(self.times == other.times):
+                raise Exception()
+            tfs = self.__class__()
+            for i in np.arange(len(self)):
+                tfs.add_field(self.fields[i] + other.fields[i])
+            return tfs
         else:
             raise TypeError("cannot concatenate {} with"
                             " {}.".format(self.__class__, type(other)))
 
+    def __sub__(self, other):
+        return self.__add__(-other)
+
     def __mul__(self, other):
-        if isinstance(other, (NUMBERTYPES, unum.Unum)):
-            final_vfs = self.__class__.__init__()
+        if isinstance(other, self.__class__):
+            if not len(self) == len(other):
+                raise Exception()
+            if not np.all(self.axe_x == other.axe_x) \
+                    and np.all(self.axe_y == other.axe_y):
+                raise Exception()
+            if not np.all(self.times == other.times):
+                raise Exception()
+            vfs = self.__class__()
+            for i in np.arange(len(self.fields)):
+                vfs.add_field(self.fields[i]*other.fields[i])
+            return vfs
+        elif isinstance(other, (NUMBERTYPES, unum.Unum)):
+            final_vfs = self.__class__()
             for field in self.fields:
                 final_vfs.add_field(field*other)
             return final_vfs
@@ -4204,7 +4276,19 @@ class TemporalFields(Fields, Field):
     __rmul__ = __mul__
 
     def __truediv__(self, other):
-        if isinstance(other, (NUMBERTYPES, unum.Unum)):
+        if isinstance(other, self.__class__):
+            if not len(self) == len(other):
+                raise Exception()
+            if not np.all(self.axe_x == other.axe_x) \
+                    and np.all(self.axe_y == other.axe_y):
+                raise Exception()
+            if not np.all(self.times == other.times):
+                raise Exception()
+            vfs = self.__class__()
+            for i in np.arange(len(self.fields)):
+                vfs.add_field(self.fields[i]/other.fields[i])
+            return vfs
+        elif isinstance(other, (NUMBERTYPES, unum.Unum)):
             final_vfs = self.__class__.__init__()
             for field in self.fields:
                 final_vfs.add_field(field/other)
@@ -4219,7 +4303,7 @@ class TemporalFields(Fields, Field):
         if not isinstance(number, NUMBERTYPES):
             raise TypeError("You only can use a number for the power "
                             "on a Vectorfield")
-        final_vfs = self.__class__.__init__()
+        final_vfs = self.__class__()
         for field in self.fields:
             final_vfs.add_field(np.power(field, number))
         return final_vfs
@@ -4324,26 +4408,36 @@ class TemporalFields(Fields, Field):
         """
         if len(self.fields) == 0:
             raise ValueError("There is no fields in this object")
-        result_f = self.fields[0].__class__()
-        mask_cum = np.zeros(self.shape)
-        comp_x_cum = np.zeros(self.shape, dtype=float)
-        comp_y_cum = np.zeros(self.shape, dtype=float)
-        for field in self.fields:
-            comp_x = field.comp_x
-            comp_x[field.mask] = 0
-            comp_y = field.comp_y
-            comp_y[field.mask] = 0
-            comp_x_cum += comp_x
-            comp_y_cum += comp_y
-            mask_cum += np.logical_not(field.mask)
+        result_f = self.fields[0].copy()
+        result_f.fill(tof='value', value=0., crop_border=False)
+        mask_cum = np.zeros(self.shape, dtype=int)
+        mask_cum[np.logical_not(self.fields[0].mask)] +=1
+#        comp_x_cum = np.zeros(self.shape, dtype=float)
+#        comp_y_cum = np.zeros(self.shape, dtype=float)
+        for field in self.fields[1::]:
+            added_field = field.copy()
+            added_field.fill(tof='value', value=0., crop_border=False)
+            result_f += added_field
+            mask_cum[np.logical_not(field.mask)] += 1
+#            comp_x = field.comp_x
+#            comp_x[field.mask] = 0
+#            comp_y = field.comp_y
+#            comp_y[field.mask] = 0
+#            comp_x_cum += comp_x
+#            comp_y_cum += comp_y
+#            mask_cum += np.logical_not(field.mask)
         mask = mask_cum <= nmb_min
-        not_masked = np.logical_not(mask)
-        comp_x_cum[not_masked] /= mask_cum[not_masked]
-        comp_y_cum[not_masked] /= mask_cum[not_masked]
-        result_f.import_from_arrays(self.axe_x, self.axe_y, comp_x_cum,
-                                    comp_y_cum, mask=mask, unit_x=self.unit_x,
-                                    unit_y=self.unit_y,
-                                    unit_values=self.unit_values)
+#        not_masked = np.logical_not(mask)
+        result_f.mask = mask
+        fact = mask_cum
+        fact[mask] = 1
+        result_f /= fact
+#        comp_x_cum[not_masked] /= mask_cum[not_masked]
+#        comp_y_cum[not_masked] /= mask_cum[not_masked]
+#        result_f.import_from_arrays(self.axe_x, self.axe_y, comp_x_cum,
+#                                    comp_y_cum, mask=mask, unit_x=self.unit_x,
+#                                    unit_y=self.unit_y,
+#                                    unit_values=self.unit_values)
         return result_f
 
     def get_fluctuant_fields(self, nmb_min_mean=1):
@@ -4898,7 +4992,7 @@ class TemporalFields(Fields, Field):
                 fig.delaxes(ax)
             plt.tight_layout()
 
-    def display(self, compo='V', **plotargs):
+    def display(self, compo=None, **plotargs):
         """
         Create a windows to display temporals field, controlled by buttons.
         http://matplotlib.org/1.3.1/examples/widgets/buttons.html
@@ -4943,6 +5037,7 @@ class TemporalFields(Fields, Field):
                 maxi = np.max(maxs)
                 plotargs['clim'] = [mini, maxi]
         else:
+            pdb.set_trace()
             raise Exception()
         # button gestion class
         class Index(object):
@@ -5161,7 +5256,7 @@ class TemporalScalarFields(TemporalFields):
 
     ### Attributes ###
     @property
-    def values(self):
+    def values_as_sf(self):
         dim = len(self)
         values = np.empty(dim, dtype=object)
         for i, field in enumerate(self.fields):
@@ -5169,7 +5264,7 @@ class TemporalScalarFields(TemporalFields):
         return values
 
     @property
-    def values_as_sf(self):
+    def values(self):
         dim = (len(self), self.shape[0], self.shape[1])
         values = np.empty(dim, dtype=float)
         for i, field in enumerate(self.fields):
@@ -5272,10 +5367,9 @@ class TemporalVectorFields(TemporalFields):
     ### Attributes ###
     @property
     def Vx_as_sf(self):
-        dim = len(self)
-        values = np.empty(dim, dtype=object)
+        values = TemporalScalarFields()
         for i, field in enumerate(self.fields):
-            values[i] = field.comp_x_as_sf
+            values.add_field(field.comp_x_as_sf)
         return values
 
     @property
@@ -5288,10 +5382,9 @@ class TemporalVectorFields(TemporalFields):
 
     @property
     def Vy_as_sf(self):
-        dim = len(self)
-        values = np.empty(dim, dtype=object)
+        values = TemporalScalarFields()
         for i, field in enumerate(self.fields):
-            values[i] = field.comp_y_as_sf
+            values.add_field(field.comp_y_as_sf)
         return values
 
     @property
@@ -5304,10 +5397,9 @@ class TemporalVectorFields(TemporalFields):
 
     @property
     def magnitude_as_sf(self):
-        dim = len(self)
-        values = np.empty(dim, dtype=object)
+        values = TemporalScalarFields()
         for i, field in enumerate(self.fields):
-            values[i] = field.magnitude_as_sf
+            values.add_field(field.magnitude_as_sf)
         return values
 
     @property
@@ -5320,10 +5412,9 @@ class TemporalVectorFields(TemporalFields):
 
     @property
     def theta_as_sf(self):
-        dim = len(self)
-        values = np.empty(dim, dtype=object)
+        values = TemporalScalarFields()
         for i, field in enumerate(self.fields):
-            values[i] = field.theta_as_sf
+            values.add_field(field.theta_as_sf)
         return values
 
     @property
@@ -5359,7 +5450,7 @@ class TemporalVectorFields(TemporalFields):
         values_x = mean_vf.comp_x_as_sf
         values_y = mean_vf.comp_y_as_sf
         final_sf = 1./2*(values_x**2 + values_y**2)
-        self.mean_kinetic_energy = final_sf
+        return final_sf
 
     def get_tke(self):
         """
@@ -5368,10 +5459,20 @@ class TemporalVectorFields(TemporalFields):
         turb_vfs = self.get_fluctuant_fields()
         vx_p = turb_vfs.Vx_as_sf
         vy_p = turb_vfs.Vy_as_sf
-        tke = []
+        del turb_vfs
+        tke = TemporalScalarFields()
         for i in np.arange(len(vx_p)):
-            tke.append(1./2*(vx_p[i]**2 + vy_p[i]**2))
+            tke.add_field(1./2*(vx_p[i]**2 + vy_p[i]**2))
         return tke
+
+    def get_turbulent_intensity(self):
+        """
+        Calculate the turbulent intensity.
+
+        TI = sqrt(2/3*k)/sqrt(Vx**2 + Vy**2)
+        """
+        turb_int = (2./3.*self.get_tke())**(.5)/self.magnitude_as_sf
+        return turb_int
 
     def get_mean_tke(self):
         tke = self.get_tke()
