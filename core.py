@@ -407,7 +407,8 @@ class Points(object):
         values = np.array(values, subok=True)
         if not values.ndim == 1:
             raise ValueError()
-        if not len(values) == len(self.__xy):
+        if not len(values) in [0, len(self.__xy)]:
+            print(values)
             raise ValueError()
         self.__v = values
 
@@ -927,7 +928,7 @@ class Points(object):
                                       self.xy[:, 1] < interv_y[1])
             mask = np.logical_and(mask, out_zone)
         tmp_pts.xy = tmp_pts.xy[~mask, :]
-        if tmp_pts.v is not None:
+        if len(tmp_pts.v) != 0:
             tmp_pts.v = tmp_pts.v[~mask]
         return tmp_pts
 
@@ -2255,7 +2256,6 @@ class ScalarField(Field):
                                          otherone.mask[new_ind_valueo])
                 new_mask = new_mask.reshape((len(new_axe_x), len(new_axe_y)))
                 # creating sf
-                pdb.set_trace()
                 tmpsf = ScalarField()
                 tmpsf.import_from_arrays(new_axe_x, new_axe_y, new_values,
                                          mask=new_mask, unit_x=self.unit_x,

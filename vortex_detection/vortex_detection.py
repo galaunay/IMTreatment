@@ -12,6 +12,7 @@ import pdb
 from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
     TemporalVectorFields
+from ..field_treatment import get_streamlines, get_tracklines
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline
@@ -1053,13 +1054,10 @@ def _min_detection(SF):
     axe_x, axe_y = SF.axe_x, SF.axe_y
     values = SF.values
     if np.any(SF.mask):
-        plt.figure()
-        SF.display()
-        raise Exception("should not have masked values")
-    try:
-        interp = RectBivariateSpline(axe_x, axe_y, values, s=0, ky=3, kx=3)
-    except:
-        pdb.set_trace()
+        SF.crop_masked_border()
+        if np.any(SF.mask):
+            raise Exception("should not have masked values")
+    interp = RectBivariateSpline(axe_x, axe_y, values, s=0, ky=3, kx=3)
     # extended field (resolution x100)
     x = np.linspace(axe_x[0], axe_x[-1], 100)
     y = np.linspace(axe_y[0], axe_y[-1], 100)
@@ -1238,7 +1236,7 @@ def get_separation_position(obj, wall_direction, wall_position,
 ### Critical lines ###
 
 def get_critical_line(VF, source_point, direction, kol='stream',
-                      delta=1, fit='None', order=2):
+                      delta=1, fit='none', order=2):
     """
     Return a parametric curve fitting the virtual streamlines expanding from
     the 'source_point' critical point on the 'VF' field.
@@ -1313,9 +1311,13 @@ def get_critical_line(VF, source_point, direction, kol='stream',
     pts = zip(xs.flatten(), ys.flatten())
     # get stream or track lines on around positions
     if kol == 'stream':
-        lines = VF.get_streamlines(pts)
+        lines = get_streamlines(VF, pts)
     elif kol == 'track':
-        lines = VF.get_tracklines(pts)
+        lines = get_tracklines(VF, pts)
+        plt.figure()
+        VF.display(kind='stream')
+        for line in lines:
+            line.display('plot')
     else:
         raise ValueError("Unknown value for 'kol' (see documentation)")
     # remove streamline near the critical point

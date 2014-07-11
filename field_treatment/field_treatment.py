@@ -10,6 +10,7 @@ import numpy as np
 import scipy.interpolate as spinterp
 from ..core import Points, ScalarField, VectorField,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES
+import matplotlib.pyplot as plt
 
 
 def get_gradient(field):
@@ -54,9 +55,9 @@ def get_gradient(field):
         return gradx, grady
     elif isinstance(field, VectorField):
         Vx_dx, Vx_dy = np.gradient(np.ma.masked_array(field.comp_x, field.mask)
-                                   ,dx, dy)
+                                   , dx, dy)
         Vy_dx, Vy_dy = np.gradient(np.ma.masked_array(field.comp_y, field.mask)
-                                   ,dx, dy)
+                                   , dx, dy)
         unit_values_x = field.unit_values/field.unit_x
         factx = unit_values_x.asNumber()
         unit_values_x /= factx
@@ -90,6 +91,46 @@ def get_gradient(field):
         return grad1, grad2, grad3, grad4
     else:
         raise TypeError()
+
+
+def get_grad_field(field, direction=1):
+    """
+    Return a field based on original field gradients.
+    (V = dV/dx, Vy = DV/Vy)
+
+    Parameters
+    ----------
+    field : VectorField object
+        .
+    direction : integer (1 or 2)
+        if '1', return Vx gradients
+        if '2', return Vy gradients.
+
+    Returns
+    -------
+    gfield : VectorField object
+        .
+    """
+    # checking parameters:
+    if not direction in [1, 2]:
+        raise ValueError()
+    # getting gradients
+    field.comp_x = field.comp_x
+    field.comp_y = field.comp_y
+    grads = get_gradient(field)
+    # returning
+    if direction == 1:
+        gvx = grads[0]
+        gvy = grads[1]
+    else:
+        gvx = grads[2]
+        gvy = grads[3]
+    gfield = VectorField()
+    gfield.import_from_arrays(field.axe_x, field.axe_y, comp_x=gvx.values,
+                              comp_y=gvy.values, unit_x=field.unit_x,
+                              unit_y=field.unit_y,
+                              unit_values=field.unit_values)
+    return gfield
 
 
 def get_streamlines(vf, xy, delta=.25, interp='linear',
@@ -216,13 +257,10 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
 
 
 def get_tracklines(vf, xy, delta=.25, interp='linear',
-                   reverse_direction=False):
+                   reverse_direction=False, direction=1, smooth=0):
     """
     Return a tuples of Points object representing the trackline begining
     at the points specified in xy.
-    A trackline follow the general direction of the vectorfield
-    (as a streamline), but favor the small velocity. This behavior allow
-    the track following.
 
     Parameters
     ----------
@@ -236,111 +274,23 @@ def get_tracklines(vf, xy, delta=.25, interp='linear',
     interp : string, optional
         Used interpolation for trackline computation.
         Can be 'linear'(default) or 'cubic'
+    direction : '1' or '2'
+        Direction of gradients to consider (see 'get_grad_field' doc).
+    smooth : number, optional
+        Optional smooth for noisy fields.
     """
-    if not isinstance(vf, VectorField):
+    # checking parameters
+    if not isinstance(smooth, NUMBERTYPES):
         raise TypeError()
-    if not isinstance(xy, ARRAYTYPES):
-        raise TypeError("'xy' must be a tuple of arrays")
-    xy = np.array(xy, dtype=float)
-    if xy.shape == (2,):
-        xy = [xy]
-    elif len(xy.shape) == 2 and xy.shape[1] == 2:
-        pass
-    else:
-        raise ValueError("'xy' must be a tuple of arrays")
-    axe_x, axe_y = vf.axe_x, vf.axe_y
-    Vx, Vy = vf.comp_x, vf.comp_y
-    Vx = Vx.flatten()
-    Vy = Vy.flatten()
-    Magn = vf.magnitude.flatten()
-    if not isinstance(delta, NUMBERTYPES):
-        raise TypeError("'delta' must be a number")
-    if delta <= 0:
-        raise ValueError("'delta' must be positive")
-    if delta > len(axe_x) or delta > len(axe_y):
-        raise ValueError("'delta' is too big !")
-    deltaabs = delta * ((axe_x[-1]-axe_x[0])/len(axe_x)
-                        + (axe_y[-1]-axe_y[0])/len(axe_y))/2
-    deltaabs2 = deltaabs**2
-    if not isinstance(interp, STRINGTYPES):
-        raise TypeError("'interp' must be a string")
-    if not (interp == 'linear' or interp == 'cubic'):
-        raise ValueError("Unknown interpolation method")
-    # interpolation lineaire du champ de vitesse
-    a, b = np.meshgrid(axe_x, axe_y)
-    a = a.flatten()
-    b = b.flatten()
-    pts = zip(a, b)
-    if interp == 'linear':
-        interp_vx = spinterp.LinearNDInterpolator(pts, Vx.flatten())
-        interp_vy = spinterp.LinearNDInterpolator(pts, Vy.flatten())
-        interp_magn = spinterp.LinearNDInterpolator(pts, Magn.flatten())
-    elif interp == 'cubic':
-        interp_vx = spinterp.CloughTocher2DInterpolator(pts, Vx.flatten())
-        interp_vy = spinterp.CloughTocher2DInterpolator(pts, Vy.flatten())
-        interp_magn = spinterp.CloughTocher2DInterpolator(pts,
-                                                          Magn.flatten())
-    # Calcul des streamlines
-    streams = []
-    longmax = (len(axe_x)+len(axe_y))/delta
-    for coord in xy:
-        x = coord[0]
-        y = coord[1]
-        x = float(x)
-        y = float(y)
-        # si le points est en dehors, on ne fait rien
-        if x < axe_x[0] or x > axe_x[-1] or y < axe_y[0] or y > axe_y[-1]:
-            continue
-        # calcul d'une streamline
-        stream = np.zeros((longmax, 2))
-        stream[0, :] = [x, y]
-        i = 1
-        while True:
-            tmp_vx = interp_vx(stream[i-1, 0], stream[i-1, 1])
-            tmp_vy = interp_vy(stream[i-1, 0], stream[i-1, 1])
-            # tests d'arret
-            if np.isnan(tmp_vx) or np.isnan(tmp_vy):
-                break
-            if i >= longmax-1:
-                break
-            if i > 15:
-                norm = [stream[0:i-10, 0] - stream[i-1, 0],
-                        stream[0:i-10, 1] - stream[i-1, 1]]
-                norm = norm[0]**2 + norm[1]**2
-                if any(norm < deltaabs2/2):
-                    break
-            # searching the lower velocity in an angle of pi/2 in the
-            # flow direction
-            x_tmp = stream[i-1, 0]
-            y_tmp = stream[i-1, 1]
-            norm = (tmp_vx**2 + tmp_vy**2)**(.5)
-            #    finding 10 possibles positions in the flow direction
-            angle_op = np.pi/4
-            theta = np.linspace(-angle_op/2, angle_op/2, 10)
-            e_x = tmp_vx/norm
-            e_y = tmp_vy/norm
-            dx = deltaabs*(e_x*np.cos(theta) - e_y*np.sin(theta))
-            dy = deltaabs*(e_x*np.sin(theta) + e_y*np.cos(theta))
-            #    finding the step giving the lower velocity
-            magn = interp_magn(x_tmp + dx, y_tmp + dy)
-            ind_low_magn = np.argmin(magn)
-            #    getting the final steps (ponderated)
-            theta = theta[ind_low_magn]/2.
-            dx = deltaabs*(e_x*np.cos(theta) - e_y*np.sin(theta))
-            dy = deltaabs*(e_x*np.sin(theta) + e_y*np.cos(theta))
-            # calcul des dx et dy
-            stream[i, :] = [x_tmp + dx, y_tmp + dy]
-            i += 1
-        stream = stream[:i-1]
-        pts = Points(stream, unit_x=vf.unit_x, unit_y=vf.unit_y,
-                     name='streamline at x={:.3f}, y={:.3f}'.format(x, y))
-        streams.append(pts)
-    if len(streams) == 0:
-        return None
-    elif len(streams) == 1:
-        return streams[0]
-    else:
-        return streams
+    if not smooth >= 0:
+        raise ValueError()
+    # getting grad field
+    gfield = get_grad_field(vf, direction)
+    if smooth != 0:
+        gfield.smooth('gaussian', size=smooth)
+    lines = get_streamlines(gfield, xy, delta=delta, interp=interp,
+                            reverse_direction=reverse_direction)
+    return lines
 
 
 def get_shear_stress(vf, raw=False):
