@@ -358,7 +358,8 @@ def import_from_IM7(filename):
         raise ValueError("I did not find your file, boy")
     _, ext = os.path.splitext(filename)
     if not (ext == ".im7" or ext == ".IM7"):
-        raise ValueError("I need the file to be an IM7 file")
+        raise ValueError("I need the file to be an IM7 file (not a {} file)"
+                         .format(ext))
     v = IM.IM7(filename)
     axe_x = v.Px[0, :]
     axe_y = v.Py[:, 0]

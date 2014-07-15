@@ -2780,8 +2780,8 @@ class ScalarField(Field):
         ----------
         direction : integer
             Direction along which we choose a position (1 for x and 2 for y)
-        position : float or interval of float
-            Position or interval in which we want a profile
+        position : float, interval of float or string
+            Position, interval in which we want a profile or 'all'
 
         Returns
         -------
@@ -2790,16 +2790,21 @@ class ScalarField(Field):
         cutposition : array or number
             Final position or interval in which the profile has been taken
         """
+        # checking parameters
         if not isinstance(direction, int):
             raise TypeError("'direction' must be an integer between 1 and 2")
         if not (direction == 1 or direction == 2):
             raise ValueError("'direction' must be an integer between 1 and 2")
-        if not isinstance(position, NUMBERTYPES + ARRAYTYPES):
-            raise TypeError("'position' must be a number or an interval")
+        if not isinstance(position, NUMBERTYPES + ARRAYTYPES + STRINGTYPES):
+            raise TypeError()
         if isinstance(position, ARRAYTYPES):
             position = np.array(position, dtype=float)
             if not position.shape == (2,):
                 raise ValueError("'position' must be a number or an interval")
+        elif isinstance(position, STRINGTYPES):
+            if position != 'all':
+                raise ValueError()
+        # geting data
         if direction == 1:
             axe = self.axe_x
             unit_x = self.unit_y
@@ -2808,16 +2813,21 @@ class ScalarField(Field):
             axe = self.axe_y
             unit_x = self.unit_x
             unit_y = self.unit_values
+        # applying interval type
         if isinstance(position, ARRAYTYPES):
             for pos in position:
                 if pos > axe.max() or pos < axe.min():
                     raise ValueError("'position' must be included in"
                                      " the choosen axis values")
-        else:
+        elif isinstance(position, NUMBERTYPES):
             if position > axe.max() or position < axe.min():
                 raise ValueError("'position' must be included in the choosen"
                                  " axis values (here [{0},{1}])"
                                  .format(axe.min(), axe.max()))
+        elif position == 'all':
+            position = np.array([axe[0], axe[-1]])
+        else:
+            raise ValueError()
         # computation of the profile for a single position
         if isinstance(position, NUMBERTYPES):
             for i in np.arange(1, len(axe)):
