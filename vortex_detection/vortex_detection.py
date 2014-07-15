@@ -12,7 +12,7 @@ import pdb
 from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
     TemporalVectorFields
-from ..field_treatment import get_streamlines, get_tracklines
+from ..field_treatment import get_streamlines
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline

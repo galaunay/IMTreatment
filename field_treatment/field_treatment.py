@@ -133,7 +133,7 @@ def get_grad_field(field, direction=1):
     return gfield
 
 
-def get_streamlines(vf, xy, delta=.25, interp='linear',
+def get_streamlines(vf, xy, kind='stream', delta=.25, interp='linear',
                     reverse_direction=False):
     """
     Return a tuples of Points object representing the streamline begining
@@ -147,6 +147,9 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
         Field on which compute the streamlines
     xy : tuple
         Tuple containing each starting point for streamline.
+    kind : string, optional
+        If 'stream' (default), streamlines are returned,
+        If 'track', tracklines are returned (for unstable streamlines).
     delta : number, optional
         Spatial discretization of the stream lines,
         relative to a the spatial discretization of the field.
@@ -156,10 +159,10 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
     reverse_direction : boolean, optional
         If True, the streamline goes upstream.
     """
+    # checking parameters coherence
     if not isinstance(vf, VectorField):
         raise TypeError()
     axe_x, axe_y = vf.axe_x, vf.axe_y
-    # checking parameters coherence
     if not isinstance(xy, ARRAYTYPES):
         raise TypeError("'xy' must be a tuple of arrays")
     xy = np.array(xy, dtype=float)
@@ -191,7 +194,7 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
     # check if there are masked values
     if np.any(mask):
         raise Exception()
-    # interpolation lineaire du champ de vitesse
+    # interpolation du champ de vitesse
     if interp == 'linear':
         interp_vx = spinterp.RectBivariateSpline(axe_x, axe_y, Vx,
                                                  kx=1, ky=1)
@@ -207,6 +210,7 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
     streams = []
     longmax = (len(axe_x)+len(axe_y))/delta
     for coord in xy:
+        # getting coordinates
         x = coord[0]
         y = coord[1]
         x = float(x)
@@ -214,40 +218,75 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
         # si le points est en dehors, on ne fait rien
         if x < axe_x[0] or x > axe_x[-1] or y < axe_y[0] or y > axe_y[-1]:
             continue
-        # calcul d'une streamline
+        # initialisation du calcul d'une streamline
         stream = np.zeros((longmax, 2))
         stream[0, :] = [x, y]
         i = 1
+        alpha = 1
+        # calcul d'une streamline
         while True:
             tmp_vx = interp_vx(stream[i-1, 0], stream[i-1, 1])[0, 0]
             tmp_vy = interp_vy(stream[i-1, 0], stream[i-1, 1])[0, 0]
+            norm = np.linalg.norm([tmp_vx, tmp_vy])
             # tests d'arret
             if i >= longmax-1:
                 break
             if i > 15:
-                norm = [stream[0:i-10, 0] - stream[i-1, 0],
+                no = [stream[0:i-10, 0] - stream[i-1, 0],
                         stream[0:i-10, 1] - stream[i-1, 1]]
-                norm = norm[0]**2 + norm[1]**2
-                if any(norm < deltaabs2/2):
+                no = no[0]**2 + no[1]**2
+                if any(no < deltaabs2/2):
                     break
-            # calcul des dx et dy
-            norm = (tmp_vx**2 + tmp_vy**2)**(.5)
-            if reverse_direction:
-                norm = -norm
-            dx = tmp_vx/norm*deltaabs
-            dy = tmp_vy/norm*deltaabs
-            stream[i, :] = [stream[i-1, 0] + dx, stream[i-1, 1] + dy]
-            i += 1
+            # calcul des dx et dy pour une streamline
+            if kind == 'stream' or (kind == 'track' and i <= 2):
+                if reverse_direction:
+                    norm = -norm
+                dx = tmp_vx/norm*deltaabs
+                dy = tmp_vy/norm*deltaabs
+                stream[i, :] = [stream[i-1, 0] + dx, stream[i-1, 1] + dy]
+                i += 1
+            # calcul des dx et dy pour un trackline
+            elif kind == 'track':
+                #alpha=1 : streamline / alpha=0 : straight line / alpha=-1 : trackline
+                e_long = stream[i - 1, :] - stream[i - 2, :]
+                e_long = e_long/np.linalg.norm(e_long)
+                e_tran = np.array([-e_long[1], e_long[0]])
+                e_v = np.array([tmp_vx, tmp_vy])
+                e_v = e_v/np.linalg.norm(e_v)
+                e_line = (np.vdot(e_long, e_v)*e_long*(2 - np.abs(alpha))
+                          + alpha*np.vdot(e_tran, e_v)*e_tran)
+                if reverse_direction:
+                    e_line = -e_line
+                delta = e_line*deltaabs
+                stream[i, :] = [stream[i-1, 0] + delta[0],
+                                stream[i-1, 1] + delta[1]]
+                # alpha adaptation
+                new_vx = interp_vx(stream[i, 0], stream[i, 1])[0, 0]
+                new_vy = interp_vy(stream[i, 0], stream[i, 1])[0, 0]
+                new_norm = np.linalg.norm([new_vx, new_vy])
+                if new_norm > norm:
+                    alpha = -1
+                elif new_norm <= norm:
+                    alpha = alpha + 2*(norm - new_norm)/norm
+                    if alpha >= 1:
+                        alpha = 1
+                    elif alpha <= -1:
+                        alpha = -1
+                print(alpha)
+                i += 1
+
             # tests d'arret
             x = stream[i-1, 0]
             y = stream[i-1, 1]
             if (x < axe_x[0] or x > axe_x[-1] or y < axe_y[0]
                     or y > axe_y[-1]):
                 break
+        # creating Points objects for returning
         stream = stream[:i]
         pts = Points(stream, unit_x=unit_x, unit_y=unit_y,
                      name='streamline at x={:.3f}, y={:.3f}'.format(x, y))
         streams.append(pts)
+    # returning
     if len(streams) == 0:
         return None
     elif len(streams) == 1:
@@ -256,41 +295,41 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
         return streams
 
 
-def get_tracklines(vf, xy, delta=.25, interp='linear',
-                   reverse_direction=False, direction=1, smooth=0):
-    """
-    Return a tuples of Points object representing the trackline begining
-    at the points specified in xy.
-
-    Parameters
-    ----------
-    vf : VectorField or VelocityField object
-        Field on which compute the tracklines.
-    xy : tuple
-        Tuple containing each starting point for streamline.
-    delta : number, optional
-        Spatial discretization of the tracklines,
-        relative to a the spatial discretization of the field.
-    interp : string, optional
-        Used interpolation for trackline computation.
-        Can be 'linear'(default) or 'cubic'
-    direction : '1' or '2'
-        Direction of gradients to consider (see 'get_grad_field' doc).
-    smooth : number, optional
-        Optional smooth for noisy fields.
-    """
-    # checking parameters
-    if not isinstance(smooth, NUMBERTYPES):
-        raise TypeError()
-    if not smooth >= 0:
-        raise ValueError()
-    # getting grad field
-    gfield = get_grad_field(vf, direction)
-    if smooth != 0:
-        gfield.smooth('gaussian', size=smooth)
-    lines = get_streamlines(gfield, xy, delta=delta, interp=interp,
-                            reverse_direction=reverse_direction)
-    return lines
+#def get_tracklines(vf, xy, delta=.25, interp='linear',
+#                   reverse_direction=False, direction=1, smooth=0):
+#    """
+#    Return a tuples of Points object representing the trackline begining
+#    at the points specified in xy.
+#
+#    Parameters
+#    ----------
+#    vf : VectorField or VelocityField object
+#        Field on which compute the tracklines.
+#    xy : tuple
+#        Tuple containing each starting point for streamline.
+#    delta : number, optional
+#        Spatial discretization of the tracklines,
+#        relative to a the spatial discretization of the field.
+#    interp : string, optional
+#        Used interpolation for trackline computation.
+#        Can be 'linear'(default) or 'cubic'
+#    direction : '1' or '2'
+#        Direction of gradients to consider (see 'get_grad_field' doc).
+#    smooth : number, optional
+#        Optional smooth for noisy fields.
+#    """
+#    # checking parameters
+#    if not isinstance(smooth, NUMBERTYPES):
+#        raise TypeError()
+#    if not smooth >= 0:
+#        raise ValueError()
+#    # getting grad field
+#    gfield = get_grad_field(vf, direction)
+#    if smooth != 0:
+#        gfield.smooth('gaussian', size=smooth)
+#    lines = get_streamlines(gfield, xy, delta=delta, interp=interp,
+#                            reverse_direction=reverse_direction)
+#    return lines
 
 
 def get_shear_stress(vf, raw=False):
