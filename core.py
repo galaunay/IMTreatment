@@ -1218,7 +1218,8 @@ class Profile(object):
         if isinstance(values, ARRAYTYPES):
             self.__x = np.array(values)
         else:
-            raise Exception()
+            raise Exception("'x' should be an array, not {}"
+                            .format(type(values)))
 
     @x.deleter
     def x(self):
@@ -3127,7 +3128,7 @@ class ScalarField(Field):
                                    inplace=True)
                 elif more_masked == 3:
                     len_y = len(self.axe_y)
-                    self.trim_area(intervalx=[0, len_y - 2], ind=True,
+                    self.trim_area(intervaly=[0, len_y - 2], ind=True,
                                    inplace=True)
         # soft cropping
         else:
