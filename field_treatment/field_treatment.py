@@ -13,20 +13,25 @@ from ..core import Points, ScalarField, VectorField,\
 import matplotlib.pyplot as plt
 
 
-def get_gradient(field):
+def get_gradients(field, raw):
     """
-    Return ScalarFields object with gradients along x and y.
+    Return gradients along x and y.
+
+    (Obtained arrays corespond to components of the Jacobian matrix)
 
     Parameters
     ----------
     vf : VelocityField or ScalarField object
         Field to comput gradient from.
+    raw : boolean
+        If 'False' (default), ScalarFields objects are returned.
+        If 'True', arrays are returned.
 
     Returns
     -------
-    grad : tuple of ScalarField
-        For VectorField : (dVx/dx, dVx/dy, dVy/dx, dVy/dy),
-        for ScalarField : (dV/dx, dV/dy).
+    grad : tuple of ScalarField or arrays
+        For VectorField input : (dVx/dx, dVx/dy, dVy/dx, dVy/dy),
+        for ScalarField input : (dV/dx, dV/dy).
     """
     dx = field.axe_x[1] - field.axe_x[0]
     dy = field.axe_y[1] - field.axe_y[0]
@@ -43,16 +48,20 @@ def get_gradient(field):
         facty = unit_values_x.asNumber()
         unit_values_y /= facty
         grad_y *= facty
-        gradx.import_from_arrays(field.axe_x, field.axe_y, grad_x.data,
-                                 mask=grad_x.mask, unit_x=field.unit_x,
-                                 unit_y=field.unit_y,
-                                 unit_values=unit_values_x)
-        grady = ScalarField()
-        grady.import_from_arrays(field.axe_x, field.axe_y, grad_y.data,
-                                 mask=grad_x.mask, unit_x=field.unit_x,
-                                 unit_y=field.unit_y,
-                                 unit_values=unit_values_y)
-        return gradx, grady
+        # returning
+        if raw:
+            return grad_x, grad_y
+        else:
+            gradx.import_from_arrays(field.axe_x, field.axe_y, grad_x.data,
+                                     mask=grad_x.mask, unit_x=field.unit_x,
+                                     unit_y=field.unit_y,
+                                     unit_values=unit_values_x)
+            grady = ScalarField()
+            grady.import_from_arrays(field.axe_x, field.axe_y, grad_y.data,
+                                     mask=grad_x.mask, unit_x=field.unit_x,
+                                     unit_y=field.unit_y,
+                                     unit_values=unit_values_y)
+            return gradx, grady
     elif isinstance(field, VectorField):
         Vx_dx, Vx_dy = np.gradient(np.ma.masked_array(field.comp_x, field.mask)
                                    , dx, dy)
@@ -68,30 +77,123 @@ def get_gradient(field):
         unit_values_y /= facty
         Vx_dy *= facty
         Vy_dy *= facty
-        grad1 = ScalarField()
-        grad1.import_from_arrays(field.axe_x, field.axe_y, Vx_dx.data,
-                                 mask=Vx_dx.mask, unit_x=field.unit_x,
-                                 unit_y=field.unit_y,
-                                 unit_values=unit_values_x)
-        grad2 = ScalarField()
-        grad2.import_from_arrays(field.axe_x, field.axe_y, Vx_dy.data,
-                                 mask=Vx_dy.mask, unit_x=field.unit_x,
-                                 unit_y=field.unit_y,
-                                 unit_values=unit_values_y)
-        grad3 = ScalarField()
-        grad3.import_from_arrays(field.axe_x, field.axe_y, Vy_dx.data,
-                                 mask=Vy_dx.mask, unit_x=field.unit_x,
-                                 unit_y=field.unit_y,
-                                 unit_values=unit_values_x)
-        grad4 = ScalarField()
-        grad4.import_from_arrays(field.axe_x, field.axe_y, Vy_dy.data,
-                                 mask=Vy_dy.mask, unit_x=field.unit_x,
-                                 unit_y=field.unit_y,
-                                 unit_values=unit_values_y)
-        return grad1, grad2, grad3, grad4
+        # returning
+        if raw:
+            return (Vx_dx, Vx_dy, Vy_dx, Vy_dy)
+        else:
+            grad1 = ScalarField()
+            grad1.import_from_arrays(field.axe_x, field.axe_y, Vx_dx.data,
+                                     mask=Vx_dx.mask, unit_x=field.unit_x,
+                                     unit_y=field.unit_y,
+                                     unit_values=unit_values_x)
+            grad2 = ScalarField()
+            grad2.import_from_arrays(field.axe_x, field.axe_y, Vx_dy.data,
+                                     mask=Vx_dy.mask, unit_x=field.unit_x,
+                                     unit_y=field.unit_y,
+                                     unit_values=unit_values_y)
+            grad3 = ScalarField()
+            grad3.import_from_arrays(field.axe_x, field.axe_y, Vy_dx.data,
+                                     mask=Vy_dx.mask, unit_x=field.unit_x,
+                                     unit_y=field.unit_y,
+                                     unit_values=unit_values_x)
+            grad4 = ScalarField()
+            grad4.import_from_arrays(field.axe_x, field.axe_y, Vy_dy.data,
+                                     mask=Vy_dy.mask, unit_x=field.unit_x,
+                                     unit_y=field.unit_y,
+                                     unit_values=unit_values_y)
+            return grad1, grad2, grad3, grad4
     else:
         raise TypeError()
 
+
+def get_jacobian_eigenproperties(field, raw=False):
+    """
+    Return eigenvalues and eigenvectors of the jacobian matrix on all the
+    field.
+
+    Parameters
+    ----------
+    field : VectorField object
+        .
+    raw : boolean
+        If 'False' (default), ScalarFields objects are returned.
+        If 'True', arrays are returned.
+
+    Returns
+    -------
+    eig1_sf : ScalarField object, or array
+        First eigenvalue.
+    eig2_sf : ScalarField object, or array
+        Second eigenvalue.
+    eig1_vf : VectorField object, or tuple of arrays
+        Eigenvector associated with first eigenvalue.
+    eig2_vf : VectorField object, or tuple of arrays
+        Eigenvector associated with second eigenvalue.
+    """
+    # getting datas
+    Vx_dx, Vx_dy, Vy_dx, Vy_dy = get_gradients(field, raw=True)
+    shape = Vx_dx.shape
+    mask = Vx_dx.mask
+    mask = np.logical_or(mask, Vx_dy.mask)
+    mask = np.logical_or(mask, Vy_dx.mask)
+    mask = np.logical_or(mask, Vy_dy.mask)
+    Vx_dx = Vx_dx.data
+    Vx_dy = Vx_dy.data
+    Vy_dx = Vy_dx.data
+    Vy_dy = Vy_dy.data
+    # loop on flatten arrays
+    eig1 = np.zeros(shape)
+    eig2 = np.zeros(shape)
+    eig1v_x = np.zeros(shape)
+    eig1v_y = np.zeros(shape)
+    eig2v_x = np.zeros(shape)
+    eig2v_y = np.zeros(shape)
+    for i in np.arange(shape[0]*shape[1]):
+        # breaking when masked
+        if mask.flat[i]:
+            continue
+        # getting the local jacobian matrix
+        loc_jac = [[Vx_dx.flat[i], Vx_dy.flat[i]],
+                   [Vy_dx.flat[i], Vy_dy.flat[i]]]
+        # getting local max eigenvalue and associated eigenvectors
+        loc_eigv, loc_eigvect = np.linalg.eig(loc_jac)
+        max_eig = np.argmax(loc_eigv)
+        if max_eig == 0:
+            min_eig = 1
+        else:
+            min_eig = 0
+        # storing in arrays
+        eig1.flat[i] = loc_eigv[max_eig]
+        eig2.flat[i] = loc_eigv[min_eig]
+        eig1v_x.flat[i] = loc_eigvect[0, max_eig]*loc_eigv[max_eig]
+        eig1v_y.flat[i] = loc_eigvect[1, max_eig]*loc_eigv[max_eig]
+        eig2v_x.flat[i] = loc_eigvect[0, min_eig]*loc_eigv[min_eig]
+        eig2v_y.flat[i] = loc_eigvect[1, min_eig]*loc_eigv[min_eig]
+    #storing
+    if raw :
+        return eig1, eig2, (eig1v_x, eig1v_y), (eig2v_x, eig2v_y)
+    else:
+        eig1_sf = ScalarField()
+        eig1_sf.import_from_arrays(field.axe_x, field.axe_y, eig1,
+                                  mask=mask, unit_x=field.unit_x,
+                                  unit_y=field.unit_y,
+                                  unit_values="")
+        eig2_sf = ScalarField()
+        eig2_sf.import_from_arrays(field.axe_x, field.axe_y, eig2,
+                                  mask=mask, unit_x=field.unit_x,
+                                  unit_y=field.unit_y,
+                                  unit_values="")
+        eig1_vf = VectorField()
+        eig1_vf.import_from_arrays(field.axe_x, field.axe_y, eig1v_x, eig1v_y,
+                                  mask=mask, unit_x=field.unit_x,
+                                  unit_y=field.unit_y,
+                                  unit_values="")
+        eig2_vf = VectorField()
+        eig2_vf.import_from_arrays(field.axe_x, field.axe_y, eig2v_x, eig2v_y,
+                                  mask=mask, unit_x=field.unit_x,
+                                  unit_y=field.unit_y,
+                                  unit_values="")
+        return eig1_sf, eig2_sf, eig1_vf, eig2_vf
 
 def get_grad_field(field, direction=1):
     """
@@ -133,7 +235,7 @@ def get_grad_field(field, direction=1):
     return gfield
 
 
-def get_streamlines(vf, xy, kind='stream', delta=.25, interp='linear',
+def get_streamlines(vf, xy, delta=.25, interp='linear',
                     reverse_direction=False):
     """
     Return a tuples of Points object representing the streamline begining
@@ -147,9 +249,6 @@ def get_streamlines(vf, xy, kind='stream', delta=.25, interp='linear',
         Field on which compute the streamlines
     xy : tuple
         Tuple containing each starting point for streamline.
-    kind : string, optional
-        If 'stream' (default), streamlines are returned,
-        If 'track', tracklines are returned (for unstable streamlines).
     delta : number, optional
         Spatial discretization of the stream lines,
         relative to a the spatial discretization of the field.
@@ -238,43 +337,12 @@ def get_streamlines(vf, xy, kind='stream', delta=.25, interp='linear',
                 if any(no < deltaabs2/2):
                     break
             # calcul des dx et dy pour une streamline
-            if kind == 'stream' or (kind == 'track' and i <= 2):
-                if reverse_direction:
-                    norm = -norm
-                dx = tmp_vx/norm*deltaabs
-                dy = tmp_vy/norm*deltaabs
-                stream[i, :] = [stream[i-1, 0] + dx, stream[i-1, 1] + dy]
-                i += 1
-            # calcul des dx et dy pour un trackline
-            elif kind == 'track':
-                #alpha=1 : streamline / alpha=0 : straight line / alpha=-1 : trackline
-                e_long = stream[i - 1, :] - stream[i - 2, :]
-                e_long = e_long/np.linalg.norm(e_long)
-                e_tran = np.array([-e_long[1], e_long[0]])
-                e_v = np.array([tmp_vx, tmp_vy])
-                e_v = e_v/np.linalg.norm(e_v)
-                e_line = (np.vdot(e_long, e_v)*e_long*(2 - np.abs(alpha))
-                          + alpha*np.vdot(e_tran, e_v)*e_tran)
-                if reverse_direction:
-                    e_line = -e_line
-                delta = e_line*deltaabs
-                stream[i, :] = [stream[i-1, 0] + delta[0],
-                                stream[i-1, 1] + delta[1]]
-                # alpha adaptation
-                new_vx = interp_vx(stream[i, 0], stream[i, 1])[0, 0]
-                new_vy = interp_vy(stream[i, 0], stream[i, 1])[0, 0]
-                new_norm = np.linalg.norm([new_vx, new_vy])
-                if new_norm > norm:
-                    alpha = -1
-                elif new_norm <= norm:
-                    alpha = alpha + 2*(norm - new_norm)/norm
-                    if alpha >= 1:
-                        alpha = 1
-                    elif alpha <= -1:
-                        alpha = -1
-                print(alpha)
-                i += 1
-
+            if reverse_direction:
+                norm = -norm
+            dx = tmp_vx/norm*deltaabs
+            dy = tmp_vy/norm*deltaabs
+            stream[i, :] = [stream[i-1, 0] + dx, stream[i-1, 1] + dy]
+            i += 1
             # tests d'arret
             x = stream[i-1, 0]
             y = stream[i-1, 1]
