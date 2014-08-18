@@ -227,7 +227,9 @@ def make_unit(string):
             if isinstance(liste[ind], unum.Unum):
                 continue
             if liste[ind] == '/':
-                liste[ind - 1:ind + 2] = [liste[ind - 1]/liste[ind + 1]]
+                liste[0:1] = [liste[0]/liste[ind + 1]]
+                liste[ind:ind+2] = []
+                #liste[ind - 1:ind + 2] = [liste[ind - 1]/liste[ind + 1]]
                 ind -= 2
                 if ind < 0:
                     break
@@ -1109,16 +1111,15 @@ class Profile(object):
     def __mul__(self, otherone):
         if isinstance(otherone, NUMBERTYPES):
             y = self.y*otherone
-            name = self.name
-            unit_y = self.unit_y
+            new_unit_y = self.unit_y
         elif isinstance(otherone, unum.Unum):
-            tmpunit = otherone/self.unit_y
-            y = self.y*tmpunit.asunit()
-            name = self.name
-            unit_y = self.unit_y*(tmpunit/tmpunit.asNumber())
+            new_unit_y = self.unit_y*otherone
+            y = self.y*new_unit_y.asNumber()
+            new_unit_y = new_unit_y/new_unit_y.asNumber()
         else:
             raise TypeError("You only can multiply Profile with number")
-        return Profile(self.x, y, self.unit_x, unit_y, name=name)
+        return Profile(x=self.x, y=y, unit_x=self.unit_x, unit_y=new_unit_y,
+                       name=self.name)
 
     __rmul__ = __mul__
 
@@ -1450,9 +1451,17 @@ class Profile(object):
             interval on which compute gradient when position is
             renseigned (default is dx similar to axis).
         """
+        # check if x values are evenly spaced
+        dxs = self.x[1::] - self.x[:-1:]
+        dx = self.x[1] - self.x[0]
+        if not np.all(np.abs(dxs - dx) < 1e-6*np.max(dxs)):
+            raise Exception("Not evenly spaced x values : \n {}".format(dxs))
         if position is None:
             tmp_prof = self.copy()
             tmp_prof.y = np.gradient(self.y, self.x[1] - self.x[0])
+            unit = tmp_prof.unit_y/tmp_prof.unit_x
+            tmp_prof.y *= unit.asNumber()
+            tmp_prof.unit_y = unit/unit.asNumber()
             return tmp_prof
         elif isinstance(position, NUMBERTYPES):
             if wanted_dx is None:
@@ -1636,7 +1645,7 @@ class Profile(object):
 
     def fill(self, kind='slinear', fill_value=0., inplace=False):
         """
-        Return a filled profile.
+        Return a filled profile (no more masked values).
 
         Warning : border masked values can't be interpolated and are filled
         with 'fill_value'.
@@ -1686,6 +1695,44 @@ class Profile(object):
             tmp_prof = Profile(self.x, new_y, mask=False, unit_x=self.unit_x,
                                unit_y=self.unit_y, name=self.name)
             return tmp_prof
+
+    def evenly_space(self, kind_interpolation='linear'):
+        """
+        Return a profile with evenly spaced x values.
+        Use interpolation to get missing values.
+
+        Parameters
+        ----------
+        kind_interpolation : string or int, optional
+            Specifies the kind of interpolation as a string ('value', ‘linear’,
+            ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic, ‘cubic’ where ‘slinear’,
+            ‘quadratic’ and ‘cubic’ refer to a spline interpolation of first,
+            second or third order) or as an integer specifying the order of
+            the spline interpolator to use. Default is ‘linear’.
+        """
+        # checking if evenly spaced
+        dxs = self.x[1::] - self.x[:-1:]
+        dx = self.x[1] - self.x[0]
+        if np.all(np.abs(dxs - dx) < 1e-6*np.max(dxs)):
+            return self.copy()
+        # getting data
+        mask = self.mask
+        filt = np.logical_not(mask)
+        x = self.x[filt]
+        y = self.y[filt]
+        mean_dx = np.average(dxs)
+        min_x = np.min(self.x)
+        max_x = np.max(self.x)
+        nmb_interv = np.int((max_x - min_x)/mean_dx)
+        # creating new evenly spaced x axis
+        new_x = np.linspace(min_x, max_x, nmb_interv + 1)
+        # interpolate to obtain y values
+        interp = spinterp.interp1d(x, y, kind_interpolation)
+        new_y = interp(new_x[1:-1])
+        new_y = np.concatenate(([self.y[0]], new_y, [self.y[-1]]))
+        # return profile
+        return Profile(new_x, new_y, mask=False, unit_x=self.unit_x,
+                       unit_y=self.unit_y, name=self.name)
 
     def smooth(self, tos='uniform', size=None, direction='y', **kw):
         """

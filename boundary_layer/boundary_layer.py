@@ -11,8 +11,8 @@ from scipy.integrate import odeint
 from .. import Profile, make_unit, ScalarField
 import pdb
 
-NumberTypes = (int, float, long)
-ArrayTypes = (list, np.ndarray)
+NUMBERTYPES = (int, float, long)
+ARRAYTYPES = (list, np.ndarray)
 
 
 class BlasiusBL(object):
@@ -31,9 +31,9 @@ class BlasiusBL(object):
         """
         Class constructor.
         """
-        if not isinstance(Uinf, NumberTypes):
+        if not isinstance(Uinf, NUMBERTYPES):
             raise TypeError("Uinf is not a number")
-        if not isinstance(nu, NumberTypes):
+        if not isinstance(nu, NUMBERTYPES):
             raise TypeError("nu is not a number")
         self.Uinf = Uinf
         self.nu = nu
@@ -82,9 +82,9 @@ class BlasiusBL(object):
         Rex : Profile object
             Reynolds number on the distance from the border.
         """
-        if not isinstance(x, (NumberTypes, ArrayTypes)):
+        if not isinstance(x, (NUMBERTYPES, ARRAYTYPES)):
             raise TypeError("x is not a number or a list")
-        if isinstance(x, NumberTypes):
+        if isinstance(x, NUMBERTYPES):
             x = np.array([x])
         if not isinstance(allTurbulent, bool):
             raise TypeError("'allTurbulent' has to be a boolean")
@@ -152,10 +152,11 @@ class BlasiusBL(object):
             delta, _, _ = self.get_thickness(x, allTurbulent=True)
             theta = np.linspace(0, 2, 200)
             u_over_U = np.power(theta, 1./7.)
-            u_over_U[theta>1] = 1.
+            u_over_U[theta > 1] = 1.
             y = theta*delta.y[0]
             u = u_over_U*self.Uinf
         return Profile(y, u, unit_x=make_unit('m'), unit_y=make_unit('m/s'))
+
 
 class WallLaw(object):
     """
@@ -178,13 +179,13 @@ class WallLaw(object):
         """
         Class constructor.
         """
-        if not isinstance(h, NumberTypes):
+        if not isinstance(h, NUMBERTYPES):
             raise TypeError("'h' has to be a number")
         if h <= 0:
             raise ValueError("'h' has to be positive")
-        if not isinstance(tau, NumberTypes):
+        if not isinstance(tau, NUMBERTYPES):
             raise TypeError("'tau' has to be a number")
-        if not isinstance(delta, NumberTypes):
+        if not isinstance(delta, NUMBERTYPES):
             raise TypeError("'delta' has to be a number")
         if tau < 0:
             raise ValueError("'tau' has to be a positive number")
@@ -213,7 +214,7 @@ class WallLaw(object):
             Reference to the displayed figure.
         """
 
-        if not isinstance(dy, NumberTypes):
+        if not isinstance(dy, NUMBERTYPES):
             raise TypeError("'dy' has to be a number")
         if dy < 0:
             raise ValueError("'dy' has to be a positive number")
@@ -249,7 +250,7 @@ class WallLaw(object):
         prof : Profile object
             the profile for values of 'y'
         """
-        if not isinstance(y, ArrayTypes):
+        if not isinstance(y, ARRAYTYPES):
             raise TypeError("'y' has to be an array")
         if any(y < 0):
             raise ValueError("'y' has to be an array of positive number")
@@ -302,6 +303,7 @@ class WallLaw(object):
         """
         return self._outer_turb(self.delta*self.Utau/self.visc_c)
 
+
 class WakeLaw(WallLaw):
     """
     Class representing a law of the wake profile using Coles theory.
@@ -343,7 +345,7 @@ class WakeLaw(WallLaw):
         """
         y = yp/self.Utau*self.visc_c
         Cc = 0.55
-        return (1./self.k*np.log(self.Utau*y/self.visc_c)+ 5.1
+        return (1./self.k*np.log(self.Utau*y/self.visc_c) + 5.1
                 + 2.*Cc/self.k*np.sin(np.pi*y/(2.*self.delta))**2)
 
 
@@ -523,5 +525,65 @@ def get_shape_factor(obj, direction=1):
     mom = get_momentum_thickness(obj, direction)
     shape_factor = displ/mom
     if isinstance(shape_factor, Profile):
-        shape_factor.mask = np.logical_or(shape_factor.mask, mom.y<=0)
+        shape_factor.mask = np.logical_or(shape_factor.mask, mom.y <= 0)
     return shape_factor
+
+
+def get_shear_stress(obj, viscosity=1e-3, direction=1, method='simple',
+                     respace=False):
+    """
+    Return the wall shear stress.
+    If velocities values are missing near the wall, an extrapolation
+    (bad accuracy) is used.
+    Warning : the wall must be at x=0
+
+    Parameters
+    ----------
+    obj : Profile or ScalarField object
+        .
+    viscosity : number, optional
+        Dynamic viscosity (default to water : 1e-3)
+    direction : integer, optional
+        If 'obj' is a ScalarField, determine the swept axis
+        (1 for x and 2 for y).
+    method : string, optional
+        'simple' (default) : use simple gradient computation
+        'wall_law' : use the linear part of the 'law of the wall' model
+        (more accurate but need some points in the viscous sublayer)
+    respace : bool, optional
+        Use linear interpolation to create an evenly spaced profile.
+    """
+    unit_visc = make_unit('kg/(m*s)')
+    # check parameters
+    if not isinstance(viscosity, NUMBERTYPES):
+        raise TypeError()
+    if viscosity <= 0:
+        raise ValueError()
+    if not direction in [1, 2]:
+        raise ValueError()
+    # if obj is a profile
+    if isinstance(obj, Profile):
+        if method == 'simple':
+            # add zero if necessary
+            if obj.x[0] > 0:
+                obj.x = np.concatenate(([0], obj.x))
+                obj.y = np.concatenate(([0], obj.y))
+            # respace if asked
+            if respace:
+                obj = obj.evenly_space('linear')
+            # compute gradients and return shear stress
+            tmp_prof = obj.get_gradient()*viscosity*unit_visc
+            return tmp_prof
+        elif method == 'wall_law':
+            new_x = obj.x[obj.x > 0]
+            new_y = obj.y[obj.x > 0]/new_x*viscosity
+            new_unit_y = obj.unit_y/obj.unit_x*unit_visc
+            mask = obj.mask[obj.x > 0]
+            return Profile(x=new_x, y=new_y, mask=mask, unit_x=obj.unit_x,
+                           unit_y=new_unit_y, name=obj.name)
+        else:
+            raise ValueError()
+    elif isinstance(obj, ScalarField):
+        raise Exception("not implemented yet")
+    else:
+        raise TypeError()
