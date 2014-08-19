@@ -13,7 +13,7 @@ from ..core import Points, ScalarField, VectorField,\
 import matplotlib.pyplot as plt
 
 
-def get_gradients(field, raw):
+def get_gradients(field, raw=False):
     """
     Return gradients along x and y.
 
@@ -49,16 +49,19 @@ def get_gradients(field, raw):
         unit_values_y /= facty
         grad_y *= facty
         # returning
+        mask = np.logical_or(grad_x.mask, grad_y.mask)
         if raw:
+            grad_x.mask = mask
+            grad_y.mask = mask
             return grad_x, grad_y
         else:
             gradx.import_from_arrays(field.axe_x, field.axe_y, grad_x.data,
-                                     mask=grad_x.mask, unit_x=field.unit_x,
+                                     mask=mask, unit_x=field.unit_x,
                                      unit_y=field.unit_y,
                                      unit_values=unit_values_x)
             grady = ScalarField()
             grady.import_from_arrays(field.axe_x, field.axe_y, grad_y.data,
-                                     mask=grad_x.mask, unit_x=field.unit_x,
+                                     mask=mask, unit_x=field.unit_x,
                                      unit_y=field.unit_y,
                                      unit_values=unit_values_y)
             return gradx, grady
@@ -78,27 +81,34 @@ def get_gradients(field, raw):
         Vx_dy *= facty
         Vy_dy *= facty
         # returning
+        mask = np.logical_or(Vx_dx.mask, Vx_dy.mask)
+        mask = np.logical_or(mask, Vy_dx.mask)
+        mask = np.logical_or(mask, Vy_dy.mask)
         if raw:
+            Vx_dx.mask = mask
+            Vx_dy.mask = mask
+            Vy_dx.mask = mask
+            Vy_dy.mask = mask
             return (Vx_dx, Vx_dy, Vy_dx, Vy_dy)
         else:
             grad1 = ScalarField()
             grad1.import_from_arrays(field.axe_x, field.axe_y, Vx_dx.data,
-                                     mask=Vx_dx.mask, unit_x=field.unit_x,
+                                     mask=mask, unit_x=field.unit_x,
                                      unit_y=field.unit_y,
                                      unit_values=unit_values_x)
             grad2 = ScalarField()
             grad2.import_from_arrays(field.axe_x, field.axe_y, Vx_dy.data,
-                                     mask=Vx_dy.mask, unit_x=field.unit_x,
+                                     mask=mask, unit_x=field.unit_x,
                                      unit_y=field.unit_y,
                                      unit_values=unit_values_y)
             grad3 = ScalarField()
             grad3.import_from_arrays(field.axe_x, field.axe_y, Vy_dx.data,
-                                     mask=Vy_dx.mask, unit_x=field.unit_x,
+                                     mask=mask, unit_x=field.unit_x,
                                      unit_y=field.unit_y,
                                      unit_values=unit_values_x)
             grad4 = ScalarField()
             grad4.import_from_arrays(field.axe_x, field.axe_y, Vy_dy.data,
-                                     mask=Vy_dy.mask, unit_x=field.unit_x,
+                                     mask=mask, unit_x=field.unit_x,
                                      unit_y=field.unit_y,
                                      unit_values=unit_values_y)
             return grad1, grad2, grad3, grad4

@@ -12,11 +12,12 @@ import pdb
 from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
     TemporalVectorFields
-from ..field_treatment import get_streamlines
+from ..field_treatment import get_streamlines, get_gradients
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline
 from scipy import optimize
+from scipy import linalg
 import warnings
 import sets
 import scipy.ndimage.measurements as msr
@@ -1917,3 +1918,66 @@ def get_iota(vectorfield, mask=None, raw=False):
                                    unit_x=unit_x, unit_y=unit_y,
                                    unit_values=make_unit(''))
         return iota_sf
+
+
+def get_lambda2(vectorfield, mask=None, raw=False):
+    """
+    Return the lambda2 scalar field. lambda2 criterion is used in
+    vortex analysis.
+    The fonction is only usable on orthogonal fields.
+
+    Parameters
+    ----------
+    vectorfield : VectorField object
+    mask : array of boolean, optionnal
+        Has to be an array of the same size of the vector field object,
+        iota2 will be compute only where zone is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
+    """
+    # check parameter
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'vectorfield' must be a VectorField object")
+    if mask is None:
+        mask = np.zeros(vectorfield.shape)
+    elif not isinstance(mask, ARRAYTYPES):
+        raise TypeError("'mask' must be an array of boolean")
+    else:
+        mask = np.array(mask)
+    mask = np.logical_or(mask, vectorfield.mask)
+    # getting velocity gradients
+    Udx, Udy, Vdx, Vdy = get_gradients(vectorfield, raw=True)
+    mask = np.logical_or(mask, Udx.mask)
+    # creating returning matrix
+    lambda2 = np.zeros(vectorfield.shape)
+    # loop on points
+    for ij, _, _ in vectorfield:
+        i, j = ij
+        # check if masked
+        if mask[i, j]:
+            continue
+        # getting symmetric and antisymetric parts
+        S = 1./2.*np.array([[2*Udx[i, j], Udy[i, j] + Vdx[i, j]],
+                            [Vdx[i, j] + Udy[i, j], 2*Vdy[i, j]]])
+        Omega = 1./2.*np.array([[0, Udy[i, j] - Vdx[i, j]],
+                                [Vdx[i, j] - Udy[i, j], 0]])
+        # getting S^2 + Omega^2
+        M = S**2 + Omega**2
+        # getting second eigenvalue
+        lambds = linalg.eig(M, left=False, right=False)
+        l2 = np.min(lambds)
+        # storing lambda2
+        lambda2[i, j] = l2.real
+    # returning
+    if raw:
+        return np.ma.masked_array(l2, mask)
+    else:
+        lambd_sf = ScalarField()
+        axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
+        lambd_sf.import_from_arrays(axe_x, axe_y, lambda2, mask,
+                                    unit_x=unit_x, unit_y=unit_y,
+                                    unit_values=make_unit(''))
+        return lambd_sf
+
