@@ -1052,12 +1052,12 @@ def _min_detection(SF):
     Only for use in 'get_cp_crit'.
     """
     # interpolation on the field
-    axe_x, axe_y = SF.axe_x, SF.axe_y
-    values = SF.values
     if np.any(SF.mask):
         SF.crop_masked_border()
         if np.any(SF.mask):
             raise Exception("should not have masked values")
+    axe_x, axe_y = SF.axe_x, SF.axe_y
+    values = SF.values
     interp = RectBivariateSpline(axe_x, axe_y, values, s=0, ky=3, kx=3)
     # extended field (resolution x100)
     x = np.linspace(axe_x[0], axe_x[-1], 100)
