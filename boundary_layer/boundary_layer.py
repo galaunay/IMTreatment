@@ -124,7 +124,7 @@ class BlasiusBL(object):
                       unit_y=make_unit(''))
         return delta, Cf, Rex
 
-    def get_wall_shear_stress(self, x, allTurbulent):
+    def get_wall_shear_stress(self, x, allTurbulent=False):
         """
         Return the theorical wall shear stress.
 

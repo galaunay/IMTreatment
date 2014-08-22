@@ -1736,17 +1736,17 @@ class Profile(object):
                                unit_y=self.unit_y, name=self.name)
             return tmp_prof
 
-    def change_unit(self, new_unit, axe='y'):
+    def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.
 
         Parameters
         ----------
+        axe : string
+            'y' for changing the profile values unit
+            'x' for changing the profile axe unit
         new_unit : Unum.unit object or string
             The new unit.
-        axe : string, optional
-            'y' (default) for changing the profile values unit
-            'x' for changing the profile axe unit
         """
         if isinstance(new_unit, STRINGTYPES):
             new_unit = make_unit(new_unit)
