@@ -529,8 +529,8 @@ def get_shape_factor(obj, direction=1):
     return shape_factor
 
 
-def get_shear_stress(obj, viscosity=1e-3, direction=1, method='simple',
-                     respace=False):
+def get_shear_stress(obj, direction=1, method='simple',
+                     respace=False, tau_w_guess=1e-6, rho=1000., nu=1.e-6):
     """
     Return the wall shear stress.
     If velocities values are missing near the wall, an extrapolation
@@ -548,16 +548,25 @@ def get_shear_stress(obj, viscosity=1e-3, direction=1, method='simple',
         (1 for x and 2 for y).
     method : string, optional
         'simple' (default) : use simple gradient computation
-        'wall_law' : use the linear part of the 'law of the wall' model
-        (more accurate but need some points in the viscous sublayer)
+        'wall_law_lin' : use the linear part of the 'law of the wall' model
+        (need some points in the viscous sublayer)
+        'wall_law_log' : use the log part of the 'law of the wall' model
+        (only valid in the log layer)
     respace : bool, optional
         Use linear interpolation to create an evenly spaced profile.
+    tau_w_guess : number, optional
+        For 'Wall_law_log' method, initial guess for tau_w resolution.
+    rho : number, optional
+        Density of the fluid (default fo water : 1000 kg/m^3)
+    nu : number, optional
+        Kinematic viscosity for the fluid (default for water : 1e-6 m^2/s)
     """
-    unit_visc = make_unit('kg/(m*s)')
+    unit_visc = make_unit('m^2/s')
+    unit_rho = make_unit('kg/m^3')
     # check parameters
-    if not isinstance(viscosity, NUMBERTYPES):
+    if not isinstance(nu, NUMBERTYPES):
         raise TypeError()
-    if viscosity <= 0:
+    if nu <= 0:
         raise ValueError()
     if not direction in [1, 2]:
         raise ValueError()
@@ -568,34 +577,42 @@ def get_shear_stress(obj, viscosity=1e-3, direction=1, method='simple',
             if respace:
                 obj = obj.evenly_space('linear')
             # compute gradients and return shear stress
-            tmp_prof = obj.get_gradient()*viscosity*unit_visc
+            tmp_prof = obj.get_gradient()*nu*rho*unit_visc*unit_rho
             return tmp_prof
-        elif method == 'wall_law':
+        elif method == 'wall_law_lin':
             new_x = obj.x[obj.x > 0]
-            new_y = obj.y[obj.x > 0]/new_x*viscosity
-            new_unit_y = obj.unit_y/obj.unit_x*unit_visc
+            new_y = obj.y[obj.x > 0]/new_x*nu*rho
+            new_unit_y = obj.unit_y/obj.unit_x*unit_visc*unit_rho
             mask = obj.mask[obj.x > 0]
             return Profile(x=new_x, y=new_y, mask=mask, unit_x=obj.unit_x,
                            unit_y=new_unit_y, name=obj.name)
         elif method == 'wall_law_log':
-            raise Exception("not fonctional")
             # getting data
             import scipy.optimize as spopt
             x = obj.x[obj.x > 0]
             y = obj.y[obj.x > 0]
             mask = obj.mask[obj.x > 0]
-            rho = 1000.
             # log law of the wall
-            def func(u_star, U, rho, y, visc):
+            def func(u_star, U, rho, y, nu):
                 u_star = u_star[0]
                 k = 0.41
                 C = 5.1
-                return y*rho/viscosity*u_star - np.exp((U/u_star - C)*k)
+                # compute residual
+                if u_star < 0:
+                    res = -(U/u_star - 1./k*np.log(np.abs(y*u_star/nu))
+                            - C)
+                elif u_star == 0:
+                    res = U/u_star - 1./k*np.log(-1e5) - C
+                else:
+                    res = U/u_star - 1./k*np.log(y*u_star/nu) - C
+                return res
             # solving
-            u_stars = [spopt.fsolve(func, (1.,), (y[i], rho, x[i], viscosity))
-                       for i in np.arange(len(x)) if np.logical_not(mask[i])]
+            u_stars = np.zeros(len(x))
+            for i in np.arange(len(u_stars)):
+                u_stars[i] = spopt.fsolve(func, (1e-6,),
+                                          (y[i], rho, x[i], nu))
             tau_w = rho*np.array(u_stars)**2
-            unit_tau = obj.unit_y/obj.unit_x*unit_visc
+            unit_tau = obj.unit_y/obj.unit_x*unit_visc*unit_rho
             # returning
             return Profile(x=x, y=tau_w, mask=mask, unit_x=obj.unit_x,
                            unit_y=unit_tau, name=obj.name)
