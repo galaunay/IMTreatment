@@ -564,10 +564,6 @@ def get_shear_stress(obj, viscosity=1e-3, direction=1, method='simple',
     # if obj is a profile
     if isinstance(obj, Profile):
         if method == 'simple':
-            # add zero if necessary
-            if obj.x[0] > 0:
-                obj.x = np.concatenate(([0], obj.x))
-                obj.y = np.concatenate(([0], obj.y))
             # respace if asked
             if respace:
                 obj = obj.evenly_space('linear')
@@ -581,6 +577,28 @@ def get_shear_stress(obj, viscosity=1e-3, direction=1, method='simple',
             mask = obj.mask[obj.x > 0]
             return Profile(x=new_x, y=new_y, mask=mask, unit_x=obj.unit_x,
                            unit_y=new_unit_y, name=obj.name)
+        elif method == 'wall_law_log':
+            raise Exception("not fonctional")
+            # getting data
+            import scipy.optimize as spopt
+            x = obj.x[obj.x > 0]
+            y = obj.y[obj.x > 0]
+            mask = obj.mask[obj.x > 0]
+            rho = 1000.
+            # log law of the wall
+            def func(u_star, U, rho, y, visc):
+                u_star = u_star[0]
+                k = 0.41
+                C = 5.1
+                return y*rho/viscosity*u_star - np.exp((U/u_star - C)*k)
+            # solving
+            u_stars = [spopt.fsolve(func, (1.,), (y[i], rho, x[i], viscosity))
+                       for i in np.arange(len(x)) if np.logical_not(mask[i])]
+            tau_w = rho*np.array(u_stars)**2
+            unit_tau = obj.unit_y/obj.unit_x*unit_visc
+            # returning
+            return Profile(x=x, y=tau_w, mask=mask, unit_x=obj.unit_x,
+                           unit_y=unit_tau, name=obj.name)
         else:
             raise ValueError()
     elif isinstance(obj, ScalarField):

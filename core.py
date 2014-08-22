@@ -8,6 +8,7 @@ Module IMTreatment.
 import scipy.interpolate as spinterp
 import scipy.ndimage.measurements as msr
 import scipy.io as spio
+import scipy.optimize as spopt
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import numpy as np
@@ -1585,6 +1586,45 @@ class Profile(object):
             corr = np.correlate(self.y, self.y[0:window_len])
             x = self.x[0:len(corr)]
         return Profile(x, corr, unit_x=self.unit_x, unit_y=make_unit(''))
+
+    def get_fitting(self, func, p0=None, output_param=False):
+        """
+        Use non-linear least squares to fit a function, f, to the profile.
+
+        Parameters
+        ----------
+        func : callable
+            The model function, f(x, ...). It must take the independent
+            variable as the first argument and the parameters to fit as
+            separate remaining arguments.
+        p0 : None, scalar, or M-length sequence
+            Initial guess for the parameters. If None, then the initial values
+            will all be 1 (if the number of parameters for the function can be
+            determined using introspection, otherwise a ValueError is raised).
+        output_param : boolean, optional
+            If 'False' (default), return only a Profile with fitted values
+            If 'True', return also the parameters values.
+
+        Returns
+        -------
+        fit_prof : Profile obect
+            The Fitted profile.
+        params : tuple, optional
+            Fitting parameters.
+        """
+        # getting data
+        xdata = self.x
+        ydata = self.y
+        # fitting params
+        popt, pcov = spopt.curve_fit(func, xdata, ydata, p0)
+        # creating profile
+        fit_prof = Profile(xdata, func(xdata, *popt), unit_x=self.unit_x,
+                           unit_y=self.unit_y, name=self.name)
+        # returning
+        if output_param:
+            return fit_prof, popt
+        else:
+            return fit_prof
 
     ### Modifiers ###
     def trim(self, interval, ind=False):
