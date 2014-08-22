@@ -25,9 +25,11 @@ class BlasiusBL(object):
         Flown velocity away from the wall (m/s).
     nu : number
         Kinematic viscosity (m²/s).
+    rho : number
+        Density (kg/m^3)
     """
 
-    def __init__(self, Uinf, nu):
+    def __init__(self, Uinf, nu, rho):
         """
         Class constructor.
         """
@@ -35,8 +37,11 @@ class BlasiusBL(object):
             raise TypeError("Uinf is not a number")
         if not isinstance(nu, NUMBERTYPES):
             raise TypeError("nu is not a number")
+        if not isinstance(rho, NUMBERTYPES):
+            raise TypeError("rho is not a number")
         self.Uinf = Uinf
         self.nu = nu
+        self.rho = rho
 
     def display(self, intervx, allturbulent=False, **plotargs):
         """
@@ -55,6 +60,13 @@ class BlasiusBL(object):
             plotargs["label"] = "Blasius theorical BL"
         fig = delta.display(**plotargs)
         return fig
+
+    def get_Rex(self, x):
+        """
+        Return the Reynolds number based on the distance from the beginning of
+        the plate.
+        """
+        return self.Uinf*x/self.nu
 
     def get_thickness(self, x, allTurbulent=False):
         """
@@ -111,6 +123,26 @@ class BlasiusBL(object):
         Rex = Profile(x, Rex, unit_x=make_unit('m'),
                       unit_y=make_unit(''))
         return delta, Cf, Rex
+
+    def get_wall_shear_stress(self, x, allTurbulent):
+        """
+        Return the theorical wall shear stress.
+
+        Parameters
+        ----------
+        x : number
+            Position where we want the shear stress
+        allTurbulent : boolean, optional
+            If 'True', the boundary layer (BL) is assumed turbulent.
+            else (default), Re_x is used to determined if the BL is turbulent
+            or not.
+        """
+        Re_x = self.get_Rex(x)
+        if allTurbulent or Re_x > 10**5:
+            tau_w = 0.0592/Re_x**(0.2)*1./2.*self.rho*self.Uinf**2
+        else:
+            tau_w = 0.664/Re_x**(0.5)*1./2.*self.rho*self.Uinf**2
+        return tau_w
 
     def get_profile(self, x, turbulent=False):
         """

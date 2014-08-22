@@ -1736,6 +1736,39 @@ class Profile(object):
                                unit_y=self.unit_y, name=self.name)
             return tmp_prof
 
+    def change_unit(self, new_unit, axe='y'):
+        """
+        Change the unit of an axe.
+
+        Parameters
+        ----------
+        new_unit : Unum.unit object or string
+            The new unit.
+        axe : string, optional
+            'y' (default) for changing the profile values unit
+            'x' for changing the profile axe unit
+        """
+        if isinstance(new_unit, STRINGTYPES):
+            new_unit = make_unit(new_unit)
+        if not isinstance(new_unit, unum.Unum):
+            raise TypeError()
+        if not isinstance(axe, STRINGTYPES):
+            raise TypeError()
+        if axe == 'x':
+            old_unit = self.unit_x
+            new_unit = old_unit.asUnit(new_unit)
+            fact = new_unit.asNumber()
+            self.x *= fact
+            self.unit_x = new_unit/fact
+        elif axe == 'y':
+            old_unit = self.unit_y
+            new_unit = old_unit.asUnit(new_unit)
+            fact = new_unit.asNumber()
+            self.y *= fact
+            self.unit_y = new_unit/fact
+        else:
+            raise ValueError()
+
     def evenly_space(self, kind_interpolation='linear'):
         """
         Return a profile with evenly spaced x values.
