@@ -22,11 +22,7 @@ import warnings
 import sets
 import scipy.ndimage.measurements as msr
 import unum
-
-
-
-#TODO : Has to make a trnaposition between VF and vf.
-# maybe it shold be a good idea to pass vf in the same format.
+import copy
 
 
 def velocityfield_to_vf(vectorfield, time):
@@ -100,8 +96,10 @@ class VF(object):
         delta_y = self.axe_y[1] - self.axe_y[0]
         positions = []
         pbis = []
-        grid_x = np.append(np.arange(0, self.shape[0] - window_size, window_size), self.shape[0])
-        grid_y = np.append(np.arange(0, self.shape[1] - window_size, window_size), self.shape[1])
+        grid_x = np.append(np.arange(0, self.shape[0] - window_size,
+                                     window_size), self.shape[0])
+        grid_y = np.append(np.arange(0, self.shape[1] - window_size,
+                                     window_size), self.shape[1])
         pool = self._split_the_field(grid_x, grid_y)
         # loop on the pool (funny no ?)
         while True:
@@ -210,7 +208,8 @@ class VF(object):
         isolate critical points.
         Return '(None, None)' if there is no possible cut position.
         """
-        raise Exception("WARNING : may be inusable with actual '_split_the_field'")
+        raise Exception("WARNING : may be inusable with actual "
+                        "'_split_the_field'")
         self._calc_pbi()
         # Getting point of interest position
         poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
@@ -338,10 +337,17 @@ class VF(object):
         num_y = len(poi_y[poi_y != 0])
         return num_x, num_y
 
+
 class CritPoints(object):
     """
     Class representing a set of critical point associated to a VectorField.
+
+    Parameters
+    ----------
+    unit_time : string or Unit object
+        Unity for the time.
     """
+    ### Operators ###
     def __init__(self,  unit_time='s'):
         # check parameters
         self.foc = np.array([])
@@ -351,10 +357,34 @@ class CritPoints(object):
         self.sadd = np.array([])
         self.pbi_m = np.array([])
         self.pbi_p = np.array([])
-        self.time = np.array([])
+        self.times = np.array([])
         self.unit_time = unit_time
         self.colors = ['r', 'b', 'y', 'm', 'g', 'w', 'k']
 
+    def __add__(self, obj):
+        if isinstance(obj, CritPoints):
+            if not self.unit_time == obj.unit_time:
+                raise ValueError()
+            tmp_CP = CritPoints(unit_time=self.unit_time)
+            tmp_CP.foc = np.append(self.foc, obj.foc)
+            tmp_CP.foc_c = np.append(self.foc_c, obj.foc_c)
+            tmp_CP.node_i = np.append(self.node_i, obj.node_i)
+            tmp_CP.node_o = np.append(self.node_o, obj.node_o)
+            tmp_CP.sadd = np.append(self.sadd, obj.sadd)
+            tmp_CP.pbi_m = np.append(self.pbi_m, obj.pbi_m)
+            tmp_CP.pbi_p = np.append(self.pbi_p, obj.pbi_p)
+            tmp_CP.times = np.append(self.times, obj.times)
+            tmp_CP._sort_by_time()
+            # test if there is double
+            for i, t in enumerate(tmp_CP.times[0:-1]):
+                if t == tmp_CP.times[i+1]:
+                    raise ValueError()
+            # returning
+            return tmp_CP
+        else:
+            raise TypeError()
+
+    ### Attributes ###
     @property
     def unit_time(self):
         return self.__unit_time
@@ -367,8 +397,92 @@ class CritPoints(object):
             raise TypeError()
         self.__unit_time = new_unit_time
 
+    ### Properties ###
+    @property
+    def iter(self):
+        return [self.foc, self.foc_c, self.node_i, self.node_o, self.sadd,
+                self.pbi_m, self.pbi_p]
+
+    @property
+    def iter_traj(self):
+        return [self.foc_traj, self.foc_c_traj, self.node_i_traj,
+                self.node_o_traj, self.sadd_traj]
+
+    ### Watchers ###
+    def copy(self):
+        """
+        Return a copy of the CritPoints object.
+        """
+        return copy.deepcopy(self)
+
+    def compute_traj(self, epsilon=None):
+        """
+        Compute cp trajectory from cp positions.
+
+        Parameters
+        ----------
+        epsilon : number, optional
+            Maximal distance between two successive points.
+            default value is Inf.
+        """
+        # get points together with v as time
+        focs = np.array([])
+        for i, pts in enumerate(self.foc):
+            if len(pts) == 0:
+                continue
+            pts.v = [self.times[i]]*len(pts)
+            focs = np.append(focs, pts.decompose())
+        focs_c = np.array([])
+        for i, pts in enumerate(self.foc_c):
+            if len(pts) == 0:
+                continue
+            pts.v = [self.times[i]]*len(pts)
+            focs_c = np.append(focs_c, pts.decompose())
+        nodes_i = np.array([])
+        for i, pts in enumerate(self.node_i):
+            if len(pts) == 0:
+                continue
+            pts.v = [self.times[i]]*len(pts)
+            nodes_i = np.append(nodes_i, pts.decompose())
+        nodes_o = np.array([])
+        for i, pts in enumerate(self.node_o):
+            if len(pts) == 0:
+                continue
+            pts.v = [self.times[i]]*len(pts)
+            nodes_o = np.append(nodes_o, pts.decompose())
+        sadds = np.array([])
+        for i, pts in enumerate(self.sadd):
+            if len(pts) == 0:
+                continue
+            pts.v = [self.times[i]]*len(pts)
+            sadds = np.append(sadds, pts.decompose())
+        # getting trajectories
+        self.foc_traj = self._get_cp_time_evolution(focs, times=self.times,
+                                                    epsilon=epsilon)
+        self.foc_c_traj = self._get_cp_time_evolution(focs_c, times=self.times,
+                                                      epsilon=epsilon)
+        self.node_i_traj = self._get_cp_time_evolution(nodes_i,
+                                                       times=self.times,
+                                                       epsilon=epsilon)
+        self.node_o_traj = self._get_cp_time_evolution(nodes_o,
+                                                       times=self.times,
+                                                       epsilon=epsilon)
+        self.sadd_traj = self._get_cp_time_evolution(sadds, times=self.times,
+                                                    epsilon=epsilon)
+
+    ### Modifiers ###
     def add_point(self, foc=None, foc_c=None, node_i=None, node_o=None,
                   sadd=None, pbi_m=None, pbi_p=None, time=None):
+        """
+        Add a new point to the CritPoints object.
+
+        Parameters
+        ----------
+        foc, foc_c, node_i, node_o, sadd, pbi_m, pbi_p : Points objects
+            Representing the critical points at this time.
+        time : number
+            Time.
+        """
         # check parameters
         for pt in [foc, foc_c, node_i, node_o, sadd, pbi_m, pbi_p]:
             if pt is None:
@@ -378,7 +492,7 @@ class CritPoints(object):
             pt.v = np.array([])
         if not isinstance(time, NUMBERTYPES):
             raise ValueError()
-        if np.any(self.time == time):
+        if np.any(self.times == time):
             raise ValueError()
         # remove Points values if necessary
         # search the place of the new points
@@ -389,10 +503,22 @@ class CritPoints(object):
         self.sadd = np.append(self.sadd, sadd)
         self.pbi_m = np.append(self.pbi_m, pbi_m)
         self.pbi_p = np.append(self.pbi_p, pbi_p)
-        self.time = np.append(self.time, time)
+        self.times = np.append(self.times, time)
         self._sort_by_time()
 
     def remove_point(self, time=None, indice=None):
+        """
+        Remove some critical points.
+
+        Parameters
+        ----------
+        time : number, optional
+            If specified, critical points associated to this time are
+            removed.
+        indice : integer, optional
+            If specified, critical points associated to this indice are
+            removed.
+        """
         # check parameters
         if time is None and indice is None:
             raise Exception()
@@ -409,27 +535,268 @@ class CritPoints(object):
         self.sadd = np.delete(self.sadd, indice)
         self.pbi_m = np.delete(self.pbi_m, indice)
         self.pbi_p = np.delete(self.pbi_p, indice)
-        self.time = np.delete(self.time, indice)
+        self.times = np.delete(self.times, indice)
 
+    ### Private ###
     def _sort_by_time(self):
-        indsort = np.argsort(self.time)
+        """
+        Sort the cp by increasing times.
+        """
+        indsort = np.argsort(self.times)
         for pt in self.iter:
-            pdb.set_trace()
             pt[:] = pt[indsort]
-        self.time[:] = self.time[indsort]
+        self.times[:] = self.times[indsort]
 
     def _get_indice_from_time(self, time):
+        """
+        Return the indice associated to the given number.
+        """
         # check parameters
         if not isinstance(time, NUMBERTYPES):
             raise TypeError()
         # get indice
-        indice = np.argwhere(self.time == time)
+        indice = np.argwhere(self.times == time)
         if indice.shape[0] == 0:
             raise ValueError()
         indice = indice[0][0]
         return indice
 
-    def display(self, time=None, indice=None):
+    @staticmethod
+    def _get_cp_time_evolution(points, times=None, epsilon=None):
+        """
+        Compute the temporal evolution of each vortex centers from a set of
+        points at different times. (Points objects must each contain only one
+        and point time must be specified in 'v' argument of points).
+
+        Parameters:
+        -----------
+        points : tuple of Points objects.
+            .
+        times : array of numbers
+            Times. If 'None' (default), only times represented by at least one
+            point are taken into account
+            (can create wrong link between points).
+        epsilon : number, optional
+            Maximal distance between two successive points.
+            default value is Inf.
+
+        Returns
+        -------
+        traj : tuple of Points object
+            .
+        """
+        if len(points) == 0:
+            return None
+        if not isinstance(points, ARRAYTYPES):
+            raise TypeError("'points' must be an array of Points objects")
+        if times is not None:
+            if not isinstance(times, ARRAYTYPES):
+                raise TypeError("'times' must be an array of numbers")
+        if not isinstance(points[0], Points):
+            raise TypeError("'points' must be an array of Points objects")
+
+        # local class to store the point field
+        class PointField(object):
+            """
+            Class representing an orthogonal set of points, defined by a
+            position and a time.
+            """
+            def __init__(self, pts_tupl, times):
+                if not isinstance(pts_tupl, ARRAYTYPES):
+                    raise TypeError("'pts' must be a tuple of Point objects")
+                for pt in pts_tupl:
+                    if not isinstance(pt, Points):
+                        raise TypeError("'pts' must be a tuple of Point"
+                                        "objects")
+                    if not len(pt) == len(pt.v):
+                        raise StandardError("v has not the same dimension as "
+                                            "xy")
+                # if some Points objects contains more than one point,
+                # we decompose them
+                for i in np.arange(len(pts_tupl)-1, -1, -1):
+                    if len(pts_tupl[i]) != 1:
+                        pts_tupl[i:i+1] = pts_tupl[i].decompose()
+                self.points = []
+                # possible times determination
+                if times is None:
+                    times = []
+                    for pt in pts_tupl:
+                        times.append(pt.v[0])
+                    times = list(sets.Set(times))
+                    times.sort()
+                    self.times = times
+                # Sorting points by times
+                for time in times:
+                    self.times = times
+                    tmp_points = []
+                    for pt in pts_tupl:
+                        if pt.v[0] == time:
+                            tmp_points.append(Point(pt.xy[0, 0], pt.xy[0, 1],
+                                                    pt.v[0]))
+                    self.points.append(tmp_points)
+                self.unit_x = pts_tupl[0].unit_x
+                self.unit_y = pts_tupl[0].unit_y
+                self.unit_v = pts_tupl[0].unit_v
+                self.time_step = np.size(self.points, 0)
+
+            def make_point_useless(self, i, j):
+                """
+                Make a point of the field useless (None).
+                """
+                if not isinstance(i, int) or not isinstance(j, int):
+                    raise TypeError()
+                self.points[i][j] = None
+
+            def get_points_at_time(self, time):
+                """
+                Return all the points for a given time.
+                """
+                if not isinstance(time, int):
+                    raise TypeError()
+                return self.points[time]
+
+        # local class line to store vortex center evolution line
+        class Line(object):
+            """
+            Class representing a line, defined by a set of ordened points.
+            """
+
+            def __init__(self, epsilon):
+                self.points = []
+                self.epsilon = epsilon
+
+            def add_point(self, pts):
+                """
+                Add a new point to the line.
+                """
+                if not isinstance(pts, Point):
+                    raise TypeError("'pts' must be a Point object")
+                self.points.append(pts)
+
+            def remove_point(self, ind):
+                """
+                Remove the designated point of the line.
+                """
+                if not isinstance(ind, int):
+                    raise TypeError("'ind' must be an integer")
+                if ind < 0 or ind > len(self):
+                    raise ValueError("'ind' is out of range")
+                self.points.pop(ind)
+
+            def choose_starting_point(self, PF):
+                """
+                Choose in the given field, a new new starting point for a line.
+                """
+                if not isinstance(PF, PointField):
+                    raise TypeError()
+                start_i = None
+                start_j = None
+                for i in np.arange(PF.time_step):
+                    for j in np.arange(len(PF.points[i])):
+                        if PF.points[i][j] is not None:
+                            start_i = i
+                            start_j = j
+                            break
+                    if start_i is not None:
+                        break
+                if start_i is None:
+                    return None, None
+                self.points.append(PF.points[start_i][start_j])
+                PF.make_point_useless(start_i, start_j)
+                return start_i, start_j
+
+            def choose_next_point(self, ext_pt_tupl):
+                """
+                Get the next point of the line (closest one).
+                """
+                if not isinstance(ext_pt_tupl, ARRAYTYPES):
+                    raise TypeError()
+                if len(ext_pt_tupl) == 0:
+                    return None
+                if ext_pt_tupl[0] is not None:
+                    if not isinstance(ext_pt_tupl[0], Point):
+                        raise TypeError()
+                if len(self.points) == 0:
+                    raise Warning("there is no starting points")
+                # nearest point choice
+                dist = []
+                for ext_pt in ext_pt_tupl:
+                    dist.append(distance(ext_pt, self.points[-1]))
+                ind_min = np.argmin(dist)
+                # if all the points are 'useless', the line should stop
+                if dist[ind_min] == 1e99:
+                    return None
+                # else, we check that the point is not too far (using epsilon)
+                if epsilon is not None:
+                    if dist[ind_min] > self.epsilon**2:
+                        return None
+                # and if not we add the new point
+                self.points.append(ext_pt_tupl[ind_min])
+                return ind_min
+
+            def export_to_Points(self, PF):
+                """
+                Export the current line to a Points object.
+                """
+                xy = []
+                v = []
+                for pt in self.points:
+                    xy.append([pt.x, pt.y])
+                    v.append(pt.v)
+                points = Points(xy, v, PF.unit_x, PF.unit_y, PF.unit_v)
+                return points
+
+        # local class point to store one point
+        class Point(object):
+            """
+            Class representing a point with a value on it.
+            """
+            def __init__(self, x, y, v):
+                self.x = x
+                self.y = y
+                self.v = v
+
+        # local function distance to compute distance between Point objects
+        def distance(pts1, pts2):
+            """
+            Compute the distance between two points.
+            """
+            if pts2 is None or pts1 is None:
+                return 1e99
+            else:
+                return (pts2.x - pts1.x)**2 + (pts2.y - pts1.y)**2
+        # Getting the vortex centers trajectory
+        PF = PointField(points, times)
+        if len(PF.points) == 0:
+            return []
+        points_f = []
+        while True:
+            line = Line(epsilon)
+            start_i, start_j = line.choose_starting_point(PF)
+            if start_i is None:
+                break
+            for i in np.arange(start_i + 1, PF.time_step):
+                j = line.choose_next_point(PF.get_points_at_time(i))
+                if j is None:
+                    break
+                PF.make_point_useless(i, j)
+            points_f.append(line.export_to_Points(PF))
+        return points_f
+
+    ### Displayers ###
+    def display(self, time=None, indice=None, **kw):
+        """
+        Display some critical points.
+
+        Parameters
+        ----------
+        time : number, optional
+            If specified, critical points associated to this time are
+            displayed.
+        indice : integer, optional
+            If specified, critical points associated to this indice are
+            displayed.
+        """
         # check parameters
         if time is None and indice is None:
             raise ValueError()
@@ -439,8 +806,52 @@ class CritPoints(object):
             indice = self._get_indice_from_time(time)
         # display for the given indice
         for i, pt in enumerate(self.iter):
-            pt[indice].display(kind='plot', marker='o', color=self.colors[i])
+            if pt[indice] is None:
+                continue
+            pt[indice].display(kind='plot', marker='o', color=self.colors[i],
+                               linestyle='none', **kw)
 
+    def display_traj(self, kind='default'):
+        """
+        Display the stored trajectories.
+
+        Parameters
+        ----------
+        kind : string
+            If 'default', trajectories are plotted in a 2-dimensional plane.
+            If 'x', x position of cp are plotted against time.
+            If 'y', y position of cp are plotted against time.
+        """
+        # check if some trajectories are computed
+        try:
+            self.foc_traj
+        except AttributeError:
+            raise StandardError("you must compute trajectories before "
+                                "displaying them")
+        # display
+        if kind == 'default':
+            for i, trajs in enumerate(self.iter_traj):
+                color = self.colors[i]
+                if trajs is None:
+                    continue
+                for traj in trajs:
+                    traj.display(kind='plot', marker='o', color=color)
+        elif kind == 'x':
+            for i, trajs in enumerate(self.iter_traj):
+                color = self.colors[i]
+                if trajs is None:
+                    continue
+                for traj in trajs:
+                    plt.plot(traj.xy[:, 0], traj.v[:], 'o-', color=color)
+        elif kind == 'y':
+            for i, trajs in enumerate(self.iter_traj):
+                color = self.colors[i]
+                if trajs is None:
+                    continue
+                for traj in trajs:
+                    plt.plot(traj.xy[:, 1], traj.v[:], 'o-', color=color)
+        else:
+            raise StandardError()
 
 ### Vortex properties ###
 def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
@@ -643,25 +1054,146 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
         return circ
 
 
-### Critical points ###
-def get_cp_traj(TVFS, epsilon=None, kind='crit', window_size=4):
+#### Critical points ###
+#def get_cp_traj(TVFS, epsilon=None, kind='crit', window_size=4):
+#    """
+#    For a set of velocity field (TemporalVectorFields object), return the
+#    trajectory of critical points.
+#    If the number of points returned is low, you should smooth or filter your
+#    field (POD filtering for example).
+#
+#    Parameters
+#    ----------
+#    TVFS : TemporalVectorFields object
+#        .
+#    epsilon : float, optional
+#        Maximum length between two consecutive points in trajectory.
+#        (default is Inf), extremely usefull to put a correct value here.
+#    kind : string, optional
+#        If 'pbi', return cp position given by PBI algorithm.
+#        If 'crit' (default), return cp position given by PBI + criterion.
+#        (more accurate, but slower).
+#    window_size : integer, optional
+#        Minimal window size for PBI detection.
+#        Smaller window size allow detection where points are dense.
+#        Default is 4 (smallest is 2).
+#
+#    Returns
+#    -------
+#    focus_traj : tuple of Points objects
+#        Rotative focus trajectories
+#    focus_c_traj : tuple of Points objects
+#        Contrarotative focus trajectories
+#    nodes_i_traj : tuple of Points objects
+#        In nodes trajectories
+#    nodes_o_traj : tuple of Points objects
+#        Out nodes trajectories
+#    saddle_pts : tuple of Points objects
+#        Saddle points trajectories
+#    pbi_p : tuple of Points objects
+#        Points get by PBI algorithm (with pbi=1)
+#    pbi_m : tuple of Points objects
+#        Points get by PBI algorithm (with pbi=-1)
+#    """
+#    # check parameters coherence
+#    if not isinstance(TVFS, TemporalVectorFields):
+#        raise TypeError("'TVFS' must be a TemporalVectorFields")
+#    if epsilon is not None:
+#        if not isinstance(epsilon, NUMBERTYPES):
+#            raise TypeError("'epsilon' must be a positive real")
+#        if epsilon < 0:
+#            raise ValueError("'epsilon' must be a positive real")
+#    if not isinstance(kind, STRINGTYPES):
+#        raise TypeError("'kind' must be a string")
+#    # TODO : Add warning when masked values are present (or not ?)
+#    # create storage arrays
+#    focus = []
+#    focus_c = []
+#    nodes_i = []
+#    nodes_o = []
+#    saddles = []
+#    cp_pbi_p = []
+#    cp_pbi_m = []
+#    # getting first critical points for all fields
+#    times = TVFS.times
+#    for i, field in enumerate(TVFS.fields):
+#        if kind == 'crit':
+#            foc, foc_c, nod_i, nod_o, sadd, pbi \
+#                = get_cp_crit(field, times[i], window_size=window_size)
+#            pbi_p = [pbi_pt for pbi_pt in pbi if pbi_pt.pbi == 1]
+#            pbi_m = [pbi_pt for pbi_pt in pbi if pbi_pt.pbi == 0]
+#        elif kind == 'pbi':
+#            pos, pbis = get_cp_pbi(field, times[i], window_size=window_size)
+#            foc, foc_c, nod_i, nod_o, sadd = [], [], [], [], []
+#            pbi_p, pbi_m = [], []
+#            for j, pt in enumerate(pos):
+#                tmp_pt = Points([pt], [times[i]])
+#                tmp_pt.pbi = pbis[j]
+#                if pbis[j] == 1:
+#                    pbi_p.append(tmp_pt)
+#                else:
+#                    pbi_m.append(tmp_pt)
+#        else:
+#            raise ValueError()
+#        # Concatenate result of each field in bigger entities
+#        if len(foc) != 0:
+#            focus += foc
+#        if len(foc_c) != 0:
+#            focus_c += foc_c
+#        if len(nod_i) != 0:
+#            nodes_i += nod_i
+#        if len(nod_o) != 0:
+#            nodes_o += nod_o
+#        if len(sadd) != 0:
+#            saddles += sadd
+#        if len(pbi_p) != 0:
+#            cp_pbi_p += pbi_p
+#        if len(pbi_m) != 0:
+#            cp_pbi_m += pbi_m
+#    # getting times
+#    times = TVFS.times
+#    # getting critical points trajectory for eachkind of point
+#    if len(focus) != 0:
+#        focus_traj = get_cp_time_evolution(focus, times, epsilon)
+#    else:
+#        focus_traj = []
+#    if len(focus_c) != 0:
+#        focus_c_traj = get_cp_time_evolution(focus_c, times, epsilon)
+#    else:
+#        focus_c_traj = []
+#    if len(nodes_i) != 0:
+#        nodes_i_traj = get_cp_time_evolution(nodes_i, times, epsilon)
+#    else:
+#        nodes_i_traj = []
+#    if len(nodes_o) != 0:
+#        nodes_o_traj = get_cp_time_evolution(nodes_o, times, epsilon)
+#    else:
+#        nodes_o_traj = []
+#    if len(saddles) != 0:
+#        saddles_traj = get_cp_time_evolution(saddles, times, epsilon)
+#    else:
+#        saddles_traj = []
+#    if len(cp_pbi_p) != 0:
+#        cp_pbip_traj = get_cp_time_evolution(cp_pbi_p, times, epsilon)
+#    else:
+#        cp_pbip_traj = []
+#    if len(cp_pbi_m) != 0:
+#        cp_pbim_traj = get_cp_time_evolution(cp_pbi_m, times, epsilon)
+#    else:
+#        cp_pbim_traj = []
+#    # returning result
+#    return focus_traj, focus_c_traj, nodes_i_traj, nodes_o_traj, \
+#        saddles_traj,cp_pbim_traj, cp_pbip_traj
+
+def get_cp_pbi_on_TVF(TVF, window_size=4):
     """
-    For a set of velocity field (TemporalVectorFields object), return the
-    trajectory of critical points.
-    If the number of points returned is low, you should smooth or filter your
-    field (POD filtering for example).
+    For a TemporalVectorField object, return the critical points positions and
+    their PBI (Poincarre Bendixson indice).
 
     Parameters
     ----------
-    TVFS : TemporalVectorFields object
+    TVF : a TemporalVectorField object.
         .
-    epsilon : float, optional
-        Maximum length between two consecutive points in trajectory.
-        (default is Inf), extremely usefull to put a correct value here.
-    kind : string, optional
-        If 'pbi', return cp position given by PBI algorithm.
-        If 'crit' (default), return cp position given by PBI + criterion.
-        (more accurate, but slower).
     window_size : integer, optional
         Minimal window size for PBI detection.
         Smaller window size allow detection where points are dense.
@@ -669,327 +1201,19 @@ def get_cp_traj(TVFS, epsilon=None, kind='crit', window_size=4):
 
     Returns
     -------
-    focus_traj : tuple of Points objects
-        Rotative focus trajectories
-    focus_c_traj : tuple of Points objects
-        Contrarotative focus trajectories
-    nodes_i_traj : tuple of Points objects
-        In nodes trajectories
-    nodes_o_traj : tuple of Points objects
-        Out nodes trajectories
-    saddle_pts : tuple of Points objects
-        Saddle points trajectories
-    pbi_p : tuple of Points objects
-        Points get by PBI algorithm (with pbi=1)
-    pbi_m : tuple of Points objects
-        Points get by PBI algorithm (with pbi=-1)
+    pts : CritPoints object
+        Containing all critical points position
     """
-    # check parameters coherence
-    if not isinstance(TVFS, TemporalVectorFields):
-        raise TypeError("'TVFS' must be a TemporalVectorFields")
-    if epsilon is not None:
-        if not isinstance(epsilon, NUMBERTYPES):
-            raise TypeError("'epsilon' must be a positive real")
-        if epsilon < 0:
-            raise ValueError("'epsilon' must be a positive real")
-    if not isinstance(kind, STRINGTYPES):
-        raise TypeError("'kind' must be a string")
-    # TODO : Add warning when masked values are present (or not ?)
-    # create storage arrays
-    focus = []
-    focus_c = []
-    nodes_i = []
-    nodes_o = []
-    saddles = []
-    cp_pbi_p = []
-    cp_pbi_m = []
-    # getting first critical points for all fields
-    times = TVFS.times
-    for i, field in enumerate(TVFS.fields):
-        if kind == 'crit':
-            foc, foc_c, nod_i, nod_o, sadd, pbi \
-                = get_cp_crit(field, times[i], window_size=window_size)
-            pbi_p = [pbi_pt for pbi_pt in pbi if pbi_pt.pbi == 1]
-            pbi_m = [pbi_pt for pbi_pt in pbi if pbi_pt.pbi == 0]
-        elif kind == 'pbi':
-            pos, pbis = get_cp_pbi(field, times[i], window_size=window_size)
-            foc, foc_c, nod_i, nod_o, sadd = [], [], [], [], []
-            pbi_p, pbi_m = [], []
-            for j, pt in enumerate(pos):
-                tmp_pt = Points([pt], [times[i]])
-                tmp_pt.pbi = pbis[j]
-                if pbis[j] == 1:
-                    pbi_p.append(tmp_pt)
-                else:
-                    pbi_m.append(tmp_pt)
-        else:
-            raise ValueError()
-        # Concatenate result of each field in bigger entities
-        if len(foc) != 0:
-            focus += foc
-        if len(foc_c) != 0:
-            focus_c += foc_c
-        if len(nod_i) != 0:
-            nodes_i += nod_i
-        if len(nod_o) != 0:
-            nodes_o += nod_o
-        if len(sadd) != 0:
-            saddles += sadd
-        if len(pbi_p) != 0:
-            cp_pbi_p += pbi_p
-        if len(pbi_m) != 0:
-            cp_pbi_m += pbi_m
-    # getting times
-    times = TVFS.times
-    # getting critical points trajectory for eachkind of point
-    if len(focus) != 0:
-        focus_traj = get_cp_time_evolution(focus, times, epsilon)
-    else:
-        focus_traj = []
-    if len(focus_c) != 0:
-        focus_c_traj = get_cp_time_evolution(focus_c, times, epsilon)
-    else:
-        focus_c_traj = []
-    if len(nodes_i) != 0:
-        nodes_i_traj = get_cp_time_evolution(nodes_i, times, epsilon)
-    else:
-        nodes_i_traj = []
-    if len(nodes_o) != 0:
-        nodes_o_traj = get_cp_time_evolution(nodes_o, times, epsilon)
-    else:
-        nodes_o_traj = []
-    if len(saddles) != 0:
-        saddles_traj = get_cp_time_evolution(saddles, times, epsilon)
-    else:
-        saddles_traj = []
-    if len(cp_pbi_p) != 0:
-        cp_pbip_traj = get_cp_time_evolution(cp_pbi_p, times, epsilon)
-    else:
-        cp_pbip_traj = []
-    if len(cp_pbi_m) != 0:
-        cp_pbim_traj = get_cp_time_evolution(cp_pbi_m, times, epsilon)
-    else:
-        cp_pbim_traj = []
-    # returning result
-    return focus_traj, focus_c_traj, nodes_i_traj, nodes_o_traj, saddles_traj,\
-        cp_pbim_traj, cp_pbip_traj
+    cp = CritPoints(unit_time=TVF.unit_times)
+    for i, field in enumerate(TVF.fields):
+        cp += get_cp_pbi_on_VF(field, time=TVF.times[i],
+                               unit_time=TVF.unit_times,
+                               window_size=window_size)
+    return cp
 
 
-def get_cp_time_evolution(points, times=None, epsilon=None):
-    """
-    Compute the temporal evolution of each vortex centers from a set of points
-    at different times. (Points objects must each contain only one point and
-    time must be specified in 'v' argument of points).
-
-    Parameters:
-    -----------
-    points : tuple of Points objects.
-        .
-    times : array of numbers
-        Times. If 'None' (default), only times represented by at least one
-        point are taken into account (can create wring link between points).
-    epsilon : number, optional
-        Maximal distance between two successive points.
-        default value is Inf.
-    """
-    if len(points) == 0:
-        return None
-    if not isinstance(points, ARRAYTYPES):
-        raise TypeError("'points' must be an array of Points objects")
-    if times is not None:
-        if not isinstance(times, ARRAYTYPES):
-            raise TypeError("'times' must be an array of numbers")
-    if not isinstance(points[0], Points):
-        raise TypeError("'points' must be an array of Points objects")
-
-    # local class to store the point field
-    class PointField(object):
-        """
-        Class representing an orthogonal set of points, defined by a position
-        and a time.
-        """
-        def __init__(self, pts_tupl, times):
-            if not isinstance(pts_tupl, ARRAYTYPES):
-                raise TypeError("'pts' must be a tuple of Point objects")
-            for pt in pts_tupl:
-                if not isinstance(pt, Points):
-                    raise TypeError("'pts' must be a tuple of Point objects")
-                if not len(pt) == len(pt.v):
-                    raise StandardError("v has not the same dimension as xy")
-            # if some Points objects contains more than one point, we decompose
-            # them
-            for i in np.arange(len(pts_tupl)-1, -1, -1):
-                if len(pts_tupl[i]) != 1:
-                    pts_tupl[i:i+1] = pts_tupl[i].decompose()
-            self.points = []
-            # possible times determination
-            if times is None:
-                times = []
-                for pt in pts_tupl:
-                    times.append(pt.v[0])
-                times = list(sets.Set(times))
-                times.sort()
-                self.times = times
-            # Sorting points by times
-            for time in times:
-                self.times = times
-                tmp_points = []
-                for pt in pts_tupl:
-                    if pt.v[0] == time:
-                        tmp_points.append(Point(pt.xy[0, 0], pt.xy[0, 1],
-                                                pt.v[0]))
-                self.points.append(tmp_points)
-            self.unit_x = pts_tupl[0].unit_x
-            self.unit_y = pts_tupl[0].unit_y
-            self.unit_v = pts_tupl[0].unit_v
-            self.time_step = np.size(self.points, 0)
-
-        def make_point_useless(self, i, j):
-            """
-            Make a point of the field useless (None).
-            """
-            if not isinstance(i, int) or not isinstance(j, int):
-                raise TypeError()
-            self.points[i][j] = None
-
-        def get_points_at_time(self, time):
-            """
-            Return all the points for a given time.
-            """
-            if not isinstance(time, int):
-                raise TypeError()
-            return self.points[time]
-
-    # local class line to store vortex center evolution line
-    class Line(object):
-        """
-        Class representing a line, defined by a set of ordened points.
-        """
-
-        def __init__(self, epsilon):
-            self.points = []
-            self.epsilon = epsilon
-
-        def add_point(self, pts):
-            """
-            Add a new point to the line.
-            """
-            if not isinstance(pts, Point):
-                raise TypeError("'pts' must be a Point object")
-            self.points.append(pts)
-
-        def remove_point(self, ind):
-            """
-            Remove the designated point of the line.
-            """
-            if not isinstance(ind, int):
-                raise TypeError("'ind' must be an integer")
-            if ind < 0 or ind > len(self):
-                raise ValueError("'ind' is out of range")
-            self.points.pop(ind)
-
-        def choose_starting_point(self, PF):
-            """
-            Choose in the given field, a new new starting point for a line.
-            """
-            if not isinstance(PF, PointField):
-                raise TypeError()
-            start_i = None
-            start_j = None
-            for i in np.arange(PF.time_step):
-                for j in np.arange(len(PF.points[i])):
-                    if PF.points[i][j] is not None:
-                        start_i = i
-                        start_j = j
-                        break
-                if start_i is not None:
-                    break
-            if start_i is None:
-                return None, None
-            self.points.append(PF.points[start_i][start_j])
-            PF.make_point_useless(start_i, start_j)
-            return start_i, start_j
-
-        def choose_next_point(self, ext_pt_tupl):
-            """
-            Get the next point of the line (closest one).
-            """
-            if not isinstance(ext_pt_tupl, ARRAYTYPES):
-                raise TypeError()
-            if len(ext_pt_tupl) == 0:
-                return None
-            if ext_pt_tupl[0] is not None:
-                if not isinstance(ext_pt_tupl[0], Point):
-                    raise TypeError()
-            if len(self.points) == 0:
-                raise Warning("there is no starting points")
-            # nearest point choice
-            dist = []
-            for ext_pt in ext_pt_tupl:
-                dist.append(distance(ext_pt, self.points[-1]))
-            ind_min = np.argmin(dist)
-            # if all the points are 'useless', the line should stop
-            if dist[ind_min] == 1e99:
-                return None
-            # else, we check that the point is not too far (using epsilon)
-            if epsilon is not None:
-                if dist[ind_min] > self.epsilon**2:
-                    return None
-            # and if not we add the new point
-            self.points.append(ext_pt_tupl[ind_min])
-            return ind_min
-
-        def export_to_Points(self, PF):
-            """
-            Export the current line to a Points object.
-            """
-            xy = []
-            v = []
-            for pt in self.points:
-                xy.append([pt.x, pt.y])
-                v.append(pt.v)
-            points = Points(xy, v, PF.unit_x, PF.unit_y, PF.unit_v)
-            return points
-
-    # local class point to store one point
-    class Point(object):
-        """
-        Class representing a point with a value on it.
-        """
-        def __init__(self, x, y, v):
-            self.x = x
-            self.y = y
-            self.v = v
-
-    # local function distance to compute distance between Point objects
-    def distance(pts1, pts2):
-        """
-        Compute the distance between two points.
-        """
-        if pts2 is None or pts1 is None:
-            return 1e99
-        else:
-            return (pts2.x - pts1.x)**2 + (pts2.y - pts1.y)**2
-    # Getting the vortex centers trajectory
-    PF = PointField(points, times)
-    if len(PF.points) == 0:
-        return []
-    points_f = []
-    while True:
-        line = Line(epsilon)
-        start_i, start_j = line.choose_starting_point(PF)
-        if start_i is None:
-            break
-        for i in np.arange(start_i + 1, PF.time_step):
-            j = line.choose_next_point(PF.get_points_at_time(i))
-            if j is None:
-                break
-            PF.make_point_useless(i, j)
-        points_f.append(line.export_to_Points(PF))
-    return points_f
-
-
-def get_cp_pbi(vectorfield, time=0, unit_time=make_unit(""), window_size=4):
+def get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
+                     window_size=4):
     """
     For a VectorField object, return the critical points positions and their
     PBI (Poincarre Bendixson indice)
@@ -1009,20 +1233,58 @@ def get_cp_pbi(vectorfield, time=0, unit_time=make_unit(""), window_size=4):
 
     Returns
     -------
-    pos : 2xN array
-        position (x, y) of the detected critical points.
-    pbis : 1xN array
-        PBI (1 indicate a node, -1 a saddle point)
+    pts : CritPoints object
+        Containing all critical points position
     """
     # checking parameters coherence
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField")
     # using VF methods to get cp position
     field = velocityfield_to_vf(vectorfield, time)
-    return field.get_cp_position(window_size=window_size)
+    pos, pbis = field.get_cp_position(window_size=window_size)
+    pbi_m = Points()
+    pbi_p = Points()
+    for i, pbi in enumerate(pbis):
+        if pbi == -1:
+            pbi_m.add(pos[i])
+        elif pbi == 1:
+            pbi_p.add(pos[i])
+        else:
+            raise Exception()
+    pts = CritPoints(unit_time=unit_time)
+    pts.add_point(pbi_m=pbi_m, pbi_p=pbi_p, time=time)
+    return pts
+
+def get_cp_crit_on_TVF(TVF, window_size=4):
+    """
+    For a TemporalVectorField object, return the position of critical points.
+    This algorithm use the PBI algorithm, then a method based on criterion to
+    give more accurate results.
+
+    Parameters
+    ----------
+    TVF : a TemporalVectorField object.
+        .
+    window_size : integer, optional
+        Minimal window size for PBI detection.
+        Smaller window size allow detection where points are dense.
+        Default is 4 (smallest is 2).
+
+    Returns
+    -------
+    pts : CritPoints object
+        Containing all critical points
+    """
+    cp = CritPoints(unit_time=TVF.unit_times)
+    for i, field in enumerate(TVF.fields):
+        cp += get_cp_crit_on_VF(field, time=TVF.times[i],
+                                unit_time=TVF.unit_times,
+                                window_size=window_size)
+    return cp
 
 
-def get_cp_crit(vectorfield, time=0, unit_time=make_unit(""), window_size=4):
+def get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
+                      window_size=4):
     """
     For a VectorField object, return the position of critical points.
     This algorithm use the PBI algorithm, then a method based on criterion to
@@ -1043,10 +1305,8 @@ def get_cp_crit(vectorfield, time=0, unit_time=make_unit(""), window_size=4):
 
     Returns
     -------
-    focus, focus_c, nodes_i, nodes_o, saddles : tuple of points
-        Found points of each type.
-    cp_pbi : tuple of points
-        Points too close to a wall to use criterion method.
+    pts : CritPoints object
+        Containing all critical points
     """
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'VF' must be a VectorField")
@@ -1056,16 +1316,18 @@ def get_cp_crit(vectorfield, time=0, unit_time=make_unit(""), window_size=4):
     # creating velocityfields around critical points
     # and transforming into VectorField objects
     VF_tupl = []
-    cp_pbi = []
+    pbi_m = Points()
+    pbi_p = Points()
     for i, cp_pos in enumerate(cp_positions):
         tmp_vf = VF_field.get_field_around_pt(cp_pos, 5)
         tmp_vf = tmp_vf.export_to_velocityfield()
-        # trating small fields
+        # treating small fields
         axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
         if len(axe_x) < 6 or len(axe_y) < 6 or np.any(tmp_vf.mask):
-            pt = Points([cp_pos], [time])
-            pt.pbi = pbis[i]
-            cp_pbi.append(pt)
+            if pbis[i] == -1:
+                pbi_m += Points([cp_pos])
+            elif pbis[i] == 1:
+                pbi_p += Points([cp_pos])
         else:
             tmp_vf.PBI = pbis[i]
             VF_tupl.append(tmp_vf)
@@ -1091,19 +1353,17 @@ def get_cp_crit(vectorfield, time=0, unit_time=make_unit(""), window_size=4):
         elif VF.PBI == -1:
             VF_saddle.append(VF)
     ### Computing saddle points positions ###
-    saddles = []
+    saddles = Points()
     if len(VF_saddle) != 0:
         for VF in VF_saddle:
             tmp_sigma = get_sigma(VF, 1.9, ind=True)
             pts = _min_detection(tmp_sigma)
             if pts is not None:
                 if pts.xy[0][0] is not None and len(pts) == 1:
-                    pts.v = [time]
-                    pts.unit_v = unit_time
-                    saddles.append(pts)
+                    saddles += pts
     ### Computing focus positions (rotatives and contrarotatives) ###
-    focus = []
-    focus_c = []
+    focus = Points()
+    focus_c = Points()
     if len(VF_focus) != 0:
         for VF in VF_focus:
             tmp_gam = VF.gamma1
@@ -1114,20 +1374,16 @@ def get_cp_crit(vectorfield, time=0, unit_time=make_unit(""), window_size=4):
                 pts = _min_detection(-1.*tmp_gam)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [time]
-                        pts.unit_v = unit_time
-                        focus.append(pts)
+                        focus += pts
             # contrarotative vortex
             else:
                 pts = _min_detection(tmp_gam)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [time]
-                        pts.unit_v = unit_time
-                        focus_c.append(pts)
+                        focus_c += pts
     ### Computing nodes points positions (in or out) ###
-    nodes_i = []
-    nodes_o = []
+    nodes_i = Points()
+    nodes_o = Points()
     if len(VF_nodes) != 0:
         for VF in VF_nodes:
             tmp_kap = VF.kappa1
@@ -1138,18 +1394,18 @@ def get_cp_crit(vectorfield, time=0, unit_time=make_unit(""), window_size=4):
                 pts = _min_detection(-1.*tmp_kap)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [time]
-                        pts.unit_v = unit_time
-                        nodes_o.append(pts)
+                        nodes_o += pts
             # in nodes
             else:
                 pts = _min_detection(tmp_kap)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.v = [time]
-                        pts.unit_v = unit_time
-                        nodes_i.append(pts)
-    return focus, focus_c, nodes_i, nodes_o, saddles, cp_pbi
+                        nodes_i += pts
+    ### creating the CritPoints object for returning
+    pts = CritPoints(unit_time=unit_time)
+    pts.add_point(focus, focus_c, nodes_i, nodes_o, saddles, pbi_m, pbi_p,
+                  time=time)
+    return pts
 
 
 def _min_detection(SF):
@@ -1418,12 +1674,6 @@ def get_critical_line(VF, source_point, direction, kol='stream',
     # get stream or track lines on around positions
     if kol == 'stream':
         lines = get_streamlines(VF, pts)
-    elif kol == 'track':
-        lines = get_tracklines(VF, pts)
-        plt.figure()
-        VF.display(kind='stream')
-        for line in lines:
-            line.display('plot')
     else:
         raise ValueError("Unknown value for 'kol' (see documentation)")
     # remove streamline near the critical point

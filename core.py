@@ -843,10 +843,10 @@ class Points(object):
             if not isinstance(v, NUMBERTYPES):
                 raise TypeError()
         self.xy = np.append(self.xy, [pt], axis=0)
-        if ((self.v is not None and v is not None)
+        if ((self.v.shape[0] != 0 and v is not None)
                 or (len(self.xy) == 1 and v is not None)):
             self.v = np.append(self.v, v)
-        elif self.v is None and v is None:
+        elif self.v.shape[0] == 0 and v is None:
             pass
         else:
             raise ValueError()
@@ -951,7 +951,7 @@ class Points(object):
         return a tuple of Points object, with only one point per object.
         """
         if len(self) == 1:
-            raise StandardError()
+            return [self]
         if len(self) != len(self.v):
             raise StandardError()
         pts_tupl = []

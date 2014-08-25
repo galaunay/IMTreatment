@@ -6,8 +6,8 @@ Created on Sun Feb 23 20:46:48 2014
 """
 
 from .vortex_detection import \
-    get_cp_traj, get_cp_time_evolution, get_cp_pbi, get_cp_crit,\
-    get_separation_position,\
+    get_cp_pbi_on_VF, get_cp_pbi_on_TVF, get_cp_crit_on_VF,\
+    get_cp_crit_on_TVF, get_separation_position,\
     get_critical_line,\
     get_sigma, get_gamma, get_kappa, get_q_criterion, get_iota,\
     get_vortex_radius, get_vortex_radius_time_evolution,\
