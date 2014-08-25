@@ -11,4 +11,4 @@ from .vortex_detection import \
     get_critical_line,\
     get_sigma, get_gamma, get_kappa, get_q_criterion, get_iota,\
     get_vortex_radius, get_vortex_radius_time_evolution,\
-    get_vortex_circulation, get_lambda2
+    get_vortex_circulation, get_lambda2, CritPoints

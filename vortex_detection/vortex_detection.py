@@ -21,6 +21,7 @@ from scipy import linalg
 import warnings
 import sets
 import scipy.ndimage.measurements as msr
+import unum
 
 
 
@@ -336,6 +337,110 @@ class VF(object):
         num_x = len(poi_x[poi_x != 0])
         num_y = len(poi_y[poi_y != 0])
         return num_x, num_y
+
+class CritPoints(object):
+    """
+    Class representing a set of critical point associated to a VectorField.
+    """
+    def __init__(self,  unit_time='s'):
+        # check parameters
+        self.foc = np.array([])
+        self.foc_c = np.array([])
+        self.node_i = np.array([])
+        self.node_o = np.array([])
+        self.sadd = np.array([])
+        self.pbi_m = np.array([])
+        self.pbi_p = np.array([])
+        self.time = np.array([])
+        self.unit_time = unit_time
+        self.colors = ['r', 'b', 'y', 'm', 'g', 'w', 'k']
+
+    @property
+    def unit_time(self):
+        return self.__unit_time
+
+    @unit_time.setter
+    def unit_time(self, new_unit_time):
+        if isinstance(new_unit_time, STRINGTYPES):
+            new_unit_time = make_unit(new_unit_time)
+        if not isinstance(new_unit_time, unum.Unum):
+            raise TypeError()
+        self.__unit_time = new_unit_time
+
+    def add_point(self, foc=None, foc_c=None, node_i=None, node_o=None,
+                  sadd=None, pbi_m=None, pbi_p=None, time=None):
+        # check parameters
+        for pt in [foc, foc_c, node_i, node_o, sadd, pbi_m, pbi_p]:
+            if pt is None:
+                continue
+            if not isinstance(pt, Points):
+                raise TypeError()
+            pt.v = np.array([])
+        if not isinstance(time, NUMBERTYPES):
+            raise ValueError()
+        if np.any(self.time == time):
+            raise ValueError()
+        # remove Points values if necessary
+        # search the place of the new points
+        self.foc = np.append(self.foc, foc)
+        self.foc_c = np.append(self.foc_c, foc_c)
+        self.node_i = np.append(self.node_i, node_i)
+        self.node_o = np.append(self.node_o, node_o)
+        self.sadd = np.append(self.sadd, sadd)
+        self.pbi_m = np.append(self.pbi_m, pbi_m)
+        self.pbi_p = np.append(self.pbi_p, pbi_p)
+        self.time = np.append(self.time, time)
+        self._sort_by_time()
+
+    def remove_point(self, time=None, indice=None):
+        # check parameters
+        if time is None and indice is None:
+            raise Exception()
+        if time is not None and indice is not None:
+            raise Exception()
+        # remove by time
+        if time is not None:
+            indice = self._get_indice_from_time(time)
+        # remove by indice
+        self.foc = np.delete(self.foc, indice)
+        self.foc_c = np.delete(self.foc_c, indice)
+        self.node_i = np.delete(self.node_i, indice)
+        self.node_o = np.delete(self.node_o, indice)
+        self.sadd = np.delete(self.sadd, indice)
+        self.pbi_m = np.delete(self.pbi_m, indice)
+        self.pbi_p = np.delete(self.pbi_p, indice)
+        self.time = np.delete(self.time, indice)
+
+    def _sort_by_time(self):
+        indsort = np.argsort(self.time)
+        for pt in self.iter:
+            pdb.set_trace()
+            pt[:] = pt[indsort]
+        self.time[:] = self.time[indsort]
+
+    def _get_indice_from_time(self, time):
+        # check parameters
+        if not isinstance(time, NUMBERTYPES):
+            raise TypeError()
+        # get indice
+        indice = np.argwhere(self.time == time)
+        if indice.shape[0] == 0:
+            raise ValueError()
+        indice = indice[0][0]
+        return indice
+
+    def display(self, time=None, indice=None):
+        # check parameters
+        if time is None and indice is None:
+            raise ValueError()
+        if time is not None and indice is not None:
+            raise ValueError()
+        if time is not None:
+            indice = self._get_indice_from_time(time)
+        # display for the given indice
+        for i, pt in enumerate(self.iter):
+            pt[indice].display(kind='plot', marker='o', color=self.colors[i])
+
 
 ### Vortex properties ###
 def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
