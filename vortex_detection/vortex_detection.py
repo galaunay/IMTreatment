@@ -1859,7 +1859,11 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         If 'False' (default), radius is expressed on axis unit.
     kind : string
         If 'gamma1' (default), compute gamma1 criterion.
-        If 'gamma2', compute gamma2 criterion (with relative velocities).
+        If 'gamma1b', compute gamma1 criterion with velocity corrector.
+        (multiply with the mean velocity)
+        If 'gamma2', compute gamma2 criterion (with relative velocities)
+        If 'gamma2b', compute gamma2 criterion with a velocity corrector.
+        (hide uniform velocity zone)
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
         gamma will be compute only where mask is 'False'.
@@ -1881,7 +1885,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
     delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
     if not isinstance(kind, STRINGTYPES):
         raise TypeError("'kind' must be a string")
-    if not kind in ['gamma1', 'gamma2']:
+    if not kind in ['gamma1', 'gamma2', 'gamma1b', 'gamma2b']:
         raise ValueError("Unkown value for kind")
     if mask is None:
         mask = np.zeros(vectorfield.shape)
@@ -1956,30 +1960,50 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         indsaround = motif + inds
         # If necessary, compute mean velocity on points (gamma2)
         v_mean = [0., 0.]
-        if kind == 'gamma2':
-            for indaround in indsaround:
-                v_mean[0] += Vx[ind_x, ind_y]
-                v_mean[1] += Vy[ind_x, ind_y]
-            v_mean[0] /= nmbpts
-            v_mean[1] /= nmbpts
+        v_mean2 = [0., 0.]
+        fact = 1
+        if kind in ['gamma1b', 'gamma2', 'gamma2b']:
+            v_mean[0] = np.mean(Vx[indsaround[:, 0], indsaround[:, 1]])
+            v_mean[1] = np.mean(Vy[indsaround[:, 0], indsaround[:, 1]])
+        if kind == 'gamma2b':
+            v_mean2[0] = np.mean((Vx[indsaround[:, 0], indsaround[:, 1]]
+                                 - v_mean[0])**2)
+            v_mean2[1] = np.mean((Vy[indsaround[:, 0], indsaround[:, 1]]
+                                 - v_mean[1])**2)
+            fact = np.sqrt(v_mean2[0] + v_mean2[1]) / \
+                np.sqrt(v_mean[0]**2 + v_mean[1]**2)
+            if np.abs(fact) > 1:
+                fact = 1.
+
         ### Loop on neighbouring points ###
         gamma = 0.
         for i, indaround in enumerate(indsaround):
             inda_x = indaround[0]
             inda_y = indaround[1]
             # getting vectors for scalar product
-            vector_b_x = Vx[inda_x, inda_y] - v_mean[0]
-            vector_b_y = Vy[inda_x, inda_y] - v_mean[1]
-            if kind == 'gamma1':
+            if kind in ['gamma1', 'gamma1b']:
+                vector_b_x = Vx[inda_x, inda_y]
+                vector_b_y = Vy[inda_x, inda_y]
                 denom = norm_v[inda_x, inda_y]*norm_vect_a[i]
-            else:
+                if denom != 0:
+                    gamma += (vector_a_x[i]*vector_b_y
+                              - vector_a_y[i]*vector_b_x)/denom
+            elif kind in ['gamma2', 'gamma2b']:
+                vector_b_x = Vx[inda_x, inda_y] - v_mean[0]
+                vector_b_y = Vy[inda_x, inda_y] - v_mean[1]
                 denom = (vector_b_x**2 + vector_b_y**2)**.5*norm_vect_a[i]
-            # getting scalar product
-            if denom != 0:
-                gamma += (vector_a_x[i]*vector_b_y
-                          - vector_a_y[i]*vector_b_x)/denom
+                if denom != 0:
+                    gamma += (vector_a_x[i]*vector_b_y
+                              - vector_a_y[i]*vector_b_x)/denom
+        # adapting with factors
+        if kind in ['gamma1', 'gamma2']:
+            gamma = gamma/nmbpts
+        elif kind == 'gamma1b':
+            gamma = gamma/nmbpts*np.sqrt(v_mean[0]**2 + v_mean[1]**2)
+        elif kind == 'gamma2b':
+            gamma = gamma/nmbpts*fact
         # storing computed gamma value
-        gammas[ind_x, ind_y] = gamma/nmbpts
+        gammas[ind_x, ind_y] = gamma
     ### Applying masks ###
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
