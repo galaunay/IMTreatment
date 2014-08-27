@@ -1555,7 +1555,7 @@ class Profile(object):
             unit_y = self.unit_y**2/make_unit('Hz')
         else:
             raise Exception()
-        magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
+        magn_prof = Profile(frq, magn, unit_x=1./self.unit_x,
                             unit_y=unit_y)
         return magn_prof
 
@@ -1918,7 +1918,7 @@ class Profile(object):
             If 'False', x is put in the abscissa and y in the ordinate. If
             'True', the inverse.
         kind : string
-            Kind of display to plot ('plot', 'semilogx', 'semilogy')
+            Kind of display to plot ('plot', 'semilogx', 'semilogy', 'loglog')
         **plotargs : dict, optionnale
             Additional argument for the 'plot' command.
 
@@ -2886,7 +2886,7 @@ class ScalarField(Field):
             return None
         return Points(coords, unit_x=self.unit_x, unit_y=self.unit_y)
 
-    def get_profile(self, direction, position):
+    def get_profile(self, direction, position, ind=False):
         """
         Return a profile of the scalar field, at the given position (or at
         least at the nearest possible position).
@@ -2903,6 +2903,9 @@ class ScalarField(Field):
             Direction along which we choose a position (1 for x and 2 for y)
         position : float, interval of float or string
             Position, interval in which we want a profile or 'all'
+        ind : boolean
+            If 'True', position has to be given in indices
+            If 'False' (default), position has to be given in axis unit.
 
         Returns
         -------
@@ -2925,6 +2928,8 @@ class ScalarField(Field):
         elif isinstance(position, STRINGTYPES):
             if position != 'all':
                 raise ValueError()
+        if not isinstance(ind, bool):
+            raise TypeError()
         # geting data
         if direction == 1:
             axe = self.axe_x
@@ -2935,22 +2940,31 @@ class ScalarField(Field):
             unit_x = self.unit_x
             unit_y = self.unit_values
         # applying interval type
-        if isinstance(position, ARRAYTYPES):
+        if isinstance(position, ARRAYTYPES) and not ind:
             for pos in position:
                 if pos > axe.max() or pos < axe.min():
                     raise ValueError("'position' must be included in"
                                      " the choosen axis values")
-        elif isinstance(position, NUMBERTYPES):
+        elif isinstance(position, ARRAYTYPES) and ind:
+            if np.min(position) < 0 or np.max(position) > len(axe) - 1:
+                raise ValueError("'position' must be included in"
+                                 " the choosen axis values")
+        elif isinstance(position, NUMBERTYPES) and not ind:
             if position > axe.max() or position < axe.min():
                 raise ValueError("'position' must be included in the choosen"
                                  " axis values (here [{0},{1}])"
                                  .format(axe.min(), axe.max()))
+        elif isinstance(position, NUMBERTYPES) and ind:
+            if np.min(position) < 0 or np.max(position) > len(axe) - 1:
+                raise ValueError("'position' must be included in the choosen"
+                                 " axis values (here [{0},{1}])"
+                                 .format(0, len(axe) - 1))
         elif position == 'all':
             position = np.array([axe[0], axe[-1]])
         else:
             raise ValueError()
-        # computation of the profile for a single position
-        if isinstance(position, NUMBERTYPES):
+        # passage from values to indices
+        if isinstance(position, NUMBERTYPES) and not ind:
             for i in np.arange(1, len(axe)):
                 if (axe[i] >= position and axe[i-1] <= position) \
                         or (axe[i] <= position and axe[i-1] >= position):
@@ -2969,8 +2983,19 @@ class ScalarField(Field):
                 profile = self.values[:, finalindice]
                 axe = self.axe_x
                 cutposition = self.axe_y[finalindice]
+        elif isinstance(position, NUMBERTYPES) and ind:
+            if direction == 1:
+                prof_mask = self.mask[position, :]
+                profile = self.values[position, :]
+                axe = self.axe_x
+                cutposition = self.axe_x[position]
+            else:
+                prof_mask = self.mask[:, position]
+                profile = self.values[:, position]
+                axe = self.axe_y
+                cutposition = self.axe_y[position]
         # Calculation of the profile for an interval of position
-        else:
+        elif isinstance(position, ARRAYTYPES) and not ind:
             axe_mask = np.logical_and(axe >= position[0], axe <= position[1])
             if direction == 1:
                 prof_mask = self.mask[axe_mask, :].mean(0)
@@ -2982,7 +3007,165 @@ class ScalarField(Field):
                 profile = self.values[:, axe_mask].mean(1)
                 axe = self.axe_x
                 cutposition = self.axe_y[axe_mask]
-        return Profile(axe, profile, prof_mask, unit_x, unit_y, "Profile"), cutposition
+        elif isinstance(position, ARRAYTYPES) and ind:
+            if direction == 1:
+                prof_mask = self.mask[position[0]:position[1] + 1, :].mean(0)
+                profile = self.values[position[0]:position[1] + 1, :].mean(0)
+                axe = self.axe_y
+                cutposition = self.axe_x[position[0]:position[1] + 1].mean()
+            else:
+                prof_mask = self.mask[:, position[0]:position[1] + 1].mean(1)
+                profile = self.values[:, position[0]:position[1] + 1].mean(1)
+                axe = self.axe_x
+                cutposition = self.axe_y[position[0]:position[1] + 1].mean()
+        return (Profile(axe, profile, prof_mask, unit_x, unit_y, "Profile"),
+                cutposition)
+
+    def get_spatial_autocorrelation(self, direction, ref='beginning'):
+        """
+        Return the spatial auto-correlation along the wanted direction.
+
+        Take the middle point for reference for correlation computation.
+
+        Parameters
+        ----------
+        direction : string
+            'x' or 'y'
+        ref : string
+            If 'beginning' (default), the reference point is the first one
+            If 'middle', it is the middle one
+
+        Returns
+        -------
+        profile : Profile object
+            Spatial correlation
+        """
+        # checl parameters
+        if ref not in ['beginning', 'middle']:
+            raise ValueError()
+        # Direction X
+        if direction == 'x':
+            # loop on profiles
+            cor = np.zeros((len(self.axe_x)))
+            cor_ref = 0
+            for i, y in enumerate(self.axe_y):
+                if ref == 'beginning':
+                    ref_pt = self.values[0, i]
+                elif ref == 'middle':
+                    ref_pt = self.values[np.round((len(self.axe_x) - 1)/2.), i]
+                cor += self.values[:, i]*ref_pt
+                cor_ref += ref_pt**2
+            cor_ref /= len(self.axe_y)
+            cor /= len(self.axe_y)
+            cor /= cor_ref
+            # returning
+            return Profile(x=self.axe_x, y=cor, unit_x=self.unit_x,
+                           unit_y=self.unit_values)
+        elif direction == 'y':
+            # loop on profiles
+            cor = np.zeros((len(self.axe_y)))
+            cor_ref = 0
+            for i, x in enumerate(self.axe_x):
+                if ref == 'beginning':
+                    ref_pt = self.values[i, 0]
+                elif ref == 'middle':
+                    ref_pt = self.values[i, np.round((len(self.axe_y) - 1)/2.)]
+                cor += self.values[i, :]*ref_pt
+                cor_ref += ref_pt**2
+            cor_ref /= len(self.axe_x)
+            cor /= len(self.axe_x)
+            cor /= cor_ref
+            # returning
+            return Profile(x=self.axe_y, y=cor, unit_x=self.unit_y,
+                           unit_y=self.unit_values)
+        else:
+            raise ValueError()
+
+    def get_spatial_spectrum(self, direction, intervx=None, intervy=None,
+                             welch_seglen=None, scaling='base', fill='linear'):
+        """
+        Return a spatial spectrum.
+
+        Parameters
+        ----------
+        direction : string
+            'x' or 'y'.
+        intervx and intervy : 2x1 arrays of number, optional
+            To chose the zone where to calculate the spectrum.
+            If not specified, the biggest possible interval is choosen.
+        welch_seglen : integer, optional
+            If specified, welch's method is used (dividing signal into
+            overlapping segments, and averaging periodogram) with the given
+            segments length (in number of points).
+        scaling : string, optional
+            If 'base' (default), result are in component unit.
+            If 'spectrum', the power spectrum is returned (in unit^2).
+            If 'density', the power spectral density is returned (in unit^2/Hz)
+        fill : string or float
+            Specifies the way to treat missing values.
+            A value for value filling.
+            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
+            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
+            interpolation of first, second or third order) for interpolation.
+
+        Returns
+        -------
+        spec : Profile object
+            Magnitude spectrum.
+        """
+         # check parameters
+        if not isinstance(direction, STRINGTYPES):
+            raise TypeError()
+        if not direction in ['x', 'y']:
+            raise ValueError()
+        if intervx is None:
+            intervx = [self.axe_x[0], self.axe_x[-1]]
+        if not isinstance(intervx, ARRAYTYPES):
+            raise TypeError()
+        intervx = np.array(intervx)
+        if intervx[0] < self.axe_x[0]:
+            intervx[0] = self.axe_x[0]
+        if intervx[1] > self.axe_x[-1]:
+            intervx[1] = self.axe_x[-1]
+        if intervx[1] <= intervx[0]:
+            raise ValueError()
+        if intervy is None:
+            intervy = [self.axe_y[0], self.axe_y[-1]]
+        if not isinstance(intervy, ARRAYTYPES):
+            raise TypeError()
+        intervy = np.array(intervy)
+        if intervy[0] < self.axe_y[0]:
+            intervy[0] = self.axe_y[0]
+        if intervy[1] > self.axe_y[-1]:
+            intervy[1] = self.axe_y[-1]
+        if intervy[1] <= intervy[0]:
+            raise ValueError()
+        # getting data
+        tmp_SF = self.trim_area(intervx, intervy)
+        # getting spectrum
+        if direction == 'x':
+            # first spectrum
+            prof, _ = tmp_SF.get_profile(2, tmp_SF.axe_y[0])
+            spec = prof.get_spectrum(welch_seglen=welch_seglen,
+                                     scaling=scaling, fill=fill)
+            # otherones
+            for y in tmp_SF.axe_y[1::]:
+                prof, _ = tmp_SF.get_profile(2, y)
+                spec += prof.get_spectrum(welch_seglen=welch_seglen,
+                                          scaling=scaling, fill=fill)
+            spec /= len(tmp_SF.axe_y)
+        else:
+            # first spectrum
+            prof, _ = tmp_SF.get_profile(1, tmp_SF.axe_x[0])
+            spec = prof.get_spectrum(welch_seglen=welch_seglen,
+                                     scaling=scaling, fill=fill)
+            # otherones
+            for x in tmp_SF.axe_x[1::]:
+                prof, _ = tmp_SF.get_profile(1, x)
+                spec += prof.get_spectrum(welch_seglen=welch_seglen,
+                                          scaling=scaling, fill=fill)
+            spec /= len(tmp_SF.axe_x)
+        return spec
 
     def integrate_over_line(self, direction, interval):
         """
@@ -4591,6 +4774,83 @@ class TemporalFields(Fields, Field):
             fluct_fields.add_field(field - mean_field)
         return fluct_fields
 
+    def get_spatial_spectrum(self, component, direction, intervx=None,
+                             intervy=None, intervtime=None, welch_seglen=None,
+                             scaling='base', fill='linear'):
+        """
+        Return a spatial spectrum.
+        If more than one time are specified, spectrums are averaged.
+
+        Parameters
+        ----------
+        component : string
+            Should be an attribute name of the stored fields.
+        direction : string
+            Direction in which perform the spectrum ('x' or 'y').
+        intervx and intervy : 2x1 arrays of number, optional
+            To chose the zone where to calculate the spectrum.
+            If not specified, the biggest possible interval is choosen.
+        intervtime : 2x1 array, optional
+            Interval of time on which averaged the spectrum.
+        welch_seglen : integer, optional
+            If specified, welch's method is used (dividing signal into
+            overlapping segments, and averaging periodogram) with the given
+            segments length (in number of points).
+        scaling : string, optional
+            If 'base' (default), result are in component unit.
+            If 'spectrum', the power spectrum is returned (in unit^2).
+            If 'density', the power spectral density is returned (in unit^2/Hz)
+        fill : string or float, optional
+            Specifies the way to treat missing values.
+            A value for value filling.
+            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
+            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
+            interpolation of first, second or third order) for interpolation.
+        """
+        # check parameters
+        try:
+            self[0].__getattribute__('{}_as_sf'.format(component))
+        except AttributeError():
+            raise ValueError()
+        if not isinstance(direction, STRINGTYPES):
+            raise TypeError()
+        if not direction in ['x', 'y']:
+            raise ValueError()
+        if intervtime is None:
+            intervtime = [self.times[0], self.times[-1]]
+        if not isinstance(intervtime, ARRAYTYPES):
+            raise TypeError()
+        intervtime = np.array(intervtime)
+        if not intervtime.shape == (2,):
+            raise ValueError()
+        if intervtime[0] < self.times[0]:
+            intervtime[0] = self.times[0]
+        if intervtime[-1] > self.times[-1]:
+            intervtime[-1] = self.times[-1]
+        if intervtime[0] >= intervtime[1]:
+            raise ValueError()
+        # loop on times
+        spec = 0
+        nmb = 0
+        for i, time in enumerate(self.times):
+            if time < intervtime[0] or time > intervtime[1]:
+                continue
+            comp = self[i].__getattribute__('{}_as_sf'.format(component))
+            if spec == 0:
+                spec = comp.get_spatial_spectrum(direction, intervx=intervx,
+                                                 intervy=intervy,
+                                                 welch_seglen=welch_seglen,
+                                                 scaling=scaling, fill=fill)
+            else:
+                spec += comp.get_spatial_spectrum(direction, intervx=intervx,
+                                                  intervy=intervy,
+                                                  welch_seglen=welch_seglen,
+                                                  scaling=scaling, fill=fill)
+            nmb += 1
+        # returning
+        spec /= nmb
+        return spec
+
     def get_time_profile(self, component, x, y, wanted_times=None, ind=False):
         """
         Return a profile contening the time evolution of the given component.
@@ -4661,17 +4921,19 @@ class TemporalFields(Fields, Field):
             prof_mask[i] = masks[time_ind, ind_x, ind_y]
         return Profile(time, prof_values, prof_mask, unit_x=unit_time, unit_y=unit_values)
 
-    def get_spectrum(self, component, pt, ind=False, wanted_times=None,
-                     welch_seglen=None,
-                     scaling='base', fill='linear', mask_error=True):
+    def get_temporal_spectrum(self, component, pt, ind=False,
+                              wanted_times=None, welch_seglen=None,
+                              scaling='base', fill='linear', mask_error=True):
         """
-        Return a Profile object, with the frequential spectrum of 'component',
+        Return a Profile object, with the temporal spectrum of 'component',
         on the point 'pt'.
 
         Parameters
         ----------
         component : string
+            .
         pt : 2x1 array of numbers
+            .
         ind : boolean
             If true, 'pt' is read as indices,
             else, 'pt' is read as coordinates.
@@ -4724,9 +4986,9 @@ class TemporalFields(Fields, Field):
                                            mask_error=mask_error)
         return magn_prof
 
-    def get_spectrum_over_area(self, component, intervalx, intervaly,
-                               ind=False, welch_seglen=None,
-                               scaling='base', fill='linear'):
+    def get_temporal_spectrum_over_area(self, component, intervalx, intervaly,
+                                        ind=False, welch_seglen=None,
+                                        scaling='base', fill='linear'):
         """
         Return a Profile object, contening a mean spectrum of the given
         component, on all the points included in the given intervals.

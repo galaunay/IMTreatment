@@ -1849,6 +1849,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
     Parameters
     ----------
     vectorfield : VectorField object
+        .
     radius : number, optionnal
         The radius used to choose the zone where to compute
         gamma for each point. If not mentionned, a value is choosen in
@@ -1965,7 +1966,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         if kind in ['gamma1b', 'gamma2', 'gamma2b']:
             v_mean[0] = np.mean(Vx[indsaround[:, 0], indsaround[:, 1]])
             v_mean[1] = np.mean(Vy[indsaround[:, 0], indsaround[:, 1]])
-        if kind == 'gamma2b':
+        if kind in ['gamma2b']:
             v_mean2[0] = np.mean((Vx[indsaround[:, 0], indsaround[:, 1]]
                                  - v_mean[0])**2)
             v_mean2[1] = np.mean((Vy[indsaround[:, 0], indsaround[:, 1]]
