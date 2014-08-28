@@ -4447,18 +4447,11 @@ class TemporalFields(Fields, Field):
         self.field_type = None
 
     def __add__(self, other):
-        if isinstance(other, self.__class__):
-            if not len(self) == len(other):
-                raise Exception()
-            if not np.all(self.axe_x == other.axe_x) \
-                    and np.all(self.axe_y == other.axe_y):
-                raise Exception()
-            if not np.all(self.times == other.times):
-                raise Exception()
-            tfs = self.__class__()
-            for i in np.arange(len(self)):
-                tfs.add_field(self.fields[i] + other.fields[i])
-            return tfs
+        if isinstance(other, self.fields[0].__class__):
+            tmp_TF = self.copy()
+            for i in np.arange(len(tmp_TF.fields)):
+                tmp_TF.fields[i] += other
+            return tmp_TF
         else:
             raise TypeError("cannot concatenate {} with"
                             " {}.".format(self.__class__, type(other)))
@@ -4961,7 +4954,10 @@ class TemporalFields(Fields, Field):
                     or np.max(intervalx) > axe_x_max\
                     or np.min(intervaly) < axe_y_min\
                     or np.max(intervaly) > axe_y_max:
-                raise ValueError("intervals are out of bounds")
+                raise ValueError("intervals ({}) are out of bounds ({})"
+                                 .format([intervalx, intervaly],
+                                         [[axe_x_min, axe_x_max],
+                                          [axe_y_min, axe_y_max]]))
             ind_x_min = self.get_indice_on_axe(1, intervalx[0])[-1]
             ind_x_max = self.get_indice_on_axe(1, intervalx[1])[0]
             ind_y_min = self.get_indice_on_axe(2, intervaly[0])[-1]
@@ -4972,10 +4968,10 @@ class TemporalFields(Fields, Field):
         real_nmb_fields = nmb_fields
         for i in np.arange(ind_x_min, ind_x_max + 1):
             for j in np.arange(ind_y_min, ind_y_max + 1):
-                tmp_m = self.get_spectrum(component, [i, j], ind=True,
-                                          welch_seglen=welch_seglen,
-                                          scaling=scaling,
-                                          fill=fill, mask_error=True)
+                tmp_m = self.get_temporal_spectrum(component, [i, j], ind=True,
+                                                   welch_seglen=welch_seglen,
+                                                   scaling=scaling,
+                                                   fill=fill, mask_error=True)
                 # check if the position is masked
                 if tmp_m is None:
                     real_nmb_fields -= 1
@@ -5319,10 +5315,10 @@ class TemporalFields(Fields, Field):
         # getting min and max data
         if isinstance(comp[0], ScalarField):
             if 'vmin' not in plotargs.keys():
-                mins = [field.min for field in comp]
+                mins = [field.min for field in comp.fields]
                 plotargs['vmin'] = np.min(mins)
             if 'vmax' not in plotargs.keys():
-                maxs = [field.max for field in comp]
+                maxs = [field.max for field in comp.fields]
                 plotargs['vmax'] = np.max(maxs)
         elif isinstance(comp[0], VectorField):
             if 'clim' not in plotargs.keys() and kind is not 'stream':
