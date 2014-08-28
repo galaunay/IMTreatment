@@ -66,10 +66,12 @@ def get_gradients(field, raw=False):
                                      unit_values=unit_values_y)
             return gradx, grady
     elif isinstance(field, VectorField):
-        Vx_dx, Vx_dy = np.gradient(np.ma.masked_array(field.comp_x, field.mask)
-                                   , dx, dy)
-        Vy_dx, Vy_dy = np.gradient(np.ma.masked_array(field.comp_y, field.mask)
-                                   , dx, dy)
+        Vx_dx, Vx_dy = np.gradient(np.ma.masked_array(field.comp_x,
+                                                      field.mask),
+                                   dx, dy)
+        Vy_dx, Vy_dy = np.gradient(np.ma.masked_array(field.comp_y,
+                                                      field.mask),
+                                   dx, dy)
         unit_values_x = field.unit_values/field.unit_x
         factx = unit_values_x.asNumber()
         unit_values_x /= factx
@@ -180,30 +182,31 @@ def get_jacobian_eigenproperties(field, raw=False):
         eig2v_x.flat[i] = loc_eigvect[0, min_eig]*loc_eigv[min_eig]
         eig2v_y.flat[i] = loc_eigvect[1, min_eig]*loc_eigv[min_eig]
     #storing
-    if raw :
+    if raw:
         return eig1, eig2, (eig1v_x, eig1v_y), (eig2v_x, eig2v_y)
     else:
         eig1_sf = ScalarField()
         eig1_sf.import_from_arrays(field.axe_x, field.axe_y, eig1,
-                                  mask=mask, unit_x=field.unit_x,
-                                  unit_y=field.unit_y,
-                                  unit_values="")
+                                   mask=mask, unit_x=field.unit_x,
+                                   unit_y=field.unit_y,
+                                   unit_values="")
         eig2_sf = ScalarField()
         eig2_sf.import_from_arrays(field.axe_x, field.axe_y, eig2,
-                                  mask=mask, unit_x=field.unit_x,
-                                  unit_y=field.unit_y,
-                                  unit_values="")
+                                   mask=mask, unit_x=field.unit_x,
+                                   unit_y=field.unit_y,
+                                   unit_values="")
         eig1_vf = VectorField()
         eig1_vf.import_from_arrays(field.axe_x, field.axe_y, eig1v_x, eig1v_y,
-                                  mask=mask, unit_x=field.unit_x,
-                                  unit_y=field.unit_y,
-                                  unit_values="")
+                                   mask=mask, unit_x=field.unit_x,
+                                   unit_y=field.unit_y,
+                                   unit_values="")
         eig2_vf = VectorField()
         eig2_vf.import_from_arrays(field.axe_x, field.axe_y, eig2v_x, eig2v_y,
-                                  mask=mask, unit_x=field.unit_x,
-                                  unit_y=field.unit_y,
-                                  unit_values="")
+                                   mask=mask, unit_x=field.unit_x,
+                                   unit_y=field.unit_y,
+                                   unit_values="")
         return eig1_sf, eig2_sf, eig1_vf, eig2_vf
+
 
 def get_grad_field(field, direction=1):
     """
@@ -229,7 +232,7 @@ def get_grad_field(field, direction=1):
     # getting gradients
     field.comp_x = field.comp_x
     field.comp_y = field.comp_y
-    grads = get_gradient(field)
+    grads = get_gradients(field)
     # returning
     if direction == 1:
         gvx = grads[0]
@@ -331,7 +334,6 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
         stream = np.zeros((longmax, 2))
         stream[0, :] = [x, y]
         i = 1
-        alpha = 1
         # calcul d'une streamline
         while True:
             tmp_vx = interp_vx(stream[i-1, 0], stream[i-1, 1])[0, 0]
@@ -342,7 +344,7 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
                 break
             if i > 15:
                 no = [stream[0:i-10, 0] - stream[i-1, 0],
-                        stream[0:i-10, 1] - stream[i-1, 1]]
+                      stream[0:i-10, 1] - stream[i-1, 1]]
                 no = no[0]**2 + no[1]**2
                 if any(no < deltaabs2/2):
                     break

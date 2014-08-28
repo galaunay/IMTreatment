@@ -624,6 +624,7 @@ def get_shear_stress(obj, direction=1, method='simple',
             x = obj.x[obj.x > 0]
             y = obj.y[obj.x > 0]
             mask = obj.mask[obj.x > 0]
+
             # log law of the wall
             def func(u_star, U, rho, y, nu):
                 u_star = u_star[0]

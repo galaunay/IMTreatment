@@ -86,8 +86,9 @@ class PTest(object):
                 if not isinstance(kwargs[key], kwtypes[key]):
                     actual_types = str(kwtypes[key]).replace('<type ', '')\
                                                     .replace('>', '')
-                    wanted_types = str(type(kwargs[key])).replace('<type ', '')\
-                                                         .replace('>', '')
+                    wanted_types = str(type(kwargs[key]))\
+                        .replace('<type ', '')\
+                        .replace('>', '')
                     raise TypeError("'{}' should be {}, not {}."
                                     .format(key, actual_types, wanted_types))
             return funct(*args, **kwargs)
@@ -475,7 +476,7 @@ class Points(object):
         except AttributeError:
             return self.__dict__['unit_v']
 
-    @unit_y.setter
+    @unit_v.setter
     def unit_v(self, unit):
         if isinstance(unit, unum.Unum):
             self.__unit_v = unit
@@ -756,9 +757,9 @@ class Points(object):
             x = ndimage.gaussian_filter(x, smooth)
             y = ndimage.gaussian_filter(y, smooth)
         # getting velocity between points
-        Vx = np.array([ (x[i + 1] - x[i])/dt[i]
+        Vx = np.array([(x[i + 1] - x[i])/dt[i]
                        for i in np.arange(len(x) - 1)])
-        Vy = np.array([ (y[i + 1] - y[i])/dt[i]
+        Vy = np.array([(y[i + 1] - y[i])/dt[i]
                        for i in np.arange(len(y) - 1)])
         # returning profiles
         unit_Vx = self.unit_x/self.unit_v
@@ -1170,46 +1171,6 @@ class Profile(object):
     def __len__(self):
         return len(self.x)
 
-#    def export_to_file(self, filepath, compressed=True, **kw):
-#        """
-#        Write the Profile object in the specified file usint the JSON format.
-#        Additionnals arguments for the JSON encoder may be set with the **kw
-#        argument. Such arguments may be 'indent' (for visual indentation in
-#        file, default=0) or 'encoding' (to change the file encoding,
-#        default='utf-8').
-#        If existing, specified file will be truncated. If not, it will
-#        be created.
-#
-#        Parameters
-#        ----------
-#        filepath : string
-#            Path specifiing where to save the ScalarField.
-#        compressed : boolean, optional
-#            If 'True' (default), the json file is compressed using gzip.
-#        """
-#        import IMTreatment.io.io as imtio
-#        imtio.export_to_file(self, filepath, compressed, **kw)
-
-#    def import_from_file(self, filepath, **kw):
-#        """
-#        Load a Profile object from the specified file using the JSON
-#        format.
-#        Additionnals arguments for the JSON decoder may be set with the **kw
-#        argument. Such as'encoding' (to change the file
-#        encoding, default='utf-8').
-#
-#        Parameters
-#        ----------
-#        filepath : string
-#            Path specifiing the Profile to load.
-#        """
-#        import IMTreatment.io.io as imtio
-#        tmp_p = imtio.import_from_file(filepath, **kw)
-#        if tmp_p.__classname__ != self.__classname__:
-#            raise IOError("This file do not contain a Profile, cabron")
-#        self.__init__(tmp_p.x, tmp_p.y, tmp_p.unit_x, tmp_p.unit_y, tmp_p.name)
-
-
     ### Attributes ###
     @property
     def x(self):
@@ -1238,7 +1199,7 @@ class Profile(object):
             self.__y = values.data
             self.__mask = values.mask
         elif isinstance(values, ARRAYTYPES):
-            self.__y =  np.array(values)
+            self.__y = np.array(values)
             self.__mask = np.isnan(values)
         else:
             raise Exception()
@@ -1737,8 +1698,8 @@ class Profile(object):
             x = self.x[filt]
             y = self.y[filt]
             interp = spinterp.interp1d(x, y, kind=kind,
-                                      bounds_error=False,
-                                      fill_value=fill_value)
+                                       bounds_error=False,
+                                       fill_value=fill_value)
             # replacing missing values
             new_y = copy.copy(self.y)
             missing_x = self.x[mask]
@@ -3249,71 +3210,6 @@ class ScalarField(Field):
         unit = trimfield.unit_values*unit_x*unit_y
         return integral*unit
 
-#    def get_curve(self, bornes=[.75, 1], rel=True, order=5):
-#        """
-#        Return a Points object, representing the choosen zone, and polynomial
-#        interpolation coefficient of these points.
-#
-#        Parameters
-#        ----------
-#        bornes : 2x1 array, optionnal
-#            Trigger values determining the zones.
-#            '[inferior borne, superior borne]'
-#        rel : Boolean
-#            If 'rel' is 'True' (default), values of 'bornes' are relative to
-#            the extremum values of the field.
-#            If 'rel' is 'False', values of bornes are treated like absolute
-#            values.
-#        order : number
-#            Order of the polynomial interpolation (default=5).
-#
-#        Returns
-#        -------
-#        pts : Points object
-#        coefp : array of number
-#            interpolation coefficients (higher order first).
-#        """
-#        if not isinstance(bornes, ARRAYTYPES):
-#            raise TypeError("'bornes' must be an array")
-#        if not isinstance(bornes, np.ndarray):
-#            bornes = np.array(bornes)
-#        if not bornes.shape == (2,):
-#            raise ValueError("'bornes' must be a 2x1 array")
-#        if not bornes[0] < bornes[1]:
-#            raise ValueError("'bornes' must be crescent")
-#        if not isinstance(rel, bool):
-#            raise TypeError("'rel' must be a boolean")
-#        if rel:
-#            if np.abs(bornes[0]) > np.abs(bornes[1]):
-#                bornes *= np.abs(self.get_min())
-#                coef = -1
-#            else:
-#                bornes *= np.abs(self.get_max())
-#                coef = 1
-#        # récupération des zones
-#        zone = np.logical_and(self.values > bornes[0], self.values < bornes[1])
-#        labeledzones, nmbzones = msr.label(zone)
-#        # vérification du nombre de zones et récupération de la plus grande
-#        areas = []
-#        if nmbzones > 1:
-#            zones = msr.find_objects(labeledzones, nmbzones)
-#            area = []
-#            for i in np.arange(nmbzones):
-#                slices = zones[i]
-#                area = (slices[0].stop - slices[0].start) *  \
-#                       (slices[1].stop - slices[1].start)
-#                areas.append(area)
-#            areas = np.array(areas)
-#            ind = areas.argmax()
-#            labeledzones = labeledzones == ind + 1
-#        # Récupération des points
-#        mask = labeledzones == 0
-#        pts = self.export_to_scatter(mask=mask)
-#        pts.v = pts.v*coef
-#        # interpolation
-#        coefp = pts.fit(order=order)
-#        return pts, coefp
-
     def copy(self):
         """
         Return a copy of the scalarfield.
@@ -3495,7 +3391,7 @@ class ScalarField(Field):
             y = not_masked[:, 1]
             v = values[not_mask]
             interp = spinterp.SmoothBivariateSpline(x, y, v, kx=order,
-                                                        ky=order, s=2)
+                                                    ky=order, s=2)
             mask_val = [interp(masked[i, 0], masked[i, 1])[0][0]
                         for i in np.arange(len(masked[:, 0]))]
             values[mask] = mask_val
@@ -4040,7 +3936,6 @@ class VectorField(Field):
                                   unit_y=self.unit_y,
                                   unit_values=self.unit_values)
         return tmp_sf
-
 
     ### Field Maker ###
     def import_from_arrays(self, axe_x, axe_y, comp_x, comp_y, mask=False,
@@ -4688,7 +4583,6 @@ class TemporalFields(Fields, Field):
     @times.deleter
     def times(self):
         raise Exception("Nope, can't do that")
-    # TODO : HERE !!!!!
 
     @property
     def unit_times(self):
@@ -4731,7 +4625,7 @@ class TemporalFields(Fields, Field):
         result_f = self.fields[0].copy()
         result_f.fill(tof='value', value=0., crop_border=False)
         mask_cum = np.zeros(self.shape, dtype=int)
-        mask_cum[np.logical_not(self.fields[0].mask)] +=1
+        mask_cum[np.logical_not(self.fields[0].mask)] += 1
 #        comp_x_cum = np.zeros(self.shape, dtype=float)
 #        comp_y_cum = np.zeros(self.shape, dtype=float)
         for field in self.fields[1::]:
@@ -4925,7 +4819,8 @@ class TemporalFields(Fields, Field):
         for i, time_ind in enumerate(w_times_ind):
             prof_values[i] = compo[time_ind, ind_x, ind_y]
             prof_mask[i] = masks[time_ind, ind_x, ind_y]
-        return Profile(time, prof_values, prof_mask, unit_x=unit_time, unit_y=unit_values)
+        return Profile(time, prof_values, prof_mask, unit_x=unit_time,
+                       unit_y=unit_values)
 
     def get_temporal_spectrum(self, component, pt, ind=False,
                               wanted_times=None, welch_seglen=None,
@@ -5254,7 +5149,8 @@ class TemporalFields(Fields, Field):
                                    inplace=True)
         # soft cropping
         else:
-            # getting positions to remove (column or line with only masked values)
+            # getting positions to remove
+            # (column or line with only masked values)
             axe_y_m = ~np.all(mask_temp, axis=0)
             axe_x_m = ~np.all(mask_temp, axis=1)
             # skip if nothing to do
@@ -5325,8 +5221,8 @@ class TemporalFields(Fields, Field):
         self.fields = self.fields[ind_sort]
 
     ### Displayers ###
-    def display_multiple(self, component, kind=None,  fields_ind=None, samecb=False,
-                same_axes=False, **plotargs):
+    def display_multiple(self, component, kind=None,  fields_ind=None,
+                         samecb=False, same_axes=False, **plotargs):
         """
         Display a component of the velocity fields.
 
@@ -5430,14 +5326,17 @@ class TemporalFields(Fields, Field):
                 plotargs['vmax'] = np.max(maxs)
         elif isinstance(comp[0], VectorField):
             if 'clim' not in plotargs.keys() and kind is not 'stream':
-                mins = [np.min(field.magnitude[np.logical_not(field.mask)]) for field in comp]
-                maxs = [np.max(field.magnitude[np.logical_not(field.mask)]) for field in comp]
+                mins = [np.min(field.magnitude[np.logical_not(field.mask)])
+                        for field in comp]
+                maxs = [np.max(field.magnitude[np.logical_not(field.mask)])
+                        for field in comp]
                 mini = np.min(mins)
                 maxi = np.max(maxs)
                 plotargs['clim'] = [mini, maxi]
         else:
             pdb.set_trace()
             raise Exception()
+
         # button gestion class
         class Index(object):
 
@@ -5482,13 +5381,13 @@ class TemporalFields(Fields, Field):
                 if isinstance(self.comp[0], VectorField)\
                         and (self.kind is None or self.kind == "quiver"):
                     self.obj._update_vf(self.ind, self.fig, self.ax,
-                                         self.displ, self.ttl, self.comp,
-                                         self.compo, self.plotargs)
+                                        self.displ, self.ttl, self.comp,
+                                        self.compo, self.plotargs)
                 elif isinstance(comp[0], ScalarField)\
                         or isinstance(comp[0], VectorField):
                     self.obj._update_sf(self.ind, self.fig, self.ax,
-                                         self.displ, self.ttl, self.comp,
-                                         self.compo, self.plotargs)
+                                        self.displ, self.ttl, self.comp,
+                                        self.compo, self.plotargs)
                 else:
                     raise TypeError()
                 plt.draw()
@@ -5634,6 +5533,7 @@ class TemporalFields(Fields, Field):
                     self.unit_times.strUnit())
         ttl.set_text(title)
         return ax
+
 
 class TemporalScalarFields(TemporalFields):
     """
@@ -6084,7 +5984,7 @@ class SpatialVectorFields(Fields):
         """
         Return a copy of the velocityfields
         """
-        tmp_svfs = SpatialVelocityFields()
+        tmp_svfs = SpatialVectorFields()
         tmp_svfs.import_from_svfs(self)
         return tmp_svfs
 

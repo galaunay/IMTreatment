@@ -468,7 +468,7 @@ class CritPoints(object):
                                                        times=self.times,
                                                        epsilon=epsilon)
         self.sadd_traj = self._get_cp_time_evolution(sadds, times=self.times,
-                                                    epsilon=epsilon)
+                                                     epsilon=epsilon)
 
     ### Modifiers ###
     def add_point(self, foc=None, foc_c=None, node_i=None, node_o=None,
@@ -852,6 +852,7 @@ class CritPoints(object):
                     plt.plot(traj.xy[:, 1], traj.v[:], 'o-', color=color)
         else:
             raise StandardError()
+
 
 ### Vortex properties ###
 def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
@@ -1254,6 +1255,7 @@ def get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     pts = CritPoints(unit_time=unit_time)
     pts.add_point(pbi_m=pbi_m, pbi_p=pbi_p, time=time)
     return pts
+
 
 def get_cp_crit_on_TVF(TVF, window_size=4):
     """
@@ -2346,10 +2348,10 @@ def get_lambda2(vectorfield, mask=None, raw=False):
         M = S**2 + Omega**2
         # getting second eigenvalue
         lambds = linalg.eig(M, left=False, right=False)
-        l2 = np.min(lambds)
+        l2 = np.max(lambds)
         # storing lambda2
         lambda2[i, j] = l2.real
-    # returning
+    #returning
     if raw:
         return np.ma.masked_array(l2, mask)
     else:
@@ -2360,4 +2362,3 @@ def get_lambda2(vectorfield, mask=None, raw=False):
                                     unit_x=unit_x, unit_y=unit_y,
                                     unit_values=make_unit(''))
         return lambd_sf
-
