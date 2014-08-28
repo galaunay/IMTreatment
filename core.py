@@ -1559,33 +1559,48 @@ class Profile(object):
                             unit_y=unit_y)
         return magn_prof
 
-    def get_auto_correlation(self, window_len=None):
+    def get_auto_correlation(self, window_len, raw=False):
         """
-        Return the associated correlation profile.
+        Return the auto-correlation profile.
+
+        This algorithm make auto-correlation for all the possible values,
+        and an average of the resulting profile.
+        Profile are normalized, so the central value of the returned profile
+        should be 1.
 
         Parameters
         ----------
-        window_len : integer, optional
-            Window length for sweep correlation. if 'None' (default), all the
-            signal is used, and boundary effect can be seen.
+        window_len : integer
+            Window length for sweep correlation.
+        raw : bool, optional
+            If 'True', return an array
+            If 'False' (default), return a profile
         """
-        if window_len is None:
-            x = self.x
-            corr = np.correlate(self.y, self.y, "same")
+        # checking parameters
+        if not isinstance(window_len, int):
+            raise TypeError()
+        if window_len >= len(self.y) - 1:
+            raise ValueError()
+        window_len = np.floor(window_len/2.)
+        # loop on possible central values
+        corr = np.zeros(2*window_len + 1)
+        corr_ad = 0
+        nmb = 0
+        for i in np.arange(window_len, len(self.y) - window_len - 1):
+            central_val = self.y[i]
+            surr_vals = self.y[i - window_len:i + window_len + 1]
+            tmp_corr = surr_vals*central_val
+            corr_ad += central_val**2
+            corr += tmp_corr
+            nmb += 1
+        corr /= corr_ad
+        # returning
+        if raw:
+            return corr
         else:
-            if not isinstance(window_len, int):
-                raise TypeError()
-            if window_len > len(self.y):
-                raise ValueError()
-#            s = 0
-#            corr = np.zeros((len(self.y) - window_len + 1))
-#            for i in np.arange(0, len(self.y), window_len):
-#                corr += np.correlate(self.y, self.y[i:i + window_len])
-#                s += 1
-#            corr /= s
-            corr = np.correlate(self.y, self.y[0:window_len])
-            x = self.x[0:len(corr)]
-        return Profile(x, corr, unit_x=self.unit_x, unit_y=make_unit(''))
+            dx = self.x[1] - self.x[0]
+            x = np.arange(0, dx*len(corr), dx)
+            return Profile(x, corr, unit_x=self.unit_x, unit_y=make_unit(''))
 
     def get_fitting(self, func, p0=None, output_param=False):
         """
@@ -2987,12 +3002,12 @@ class ScalarField(Field):
             if direction == 1:
                 prof_mask = self.mask[position, :]
                 profile = self.values[position, :]
-                axe = self.axe_x
+                axe = self.axe_y
                 cutposition = self.axe_x[position]
             else:
                 prof_mask = self.mask[:, position]
                 profile = self.values[:, position]
-                axe = self.axe_y
+                axe = self.axe_x
                 cutposition = self.axe_y[position]
         # Calculation of the profile for an interval of position
         elif isinstance(position, ARRAYTYPES) and not ind:
@@ -3021,7 +3036,7 @@ class ScalarField(Field):
         return (Profile(axe, profile, prof_mask, unit_x, unit_y, "Profile"),
                 cutposition)
 
-    def get_spatial_autocorrelation(self, direction, ref='beginning'):
+    def get_spatial_autocorrelation(self, direction, window_len=None):
         """
         Return the spatial auto-correlation along the wanted direction.
 
@@ -3031,53 +3046,44 @@ class ScalarField(Field):
         ----------
         direction : string
             'x' or 'y'
-        ref : string
-            If 'beginning' (default), the reference point is the first one
-            If 'middle', it is the middle one
+        window_len : integer, optional
+            Window length for sweep correlation. if 'None' (default), all the
+            signal is used, and boundary effect can be seen.
 
         Returns
         -------
         profile : Profile object
             Spatial correlation
         """
-        # checl parameters
-        if ref not in ['beginning', 'middle']:
-            raise ValueError()
         # Direction X
         if direction == 'x':
             # loop on profiles
-            cor = np.zeros((len(self.axe_x)))
-            cor_ref = 0
+            cor = np.zeros(np.floor(window_len/2.)*2 + 1)
+            nmb = 0
             for i, y in enumerate(self.axe_y):
-                if ref == 'beginning':
-                    ref_pt = self.values[0, i]
-                elif ref == 'middle':
-                    ref_pt = self.values[np.round((len(self.axe_x) - 1)/2.), i]
-                cor += self.values[:, i]*ref_pt
-                cor_ref += ref_pt**2
-            cor_ref /= len(self.axe_y)
-            cor /= len(self.axe_y)
-            cor /= cor_ref
+                tmp_prof, _ = self.get_profile(2, i, ind=True)
+                cor += tmp_prof.get_auto_correlation(window_len, raw=True)
+                nmb += 1
+            cor /= nmb
             # returning
-            return Profile(x=self.axe_x, y=cor, unit_x=self.unit_x,
-                           unit_y=self.unit_values)
+            dx = self.axe_x[1] - self.axe_x[0]
+            x = np.arange(0, len(cor)*dx, dx)
+            return Profile(x=x, y=cor, unit_x=self.unit_x,
+                           unit_y=make_unit(''))
         elif direction == 'y':
             # loop on profiles
-            cor = np.zeros((len(self.axe_y)))
-            cor_ref = 0
+            cor = np.zeros(np.floor(window_len/2.)*2 + 1)
+            nmb = 0
             for i, x in enumerate(self.axe_x):
-                if ref == 'beginning':
-                    ref_pt = self.values[i, 0]
-                elif ref == 'middle':
-                    ref_pt = self.values[i, np.round((len(self.axe_y) - 1)/2.)]
-                cor += self.values[i, :]*ref_pt
-                cor_ref += ref_pt**2
-            cor_ref /= len(self.axe_x)
-            cor /= len(self.axe_x)
-            cor /= cor_ref
+                tmp_prof, _ = self.get_profile(1, i, ind=True)
+                cor += tmp_prof.get_auto_correlation(window_len, raw=True)
+                nmb += 1
+            cor /= nmb
             # returning
-            return Profile(x=self.axe_y, y=cor, unit_x=self.unit_y,
-                           unit_y=self.unit_values)
+            dy = self.axe_y[1] - self.axe_y[0]
+            y = np.arange(0, len(cor)*dy, dy)
+            return Profile(x=y, y=cor, unit_x=self.unit_y,
+                           unit_y=make_unit(''))
         else:
             raise ValueError()
 
