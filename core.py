@@ -1464,7 +1464,8 @@ class Profile(object):
         scaling : string, optional
             If 'base' (default), result are in component unit.
             If 'spectrum', the power spectrum is returned (in unit^2).
-            If 'density', the power spectral density is returned (in unit^2/Hz)
+            If 'density', the power spectral density is returned
+            (in unit^2/(1/unit_x))
         fill : string or float
             Specifies the way to treat missing values.
             A value for value filling.
@@ -1513,7 +1514,7 @@ class Profile(object):
         elif scaling == 'spectrum':
             unit_y = self.unit_y**2
         elif scaling == 'density':
-            unit_y = self.unit_y**2/make_unit('Hz')
+            unit_y = self.unit_y**2*self.unit_x
         else:
             raise Exception()
         magn_prof = Profile(frq, magn, unit_x=1./self.unit_x,
