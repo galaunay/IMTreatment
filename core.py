@@ -5665,7 +5665,8 @@ class TemporalVectorFields(TemporalFields):
     def Vx_as_sf(self):
         values = TemporalScalarFields()
         for i, field in enumerate(self.fields):
-            values.add_field(field.comp_x_as_sf)
+            values.add_field(field.comp_x_as_sf, time=self.times[i],
+                             unit_times=self.unit_times)
         return values
 
     @property
@@ -5680,7 +5681,8 @@ class TemporalVectorFields(TemporalFields):
     def Vy_as_sf(self):
         values = TemporalScalarFields()
         for i, field in enumerate(self.fields):
-            values.add_field(field.comp_y_as_sf)
+            values.add_field(field.comp_y_as_sf, time=self.times[i],
+                             unit_times=self.unit_times)
         return values
 
     @property
