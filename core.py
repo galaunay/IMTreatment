@@ -2640,7 +2640,7 @@ class ScalarField(Field):
         return np.mean(self.values[np.logical_not(self.mask)])
 
     ### Field maker ###
-    def import_from_arrays(self, axe_x, axe_y, values, mask=False,
+    def import_from_arrays(self, axe_x, axe_y, values, mask=None,
                            unit_x="", unit_y="", unit_values=""):
         """
         Set the field from a set of arrays.
@@ -2669,7 +2669,8 @@ class ScalarField(Field):
         self.axe_x = axe_x
         self.axe_y = axe_y
         self.values = values
-        self.mask = mask
+        if mask is not None:
+            self.mask = mask
         self.unit_x = unit_x
         self.unit_y = unit_y
         self.unit_values = unit_values
@@ -5560,11 +5561,7 @@ class TemporalScalarFields(TemporalFields):
     ### Attributes ###
     @property
     def values_as_sf(self):
-        dim = len(self)
-        values = np.empty(dim, dtype=object)
-        for i, field in enumerate(self.fields):
-            values[i] = field
-        return values
+        return self
 
     @property
     def values(self):

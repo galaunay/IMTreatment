@@ -159,9 +159,19 @@ class ModalFields(Field):
             # mean field
             tmp_tf = np.array([self.mean_field.values]*len(self.times))
             # loop on the modes
+#            if self.decomp_type == 'pod':
             for n in wanted_modes:
                 for t in ind_times:
                     tmp_tf[t] += self.modes[n].values*self.temp_evo[n].y[t]
+#            elif self.decomp_type == 'dmd':
+#                for t in ind_times:
+#                    for n in wanted_modes:
+#                        sigma = self.growth_rate.y[n]
+#                        omega = self.pulsation.y[n]
+#                        comp = np.complex(0, 1)
+#                        tmp_tf[t] += self.modes[n].values\
+#                                   * np.exp((sigma + comp*omega)\
+#                                            * self.times[t])
             # returning
             TF = TemporalScalarFields()
             for t in ind_times:
@@ -256,6 +266,7 @@ class ModalFields(Field):
             plt.title("Mode with the bigger norm (pulsation={:.2f})"
                       .format(self.pulsation.y[norm_sort[-1]]))
 
+
 def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     """
     Compute POD modes of the given fields using the snapshot method.
@@ -291,13 +302,15 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
             raise ValueError()
     else:
         raise TypeError()
-    # link data
+    # remove mean field or not
     ind_fields = np.arange(len(TF.fields))
     mean_field = TF.get_mean_field()
     TF = TF - mean_field
+    # link data
     if isinstance(TF, TemporalScalarFields):
         snaps = [modred.VecHandleInMemory(TF.fields[i].values)
                  for i in np.arange(len(TF.fields))]
+        values = [TF.fields[t].values for t in ind_fields]
     elif isinstance(TF, TemporalVectorFields):
         values = [[TF.fields[t].comp_x, TF.fields[t].comp_y] for t in ind_fields]
         values = np.transpose(values, (0, 2, 3, 1))
@@ -318,8 +331,8 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
         eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
                           unit_x=TF.unit_times, unit_y='')
     elif kind == 'dmd':
-        my_decomp = modred.DMDHandles(np.vdot)
-        ritz_vals, mode_norms, _ = my_decomp.compute_decomp(snaps)
+        my_decomp = modred.DMDHandles(np.vdot, verbosity=1)
+        ritz_vals, mode_norms, build_coeffs = my_decomp.compute_decomp(snaps)
         wanted_modes = wanted_modes[wanted_modes < len(ritz_vals)]
         # supplementary charac
         delta_t = TF.times[1] - TF.times[0]
@@ -332,7 +345,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
         lambd_arg[mask] = np.pi
         lambd_arg[filt] = 2*np.arctan(lambd_i[filt]/(lambd_r[filt]
                                                      + lambd_mod[filt]))
-        sigma = np.log(np.abs(lambd_i))/delta_t
+        sigma = np.log(lambd_mod)/delta_t
         omega = lambd_arg/delta_t
         # creating profiles
         ritz_vals = Profile(wanted_modes, ritz_vals[wanted_modes], mask=False,
@@ -351,20 +364,26 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
              for i in np.arange(len(wanted_modes))]
     my_decomp.compute_modes(wanted_modes, modes)
     # getting temporal evolution (maybe is there a better way to do that)
+    # TODO : améliorer pob reconstruction
     temporal_prof = []
-    for i in np.arange(len(modes)):
-        if isinstance(TF, TemporalScalarFields):
-            tmp_prof = [np.vdot(modes[i].get(), TF.fields[j].values)
-                        for j in np.arange(len(TF.fields))]
-        elif isinstance(TF, TemporalVectorFields):
+    if kind == 'pod':
+        for i in np.arange(len(modes)):
             tmp_prof = [np.vdot(modes[i].get(), values[j])
                         for j in np.arange(len(TF.fields))]
-        if kind == 'dmd':
-            tmp_prof /= mode_norms.y[i]*2.
-        tmp_prof = Profile(TF.times, tmp_prof, mask=False,
-                           unit_x=TF.unit_times,
-                           unit_y=TF.unit_values)
-        temporal_prof.append(tmp_prof)
+            tmp_prof = Profile(TF.times, tmp_prof, mask=False,
+                               unit_x=TF.unit_times,
+                               unit_y=TF.unit_values)
+            temporal_prof.append(tmp_prof)
+    elif kind == 'dmd':
+        temporal_prof = []
+        for n in np.arange(len(modes)):
+            tmp_prof = np.exp((growth_rate.y[n]
+                               + np.complex(0, 1)*pulsation.y[n])
+                              * TF.times)
+            tmp_prof = Profile(TF.times, tmp_prof, mask=False,
+                               unit_x=TF.unit_times,
+                               unit_y=TF.unit_values)
+            temporal_prof.append(tmp_prof)
     # returning
     modes_f = []
     for i in np.arange(len(modes)):
