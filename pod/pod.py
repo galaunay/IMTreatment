@@ -159,7 +159,6 @@ class ModalFields(Field):
                 raise ValueError()
         else:
             raise TypeError()
-
         # getting datas
         ind_times = np.arange(len(self.times))
         # TSF
@@ -169,7 +168,10 @@ class ModalFields(Field):
             # loop on the modes
             for n in wanted_modes:
                 for t in ind_times:
-                    tmp_tf[t] += np.abs(self.modes[n].values*self.temp_evo[n].y[t])
+                    to_add = self.modes[n].values*self.temp_evo[n].y[t]
+                    if isinstance(to_add[0, 0], complex):
+                        to_add = np.real(to_add)
+                    tmp_tf[t] += to_add
             # returning
             TF = TemporalScalarFields()
             for t in ind_times:
@@ -182,14 +184,14 @@ class ModalFields(Field):
                              unit_times=self.unit_times)
         # TVF
         elif self.field_class == VectorField:
-            # first mode
+            # mean field
             tmp_tf_x = np.array([self.mean_field.comp_x]*len(self.times))
             tmp_tf_y = np.array([self.mean_field.comp_y]*len(self.times))
-            # loop on the other modes
+            # loop on the modes
             for n in wanted_modes:
                 for t in ind_times:
-                    tmp_tf_x[t] += self.modes[n].comp_x*self.temp_evo[n].y[t]
-                    tmp_tf_y[t] += self.modes[n].comp_y*self.temp_evo[n].y[t]
+                    tmp_tf_x[t] += np.real(self.modes[n].comp_x*self.temp_evo[n].y[t])
+                    tmp_tf_y[t] += np.real(self.modes[n].comp_y*self.temp_evo[n].y[t])
             # returning
             TF = TemporalVectorFields()
             for t in ind_times:
@@ -253,14 +255,16 @@ class ModalFields(Field):
             plt.subplot(2, 3, 4)
             stab_sort = np.argsort(np.abs(self.growth_rate.y))
             tmp_sf = self.modes[stab_sort[0]].copy()
-            tmp_sf.values = np.abs(tmp_sf.values)
+            if isinstance(tmp_sf.values[0, 0], complex):
+                tmp_sf.values = np.real(tmp_sf.values)
             tmp_sf.display()
             plt.title("More stable mode (pulsation={:.2f})\n"
                       "(Absolute representation)"
                       .format(self.pulsation.y[stab_sort[-0]]))
             plt.subplot(2, 3, 5)
             tmp_sf = self.modes[stab_sort[1]].copy()
-            tmp_sf.values = np.abs(tmp_sf.values)
+            if isinstance(tmp_sf.values[0, 0], complex):
+                tmp_sf.values = np.real(tmp_sf.values)
             tmp_sf.display()
             plt.title("Second more stable mode (pulsation={:.2f})\n"
                       "(Absolute representation)"
@@ -268,7 +272,8 @@ class ModalFields(Field):
             plt.subplot(2, 3, 6)
             norm_sort = np.argsort(self.mode_norms.y)
             tmp_sf = self.modes[norm_sort[-1]].copy()
-            tmp_sf.values = np.abs(tmp_sf.values)
+            if isinstance(tmp_sf.values[0, 0], complex):
+                tmp_sf.values = np.abs(tmp_sf.values)
             tmp_sf.display()
             plt.title("Mode with the bigger norm (pulsation={:.2f})\n"
                       "(Absolute representation)"
@@ -339,14 +344,14 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
         eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
                           unit_x=TF.unit_times, unit_y='')
     elif kind == 'dmd':
-        my_decomp = modred.DMDHandles(np.vdot, verbosity=1)
+        my_decomp = modred.DMDHandles(np.vdot)
         ritz_vals, mode_norms, build_coeffs = my_decomp.compute_decomp(snaps)
         wanted_modes = wanted_modes[wanted_modes < len(ritz_vals)]
         # supplementary charac
         delta_t = TF.times[1] - TF.times[0]
         lambd_i = np.imag(ritz_vals)
         lambd_r = np.real(ritz_vals)
-        lambd_mod = np.sqrt(lambd_i**2 + lambd_r**2)
+        lambd_mod = np.abs(ritz_vals)
         lambd_arg = np.zeros((len(ritz_vals)))
         mask = np.logical_and(lambd_i == 0, lambd_r <= 0)
         filt = np.logical_not(mask)
@@ -361,7 +366,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
         mode_norms = Profile(wanted_modes, mode_norms[wanted_modes],
                              mask=False, unit_x=TF.unit_times, unit_y='')
         growth_rate = Profile(wanted_modes, sigma[wanted_modes], mask=False,
-                              unit_x=TF.unit_times, unit_y=1/TF.unit_times)
+                              unit_x=TF.unit_times, unit_y=1./TF.unit_times)
         pulsation = Profile(wanted_modes, omega[wanted_modes], mask=False,
                             unit_x=TF.unit_times,
                             unit_y=make_unit('rad')/TF.unit_times)

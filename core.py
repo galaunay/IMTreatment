@@ -3755,6 +3755,12 @@ class VectorField(Field):
         tmpvf.comp_y = np.power(tmpvf.comp_y, number)
         return tmpvf
 
+    def __abs__(self):
+        tmpvf = self.copy()
+        tmpvf.comp_x = np.abs(tmpvf.comp_x)
+        tmpvf.comp_y = np.abs(tmpvf.comp_y)
+        return tmpvf
+
     def __iter__(self):
         mask = self.mask
         datax = self.comp_x
@@ -3774,7 +3780,7 @@ class VectorField(Field):
     def comp_x(self, new_comp_x):
         if not isinstance(new_comp_x, ARRAYTYPES):
             raise TypeError()
-        new_comp_x = np.array(new_comp_x, dtype=float)
+        new_comp_x = np.array(new_comp_x)
         if not new_comp_x.shape == self.shape:
             raise ValueError("'comp_x' must be coherent with axis system")
         # storing dat
@@ -3801,7 +3807,7 @@ class VectorField(Field):
     def comp_y(self, new_comp_y):
         if not isinstance(new_comp_y, ARRAYTYPES):
             raise TypeError()
-        new_comp_y = np.array(new_comp_y, dtype=float)
+        new_comp_y = np.array(new_comp_y)
         if not new_comp_y.shape == self.shape:
             raise ValueError()
         # storing data
