@@ -2553,7 +2553,7 @@ class ScalarField(Field):
     def values(self, new_values):
         if not isinstance(new_values, ARRAYTYPES):
             raise TypeError()
-        new_values = np.array(new_values, dtype=float)
+        new_values = np.array(new_values)
         if self.shape == new_values.shape:
             # adapting mask to 'nan' values
             self.__mask = np.isnan(new_values)
@@ -4461,12 +4461,28 @@ class TemporalFields(Fields, Field):
             for i in np.arange(len(tmp_TF.fields)):
                 tmp_TF.fields[i] += other
             return tmp_TF
+        elif isinstance(other, self.__class__):
+            tmp_tf = self.copy()
+            if np.all(self.times == other.times):
+                for i in np.arange(len(self.fields)):
+                    tmp_tf.fields[i] += other.fields[i]
+            else:
+                for i in np.arange(len(other.fields)):
+                    tmp_tf.add_field(other.fields[i])
+            return tmp_tf
+
         else:
             raise TypeError("cannot concatenate {} with"
                             " {}.".format(self.__class__, type(other)))
 
     def __sub__(self, other):
         return self.__add__(-other)
+
+    def __neg__(self):
+        tmp_tf = self.copy()
+        for i in np.arange(len(self.fields)):
+            tmp_tf.fields[i] = -tmp_tf.fields[i]
+        return tmp_tf
 
     def __mul__(self, other):
         if isinstance(other, self.__class__):

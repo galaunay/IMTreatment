@@ -130,8 +130,10 @@ class ModalFields(Field):
         Parameters
         ----------
         wanted_modes : string or number or array of numbers, optional
-            wanted modes for reconstruction, can be 'all' for all modes, a mode
-            number (begin at 0) or an array of modes numbers.
+            wanted modes for reconstruction :
+            If 'all' (default), all modes are used
+            If an array of integers, the wanted modes are used
+            If an integer, the wanted first modes are used.
         Returns
         -------
         TF : TemporalFields (TemporalScalarFields or TemporalVectorFields)
@@ -143,15 +145,21 @@ class ModalFields(Field):
             if wanted_modes == 'all':
                 wanted_modes = np.arange(len(self.modes))
         elif isinstance(wanted_modes, NUMBERTYPES):
-            wanted_modes = np.array([wanted_modes])
+            if self.decomp_type == 'pod':
+                wanted_modes = np.arange(wanted_modes)
+            elif self.decomp_type == 'dmd':
+                wanted_modes = np.argsort(np.abs(self.growth_rate.y))[0:wanted_modes]
+            else:
+                raise ValueError()
         elif isinstance(wanted_modes, ARRAYTYPES):
             wanted_modes = np.array(wanted_modes)
             if not isinstance(wanted_modes[0], NUMBERTYPES):
                 raise TypeError()
+            if wanted_modes.max() > len(self.modes):
+                raise ValueError()
         else:
             raise TypeError()
-        if wanted_modes.max() > len(self.modes):
-            raise ValueError()
+
         # getting datas
         ind_times = np.arange(len(self.times))
         # TSF
@@ -159,19 +167,9 @@ class ModalFields(Field):
             # mean field
             tmp_tf = np.array([self.mean_field.values]*len(self.times))
             # loop on the modes
-#            if self.decomp_type == 'pod':
             for n in wanted_modes:
                 for t in ind_times:
-                    tmp_tf[t] += self.modes[n].values*self.temp_evo[n].y[t]
-#            elif self.decomp_type == 'dmd':
-#                for t in ind_times:
-#                    for n in wanted_modes:
-#                        sigma = self.growth_rate.y[n]
-#                        omega = self.pulsation.y[n]
-#                        comp = np.complex(0, 1)
-#                        tmp_tf[t] += self.modes[n].values\
-#                                   * np.exp((sigma + comp*omega)\
-#                                            * self.times[t])
+                    tmp_tf[t] += np.abs(self.modes[n].values*self.temp_evo[n].y[t])
             # returning
             TF = TemporalScalarFields()
             for t in ind_times:
@@ -244,7 +242,8 @@ class ModalFields(Field):
             plt.ylabel("Growth rate [1/s]")
             plt.subplot(2, 3, 3)
             sorted_omega = np.sort(self.pulsation.y)
-            delta_omega = np.abs(sorted_omega[1] - sorted_omega[0])
+            delta_omega = np.mean(np.abs(sorted_omega[1::]
+                                  - sorted_omega[0:-1:]))
             width = delta_omega/2.
             plt.bar(self.pulsation.y - width/2., self.mode_norms.y,
                     width=width)
@@ -252,18 +251,27 @@ class ModalFields(Field):
             plt.xlabel("Pulsation [rad/s]")
             plt.ylabel("Mode amplitude []")
             plt.subplot(2, 3, 4)
-            stab_sort = np.argsort(self.growth_rate.y)
-            self.modes[stab_sort[-1]].display()
-            plt.title("More instable mode (pulsation={:.2f})"
-                      .format(self.pulsation.y[stab_sort[-1]]))
+            stab_sort = np.argsort(np.abs(self.growth_rate.y))
+            tmp_sf = self.modes[stab_sort[0]].copy()
+            tmp_sf.values = np.abs(tmp_sf.values)
+            tmp_sf.display()
+            plt.title("More stable mode (pulsation={:.2f})\n"
+                      "(Absolute representation)"
+                      .format(self.pulsation.y[stab_sort[-0]]))
             plt.subplot(2, 3, 5)
-            self.modes[stab_sort[-2]].display()
-            plt.title("Second more instable mode (pulsation={:.2f})"
-                      .format(self.pulsation.y[stab_sort[-2]]))
+            tmp_sf = self.modes[stab_sort[1]].copy()
+            tmp_sf.values = np.abs(tmp_sf.values)
+            tmp_sf.display()
+            plt.title("Second more stable mode (pulsation={:.2f})\n"
+                      "(Absolute representation)"
+                      .format(self.pulsation.y[stab_sort[1]]))
             plt.subplot(2, 3, 6)
             norm_sort = np.argsort(self.mode_norms.y)
-            self.modes[norm_sort[-1]].display()
-            plt.title("Mode with the bigger norm (pulsation={:.2f})"
+            tmp_sf = self.modes[norm_sort[-1]].copy()
+            tmp_sf.values = np.abs(tmp_sf.values)
+            tmp_sf.display()
+            plt.title("Mode with the bigger norm (pulsation={:.2f})\n"
+                      "(Absolute representation)"
                       .format(self.pulsation.y[norm_sort[-1]]))
 
 
