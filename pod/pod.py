@@ -13,19 +13,24 @@ from IMTreatment import *
 import numpy as np
 import pdb
 import modred
+import matplotlib.pyplot as plt
 
 class ModalFields(Field):
     """
     Class representing the result of a modal decomposition.
     """
 
-    def __init__(self, mean_field, modes, modes_numbers, temporal_evolutions,
-                 eigvals, eigvects):
+    def __init__(self, decomp_type, mean_field, modes, modes_numbers,
+                 temporal_evolutions,
+                 eigvals=None, eigvects=None, ritz_vals=None, mode_norms=None,
+                 growth_rate=None, pulsation=None):
         """
         Constructor
         """
         Field.__init__(self)
         # check parameters
+        if not decomp_type in ['pod', 'dmd']:
+            raise ValueError()
         self.field_class = mean_field.__class__
         if not isinstance(modes, ARRAYTYPES):
             raise TypeError()
@@ -46,16 +51,39 @@ class ModalFields(Field):
             raise TypeError()
         if not len(temporal_evolutions) == len(modes):
             raise ValueError()
-        if not isinstance(eigvals, Profile):
-            raise TypeError()
-        if not len(eigvals) == len(modes):
-            raise ValueError()
-        if not isinstance(eigvects, ARRAYTYPES):
-            raise TypeError()
-        eigvects = np.array(eigvects)
-        if not eigvects.shape == (len(temporal_evolutions[0].x), len(modes)):
-            raise ValueError()
+        if eigvals is not None:
+            if not isinstance(eigvals, Profile):
+                raise TypeError()
+            if not len(eigvals) == len(modes):
+                raise ValueError()
+        if eigvects is not None:
+            if not isinstance(eigvects, ARRAYTYPES):
+                raise TypeError()
+            eigvects = np.array(eigvects)
+            if not eigvects.shape == (len(temporal_evolutions[0].x), len(modes)):
+                raise ValueError()
+        if ritz_vals is not None:
+            if not isinstance(ritz_vals, Profile):
+                raise TypeError()
+            if not len(ritz_vals) == len(modes):
+                raise ValueError()
+        if mode_norms is not None:
+            if not isinstance(mode_norms, Profile):
+                raise TypeError()
+            if not len(mode_norms) == len(modes):
+                raise ValueError()
+        if growth_rate is not None:
+            if not isinstance(growth_rate, Profile):
+                raise TypeError()
+            if not len(growth_rate) == len(modes):
+                raise ValueError()
+        if pulsation is not None:
+            if not isinstance(pulsation, Profile):
+                raise TypeError()
+            if not len(pulsation) == len(modes):
+                raise ValueError()
         # storing
+        self.decomp_type = decomp_type
         self.mean_field = mean_field
         self.axe_x = mean_field.axe_x
         self.axe_y = mean_field.axe_y
@@ -67,8 +95,18 @@ class ModalFields(Field):
         self.temp_evo = temporal_evolutions
         self.times = temporal_evolutions[0].x
         self.unit_times = temporal_evolutions[0].unit_x
-        self.eigvals = eigvals
-        self.eigvects = eigvects
+        if eigvals is not None:
+            self.eigvals = eigvals
+        if eigvects is not None:
+            self.eigvects = eigvects
+        if ritz_vals is not None:
+            self.ritz_vals = ritz_vals
+        if mode_norms is not None:
+            self.mode_norms = mode_norms
+        if growth_rate is not None:
+            self.growth_rate = growth_rate
+        if pulsation is not None:
+            self.pulsation = pulsation
 
     @property
     def modes_as_tf(self):
@@ -77,13 +115,13 @@ class ModalFields(Field):
             for i in np.arange(len(self.modes)):
                 tmp_tf.add_field(self.modes[i], time=i,
                                  unit_times="")
-            return tmp_tf.display(**kw)
+            return tmp_tf
         elif self.field_class == ScalarField:
             tmp_tf = TemporalScalarFields()
             for i in np.arange(len(self.modes)):
                 tmp_tf.add_field(self.modes[i], time=self.times[i],
                                  unit_times=self.unit_times)
-            return tmp_tf.display(**kw)
+            return tmp_tf
 
     def reconstruct(self, wanted_modes='all'):
         """
@@ -157,8 +195,68 @@ class ModalFields(Field):
                              unit_times=self.unit_times)
         return TF
 
+    def display(self):
+        """
+        Display some important diagram for the decomposition.
+        """
+        if self.decomp_type == 'pod':
+            plt.figure()
+            plt.subplot(2, 3, 1)
 
-def pod(TF, wanted_modes='all'):
+            plt.subplot(2, 3, 2)
+            self.modes[0].display()
+            plt.title("Mode 1")
+            plt.subplot(2, 3, 4)
+            self.eigvals.display()
+            plt.title('Eigenvalues evolution')
+            plt.subplot(2, 3, 5)
+            self.temp_evo[0].display()
+            plt.title("Temporal evolution of mode 1")
+            plt.subplot(2, 3, 3)
+            self.modes[1].display()
+            plt.title("Mode 2")
+            plt.subplot(2, 3, 6)
+            self.temp_evo[1].display()
+            plt.title("Temporal evolution of mode 2")
+        elif self.decomp_type == 'dmd':
+            self.pulsation.change_unit('y', 'rad/s')
+            self.growth_rate.change_unit('y', '1/s')
+            plt.figure()
+            plt.subplot(2, 3, 1)
+            plt.plot(np.real(self.ritz_vals.y), np.imag(self.ritz_vals.y), 'o')
+            plt.title("Ritz eigenvalues in the complexe plane")
+            plt.xlabel("Real part of Ritz eigenvalue")
+            plt.ylabel("Imaginary part of Ritz eigenvalue")
+            plt.subplot(2, 3, 2)
+            plt.plot(self.pulsation.y, self.growth_rate.y, 'o')
+            plt.title("Growth rate spectrum")
+            plt.xlabel("Pulsation [rad/s]")
+            plt.ylabel("Growth rate [1/s]")
+            plt.subplot(2, 3, 3)
+            sorted_omega = np.sort(self.pulsation.y)
+            delta_omega = np.abs(sorted_omega[1] - sorted_omega[0])
+            width = delta_omega/2.
+            plt.bar(self.pulsation.y - width/2., self.mode_norms.y,
+                    width=width)
+            plt.title("Mode amplitude spectrum")
+            plt.xlabel("Pulsation [rad/s]")
+            plt.ylabel("Mode amplitude []")
+            plt.subplot(2, 3, 4)
+            stab_sort = np.argsort(self.growth_rate.y)
+            self.modes[stab_sort[-1]].display()
+            plt.title("More instable mode (pulsation={:.2f})"
+                      .format(self.pulsation.y[stab_sort[-1]]))
+            plt.subplot(2, 3, 5)
+            self.modes[stab_sort[-2]].display()
+            plt.title("Second more instable mode (pulsation={:.2f})"
+                      .format(self.pulsation.y[stab_sort[-2]]))
+            plt.subplot(2, 3, 6)
+            norm_sort = np.argsort(self.mode_norms.y)
+            self.modes[norm_sort[-1]].display()
+            plt.title("Mode with the bigger norm (pulsation={:.2f})"
+                      .format(self.pulsation.y[norm_sort[-1]]))
+
+def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     """
     Compute POD modes of the given fields using the snapshot method.
 
@@ -178,6 +276,8 @@ def pod(TF, wanted_modes='all'):
     """
     # test parameters
     if not isinstance(TF, TemporalFields):
+        raise TypeError()
+    if not isinstance(kind, STRINGTYPES):
         raise TypeError()
     if isinstance(wanted_modes, STRINGTYPES):
         if not wanted_modes == 'all':
@@ -202,16 +302,54 @@ def pod(TF, wanted_modes='all'):
         values = [[TF.fields[t].comp_x, TF.fields[t].comp_y] for t in ind_fields]
         values = np.transpose(values, (0, 2, 3, 1))
         snaps = [modred.VecHandleInMemory(values[i]) for i in ind_fields]
-    my_POD = modred.PODHandles(np.vdot)
+    # setting the decomposition mode
+    eigvals = None
+    eigvect = None
+    ritz_vals = None
+    mode_norms = None
+    growth_rate = None
+    pulsation = None
+    if kind == 'pod':
+        my_decomp = modred.PODHandles(np.vdot)
+        eigvect, eigvals = my_decomp.compute_decomp(snaps)
+        wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
+        eigvect = np.array(eigvect)
+        eigvect = eigvect[:, wanted_modes]
+        eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
+                          unit_x=TF.unit_times, unit_y='')
+    elif kind == 'dmd':
+        my_decomp = modred.DMDHandles(np.vdot)
+        ritz_vals, mode_norms, _ = my_decomp.compute_decomp(snaps)
+        wanted_modes = wanted_modes[wanted_modes < len(ritz_vals)]
+        # supplementary charac
+        delta_t = TF.times[1] - TF.times[0]
+        lambd_i = np.imag(ritz_vals)
+        lambd_r = np.real(ritz_vals)
+        lambd_mod = np.sqrt(lambd_i**2 + lambd_r**2)
+        lambd_arg = np.zeros((len(ritz_vals)))
+        mask = np.logical_and(lambd_i == 0, lambd_r <= 0)
+        filt = np.logical_not(mask)
+        lambd_arg[mask] = np.pi
+        lambd_arg[filt] = 2*np.arctan(lambd_i[filt]/(lambd_r[filt]
+                                                     + lambd_mod[filt]))
+        sigma = np.log(np.abs(lambd_i))/delta_t
+        omega = lambd_arg/delta_t
+        # creating profiles
+        ritz_vals = Profile(wanted_modes, ritz_vals[wanted_modes], mask=False,
+                            unit_x=TF.unit_times, unit_y='')
+        mode_norms = Profile(wanted_modes, mode_norms[wanted_modes],
+                             mask=False, unit_x=TF.unit_times, unit_y='')
+        growth_rate = Profile(wanted_modes, sigma[wanted_modes], mask=False,
+                              unit_x=TF.unit_times, unit_y=1/TF.unit_times)
+        pulsation = Profile(wanted_modes, omega[wanted_modes], mask=False,
+                            unit_x=TF.unit_times,
+                            unit_y=make_unit('rad')/TF.unit_times)
+    else:
+        raise ValueError()
     # decomposing and getting modes
-    eigvect, eigvals = my_POD.compute_decomp(snaps)
-    eigvect = np.array(eigvect)
-    eigvals = np.array(eigvals)
-        # Correction if missing modes (why ?)
-    wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
     modes = [modred.VecHandleInMemory(np.zeros(TF.fields[0].shape))
              for i in np.arange(len(wanted_modes))]
-    my_POD.compute_modes(wanted_modes, modes)
+    my_decomp.compute_modes(wanted_modes, modes)
     # getting temporal evolution (maybe is there a better way to do that)
     temporal_prof = []
     for i in np.arange(len(modes)):
@@ -221,6 +359,8 @@ def pod(TF, wanted_modes='all'):
         elif isinstance(TF, TemporalVectorFields):
             tmp_prof = [np.vdot(modes[i].get(), values[j])
                         for j in np.arange(len(TF.fields))]
+        if kind == 'dmd':
+            tmp_prof /= mode_norms.y[i]*2.
         tmp_prof = Profile(TF.times, tmp_prof, mask=False,
                            unit_x=TF.unit_times,
                            unit_y=TF.unit_values)
@@ -243,10 +383,10 @@ def pod(TF, wanted_modes='all'):
                                          unit_y=TF.unit_y,
                                          unit_values=TF.unit_values)
         modes_f.append(tmp_field)
-    eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
-                      unit_x=TF.unit_times, unit_y='')
-    modal_field = ModalFields(mean_field, modes_f, wanted_modes, temporal_prof,
-                              eigvals, eigvect[:, wanted_modes])
+    modal_field = ModalFields(kind, mean_field, modes_f, wanted_modes,
+                              temporal_prof, eigvals=eigvals, eigvects=eigvect,
+                              ritz_vals=ritz_vals, mode_norms=mode_norms,
+                              growth_rate=growth_rate, pulsation=pulsation)
     return modal_field
 
 

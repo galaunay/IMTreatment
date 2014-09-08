@@ -4341,6 +4341,9 @@ class VectorField(Field):
                               "$" + str(legendarrow)
                               + unit_values.strUnit() + "$",
                               labelpos='W', fontproperties={'weight': 'bold'})
+            elif kind == 'stream':
+                cb = plt.colorbar()
+                cb.set_label("Magnitude " + unit_values.strUnit())
             plt.title("Values " + unit_values.strUnit())
         elif component == 'x':
             cb = plt.colorbar()
