@@ -1020,8 +1020,8 @@ class Profile(object):
     """
 
     ### Operators ###
-    def __init__(self, x=[], y=[], mask=False, unit_x=make_unit(""),
-                 unit_y=make_unit(""), name=""):
+    def __init__(self, x=[], y=[], mask=False, unit_x="",
+                 unit_y="", name=""):
         """
         Profile builder.
         """
@@ -1042,8 +1042,12 @@ class Profile(object):
             mask = np.array(mask, dtype=bool)
         if not isinstance(name, STRINGTYPES):
             raise TypeError("'name' must be a string")
+        if isinstance(unit_x, STRINGTYPES):
+            unit_x = make_unit(unit_x)
         if not isinstance(unit_x, unum.Unum):
             raise TypeError("'unit_x' must be a 'Unit' object")
+        if isinstance(unit_y, STRINGTYPES):
+            unit_y = make_unit(unit_y)
         if not isinstance(unit_y, unum.Unum):
             raise TypeError("'unit_y' must be a 'Unit' object")
         if not len(x) == len(y):

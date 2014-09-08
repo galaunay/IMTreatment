@@ -8,11 +8,155 @@ Created on Thu Mar 06 13:29:17 2014
 from ..core import Points, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
     TemporalVectorFields, SpatialVectorFields, TemporalScalarFields,\
-    SpatialScalarFields
+    SpatialScalarFields, Field
 from IMTreatment import *
 import numpy as np
 import pdb
 import modred
+
+class ModalFields(Field):
+    """
+    Class representing the result of a modal decomposition.
+    """
+
+    def __init__(self, mean_field, modes, modes_numbers, temporal_evolutions,
+                 eigvals, eigvects):
+        """
+        Constructor
+        """
+        Field.__init__(self)
+        # check parameters
+        self.field_class = mean_field.__class__
+        if not isinstance(modes, ARRAYTYPES):
+            raise TypeError()
+        modes = np.array(modes)
+        if not isinstance(modes[0], self.field_class):
+            raise TypeError()
+        if not isinstance(modes_numbers, ARRAYTYPES):
+            raise TypeError()
+        modes_numbers = np.array(modes_numbers)
+        if not modes_numbers.dtype == int:
+            raise TypeError()
+        if not len(modes_numbers) == len(modes):
+            raise ValueError()
+        if not isinstance(modes_numbers, ARRAYTYPES):
+            raise TypeError()
+        modes_numbers = np.array(modes_numbers)
+        if not isinstance(temporal_evolutions[0], Profile):
+            raise TypeError()
+        if not len(temporal_evolutions) == len(modes):
+            raise ValueError()
+        if not isinstance(eigvals, Profile):
+            raise TypeError()
+        if not len(eigvals) == len(modes):
+            raise ValueError()
+        if not isinstance(eigvects, ARRAYTYPES):
+            raise TypeError()
+        eigvects = np.array(eigvects)
+        if not eigvects.shape == (len(temporal_evolutions[0].x), len(modes)):
+            raise ValueError()
+        # storing
+        self.mean_field = mean_field
+        self.axe_x = mean_field.axe_x
+        self.axe_y = mean_field.axe_y
+        self.unit_x = mean_field.unit_x
+        self.unit_y = mean_field.unit_y
+        self.unit_values = mean_field.unit_values
+        self.modes = modes
+        self.modes_nmb = modes_numbers
+        self.temp_evo = temporal_evolutions
+        self.times = temporal_evolutions[0].x
+        self.unit_times = temporal_evolutions[0].unit_x
+        self.eigvals = eigvals
+        self.eigvects = eigvects
+
+    @property
+    def modes_as_tf(self):
+        if self.field_class == VectorField:
+            tmp_tf = TemporalVectorFields()
+            for i in np.arange(len(self.modes)):
+                tmp_tf.add_field(self.modes[i], time=i,
+                                 unit_times="")
+            return tmp_tf.display(**kw)
+        elif self.field_class == ScalarField:
+            tmp_tf = TemporalScalarFields()
+            for i in np.arange(len(self.modes)):
+                tmp_tf.add_field(self.modes[i], time=self.times[i],
+                                 unit_times=self.unit_times)
+            return tmp_tf.display(**kw)
+
+    def reconstruct(self, wanted_modes='all'):
+        """
+        Recontruct fields resolved in time from modes.
+
+        Parameters
+        ----------
+        wanted_modes : string or number or array of numbers, optional
+            wanted modes for reconstruction, can be 'all' for all modes, a mode
+            number (begin at 0) or an array of modes numbers.
+        Returns
+        -------
+        TF : TemporalFields (TemporalScalarFields or TemporalVectorFields)
+            Reconstructed fields.
+        """
+        # check parameters
+
+        if isinstance(wanted_modes, STRINGTYPES):
+            if wanted_modes == 'all':
+                wanted_modes = np.arange(len(self.modes))
+        elif isinstance(wanted_modes, NUMBERTYPES):
+            wanted_modes = np.array([wanted_modes])
+        elif isinstance(wanted_modes, ARRAYTYPES):
+            wanted_modes = np.array(wanted_modes)
+            if not isinstance(wanted_modes[0], NUMBERTYPES):
+                raise TypeError()
+        else:
+            raise TypeError()
+        if wanted_modes.max() > len(self.modes):
+            raise ValueError()
+        # getting datas
+        ind_times = np.arange(len(self.times))
+        # TSF
+        if self.field_class == ScalarField:
+            # mean field
+            tmp_tf = np.array([self.mean_field.values]*len(self.times))
+            # loop on the modes
+            for n in wanted_modes:
+                for t in ind_times:
+                    tmp_tf[t] += self.modes[n].values*self.temp_evo[n].y[t]
+            # returning
+            TF = TemporalScalarFields()
+            for t in ind_times:
+                tmp_sf = ScalarField()
+                tmp_sf.import_from_arrays(self.axe_x, self.axe_y, tmp_tf[t],
+                                          unit_x=self.unit_x,
+                                          unit_y=self.unit_y,
+                                          unit_values=self.unit_values)
+                TF.add_field(tmp_sf, time=self.times[t],
+                             unit_times=self.unit_times)
+        # TVF
+        elif self.field_class == VectorField:
+            # first mode
+            tmp_tf_x = np.array([self.mean_field.comp_x]*len(self.times))
+            tmp_tf_y = np.array([self.mean_field.comp_y]*len(self.times))
+            # loop on the other modes
+            for n in wanted_modes:
+                for t in ind_times:
+                    tmp_tf_x[t] += self.modes[n].comp_x*self.temp_evo[n].y[t]
+                    tmp_tf_y[t] += self.modes[n].comp_y*self.temp_evo[n].y[t]
+            # returning
+            TF = TemporalVectorFields()
+            for t in ind_times:
+                tmp_vf = VectorField()
+                tmp_vf.import_from_arrays(self.axe_x, self.axe_y,
+                                          tmp_tf_x[t], tmp_tf_y[t],
+                                          unit_x=self.unit_x,
+                                          unit_y=self.unit_y,
+                                          unit_values=self.unit_values)
+                TF.add_field(tmp_vf, time=self.times[t],
+                             unit_times=self.unit_times)
+        return TF
+
 
 def pod(TF, wanted_modes='all'):
     """
@@ -29,12 +173,8 @@ def pod(TF, wanted_modes='all'):
 
     Retuns
     ------
-    mean_field : ScalarField or VectorField object
-        Mean field.
-    temporal_prof : tuple of Profile object
-        Modes temporal evolution.
-    modes : tuple of ScalarField or VectorField objects
-        Modes.
+    modal_field : ModalField object
+        .
     """
     # test parameters
     if not isinstance(TF, TemporalFields):
@@ -52,16 +192,16 @@ def pod(TF, wanted_modes='all'):
     else:
         raise TypeError()
     # link data
+    ind_fields = np.arange(len(TF.fields))
     mean_field = TF.get_mean_field()
     TF = TF - mean_field
     if isinstance(TF, TemporalScalarFields):
         snaps = [modred.VecHandleInMemory(TF.fields[i].values)
                  for i in np.arange(len(TF.fields))]
     elif isinstance(TF, TemporalVectorFields):
-        values = [np.array([TF.fields[i].comp_x, TF.fields[i].comp_y]).transpose()
-                  for i in np.arange(len(TF.fields))]
-        snaps = [modred.VecHandleInMemory(values[i])
-                 for i in np.arange(len(TF.fields))]
+        values = [[TF.fields[t].comp_x, TF.fields[t].comp_y] for t in ind_fields]
+        values = np.transpose(values, (0, 2, 3, 1))
+        snaps = [modred.VecHandleInMemory(values[i]) for i in ind_fields]
     my_POD = modred.PODHandles(np.vdot)
     # decomposing and getting modes
     eigvect, eigvals = my_POD.compute_decomp(snaps)
@@ -79,8 +219,6 @@ def pod(TF, wanted_modes='all'):
             tmp_prof = [np.vdot(modes[i].get(), TF.fields[j].values)
                         for j in np.arange(len(TF.fields))]
         elif isinstance(TF, TemporalVectorFields):
-            values = [np.array([TF.fields[j].comp_x, TF.fields[j].comp_y]).transpose()
-                      for j in np.arange(len(TF.fields))]
             tmp_prof = [np.vdot(modes[i].get(), values[j])
                         for j in np.arange(len(TF.fields))]
         tmp_prof = Profile(TF.times, tmp_prof, mask=False,
@@ -98,108 +236,21 @@ def pod(TF, wanted_modes='all'):
                                          unit_values=TF.unit_values)
         else:
             tmp_field = VectorField()
-            comp_x = modes[i].get().transpose()[0]
-            comp_y = modes[i].get().transpose()[1]
+            comp_x = modes[i].get()[:, :, 0]
+            comp_y = modes[i].get()[:, :, 1]
             tmp_field.import_from_arrays(TF.axe_x, TF.axe_y, comp_x, comp_y,
                                          mask=False, unit_x=TF.unit_x,
                                          unit_y=TF.unit_y,
                                          unit_values=TF.unit_values)
         modes_f.append(tmp_field)
-    return temporal_prof, modes_f, mean_field
+    eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
+                      unit_x=TF.unit_times, unit_y='')
+    modal_field = ModalFields(mean_field, modes_f, wanted_modes, temporal_prof,
+                              eigvals, eigvect[:, wanted_modes])
+    return modal_field
 
 
-def reconstruct(modes, temporal_profiles, mean_field=None, wanted_modes='all'):
-    """
-    Recontruct fields resolved in time from modes.
 
-    Parameters
-    ----------
-    modes : tuple of ScalarField or VectorField objects
-        Modes
-    temporal_profiles : tuple of profiles
-        Temporal evolution associated to the modes.
-    mean_field : ScalarField or VectorField objects
-        Mean field
-    wanted_modes : string or number or array of numbers, optional
-        wanted modes for reconstruction, can be 'all' for all modes, a mode
-        number or an array of modes numbers.
-    Returns
-    -------
-    TF : TemporalFields (TemporalScalarFields or TemporalVectorFields)
-        Reconstructed fields.
-    """
-    # check parameters
-    if not isinstance(modes, ARRAYTYPES):
-        raise TypeError()
-    modes = np.array(modes)
-    if not isinstance(modes[0], (ScalarField, VectorField)):
-        raise TypeError()
-    if not isinstance(temporal_profiles, ARRAYTYPES):
-        raise TypeError()
-    temporal_profiles = np.array(temporal_profiles)
-    if not isinstance(temporal_profiles[0], Profile):
-        raise TypeError()
-    if not len(modes) == len(temporal_profiles):
-        raise ValueError()
-    if mean_field is None:
-        mean_field = modes[0]*0.
-        mean_field.mask = False
-    if not isinstance(mean_field, modes[0].__class__):
-        raise TypeError()
-    if isinstance(wanted_modes, STRINGTYPES):
-        if wanted_modes == 'all':
-            wanted_modes = np.arange(len(modes))
-    elif isinstance(wanted_modes, NUMBERTYPES):
-        wanted_modes = np.array([wanted_modes])
-    elif isinstance(wanted_modes, ARRAYTYPES):
-        wanted_modes = np.array(wanted_modes)
-        if not isinstance(wanted_modes[0], NUMBERTYPES):
-            raise TypeError()
-    else:
-        raise TypeError()
-    if wanted_modes.max() > len(modes):
-        raise ValueError()
-    # getting datas
-    axe_x, axe_y = modes[0].axe_x, modes[0].axe_y
-    unit_x, unit_y = modes[0].unit_x, modes[0].unit_y
-    unit_values = modes[0].unit_values
-    times = temporal_profiles[0].x
-    ind_times = np.arange(len(times))
-    unit_times = temporal_profiles[0].unit_x
-    # TSF
-    if isinstance(modes[0], ScalarField):
-        # mean field
-        tmp_tf = np.array([mean_field.values]*len(ind_times))
-        # loop on the modes
-        for n in wanted_modes:
-            for t in ind_times:
-                tmp_tf[t] += modes[n].values*temporal_profiles[n].y[t]
-        # returning
-        TF = TemporalScalarFields()
-        for t in ind_times:
-            tmp_sf = ScalarField()
-            tmp_sf.import_from_arrays(axe_x, axe_y, tmp_tf[t], unit_x=unit_x,
-                                      unit_y=unit_y, unit_values=unit_values)
-            TF.add_field(tmp_sf, time=times[t], unit_times=unit_times)
-    # TVF
-    elif isinstance(modes[0], VectorField):
-        # first mode
-        tmp_tf_x = np.array([mean_field.comp_x]*len(ind_times))
-        tmp_tf_y = np.array([mean_field.comp_y]*len(ind_times))
-        # loop on the other modes
-        for n in wanted_modes:
-            for t in ind_times:
-                tmp_tf_x[t] += modes[n].comp_x*temporal_profiles[n].y[t]
-                tmp_tf_y[t] += modes[n].comp_y*temporal_profiles[n].y[t]
-        # returning
-        TF = TemporalVectorFields()
-        for t in ind_times:
-            tmp_vf = VectorField()
-            tmp_vf.import_from_arrays(axe_x, axe_y, tmp_tf_x[t], tmp_tf_y[t],
-                                      unit_x=unit_x, unit_y=unit_y,
-                                      unit_values=unit_values)
-            TF.add_field(tmp_vf, time=times[t], unit_times=unit_times)
-    return TF
 # # field creation
 #size_x, size_y = 100, 100
 #nmb = 100
