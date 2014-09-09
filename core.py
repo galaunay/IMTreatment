@@ -5355,10 +5355,10 @@ class TemporalFields(Fields, Field):
         # getting min and max data
         if isinstance(comp[0], ScalarField):
             if 'vmin' not in plotargs.keys():
-                mins = [field.min for field in comp.fields]
+                mins = [field.min for field in comp]
                 plotargs['vmin'] = np.min(mins)
             if 'vmax' not in plotargs.keys():
-                maxs = [field.max for field in comp.fields]
+                maxs = [field.max for field in comp]
                 plotargs['vmax'] = np.max(maxs)
         elif isinstance(comp[0], VectorField):
             if 'clim' not in plotargs.keys() and kind is not 'stream':
