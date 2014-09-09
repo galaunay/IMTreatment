@@ -2405,3 +2405,128 @@ def get_lambda2(vectorfield, mask=None, raw=False):
                                     unit_x=unit_x, unit_y=unit_y,
                                     unit_values=make_unit(''))
         return lambd_sf
+
+
+def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
+              raw=False, galilean_inv=False):
+    """
+    Return the angle deviation field.
+
+    Parameters
+    ----------
+    vectorfield : VectorField object
+        .
+    radius : number, optionnal
+        The radius used to choose the zone where to compute
+        for each field oint. If not mentionned, a value is choosen in
+        ordre to have about 8 points in the circle. It allow to get good
+        result, without big computation cost.
+    ind : boolean
+        If 'True', radius is expressed on number of vectors.
+        If 'False' (default), radius is expressed on axis unit.
+    mask : array of boolean, optionnal
+        Has to be an array of the same size of the vector field object,
+        gamma will be compute only where mask is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
+    galilean_inv : boolean, optional
+        If 'False' (default), angle deviation is computed normaly
+        If 'True', local velocity is substracted before computing deviation,
+        in order to have a galilean invariant criterion.
+    """
+    ### Checking parameters coherence ###
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'vectorfield' must be a VectorField object")
+    if radius is None:
+        radius = 1.9
+        ind = True
+    if not isinstance(radius, NUMBERTYPES):
+        raise TypeError("'radius' must be a number")
+    if not isinstance(ind, bool):
+        raise TypeError("'ind' must be a boolean")
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+    delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2.
+    if mask is None:
+        mask = np.zeros(vectorfield.shape)
+    elif not isinstance(mask, ARRAYTYPES):
+        raise TypeError("'zone' must be an array of boolean")
+    else:
+        mask = np.array(mask)
+    ### Getting data ###
+    theta = vectorfield.theta
+    mask = np.logical_or(vectorfield.mask, mask)
+    ### Compute motif and motif angles on an arbitrary point ###
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+    indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
+    if ind:
+        motif = vectorfield.get_points_around(indcentral, radius, ind)
+        motif = motif - indcentral
+    else:
+        ptcentral = [axe_x[indcentral[0]], axe_y[indcentral[1]]]
+        motif = vectorfield.get_points_around(ptcentral, radius, ind)
+        motif = motif - indcentral
+    nmbpts = len(motif)
+    ### Generating masks ###
+    # creating surrounding masked point zone mask
+    mask_surr = np.zeros(mask.shape)
+    inds_masked = np.transpose(np.where(mask))
+    for ind_masked in inds_masked:
+        for i, j in motif + ind_masked:
+            # continue if outside the field
+            if i < 0 or j < 0 or i >= mask_surr.shape[0]\
+                    or j >= mask_surr.shape[1]:
+                continue
+            mask_surr[i, j] = True
+    # creating near-border zone mask
+    if ind:
+        indx = np.arange(len(axe_x))
+        indy = np.arange(len(axe_y))
+        border_x = np.logical_or(indx <= indx[0] + (int(radius) - 1),
+                                 indx >= indx[-1] - (int(radius) - 1))
+        border_y = np.logical_or(indy <= indy[0] + (int(radius) - 1),
+                                 indy >= indy[-1] - (int(radius) - 1))
+        border_x, border_y = np.meshgrid(border_x, border_y)
+        mask_border = np.transpose(np.logical_or(border_x, border_y))
+    else:
+        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
+        border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
+                                 axe_x >= axe_x[-1] - (radius - delta))
+        border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
+                                 axe_y >= axe_y[-1] - (radius - delta))
+        border_x, border_y = np.meshgrid(border_x, border_y)
+        mask_border = np.transpose(np.logical_or(border_x, border_y))
+    ### Loop on points ###
+    deviation = np.zeros(vectorfield.shape)
+    norm = (2.*np.pi*(1.-1./nmbpts))
+    for inds, pos, _ in vectorfield:
+        ind_x = inds[0]
+        ind_y = inds[1]
+        # stop if masked or on border or with a masked surrouinding point
+        if mask[ind_x, ind_y] or mask_surr[ind_x, ind_y]\
+                or mask_border[ind_x, ind_y]:
+            continue
+        # getting neighbour points
+        indsaround = motif + inds
+        # getting neighbour angles repartition
+        angles = theta[indsaround[:, 0], indsaround[:, 1]]
+        angles = np.sort(angles)
+        d_angles = angles[1::] - angles[:-1:]
+        d_angles = np.append(d_angles, [angles[0] +2*np.pi - angles[-1]])
+        if np.sum(d_angles) - 2.*np.pi > 1e-6:
+            raise Exception()
+        deviation[ind_x, ind_y] = np.max(d_angles)
+    deviation = (deviation - 2.*np.pi/nmbpts)/norm
+    ### Applying masks ###
+    mask = np.logical_or(mask, mask_border)
+    mask = np.logical_or(mask, mask_surr)
+    ### Creating gamma ScalarField ###
+    if raw:
+        return np.ma.masked_array(deviation, mask)
+    else:
+        deviation_sf = ScalarField()
+        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
+        deviation_sf.import_from_arrays(axe_x, axe_y, deviation, mask,
+                                        unit_x=unit_x, unit_y=unit_y,
+                                        unit_values=make_unit(''))
+        return deviation_sf
