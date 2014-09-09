@@ -123,7 +123,7 @@ class ModalFields(Field):
                                  unit_times=self.unit_times)
             return tmp_tf
 
-    def reconstruct(self, wanted_modes='all'):
+    def reconstruct(self, wanted_modes='all', times=None):
         """
         Recontruct fields resolved in time from modes.
 
@@ -134,13 +134,15 @@ class ModalFields(Field):
             If 'all' (default), all modes are used
             If an array of integers, the wanted modes are used
             If an integer, the wanted first modes are used.
+        times : tuple of numbers
+            If specified, reconstruction is computed on the wanted times,
+            else, times used for decomposition are used.
         Returns
         -------
         TF : TemporalFields (TemporalScalarFields or TemporalVectorFields)
             Reconstructed fields.
         """
         # check parameters
-
         if isinstance(wanted_modes, STRINGTYPES):
             if wanted_modes == 'all':
                 wanted_modes = np.arange(len(self.modes))
@@ -159,19 +161,47 @@ class ModalFields(Field):
                 raise ValueError()
         else:
             raise TypeError()
+        if times is None:
+            times = self.times
+        if not isinstance(times, ARRAYTYPES):
+            raise TypeError()
+        times = np.array(times)
+        if times.ndim != 1:
+            raise ValueError()
+        if self.decomp_type == 'pod':
+            if times.max() > self.times.max() or times.min() < self.times.min():
+                raise ValueError()
         # getting datas
-        ind_times = np.arange(len(self.times))
+        ind_times = np.arange(len(times))
+        # reconstruction temporal evolution if needed
+        if self.decomp_type == 'pod':
+            temp_evo = self.temp_evo
+        elif self.decomp_type == 'dmd' and np.all(self.times == times):
+            temp_evo = self.temp_evo
+        elif self.decomp_type == 'dmd' and not np.all(self.times == times):
+            temp_evo = []
+            delta_t1 = self.times[1] - self.times[0]
+            ks = times/delta_t1
+            for n in np.arange(len(self.modes)):
+                tmp_prof = [self.ritz_vals.y[n]**(k - 1) for k in ks]
+                tmp_prof = Profile(times, tmp_prof, mask=False,
+                                   unit_x=self.unit_times,
+                                   unit_y=self.unit_values)
+                temp_evo.append(tmp_prof)
         # TSF
         if self.field_class == ScalarField:
             # mean field
-            tmp_tf = np.array([self.mean_field.values]*len(self.times))
+            tmp_tf = np.array([self.mean_field.values]*len(times))
             # loop on the modes
             for n in wanted_modes:
+                tmp_mode = self.modes[n].values
+                tmp_prof = temp_evo[n]
                 for t in ind_times:
-                    to_add = self.modes[n].values*self.temp_evo[n].y[t]
-                    if isinstance(to_add[0, 0], complex):
-                        to_add = np.real(to_add)
-                    tmp_tf[t] += to_add
+                    try:
+                        coef = tmp_prof.get_interpolated_value(x=times[t])[0]
+                    except:
+                        pdb.set_trace()
+                    tmp_tf[t] += np.real(tmp_mode*coef)
             # returning
             TF = TemporalScalarFields()
             for t in ind_times:
@@ -180,8 +210,7 @@ class ModalFields(Field):
                                           unit_x=self.unit_x,
                                           unit_y=self.unit_y,
                                           unit_values=self.unit_values)
-                TF.add_field(tmp_sf, time=self.times[t],
-                             unit_times=self.unit_times)
+                TF.add_field(tmp_sf, time=times[t], unit_times=self.unit_times)
         # TVF
         elif self.field_class == VectorField:
             # mean field
@@ -201,8 +230,7 @@ class ModalFields(Field):
                                           unit_x=self.unit_x,
                                           unit_y=self.unit_y,
                                           unit_values=self.unit_values)
-                TF.add_field(tmp_vf, time=self.times[t],
-                             unit_times=self.unit_times)
+                TF.add_field(tmp_vf, time=times[t], unit_times=self.unit_times)
         return TF
 
     def display(self):
@@ -237,6 +265,8 @@ class ModalFields(Field):
             plt.title("Ritz eigenvalues in the complexe plane")
             plt.xlabel("Real part of Ritz eigenvalue")
             plt.ylabel("Imaginary part of Ritz eigenvalue")
+            plt.xlim(-1, 1)
+            plt.ylim(-1, 1)
             plt.subplot(2, 3, 2)
             plt.plot(self.pulsation.y, self.growth_rate.y, 'o')
             plt.title("Growth rate spectrum")
@@ -259,7 +289,7 @@ class ModalFields(Field):
                 tmp_sf.values = np.real(tmp_sf.values)
             tmp_sf.display()
             plt.title("More stable mode (pulsation={:.2f})\n"
-                      "(Absolute representation)"
+                      "(Real representation)"
                       .format(self.pulsation.y[stab_sort[-0]]))
             plt.subplot(2, 3, 5)
             tmp_sf = self.modes[stab_sort[1]].copy()
@@ -267,16 +297,16 @@ class ModalFields(Field):
                 tmp_sf.values = np.real(tmp_sf.values)
             tmp_sf.display()
             plt.title("Second more stable mode (pulsation={:.2f})\n"
-                      "(Absolute representation)"
+                      "(Real representation)"
                       .format(self.pulsation.y[stab_sort[1]]))
             plt.subplot(2, 3, 6)
             norm_sort = np.argsort(self.mode_norms.y)
             tmp_sf = self.modes[norm_sort[-1]].copy()
             if isinstance(tmp_sf.values[0, 0], complex):
-                tmp_sf.values = np.abs(tmp_sf.values)
+                tmp_sf.values = np.real(tmp_sf.values)
             tmp_sf.display()
             plt.title("Mode with the bigger norm (pulsation={:.2f})\n"
-                      "(Absolute representation)"
+                      "(Real representation)"
                       .format(self.pulsation.y[norm_sort[-1]]))
 
 
@@ -371,7 +401,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
                             unit_x=TF.unit_times,
                             unit_y=make_unit('rad')/TF.unit_times)
     else:
-        raise ValueError()
+        raise ValueError("Unknown kind of decomposition : {}".format(kind))
     # decomposing and getting modes
     modes = [modred.VecHandleInMemory(np.zeros(TF.fields[0].shape))
              for i in np.arange(len(wanted_modes))]
@@ -390,9 +420,8 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     elif kind == 'dmd':
         temporal_prof = []
         for n in np.arange(len(modes)):
-            tmp_prof = np.exp((growth_rate.y[n]
-                               + np.complex(0, 1)*pulsation.y[n])
-                              * TF.times)
+            tmp_prof = [ritz_vals.y[n]**(k)
+                        for k in np.arange(len(TF.fields))]
             tmp_prof = Profile(TF.times, tmp_prof, mask=False,
                                unit_x=TF.unit_times,
                                unit_y=TF.unit_values)

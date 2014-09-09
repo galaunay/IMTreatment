@@ -1032,7 +1032,7 @@ class Profile(object):
         if not isinstance(y, ARRAYTYPES):
             raise TypeError("'y' must be an array")
         if not isinstance(y, (np.ndarray, np.ma.MaskedArray)):
-            y = np.array(y, dtype=float)
+            y = np.array(y)
         if isinstance(mask, bool):
             mask = np.empty(x.shape, dtype=bool)
             mask.fill(False)
@@ -1367,6 +1367,7 @@ class Profile(object):
         if y is not None and x is not None:
             raise ValueError("Maybe you would like to look at the help "
                              "one more time...")
+        # getting data
         if x is not None:
             value = x
             values = np.array(self.x)
@@ -1375,18 +1376,24 @@ class Profile(object):
             value = y
             values = np.ma.masked_array(self.y, self.mask)
             values2 = np.array(self.x)
-        i_values = []
-        for ind in np.arange(0, len(values) - 1):
-            val_i = values[ind]
-            val_ipp = values[ind + 1]
-            val2_i = values2[ind]
-            val2_ipp = values2[ind + 1]
-            if (val_i >= value and val_ipp < value) \
-                    or (val_i <= value and val_ipp > value):
-                i_value = ((val2_i*np.abs(val_ipp - value)
-                           + val2_ipp*np.abs(values[ind] - value))
-                           / np.abs(values[ind] - val_ipp))
-                i_values.append(i_value)
+        # if the wanted value is already present
+        if np.any(value == values):
+            i_values = values2[np.where(value == values)[0]]
+        # if we have to do an interpolation
+        else:
+            i_values = []
+            for ind in np.arange(0, len(values) - 1):
+                val_i = values[ind]
+                val_ipp = values[ind + 1]
+                val2_i = values2[ind]
+                val2_ipp = values2[ind + 1]
+                if (val_i >= value and val_ipp < value) \
+                        or (val_i <= value and val_ipp > value):
+                    i_value = ((val2_i*np.abs(val_ipp - value)
+                               + val2_ipp*np.abs(values[ind] - value))
+                               / np.abs(values[ind] - val_ipp))
+                    i_values.append(i_value)
+        # returning
         return i_values
 
     def get_integral(self):
@@ -5034,7 +5041,8 @@ class TemporalFields(Fields, Field):
         if not isinstance(field, (VectorField, ScalarField)):
             raise TypeError()
         if not isinstance(time, NUMBERTYPES):
-            raise TypeError()
+            raise TypeError("'time' should be a number, not {}"
+                            .format(type(time)))
         if isinstance(unit_times, unum.Unum):
             if unit_times.asNumber() != 1:
                 raise ValueError()
