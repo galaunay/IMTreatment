@@ -359,12 +359,19 @@ class CritPoints(object):
         self.pbi_p = np.array([])
         self.times = np.array([])
         self.unit_time = unit_time
+        self.unit_x = make_unit('')
+        self.unit_y = make_unit('')
         self.colors = ['r', 'b', 'y', 'm', 'g', 'w', 'k']
 
     def __add__(self, obj):
         if isinstance(obj, CritPoints):
             if not self.unit_time == obj.unit_time:
                 raise ValueError()
+            if not self.unit_x == obj.unit_x:
+                raise ValueError()
+            if not self.unit_y == obj.unit_y:
+                raise ValueError()
+            # other ones
             tmp_CP = CritPoints(unit_time=self.unit_time)
             tmp_CP.foc = np.append(self.foc, obj.foc)
             tmp_CP.foc_c = np.append(self.foc_c, obj.foc_c)
@@ -494,8 +501,11 @@ class CritPoints(object):
             raise ValueError()
         if np.any(self.times == time):
             raise ValueError()
-        # remove Points values if necessary
-        # search the place of the new points
+        # first point
+        if len(self.times) == 0:
+            self.unit_x = foc.unit_x
+            self.unit_y = foc.unit_y
+        # other ones
         self.foc = np.append(self.foc, foc)
         self.foc_c = np.append(self.foc_c, foc_c)
         self.node_i = np.append(self.node_i, node_i)
@@ -799,19 +809,26 @@ class CritPoints(object):
         """
         # check parameters
         if time is None and indice is None:
-            raise ValueError()
+            if len(self.times) == 1:
+                time = self.times[0]
+            else:
+                raise ValueError()
         if time is not None and indice is not None:
             raise ValueError()
         if time is not None:
             indice = self._get_indice_from_time(time)
         # display for the given indice
+        if 'color' in kw.keys():
+            colors = [kw.pop('color')]*len(self.colors)
+        else:
+            colors = self.colors
         for i, pt in enumerate(self.iter):
             if pt[indice] is None:
                 continue
-            pt[indice].display(kind='plot', marker='o', color=self.colors[i],
+            pt[indice].display(kind='plot', marker='o', color=colors[i],
                                linestyle='none', **kw)
 
-    def display_traj(self, kind='default'):
+    def display_traj(self, kind='default', **kw):
         """
         Display the stored trajectories.
 
@@ -821,6 +838,8 @@ class CritPoints(object):
             If 'default', trajectories are plotted in a 2-dimensional plane.
             If 'x', x position of cp are plotted against time.
             If 'y', y position of cp are plotted against time.
+        kw : dict, optional
+            Arguments passed to plot.
         """
         # check if some trajectories are computed
         try:
@@ -829,29 +848,53 @@ class CritPoints(object):
             raise StandardError("you must compute trajectories before "
                                 "displaying them")
         # display
+        if 'color' in kw.keys():
+            colors = [kw.pop('color')]*len(self.colors)
+        else:
+            colors = self.colors
         if kind == 'default':
             for i, trajs in enumerate(self.iter_traj):
-                color = self.colors[i]
+                color = colors[i]
                 if trajs is None:
                     continue
                 for traj in trajs:
                     traj.display(kind='plot', marker='o', color=color)
+            plt.xlabel('x {}'.format(self.unit_x.strUnit()))
+            plt.xlabel('y {}'.format(self.unit_y.strUnit()))
         elif kind == 'x':
             for i, trajs in enumerate(self.iter_traj):
-                color = self.colors[i]
+                color = colors[i]
                 if trajs is None:
                     continue
                 for traj in trajs:
                     plt.plot(traj.xy[:, 0], traj.v[:], 'o-', color=color)
+            plt.xlabel('x {}'.format(self.unit_x.strUnit()))
+            plt.ylabel('time {}'.format(self.unit_time.strUnit()))
         elif kind == 'y':
             for i, trajs in enumerate(self.iter_traj):
-                color = self.colors[i]
+                color = colors[i]
                 if trajs is None:
                     continue
                 for traj in trajs:
                     plt.plot(traj.xy[:, 1], traj.v[:], 'o-', color=color)
+            plt.ylabel('time {}'.format(self.unit_time.strUnit()))
+            plt.xlabel('y {}'.format(self.unit_y.strUnit()))
         else:
             raise StandardError()
+
+    def display_animate(self, TF, **kw):
+        """
+        Display an interactive windows with the velocity fields from TF and the
+        critical points.
+
+        TF : TemporalFields
+            .
+        kw : dict, optional
+            Additional arguments for 'TF.display()'
+        """
+        def update_cp(ind):
+            self.display(indice=ind)
+        return TF.display(suppl_display=update_cp, **kw)
 
 
 ### Vortex properties ###

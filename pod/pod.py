@@ -197,10 +197,7 @@ class ModalFields(Field):
                 tmp_mode = self.modes[n].values
                 tmp_prof = temp_evo[n]
                 for t in ind_times:
-                    try:
-                        coef = tmp_prof.get_interpolated_value(x=times[t])[0]
-                    except:
-                        pdb.set_trace()
+                    coef = tmp_prof.get_interpolated_value(x=times[t])[0]
                     tmp_tf[t] += np.real(tmp_mode*coef)
             # returning
             TF = TemporalScalarFields()
@@ -214,13 +211,17 @@ class ModalFields(Field):
         # TVF
         elif self.field_class == VectorField:
             # mean field
-            tmp_tf_x = np.array([self.mean_field.comp_x]*len(self.times))
-            tmp_tf_y = np.array([self.mean_field.comp_y]*len(self.times))
+            tmp_tf_x = np.array([self.mean_field.comp_x]*len(times))
+            tmp_tf_y = np.array([self.mean_field.comp_y]*len(times))
             # loop on the modes
             for n in wanted_modes:
+                tmp_mode_x = self.modes[n].comp_x
+                tmp_mode_y = self.modes[n].comp_y
+                tmp_prof = temp_evo[n]
                 for t in ind_times:
-                    tmp_tf_x[t] += np.real(self.modes[n].comp_x*self.temp_evo[n].y[t])
-                    tmp_tf_y[t] += np.real(self.modes[n].comp_y*self.temp_evo[n].y[t])
+                    coef = tmp_prof.get_interpolated_value(x=times[t])[0]
+                    tmp_tf_x[t] += np.real(tmp_mode_x*coef)
+                    tmp_tf_y[t] += np.real(tmp_mode_y*coef)
             # returning
             TF = TemporalVectorFields()
             for t in ind_times:
@@ -272,6 +273,8 @@ class ModalFields(Field):
             plt.title("Growth rate spectrum")
             plt.xlabel("Pulsation [rad/s]")
             plt.ylabel("Growth rate [1/s]")
+            x_max = np.max([np.abs(plt.xlim()[0]), np.abs(plt.xlim()[1])])
+            plt.xlim(-x_max, x_max)
             plt.subplot(2, 3, 3)
             sorted_omega = np.sort(self.pulsation.y)
             delta_omega = np.mean(np.abs(sorted_omega[1::]
@@ -285,16 +288,22 @@ class ModalFields(Field):
             plt.subplot(2, 3, 4)
             stab_sort = np.argsort(np.abs(self.growth_rate.y))
             tmp_sf = self.modes[stab_sort[0]].copy()
-            if isinstance(tmp_sf.values[0, 0], complex):
+            if isinstance(tmp_sf, ScalarField):
                 tmp_sf.values = np.real(tmp_sf.values)
+            elif isinstance(tmp_sf, VectorField):
+                tmp_sf.comp_x = np.real(tmp_sf.comp_x)
+                tmp_sf.comp_y = np.real(tmp_sf.comp_y)
             tmp_sf.display()
             plt.title("More stable mode (pulsation={:.2f})\n"
                       "(Real representation)"
                       .format(self.pulsation.y[stab_sort[-0]]))
             plt.subplot(2, 3, 5)
             tmp_sf = self.modes[stab_sort[1]].copy()
-            if isinstance(tmp_sf.values[0, 0], complex):
+            if isinstance(tmp_sf, ScalarField):
                 tmp_sf.values = np.real(tmp_sf.values)
+            elif isinstance(tmp_sf, VectorField):
+                tmp_sf.comp_x = np.real(tmp_sf.comp_x)
+                tmp_sf.comp_y = np.real(tmp_sf.comp_y)
             tmp_sf.display()
             plt.title("Second more stable mode (pulsation={:.2f})\n"
                       "(Real representation)"
@@ -302,8 +311,11 @@ class ModalFields(Field):
             plt.subplot(2, 3, 6)
             norm_sort = np.argsort(self.mode_norms.y)
             tmp_sf = self.modes[norm_sort[-1]].copy()
-            if isinstance(tmp_sf.values[0, 0], complex):
+            if isinstance(tmp_sf, ScalarField):
                 tmp_sf.values = np.real(tmp_sf.values)
+            elif isinstance(tmp_sf, VectorField):
+                tmp_sf.comp_x = np.real(tmp_sf.comp_x)
+                tmp_sf.comp_y = np.real(tmp_sf.comp_y)
             tmp_sf.display()
             plt.title("Mode with the bigger norm (pulsation={:.2f})\n"
                       "(Real representation)"

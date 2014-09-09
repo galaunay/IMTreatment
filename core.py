@@ -4356,8 +4356,9 @@ class VectorField(Field):
                               + unit_values.strUnit() + "$",
                               labelpos='W', fontproperties={'weight': 'bold'})
             elif kind == 'stream':
-                cb = plt.colorbar()
-                cb.set_label("Magnitude " + unit_values.strUnit())
+                if not 'color' in plotargs.keys():
+                    cb = plt.colorbar()
+                    cb.set_label("Magnitude " + unit_values.strUnit())
             plt.title("Values " + unit_values.strUnit())
         elif component == 'x':
             cb = plt.colorbar()
@@ -5322,7 +5323,7 @@ class TemporalFields(Fields, Field):
                 fig.delaxes(ax)
             plt.tight_layout()
 
-    def display(self, compo=None, **plotargs):
+    def display(self, compo=None, suppl_display=None, **plotargs):
         """
         Create a windows to display temporals field, controlled by buttons.
         http://matplotlib.org/1.3.1/examples/widgets/buttons.html
@@ -5375,7 +5376,8 @@ class TemporalFields(Fields, Field):
         # button gestion class
         class Index(object):
 
-            def __init__(self, obj, compo, comp, kind, plotargs):
+            def __init__(self, obj, compo, comp, kind, suppl_display,
+                         plotargs):
                 self.fig = plt.figure()
                 self.ax = self.fig.add_axes(plt.axes([0.1, 0.2, .9, 0.7]))
                 self.incr = 1
@@ -5385,6 +5387,7 @@ class TemporalFields(Fields, Field):
                 self.compo = compo
                 self.comp = comp
                 self.kind = kind
+                self.suppl_display = suppl_display
                 self.plotargs = plotargs
                 # display initial
                 self.displ = comp[0].display(**self.plotargs)
@@ -5412,23 +5415,15 @@ class TemporalFields(Fields, Field):
                 self.update()
 
             def update(self):
-                # use __uypdate_sf et __update_vf
-                if isinstance(self.comp[0], VectorField)\
-                        and (self.kind is None or self.kind == "quiver"):
-                    self.obj._update_vf(self.ind, self.fig, self.ax,
-                                        self.displ, self.ttl, self.comp,
-                                        self.compo, self.plotargs)
-                elif isinstance(comp[0], ScalarField)\
-                        or isinstance(comp[0], VectorField):
-                    self.obj._update_sf(self.ind, self.fig, self.ax,
-                                        self.displ, self.ttl, self.comp,
-                                        self.compo, self.plotargs)
-                else:
-                    raise TypeError()
+                self.obj._update_sf(self.ind, self.fig, self.ax,
+                                    self.displ, self.ttl, self.comp,
+                                    self.compo, self.plotargs)
+                if self.suppl_display is not None:
+                    self.suppl_display(self.ind)
                 plt.draw()
 
         #window creation
-        callback = Index(self, compo, comp, kind, plotargs)
+        callback = Index(self, compo, comp, kind, suppl_display, plotargs)
         axprev = callback.fig.add_axes(plt.axes([0.02, 0.02, 0.1, 0.05]))
         axnext = callback.fig.add_axes(plt.axes([0.88, 0.02, 0.1, 0.05]))
         axslid = callback.fig.add_axes(plt.axes([0.15, 0.02, 0.6, 0.05]))
@@ -5554,20 +5549,15 @@ class TemporalFields(Fields, Field):
         ttl.set_text(title)
         return displ,
 
-    def _update_vf(self, num, fig, ax, displ, ttl, comp, compo, plotargs):
-        plt.sca(ax)
-        vx = np.transpose(comp[num].comp_x)
-        vy = np.transpose(comp[num].comp_y)
-        mask = np.transpose(comp[num].mask)
-        vx = np.ma.masked_array(vx, mask)
-        vy = np.ma.masked_array(vy, mask)
-        magn = np.transpose(comp[num].magnitude)
-        displ.set_UVC(vx, vy, magn)
-        title = "{}, at t={:.2f} {}"\
-            .format(compo, float(self.times[num]),
-                    self.unit_times.strUnit())
-        ttl.set_text(title)
-        return ax
+#    def _update_vf(self, num, fig, ax, displ, ttl, comp, compo, plotargs):
+#        plt.sca(ax)
+#        ax.cla()
+#        displ = comp[num]._display(**plotargs)
+#        title = "{}, at t={:.2f} {}"\
+#            .format(compo, float(self.times[num]),
+#                    self.unit_times.strUnit())
+#        ttl.set_text(title)
+#        return ax
 
 
 class TemporalScalarFields(TemporalFields):
