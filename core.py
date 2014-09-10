@@ -4848,8 +4848,8 @@ class TemporalFields(Fields, Field):
             ind_x = x
             ind_y = y
         else:
-            ind_x = self.get_indice_on_axe(1, x, nearest=True)
-            ind_y = self.get_indice_on_axe(2, y, nearest=True)
+            ind_x = self.get_indice_on_axe(1, x, kind='nearest')
+            ind_y = self.get_indice_on_axe(2, y, kind='nearest')
         axe_x, axe_y = self.axe_x, self.axe_y
         if not (0 <= ind_x < len(axe_x) and 0 <= ind_y < len(axe_y)):
             raise ValueError("'x' ans 'y' values out of bounds")

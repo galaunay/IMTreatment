@@ -96,9 +96,9 @@ class VF(object):
         delta_y = self.axe_y[1] - self.axe_y[0]
         positions = []
         pbis = []
-        grid_x = np.append(np.arange(0, self.shape[0] - window_size,
+        grid_x = np.append(np.arange(0, self.shape[0] - window_size + 1,
                                      window_size), self.shape[0])
-        grid_y = np.append(np.arange(0, self.shape[1] - window_size,
+        grid_y = np.append(np.arange(0, self.shape[1] - window_size + 1,
                                      window_size), self.shape[1])
         pool = self._split_the_field(grid_x, grid_y)
         # loop on the pool (funny no ?)
@@ -116,11 +116,8 @@ class VF(object):
             # small as possible, we store the cp position, the end !
             elif nmb_struct == (1, 1):
                 cp_pos = tmp_vf._get_poi_position()
-                try:
-                    positions.append((tmp_vf.axe_x[cp_pos[0]] + delta_x/2.,
-                                      tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
-                except:
-                    pdb.set_trace()
+                positions.append((tmp_vf.axe_x[cp_pos[0]] + delta_x/2.,
+                                  tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
                 pbis.append(tmp_vf.pbi_x[-1])
                 pool = np.delete(pool, 0)
             # if the cp density is too high, we can't do nothing
@@ -1401,8 +1398,8 @@ def get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     saddles = Points()
     if len(VF_saddle) != 0:
         for VF in VF_saddle:
-            tmp_sigma = get_sigma(VF, 1.9, ind=True)
-            pts = _min_detection(tmp_sigma)
+            tmp_dev = get_angle_deviation(VF, 1.9, ind=True)
+            pts = _min_detection(1 - tmp_dev)
             if pts is not None:
                 if pts.xy[0][0] is not None and len(pts) == 1:
                     saddles += pts
@@ -1748,7 +1745,6 @@ def get_critical_line(VF, source_point, direction, kol='stream',
 
 
 ### Criterion ###
-#
 #def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False,
 #              dev_pass=False):
 #    """
