@@ -2095,10 +2095,6 @@ class Field(object):
             return (inds[0]*np.abs(value - value_2)/delta
                     + inds[1]*np.abs(value - value_1)/delta)
 
-
-
-
-
     def get_points_around(self, center, radius, ind=False):
         """
         Return the list of points or the scalar field that are in a circle
@@ -2145,9 +2141,9 @@ class Field(object):
         radius_int = radius/np.sqrt(2)
         # isolating possibles indices
         inds_x = np.arange(np.int(np.ceil(center[0] - radius)),
-                          np.int(np.floor(center[0] + radius)) + 1)
+                           np.int(np.floor(center[0] + radius)) + 1)
         inds_y = np.arange(np.int(np.ceil(center[1] - radius)),
-                          np.int(np.floor(center[1] + radius)) + 1)
+                           np.int(np.floor(center[1] + radius)) + 1)
         inds_x, inds_y = np.meshgrid(inds_x, inds_y)
         inds_x = inds_x.flatten()
         inds_y = inds_y.flatten()

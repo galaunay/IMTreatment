@@ -1906,8 +1906,8 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
     Vy = vectorfield.comp_y
     norm_v = vectorfield.magnitude
     mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
-    _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
-                                        dev_pass)
+        _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
+                                            dev_pass)
     # getting the vectors between center and neighbouring
     deltax = axe_x[1] - axe_x[0]
     deltay = axe_y[1] - axe_y[0]
@@ -2046,8 +2046,8 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
     Vy = vectorfield.comp_y
     norm_v = vectorfield.magnitude
     mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
-    _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
-                                        dev_pass)
+        _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
+                                            dev_pass)
     # getting the vectors between center and neighbouring
     deltax = axe_x[1] - axe_x[0]
     deltay = axe_y[1] - axe_y[0]
@@ -2295,7 +2295,7 @@ def get_lambda2(vectorfield, mask=None, raw=False):
 
 
 def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
-              raw=False, local_treatment='none', order=1):
+                        raw=False, local_treatment='none', order=1):
     """
     Return the angle deviation field.
 
@@ -2338,7 +2338,6 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
     if not isinstance(ind, bool):
         raise TypeError("'ind' must be a boolean")
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2.
     if mask is None:
         mask = np.zeros(vectorfield.shape)
     elif not isinstance(mask, ARRAYTYPES):
@@ -2357,53 +2356,14 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
         raise ValueError()
     ### Getting data ###
     theta = vectorfield.theta
-    mask = np.logical_or(vectorfield.mask, mask)
-    ### Compute motif and motif angles on an arbitrary point ###
-    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
-    if ind:
-        motif = vectorfield.get_points_around(indcentral, radius, ind)
-        motif = motif - indcentral
-    else:
-        ptcentral = [axe_x[indcentral[0]], axe_y[indcentral[1]]]
-        motif = vectorfield.get_points_around(ptcentral, radius, ind)
-        motif = motif - indcentral
-    nmbpts = len(motif)
-    ### Generating masks ###
-    # creating surrounding masked point zone mask
-    mask_surr = np.zeros(mask.shape)
-    inds_masked = np.transpose(np.where(mask))
-    for ind_masked in inds_masked:
-        for i, j in motif + ind_masked:
-            # continue if outside the field
-            if i < 0 or j < 0 or i >= mask_surr.shape[0]\
-                    or j >= mask_surr.shape[1]:
-                continue
-            mask_surr[i, j] = True
-    # creating near-border zone mask
-    if ind:
-        indx = np.arange(len(axe_x))
-        indy = np.arange(len(axe_y))
-        border_x = np.logical_or(indx <= indx[0] + (int(radius) - 1),
-                                 indx >= indx[-1] - (int(radius) - 1))
-        border_y = np.logical_or(indy <= indy[0] + (int(radius) - 1),
-                                 indy >= indy[-1] - (int(radius) - 1))
-        border_x, border_y = np.meshgrid(border_x, border_y)
-        mask_border = np.transpose(np.logical_or(border_x, border_y))
-    else:
-        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
-        border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
-                                 axe_x >= axe_x[-1] - (radius - delta))
-        border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
-                                 axe_y >= axe_y[-1] - (radius - delta))
-        border_x, border_y = np.meshgrid(border_x, border_y)
-        mask_border = np.transpose(np.logical_or(border_x, border_y))
+    mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
+        _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
+                                            dev_pass=False)
     ### Computing criterion ###
     # creating reference dispersion functions
     best_fun = np.array([2.*np.pi/nmbpts]*nmbpts)
     worse_fun = np.array([0]*(nmbpts - 1) + [2.*np.pi])
     worse_value = (np.sum(np.abs(worse_fun - best_fun)**order))**(1./order)
-
     # Loop on points
     deviation = np.zeros(vectorfield.shape)
     for inds, pos, _ in vectorfield:
@@ -2436,11 +2396,12 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
         d_angles[0:-1] = angles[1::] - angles[:-1:]
         d_angles[-1] = angles[0] + 2*np.pi - angles[-1]
         # getting neighbour angles deviation
-        deviation[ind_x, ind_y] = 1 - (np.sum(np.abs(d_angles - best_fun)**order))**(1./order)/worse_value
+        deviation[ind_x, ind_y] = (1 - (np.sum(np.abs(d_angles - best_fun)
+                                               ** order))
+                                   ** (1./order)/worse_value)
     ### Applying masks ###
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
-    #mask = np.logical_or(mask, np.isnan(deviation))
     ### Creating gamma ScalarField ###
     if raw:
         return np.ma.masked_array(deviation, mask)
@@ -2451,6 +2412,7 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
                                         unit_x=unit_x, unit_y=unit_y,
                                         unit_values=make_unit(''))
         return deviation_sf
+
 
 def _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
                                         dev_pass):
@@ -2501,11 +2463,13 @@ def _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
     # creating dev mask
     mask_dev = np.zeros(vectorfield.shape)
     if dev_pass:
-        dev = get_angle_deviation(vectorfield, radius=radius, ind=ind, raw=True)
+        dev = get_angle_deviation(vectorfield, radius=radius, ind=ind,
+                                  raw=True)
         mask_dev = dev < 0.1
     # returning
     return (mask, nmbpts, mask_dev, mask_border, mask_surr,
-           motif)
+            motif)
+
 
 def _get_angles(Vx, Vy, check=False):
     """

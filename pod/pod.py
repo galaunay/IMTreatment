@@ -60,7 +60,8 @@ class ModalFields(Field):
             if not isinstance(eigvects, ARRAYTYPES):
                 raise TypeError()
             eigvects = np.array(eigvects)
-            if not eigvects.shape == (len(temporal_evolutions[0].x), len(modes)):
+            if not eigvects.shape == (len(temporal_evolutions[0].x),
+                                      len(modes)):
                 raise ValueError()
         if ritz_vals is not None:
             if not isinstance(ritz_vals, Profile):
@@ -150,7 +151,8 @@ class ModalFields(Field):
             if self.decomp_type == 'pod':
                 wanted_modes = np.arange(wanted_modes)
             elif self.decomp_type == 'dmd':
-                wanted_modes = np.argsort(np.abs(self.growth_rate.y))[0:wanted_modes]
+                wanted_modes = (np.argsort(np.abs(self.growth_rate.y))
+                                [0:wanted_modes])
             else:
                 raise ValueError()
         elif isinstance(wanted_modes, ARRAYTYPES):
@@ -169,7 +171,8 @@ class ModalFields(Field):
         if times.ndim != 1:
             raise ValueError()
         if self.decomp_type == 'pod':
-            if times.max() > self.times.max() or times.min() < self.times.min():
+            if (times.max() > self.times.max()
+                    or times.min() < self.times.min()):
                 raise ValueError()
         # getting datas
         ind_times = np.arange(len(times))
@@ -367,7 +370,8 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
                  for i in np.arange(len(TF.fields))]
         values = [TF.fields[t].values for t in ind_fields]
     elif isinstance(TF, TemporalVectorFields):
-        values = [[TF.fields[t].comp_x, TF.fields[t].comp_y] for t in ind_fields]
+        values = [[TF.fields[t].comp_x, TF.fields[t].comp_y]
+                  for t in ind_fields]
         values = np.transpose(values, (0, 2, 3, 1))
         snaps = [modred.VecHandleInMemory(values[i]) for i in ind_fields]
     # setting the decomposition mode
@@ -461,47 +465,3 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
                               ritz_vals=ritz_vals, mode_norms=mode_norms,
                               growth_rate=growth_rate, pulsation=pulsation)
     return modal_field
-
-
-
-# # field creation
-#size_x, size_y = 100, 100
-#nmb = 100
-#Tt = 4.
-#Tx = 50.
-#Ty = 20.
-#coef_rand = 10
-#x = np.arange(size_x)
-#y = np.arange(size_y)
-#X, Y = np.meshgrid(x, y)
-#fields = TemporalVectorFields()
-#for n in np.arange(nmb):
-#    array = np.sin(X/Tx*2*np.pi) + np.sin(Y/Ty*2*np.pi)
-#    array += coef_rand*np.random.rand(size_x, size_y)
-#    array *= np.sin(n/Tt*2*np.pi)
-#    field = VectorField()
-#    field.import_from_arrays(x, y, array, array)
-#    fields.add_field(field)
-#
-## POD
-#nmb_modes = 10
-#snaps = [modred.VecHandleInMemory(fields.fields[i].comp_x) for i in np.arange(len(fields.fields))]
-#modes = [modred.VecHandleInMemory() for i in np.arange(nmb_modes)]
-#my_POD = modred.PODHandles(np.vdot)
-#eigvect, eigval = my_POD.compute_decomp(snaps)
-#my_POD.compute_modes(np.arange(nmb_modes), modes)
-#
-## display
-##   initial
-#plt.figure()
-#plt.imshow(fields.fields[2].comp_x)
-## modes
-#plt.figure()
-#for i in [0, 1, 2, 3]:
-#    plt.subplot(2, 2, i+1)
-#    plt.imshow(modes[i].get())
-#    plt.colorbar()
-#    plt.title('eigval = {}'.format(eigval[i]))
-## reconstruction 1 mode
-#plt.figure()
-#plt.imshow(modes[0].get())
