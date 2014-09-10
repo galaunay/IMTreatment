@@ -1748,139 +1748,103 @@ def get_critical_line(VF, source_point, direction, kol='stream',
 
 
 ### Criterion ###
-#+++ besoin de mettre les tableaux dans le meme sens que vectorfield (ou alors
-#on met un tranpose a l'entré et à la sortie...) +++
-def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
-    """
-    Return the sigma scalar field, reprensenting the homogeneity of the
-    VectorField. Values of 1 mean homogeneous velocity field  and 0 mean
-    heterogeneous velocity field. Heterogeneous velocity zone are
-    representative of zone with critical points.
-    In details, Sigma is calculated as the variance of the 'ecart' between
-    velocity angles of points surrounding the point of interest.
-
-    Parameters
-    ----------
-    vectorfield : VectorField object
-    radius : number, optionnal
-        The radius used to choose the zone where to compute
-        sigma for each point. If not mentionned, a value is choosen in
-        order to have about 8 points in the circle. It allow to get good
-        result, without big computation cost.
-    ind : boolean
-        If 'True', radius is expressed on number of vectors.
-        If 'False' (default), radius is expressed on axis unit.
-    mask : array of boolean, optionnal
-        Has to be an array of the same size of the vector field object,
-        gamma will be compute only where mask is 'False'.
-    raw : boolean, optional
-        If 'False' (default), a ScalarField is returned,
-        if 'True', an array is returned.
-
-    Returns
-    -------
-    Sigma : ScalarField
-        Sigma scalar field
-    """
-    # parameters constitency
-    if not isinstance(vectorfield, VectorField):
-        raise TypeError("'vectorfield' must be a VectorField object")
-    if radius is None:
-        radius = 1.9
-        ind = True
-    if not isinstance(radius, NUMBERTYPES):
-        raise TypeError("'radius' must be a number")
-    if not isinstance(ind, bool):
-        raise TypeError("'ind' must be a boolean")
-    if mask is None:
-        mask = np.zeros(vectorfield.shape)
-    elif not isinstance(mask, ARRAYTYPES):
-        raise TypeError("'zone' must be an array of boolean")
-    else:
-        mask = np.array(mask)
-    # Getting neighbouring points motif
-    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
-    if ind:
-        motif = vectorfield.get_points_around(indcentral, radius, ind)
-        motif = motif - indcentral
-    else:
-        ptcentral = [axe_x[indcentral[0]], axe_y[indcentral[1]]]
-        motif = vectorfield.get_points_around(ptcentral, radius, ind)
-        motif = motif - indcentral
-    nmbpts = len(motif)
-    # Getting vector angles
-    theta = vectorfield.theta
-    # récupération du masque du champ de vitesse
-    mask = np.logical_or(mask, vectorfield.mask)
-    # Ajout au masque des valeurs sur le bord
-    if ind:
-        indx = np.arange(len(axe_x))
-        indy = np.arange(len(axe_y))
-        border_x = np.logical_or(indx <= indx[0] + (radius - 1),
-                                 indx >= indx[-1] - (radius - 1))
-        border_y = np.logical_or(indy <= indy[0] + (radius - 1),
-                                 indy >= indy[-1] - (radius - 1))
-        border_x, border_y = np.meshgrid(border_x, border_y)
-        mask1 = np.transpose(np.logical_or(border_x, border_y))
-    else:
-        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
-        border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
-                                 axe_x >= axe_x[-1] - (radius - delta))
-        border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
-                                 axe_y >= axe_y[-1] - (radius - delta))
-        border_x, border_y = np.meshgrid(border_x, border_y)
-        mask1 = np.transpose(np.logical_or(border_x, border_y))
-    # calcul de delta moyen
-    deltamoy = 2.*np.pi/(nmbpts)
-    # boucle sur les points
-    sigmas = np.zeros(vectorfield.shape)
-    mask2 = np.zeros(mask.shape)
-    for inds, pos, _ in vectorfield:
-        ind_x = inds[0]
-        ind_y = inds[1]
-        # On ne fait rien si la valeur est masquée
-        if mask[ind_x, ind_y]:
-            continue
-        # stop if on border
-        if mask1[ind_x, ind_y]:
-            continue
-        # stop if one surrounding point is masked
-        skip = [mask[i[0], i[1]] for i in motif + inds]
-        if np.any(skip):
-            mask2[ind_x, ind_y] = True
-            continue
-        # Extraction des thetas interessants
-        theta_nei = np.zeros((len(motif),))
-        i = 0
-        for indx, indy in motif + inds:
-            theta_nei[i] = theta[indx, indy]
-            i += 1
-        # Tri des thetas et calcul de deltas
-        theta_nei.sort()
-        delta = np.zeros((len(theta_nei) + 1,))
-        for i in np.arange(len(theta_nei) - 1):
-            delta[i] = theta_nei[i+1] - theta_nei[i]
-        delta[-1] = np.pi*2 - (theta_nei[-1] - theta_nei[0])
-        # calcul de sigma
-        sigmas[ind_x, ind_y] = np.var(delta)
-    # calcul (analytique) du sigma max
-    sigma_max = ((np.pi*2 - deltamoy)**2
-                 + (nmbpts - 1)*(0 - deltamoy)**2)/nmbpts
-    # normalisation analytique
-    sigmas /= sigma_max
-    # masking
-    mask = np.logical_or(mask, mask1)
-    mask = np.logical_or(mask, mask2)
-    if raw:
-        return np.ma.masked_array(sigmas, mask)
-    else:
-        sigma_sf = ScalarField()
-        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
-        sigma_sf.import_from_arrays(axe_x, axe_y, sigmas, mask,
-                                    unit_x=unit_x, unit_y=unit_y,
-                                    unit_values=make_unit(""))
-        return sigma_sf
+#
+#def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False,
+#              dev_pass=False):
+#    """
+#    Return the sigma scalar field, reprensenting the homogeneity of the
+#    VectorField. Values of 1 mean homogeneous velocity field  and 0 mean
+#    heterogeneous velocity field. Heterogeneous velocity zone are
+#    representative of zone with critical points.
+#    In details, Sigma is calculated as the variance of the 'ecart' between
+#    velocity angles of points surrounding the point of interest.
+#
+#    Parameters
+#    ----------
+#    vectorfield : VectorField object
+#    radius : number, optionnal
+#        The radius used to choose the zone where to compute
+#        sigma for each point. If not mentionned, a value is choosen in
+#        order to have about 8 points in the circle. It allow to get good
+#        result, without big computation cost.
+#    ind : boolean
+#        If 'True', radius is expressed on number of vectors.
+#        If 'False' (default), radius is expressed on axis unit.
+#    mask : array of boolean, optionnal
+#        Has to be an array of the same size of the vector field object,
+#        gamma will be compute only where mask is 'False'.
+#    raw : boolean, optional
+#        If 'False' (default), a ScalarField is returned,
+#        if 'True', an array is returned.
+#    dev_pass : boolean, optional
+#        If 'True', the algorithm compute gamma criterion only where the
+#        velocity angles deviation is strong (faster)
+#
+#    Returns
+#    -------
+#    Sigma : ScalarField
+#        Sigma scalar field
+#    """
+#    # parameters constitency
+#    if not isinstance(vectorfield, VectorField):
+#        raise TypeError("'vectorfield' must be a VectorField object")
+#    if radius is None:
+#        radius = 1.9
+#        ind = True
+#    if not isinstance(radius, NUMBERTYPES):
+#        raise TypeError("'radius' must be a number")
+#    if not isinstance(ind, bool):
+#        raise TypeError("'ind' must be a boolean")
+#    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+#    if mask is None:
+#        mask = np.zeros(vectorfield.shape)
+#    elif not isinstance(mask, ARRAYTYPES):
+#        raise TypeError("'zone' must be an array of boolean")
+#    else:
+#        mask = np.array(mask)
+#    # getting data and masks
+#    theta = vectorfield.theta
+#    mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
+#    _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
+#                                        dev_pass)
+#    # calcul de delta moyen
+#    deltamoy = 2.*np.pi/(nmbpts)
+#    # boucle sur les points
+#    sigmas = np.zeros(vectorfield.shape)
+#    for inds, pos, _ in vectorfield:
+#        ind_x = inds[0]
+#        ind_y = inds[1]
+#        # Stop if unavailable point
+#        if mask[ind_x, ind_y] or mask_surr[ind_x, ind_y]\
+#                or mask_border[ind_x, ind_y] or mask_dev[ind_x, ind_y]:
+#            continue
+#        # Extraction des thetas interessants
+#        theta_nei = np.array([theta[indx, indy]
+#                              for indx, indy in motif + inds])
+#        # Tri des thetas et calcul de deltas
+#        theta_nei.sort()
+#        delta = np.empty(theta_nei.shape)
+#        delta[0:-1] = theta_nei[1::] - theta_nei[:-1:]
+#        delta[-1] = theta_nei[0] + 2*np.pi - theta_nei[-1]
+#        # calcul de sigma
+#        sigmas[ind_x, ind_y] = np.var(delta)
+#    # calcul (analytique) du sigma max
+#    sigma_max = ((np.pi*2 - deltamoy)**2
+#                 + (nmbpts - 1)*(0 - deltamoy)**2)/nmbpts
+#    # normalisation analytique
+#    sigmas /= sigma_max
+#    ### Applying masks ###
+#    mask = np.logical_or(mask, mask_border)
+#    mask = np.logical_or(mask, mask_surr)
+#    if raw:
+#        return np.ma.masked_array(sigmas, mask)
+#    else:
+#        sigma_sf = ScalarField()
+#        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
+#        sigma_sf.import_from_arrays(axe_x, axe_y, sigmas, mask,
+#                                    unit_x=unit_x, unit_y=unit_y,
+#                                    unit_values=make_unit(""))
+#        return sigma_sf
 
 
 def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
@@ -1916,6 +1880,9 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
     raw : boolean, optional
         If 'False' (default), a ScalarField is returned,
         if 'True', an array is returned.
+    dev_pass : boolean, optional
+        If 'True', the algorithm compute gamma criterion only where the
+        velocity angles deviation is strong (faster if there is few points)
     """
     ### Checking parameters coherence ###
     if not isinstance(vectorfield, VectorField):
@@ -1928,7 +1895,6 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
     if not isinstance(ind, bool):
         raise TypeError("'ind' must be a boolean")
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
     if not isinstance(kind, STRINGTYPES):
         raise TypeError("'kind' must be a string")
     if not kind in ['gamma1', 'gamma2', 'gamma1b', 'gamma2b']:
@@ -1939,22 +1905,13 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
-    ### Importing data from vectorfield (velocity, axis and mask) ###
+    # getting data and masks
     Vx = vectorfield.comp_x
     Vy = vectorfield.comp_y
-    mask = np.logical_or(mask, vectorfield.mask)
     norm_v = vectorfield.magnitude
-    ### Compute motif and motif angles on an arbitrary point ###
-    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
-    if ind:
-        motif = vectorfield.get_points_around(indcentral, radius, ind)
-        motif = motif - indcentral
-    else:
-        ptcentral = [axe_x[indcentral[0]], axe_y[indcentral[1]]]
-        motif = vectorfield.get_points_around(ptcentral, radius, ind)
-        motif = motif - indcentral
-    nmbpts = len(motif)
+    mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
+    _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
+                                        dev_pass)
     # getting the vectors between center and neighbouring
     deltax = axe_x[1] - axe_x[0]
     deltay = axe_y[1] - axe_y[0]
@@ -1964,40 +1921,6 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         vector_a_x[i] = indaround[0]*deltax
         vector_a_y[i] = indaround[1]*deltay
     norm_vect_a = (vector_a_x**2 + vector_a_y**2)**(.5)
-    ### Generating masks ###
-    # creating surrounding masked point zone mask
-    mask_surr = np.zeros(mask.shape)
-    inds_masked = np.transpose(np.where(mask))
-    for ind_masked in inds_masked:
-        for i, j in motif + ind_masked:
-            # continue if outside the field
-            if i < 0 or j < 0 or i >= mask_surr.shape[0]\
-                    or j >= mask_surr.shape[1]:
-                continue
-            mask_surr[i, j] = True
-    # creating near-border zone mask
-    if ind:
-        indx = np.arange(len(axe_x))
-        indy = np.arange(len(axe_y))
-        border_x = np.logical_or(indx <= indx[0] + (int(radius) - 1),
-                                 indx >= indx[-1] - (int(radius) - 1))
-        border_y = np.logical_or(indy <= indy[0] + (int(radius) - 1),
-                                 indy >= indy[-1] - (int(radius) - 1))
-        border_x, border_y = np.meshgrid(border_x, border_y)
-        mask_border = np.transpose(np.logical_or(border_x, border_y))
-    else:
-        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
-        border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
-                                 axe_x >= axe_x[-1] - (radius - delta))
-        border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
-                                 axe_y >= axe_y[-1] - (radius - delta))
-        border_x, border_y = np.meshgrid(border_x, border_y)
-        mask_border = np.transpose(np.logical_or(border_x, border_y))
-    # creating dev mask
-    mask_dev = np.zeros(vectorfield.shape)
-    if dev_pass:
-        dev = get_angle_deviation(vectorfield, radius=radius, ind=ind, raw=True)
-        mask_dev = dev < 0.1
     ### Loop on points ###
     gammas = np.zeros(vectorfield.shape)
     for inds, pos, _ in vectorfield:
@@ -2025,7 +1948,6 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
                 np.sqrt(v_mean[0]**2 + v_mean[1]**2)
             if np.abs(fact) > 1:
                 fact = 1.
-
         ### Loop on neighbouring points ###
         gamma = 0.
         for i, indaround in enumerate(indsaround):
@@ -2071,7 +1993,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
 
 
 def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
-              raw=False):
+              raw=False, dev_pass=False):
     """
     Return the kappa scalar field. Kappa criterion is used in
     vortex analysis.
@@ -2098,6 +2020,9 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
     raw : boolean, optional
         If 'False' (default), a ScalarField is returned,
         if 'True', an array is returned.
+    dev_pass : boolean, optional
+        If 'True', the algorithm compute gamma criterion only where the
+        velocity angles deviation is strong (faster if there is few points)
     """
     ### Checking parameters coherence ###
     if not isinstance(vectorfield, VectorField):
@@ -2110,7 +2035,6 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
     if not isinstance(ind, bool):
         raise TypeError("'ind' must be a boolean")
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
     if not isinstance(kind, STRINGTYPES):
         raise TypeError("'kind' must be a string")
     if not kind in ['kappa1', 'kappa2']:
@@ -2121,22 +2045,13 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
-    ### Importing data from vectorfield (velocity, axis and mask) ###
+    # getting data and masks
     Vx = vectorfield.comp_x
     Vy = vectorfield.comp_y
-    mask = np.logical_or(mask, vectorfield.mask)
     norm_v = vectorfield.magnitude
-    ### Compute motif and motif angles on an arbitrary point ###
-    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
-    if ind:
-        motif = vectorfield.get_points_around(indcentral, radius, ind)
-        motif = motif - indcentral
-    else:
-        ptcentral = [axe_x[indcentral[0]], axe_y[indcentral[1]]]
-        motif = vectorfield.get_points_around(ptcentral, radius, ind)
-        motif = motif - indcentral
-    nmbpts = len(motif)
+    mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
+    _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
+                                        dev_pass)
     # getting the vectors between center and neighbouring
     deltax = axe_x[1] - axe_x[0]
     deltay = axe_y[1] - axe_y[0]
@@ -2146,35 +2061,6 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         vector_a_x[i] = indaround[0]*deltax
         vector_a_y[i] = indaround[1]*deltay
     norm_vect_a = (vector_a_x**2 + vector_a_y**2)**(.5)
-    ### Generating masks ###
-    # creating surrounding masked point zone mask
-    mask_surr = np.zeros(mask.shape)
-    inds_masked = np.transpose(np.where(mask))
-    for ind_masked in inds_masked:
-        for i, j in motif + ind_masked:
-            # continue if outside the field
-            if i < 0 or j < 0 or i >= mask_surr.shape[0]\
-                    or j >= mask_surr.shape[1]:
-                continue
-            mask_surr[i, j] = True
-    # creating near-border zone mask
-    if ind:
-        indx = np.arange(len(axe_x))
-        indy = np.arange(len(axe_y))
-        border_x = np.logical_or(indx <= indx[0] + (int(radius) - 1),
-                                 indx >= indx[-1] - (int(radius) - 1))
-        border_y = np.logical_or(indy <= indy[0] + (int(radius) - 1),
-                                 indy >= indy[-1] - (int(radius) - 1))
-        border_x, border_y = np.meshgrid(border_x, border_y)
-        mask_border = np.transpose(np.logical_or(border_x, border_y))
-    else:
-        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
-        border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
-                                 axe_x >= axe_x[-1] - (radius - delta))
-        border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
-                                 axe_y >= axe_y[-1] - (radius - delta))
-        border_x, border_y = np.meshgrid(border_x, border_y)
-        mask_border = np.transpose(np.logical_or(border_x, border_y))
     ### Loop on points ###
     kappas = np.zeros(vectorfield.shape)
     for inds, pos, _ in vectorfield:
@@ -2182,7 +2068,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         ind_y = inds[1]
         # stop if masked or on border or with a masked surrouinding point
         if mask[ind_x, ind_y] or mask_surr[ind_x, ind_y]\
-                or mask_border[ind_x, ind_y]:
+                or mask_border[ind_x, ind_y] or mask_dev[ind_x, ind_y]:
             continue
         # getting neighbour points
         indsaround = motif + np.array(inds)
@@ -2575,10 +2461,7 @@ def _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
     """
     """
     ### Importing data from vectorfield (velocity, axis and mask) ###
-    Vx = vectorfield.comp_x
-    Vy = vectorfield.comp_y
     mask = np.logical_or(mask, vectorfield.mask)
-    norm_v = vectorfield.magnitude
     ### Compute motif and motif angles on an arbitrary point ###
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
@@ -2625,7 +2508,8 @@ def _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
         dev = get_angle_deviation(vectorfield, radius=radius, ind=ind, raw=True)
         mask_dev = dev < 0.1
     # returning
-    return Vx, Vy, mask, norm_v, nmbpts, mask_dev, mask_border, mask_surr
+    return (mask, nmbpts, mask_dev, mask_border, mask_surr,
+           motif)
 
 def _get_angles(Vx, Vy, check=False):
     """
