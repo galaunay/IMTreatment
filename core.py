@@ -2029,7 +2029,7 @@ class Field(object):
         """
         return copy.deepcopy(self)
 
-    def get_indice_on_axe(self, direction, value, nearest=False):
+    def get_indice_on_axe(self, direction, value, kind='bounds'):
         """
         Return, on the given axe, the indices representing the positions
         surrounding 'value'.
@@ -2040,8 +2040,10 @@ class Field(object):
         direction : int
             1 or 2, for axes choice.
         value : number
-        nearest : boolean
-            If 'True', only the nearest indice is returned.
+        kind : string
+            If 'bounds' (default), return the bounding indices.
+            if 'nearest', return the nearest indice
+            if 'decimal', return a decimal indice (interpolated)
 
         Returns
         -------
@@ -2061,24 +2063,41 @@ class Field(object):
             axe = self.axe_y
             if value < axe[0] or value > axe[-1]:
                 raise ValueError("'value' is out of bound.")
+        if not isinstance(kind, STRINGTYPES):
+            raise TypeError()
+        if not kind in ['bounds', 'nearest', 'decimal']:
+            raise ValueError()
         # getting the borning indices
         ind = np.searchsorted(axe, value)
         if axe[ind] == value:
-            inds = [ind]
+            inds = [ind, ind]
         else:
             inds = [int(ind - 1), int(ind)]
-        if not nearest:
+        # returning bounds
+        if kind == 'bounds':
             return inds
-        # getting the nearest indice
-        else:
-            if len(inds) != 1:
-                if np.abs(axe[inds[0]] - value) < np.abs(axe[inds[1]] - value):
-                    ind = inds[0]
-                else:
-                    ind = inds[1]
-            else:
+        # returning nearest
+        elif kind == 'nearest':
+            if inds[0] == inds[1]:
+                return inds[0]
+            if np.abs(axe[inds[0]] - value) < np.abs(axe[inds[1]] - value):
                 ind = inds[0]
+            else:
+                ind = inds[1]
             return int(ind)
+        # returning decimal
+        elif kind == 'decimal':
+            if inds[0] == inds[1]:
+                return inds[0]
+            value_1 = axe[inds[0]]
+            value_2 = axe[inds[1]]
+            delta = np.abs(value_2 - value_1)
+            return (inds[0]*np.abs(value - value_2)/delta
+                    + inds[1]*np.abs(value - value_1)/delta)
+
+
+
+
 
     def get_points_around(self, center, radius, ind=False):
         """
@@ -2102,7 +2121,7 @@ class Field(object):
             [(ind1x, ind1y), (ind2x, ind2y), ...].
             You can easily put them in the axes to obtain points coordinates
         """
-        #checkin parameters coherence
+        #checking parameters
         if not isinstance(center, ARRAYTYPES):
             raise TypeError("'center' must be an array")
         center = np.array(center, dtype=float)
@@ -2112,35 +2131,43 @@ class Field(object):
             raise TypeError("'radius' must be a number")
         if not radius > 0:
             raise ValueError("'radius' must be positive")
-        # getting somme properties
+        # getting indice data when 'ind=False'
+        if not ind:
+            dx = self.axe_x[1] - self.axe_x[0]
+            dy = self.axe_y[1] - self.axe_y[0]
+            delta = (dx + dy)/2.
+            radius = radius/delta
+            center_x = self.get_indice_on_axe(1, center[0], kind='decimal')
+            center_y = self.get_indice_on_axe(2, center[1], kind='decimal')
+            center = [center_x, center_y]
+        # pre-computing somme properties
         radius2 = radius**2
         radius_int = radius/np.sqrt(2)
+        # isolating possibles indices
+        inds_x = np.arange(np.int(np.ceil(center[0] - radius)),
+                          np.int(np.floor(center[0] + radius)) + 1)
+        inds_y = np.arange(np.int(np.ceil(center[1] - radius)),
+                          np.int(np.floor(center[1] + radius)) + 1)
+        inds_x, inds_y = np.meshgrid(inds_x, inds_y)
+        inds_x = inds_x.flatten()
+        inds_y = inds_y.flatten()
+        # loop on possibles points
         inds = []
-        for indices, coord, _ in self:
-            if ind:
-                x = indices[0]
-                y = indices[1]
-            else:
-                x = coord[0]
-                y = coord[1]
-            # test if the point is not in the square surrounding the cercle
-            if x >= center[0] + radius \
-                    and x <= center[0] - radius \
-                    and y >= center[1] + radius \
-                    and y <= center[1] - radius:
-                pass
+        for i in np.arange(len(inds_x)):
+            x = inds_x[i]
+            y = inds_y[i]
             # test if the point is in the square 'compris' in the cercle
-            elif x <= center[0] + radius_int \
+            if x <= center[0] + radius_int \
                     and x >= center[0] - radius_int \
                     and y <= center[1] + radius_int \
                     and y >= center[1] - radius_int:
-                inds.append(indices)
+                inds.append([x, y])
             # test if the point is the center
             elif all([x, y] == center):
                 pass
             # test if the point is in the circle
             elif ((x - center[0])**2 + (y - center[1])**2 <= radius2):
-                inds.append(indices)
+                inds.append([x, y])
         return np.array(inds, subok=True)
 
     ### Modifiers ###

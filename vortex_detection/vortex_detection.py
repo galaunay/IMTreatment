@@ -2408,7 +2408,7 @@ def get_lambda2(vectorfield, mask=None, raw=False):
 
 
 def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
-              raw=False, galilean_inv=False):
+              raw=False, local_treatment='none', order=1):
     """
     Return the angle deviation field.
 
@@ -2430,10 +2430,15 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
     raw : boolean, optional
         If 'False' (default), a ScalarField is returned,
         if 'True', an array is returned.
-    galilean_inv : boolean, optional
-        If 'False' (default), angle deviation is computed normaly
-        If 'True', local velocity is substracted before computing deviation,
-        in order to have a galilean invariant criterion.
+    local_treatment : string, optional
+        If 'None' (default), angles are taken directly from the velocity field
+        If 'galilean_inv', angles are taken from localy averaged velocity field
+        if 'local', angles are taken from velocity fields where the velocity of
+        the central point is localy substracted.
+    order : number, optional
+        Order used to compute the deviation
+        (default 1 for sum of differences, 2 for standart deviation (std)
+        or more)
     """
     ### Checking parameters coherence ###
     if not isinstance(vectorfield, VectorField):
@@ -2453,6 +2458,16 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
+    if not isinstance(raw, bool):
+        raise TypeError()
+    if not isinstance(local_treatment, STRINGTYPES):
+        raise TypeError()
+    if not local_treatment in ['none', 'galilean_inv', 'local']:
+        raise ValueError()
+    if not isinstance(order, NUMBERTYPES):
+        raise TypeError()
+    if order < 1:
+        raise ValueError()
     ### Getting data ###
     theta = vectorfield.theta
     mask = np.logical_or(vectorfield.mask, mask)
@@ -2496,9 +2511,14 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
                                  axe_y >= axe_y[-1] - (radius - delta))
         border_x, border_y = np.meshgrid(border_x, border_y)
         mask_border = np.transpose(np.logical_or(border_x, border_y))
-    ### Loop on points ###
+    ### Computing criterion ###
+    # creating reference dispersion functions
+    best_fun = np.array([2.*np.pi/nmbpts]*nmbpts)
+    worse_fun = np.array([0]*(nmbpts - 1) + [2.*np.pi])
+    worse_value = (np.sum(np.abs(worse_fun - best_fun)**order))**(1./order)
+
+    # Loop on points
     deviation = np.zeros(vectorfield.shape)
-    norm = (2.*np.pi*(1.-1./nmbpts))
     for inds, pos, _ in vectorfield:
         ind_x = inds[0]
         ind_y = inds[1]
@@ -2508,18 +2528,32 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
             continue
         # getting neighbour points
         indsaround = motif + inds
-        # getting neighbour angles repartition
-        angles = theta[indsaround[:, 0], indsaround[:, 1]]
+        # getting neighbour angles  (galilean inv or not)
+        if local_treatment == 'none':
+            angles = theta[indsaround[:, 0], indsaround[:, 1]]
+        elif local_treatment == 'galilean_inv':
+            tmp_Vx = vectorfield.comp_x[indsaround[:, 0], indsaround[:, 1]]
+            tmp_Vy = vectorfield.comp_y[indsaround[:, 0], indsaround[:, 1]]
+            tmp_Vx -= np.mean(tmp_Vx)
+            tmp_Vy -= np.mean(tmp_Vy)
+            angles = _get_angles(tmp_Vx, tmp_Vy)
+        elif local_treatment == 'local':
+            tmp_Vx = vectorfield.comp_x[indsaround[:, 0], indsaround[:, 1]]
+            tmp_Vy = vectorfield.comp_y[indsaround[:, 0], indsaround[:, 1]]
+            tmp_Vx -= vectorfield.comp_x[ind_x, ind_y]
+            tmp_Vy -= vectorfield.comp_x[ind_x, ind_y]
+            angles = _get_angles(tmp_Vx, tmp_Vy)
+        # getting neightbour angles repartition
         angles = np.sort(angles)
-        d_angles = angles[1::] - angles[:-1:]
-        d_angles = np.append(d_angles, [angles[0] +2*np.pi - angles[-1]])
-        if np.sum(d_angles) - 2.*np.pi > 1e-6:
-            raise Exception()
-        deviation[ind_x, ind_y] = np.max(d_angles)
-    deviation = (deviation - 2.*np.pi/nmbpts)/norm
+        d_angles = np.empty(angles.shape)
+        d_angles[0:-1] = angles[1::] - angles[:-1:]
+        d_angles[-1] = angles[0] + 2*np.pi - angles[-1]
+        # getting neighbour angles deviation
+        deviation[ind_x, ind_y] = 1 - (np.sum(np.abs(d_angles - best_fun)**order))**(1./order)/worse_value
     ### Applying masks ###
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
+    #mask = np.logical_or(mask, np.isnan(deviation))
     ### Creating gamma ScalarField ###
     if raw:
         return np.ma.masked_array(deviation, mask)
@@ -2530,3 +2564,28 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
                                         unit_x=unit_x, unit_y=unit_y,
                                         unit_values=make_unit(''))
         return deviation_sf
+
+def _get_angles(Vx, Vy, check=False):
+    """
+    Return the angles from velocities vectors.
+    """
+    if check:
+        # check parameters
+        if not isinstance(Vx, ARRAYTYPES):
+            raise TypeError()
+        Vx = np.array(Vx)
+        if not Vx.ndim == 1:
+            raise ValueError()
+        if not isinstance(Vy, ARRAYTYPES):
+            raise TypeError()
+        Vy = np.array(Vy)
+        if not Vy.ndim == 1:
+            raise ValueError()
+        if not Vx.shape == Vy.shape:
+            raise ValueError()
+    # get data
+    norm = (Vx**2 + Vy**2)**(.5)
+    # getting angle
+    theta = np.arccos(Vx/norm)
+    theta[Vy < 0] = 2*np.pi - theta[Vy < 0]
+    return theta
