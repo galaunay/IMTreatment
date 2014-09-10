@@ -1884,7 +1884,7 @@ def get_sigma(vectorfield, radius=None, ind=False, mask=None, raw=False):
 
 
 def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
-              raw=False):
+              raw=False, dev_pass=True):
     """
     Return the gamma scalar field. Gamma criterion is used in
     vortex analysis.
@@ -1993,6 +1993,11 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
                                  axe_y >= axe_y[-1] - (radius - delta))
         border_x, border_y = np.meshgrid(border_x, border_y)
         mask_border = np.transpose(np.logical_or(border_x, border_y))
+    # creating dev mask
+    mask_dev = np.zeros(vectorfield.shape)
+    if dev_pass:
+        dev = get_angle_deviation(vectorfield, radius=radius, ind=ind, raw=True)
+        mask_dev = dev < 0.1
     ### Loop on points ###
     gammas = np.zeros(vectorfield.shape)
     for inds, pos, _ in vectorfield:
@@ -2000,7 +2005,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         ind_y = inds[1]
         # stop if masked or on border or with a masked surrouinding point
         if mask[ind_x, ind_y] or mask_surr[ind_x, ind_y]\
-                or mask_border[ind_x, ind_y]:
+                or mask_border[ind_x, ind_y] or mask_dev[ind_x, ind_y]:
             continue
         # getting neighbour points
         indsaround = motif + inds
@@ -2564,6 +2569,63 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
                                         unit_x=unit_x, unit_y=unit_y,
                                         unit_values=make_unit(''))
         return deviation_sf
+
+def _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
+                                        dev_pass):
+    """
+    """
+    ### Importing data from vectorfield (velocity, axis and mask) ###
+    Vx = vectorfield.comp_x
+    Vy = vectorfield.comp_y
+    mask = np.logical_or(mask, vectorfield.mask)
+    norm_v = vectorfield.magnitude
+    ### Compute motif and motif angles on an arbitrary point ###
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+    indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
+    if ind:
+        motif = vectorfield.get_points_around(indcentral, radius, ind)
+        motif = motif - indcentral
+    else:
+        ptcentral = [axe_x[indcentral[0]], axe_y[indcentral[1]]]
+        motif = vectorfield.get_points_around(ptcentral, radius, ind)
+        motif = motif - indcentral
+    nmbpts = len(motif)
+    ### Generating masks ###
+    # creating surrounding masked point zone mask
+    mask_surr = np.zeros(mask.shape)
+    inds_masked = np.transpose(np.where(mask))
+    for ind_masked in inds_masked:
+        for i, j in motif + ind_masked:
+            # continue if outside the field
+            if i < 0 or j < 0 or i >= mask_surr.shape[0]\
+                    or j >= mask_surr.shape[1]:
+                continue
+            mask_surr[i, j] = True
+    # creating near-border zone mask
+    if ind:
+        indx = np.arange(len(axe_x))
+        indy = np.arange(len(axe_y))
+        border_x = np.logical_or(indx <= indx[0] + (int(radius) - 1),
+                                 indx >= indx[-1] - (int(radius) - 1))
+        border_y = np.logical_or(indy <= indy[0] + (int(radius) - 1),
+                                 indy >= indy[-1] - (int(radius) - 1))
+        border_x, border_y = np.meshgrid(border_x, border_y)
+        mask_border = np.transpose(np.logical_or(border_x, border_y))
+    else:
+        delta = (axe_x[1] - axe_x[0] + axe_y[1] - axe_y[0])/2
+        border_x = np.logical_or(axe_x <= axe_x[0] + (radius - delta),
+                                 axe_x >= axe_x[-1] - (radius - delta))
+        border_y = np.logical_or(axe_y <= axe_y[0] + (radius - delta),
+                                 axe_y >= axe_y[-1] - (radius - delta))
+        border_x, border_y = np.meshgrid(border_x, border_y)
+        mask_border = np.transpose(np.logical_or(border_x, border_y))
+    # creating dev mask
+    mask_dev = np.zeros(vectorfield.shape)
+    if dev_pass:
+        dev = get_angle_deviation(vectorfield, radius=radius, ind=ind, raw=True)
+        mask_dev = dev < 0.1
+    # returning
+    return Vx, Vy, mask, norm_v, nmbpts, mask_dev, mask_border, mask_surr
 
 def _get_angles(Vx, Vy, check=False):
     """
