@@ -39,22 +39,25 @@ def get_gradients(field, raw=False):
         grad_x, grad_y = np.gradient(np.ma.masked_array(field.values,
                                                         field.mask),
                                      dx, dy)
-        gradx = ScalarField()
-        unit_values_x = field.unit_values/field.unit_x
-        factx = unit_values_x.asNumber()
-        unit_values_x /= factx
-        grad_x *= factx
-        unit_values_y = field.unit_values/field.unit_y
-        facty = unit_values_x.asNumber()
-        unit_values_y /= facty
-        grad_y *= facty
-        # returning
+        # applying masks
         mask = np.logical_or(grad_x.mask, grad_y.mask)
         if raw:
+            # returning
             grad_x.mask = mask
             grad_y.mask = mask
             return grad_x, grad_y
         else:
+            # arranging units
+            gradx = ScalarField()
+            unit_values_x = field.unit_values/field.unit_x
+            factx = unit_values_x.asNumber()
+            unit_values_x /= factx
+            grad_x *= factx
+            unit_values_y = field.unit_values/field.unit_y
+            facty = unit_values_x.asNumber()
+            unit_values_y /= facty
+            grad_y *= facty
+            # returning
             gradx.import_from_arrays(field.axe_x, field.axe_y, grad_x.data,
                                      mask=mask, unit_x=field.unit_x,
                                      unit_y=field.unit_y,
@@ -72,27 +75,30 @@ def get_gradients(field, raw=False):
         Vy_dx, Vy_dy = np.gradient(np.ma.masked_array(field.comp_y,
                                                       field.mask),
                                    dx, dy)
-        unit_values_x = field.unit_values/field.unit_x
-        factx = unit_values_x.asNumber()
-        unit_values_x /= factx
-        Vx_dx *= factx
-        Vy_dx *= factx
-        unit_values_y = field.unit_values/field.unit_y
-        facty = unit_values_y.asNumber()
-        unit_values_y /= facty
-        Vx_dy *= facty
-        Vy_dy *= facty
-        # returning
+        # applying masks
         mask = np.logical_or(Vx_dx.mask, Vx_dy.mask)
         mask = np.logical_or(mask, Vy_dx.mask)
         mask = np.logical_or(mask, Vy_dy.mask)
         if raw:
+            # returning
             Vx_dx.mask = mask
             Vx_dy.mask = mask
             Vy_dx.mask = mask
             Vy_dy.mask = mask
             return (Vx_dx, Vx_dy, Vy_dx, Vy_dy)
         else:
+            #arragning unit
+            unit_values_x = field.unit_values/field.unit_x
+            factx = unit_values_x.asNumber()
+            unit_values_x /= factx
+            Vx_dx *= factx
+            Vy_dx *= factx
+            unit_values_y = field.unit_values/field.unit_y
+            facty = unit_values_y.asNumber()
+            unit_values_y /= facty
+            Vx_dy *= facty
+            Vy_dy *= facty
+            #returning
             grad1 = ScalarField()
             grad1.import_from_arrays(field.axe_x, field.axe_y, Vx_dx.data,
                                      mask=mask, unit_x=field.unit_x,
@@ -177,10 +183,10 @@ def get_jacobian_eigenproperties(field, raw=False):
         # storing in arrays
         eig1.flat[i] = loc_eigv[max_eig]
         eig2.flat[i] = loc_eigv[min_eig]
-        eig1v_x.flat[i] = loc_eigvect[0, max_eig]*loc_eigv[max_eig]
-        eig1v_y.flat[i] = loc_eigvect[1, max_eig]*loc_eigv[max_eig]
-        eig2v_x.flat[i] = loc_eigvect[0, min_eig]*loc_eigv[min_eig]
-        eig2v_y.flat[i] = loc_eigvect[1, min_eig]*loc_eigv[min_eig]
+        eig1v_x.flat[i] = loc_eigvect[0, max_eig]
+        eig1v_y.flat[i] = loc_eigvect[1, max_eig]
+        eig2v_x.flat[i] = loc_eigvect[0, min_eig]
+        eig2v_y.flat[i] = loc_eigvect[1, min_eig]
     #storing
     if raw:
         return eig1, eig2, (eig1v_x, eig1v_y), (eig2v_x, eig2v_y)
@@ -206,6 +212,54 @@ def get_jacobian_eigenproperties(field, raw=False):
                                    unit_y=field.unit_y,
                                    unit_values="")
         return eig1_sf, eig2_sf, eig1_vf, eig2_vf
+
+def get_Kenwright_field(field, raw=False):
+    """
+    Return a field with the vector product between the velocity field and the
+    eigen vectors of the velocity jacobian.
+    Values of 0 on these field should represent separation lines
+    or re-attachment lines
+    (See Kenwright et al (1998)).
+
+    Parameters
+    ----------
+    field : VectorField
+        .
+    raw : bool, optional
+        If 'False' (default), ScalarFields are returned
+        If 'True', arrays are returned
+
+    Returns
+    -------
+    K1_field : ScalarField
+        Vector product with the principal eigen vector
+    K2_field : ScalarField
+        Vector product with the oher eigen vector
+    """
+    # get jacobian  eigen properties
+    eigval1, eigval2, eigvect1, eigvect2 = get_jacobian_eigenproperties(field)
+    K1 = np.zeros(field.shape)
+    K2 = np.zeros(field.shape)
+    # making vector product
+    for xi in np.arange(len(field.axe_x)):
+        for yi in np.arange(len(field.axe_y)):
+            K1[xi, yi] = (eigvect1.comp_x[xi, yi]*field.comp_y[xi, yi]
+                          - eigvect1.comp_y[xi, yi]*field.comp_x[xi, yi])
+            K2[xi, yi] = (eigvect2.comp_x[xi, yi]*field.comp_y[xi, yi]
+                          - eigvect2.comp_y[xi, yi]*field.comp_x[xi, yi])
+    # returning
+    if raw:
+        return K1, K2
+    else:
+        K1_sf = ScalarField()
+        K1_sf.import_from_arrays(field.axe_x, field.axe_y, K1,
+                                 unit_x=field.unit_x, unit_y=field.unit_y,
+                                 unit_values=field.unit_values)
+        K2_sf = ScalarField()
+        K2_sf.import_from_arrays(field.axe_x, field.axe_y, K2,
+                                 unit_x=field.unit_x, unit_y=field.unit_y,
+                                 unit_values=field.unit_values)
+        return K1_sf, K2_sf
 
 
 def get_grad_field(field, direction=1):
@@ -270,6 +324,12 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
         Can be 'linear'(default) or 'cubic'
     reverse_direction : boolean, optional
         If True, the streamline goes upstream.
+
+    Returns
+    -------
+    streams : tuple of Points object
+        Each Points object represent a streamline
+
     """
     # checking parameters coherence
     if not isinstance(vf, VectorField):
@@ -370,7 +430,7 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
     if len(streams) == 0:
         return None
     elif len(streams) == 1:
-        return streams[0]
+        return streams
     else:
         return streams
 

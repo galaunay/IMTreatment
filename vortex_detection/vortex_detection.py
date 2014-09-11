@@ -9,9 +9,9 @@ For performance
 
 
 import pdb
-from ..core import Points, Profile, ScalarField, VectorField, make_unit,\
-    ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
-    TemporalVectorFields
+from ..core import Points, OrientedPoints, Profile, ScalarField, VectorField,\
+    make_unit, ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
+    TemporalVectorFields, ShapeError
 from ..field_treatment import get_streamlines, get_gradients
 import matplotlib.pyplot as plt
 import numpy as np
@@ -119,9 +119,22 @@ class VF(object):
                                   tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
                 pbis.append(tmp_vf.pbi_x[-1])
                 pool = np.delete(pool, 0)
-            # if the cp density is too high, we can't do nothing
+            # if the cp density is too high, bu the pbi is valid
+            elif tmp_vf.pbi_x[-1] in [-1, 1]:
+                cp_pos = [np.mean(tmp_vf.axe_x), np.mean(tmp_vf.axe_y)]
+                positions.append(cp_pos)
+                pbis.append(tmp_vf.pbi_x[-1])
+                pool = np.delete(pool, 0)
+            # if the cp density is too high and the pbi is invalid
             else:
                 pool = np.delete(pool, 0)
+        # removing doublons
+        positions = np.array(positions)
+        pbis = np.array(pbis)
+        ind_pos = _argunique(positions)
+        positions = positions[ind_pos]
+        pbis = pbis[ind_pos]
+        # returning
         return positions, pbis
 
     def get_pbi(self, direction):
@@ -288,8 +301,6 @@ class VF(object):
                 vf_tmp = VF(vx_tmp, vy_tmp, axe_x_tmp, axe_y_tmp,
                             mask_tmp, theta_tmp, time_tmp)
                 fields.append(vf_tmp)
-                if len(axe_y_tmp) == 0:
-                    pdb.set_trace()
         return fields
 
     def _calc_pbi(self):
@@ -498,8 +509,12 @@ class CritPoints(object):
             raise ValueError()
         # first point
         if len(self.times) == 0:
-            self.unit_x = foc.unit_x
-            self.unit_y = foc.unit_y
+            if foc is not None:
+                self.unit_x = foc.unit_x
+                self.unit_y = foc.unit_y
+            elif pbi_m is not None:
+                self.unit_x = pbi_m.unit_x
+                self.unit_y = pbi_m.unit_y
         # other ones
         self.foc = np.append(self.foc, foc)
         self.foc_c = np.append(self.foc_c, foc_c)
@@ -789,7 +804,7 @@ class CritPoints(object):
         return points_f
 
     ### Displayers ###
-    def display(self, time=None, indice=None, crit_lines=False, **kw):
+    def display(self, time=None, indice=None, field=None, **kw):
         """
         Display some critical points.
 
@@ -801,8 +816,9 @@ class CritPoints(object):
         indice : integer, optional
             If specified, critical points associated to this indice are
             displayed.
-        crit_line : boolean, optional
-            If 'True', the critical lines from saddles points are displayed
+        field : VectorField object, optional
+            If specified, critical points are displayed on the given field.
+            critical lines are also computed and displayed
         """
         # check parameters
         if time is None and indice is None:
@@ -814,6 +830,9 @@ class CritPoints(object):
             raise ValueError()
         if time is not None:
             indice = self._get_indice_from_time(time)
+        if field is not None:
+            if not isinstance(field, VectorField):
+                raise TypeError()
         # Set the color
         if 'color' in kw.keys():
             colors = [kw.pop('color')]*len(self.colors)
@@ -825,37 +844,13 @@ class CritPoints(object):
                 continue
             pt[indice].display(kind='plot', marker='o', color=colors[i],
                                linestyle='none', **kw)
-        if crit_lines:
         # display the critical lines
-            for i, vects in enumerate(self.sadd[indice].orientations):
-                vect1 = vects[0]
-                vect2 = vects[1]
-                pt = self.sadd[indice].xy[i]
-                Dx = plt.xlim()[1] - plt.xlim()[0]
-                Dy = plt.ylim()[1] - plt.ylim()[0]
-                coef = np.min([Dx, Dy])/30.
-                pt1 = [pt[0] - vect1[0]*coef, pt[1] - vect1[1]*coef]
-                pt2 = [pt[0] + vect1[0]*coef, pt[1] + vect1[1]*coef]
-                pt3 = [pt[0] - vect2[0]*coef, pt[1] - vect2[1]*coef]
-                pt4 = [pt[0] + vect2[0]*coef, pt[1] + vect2[1]*coef]
-                +++ TODO +++
-        else:
-        # display the saddle points orientations
-            for i, vects in enumerate(self.sadd[indice].orientations):
-                vect1 = vects[0]
-                vect2 = vects[1]
-                pt = self.sadd[indice].xy[i]
-                Dx = plt.xlim()[1] - plt.xlim()[0]
-                Dy = plt.ylim()[1] - plt.ylim()[0]
-                coef = np.min([Dx, Dy])/30.
-                line1_x = [pt[0] - vect1[0]*coef, pt[0] + vect1[0]*coef]
-                line1_y = [pt[1] - vect1[1]*coef, pt[1] + vect1[1]*coef]
-                line2_x = [pt[0] - vect2[0]*coef, pt[0] + vect2[0]*coef]
-                line2_y = [pt[1] - vect2[1]*coef, pt[1] + vect2[1]*coef]
-                plt.plot(line1_x, line1_y, color=colors[4])
-                plt.plot(line2_x, line2_y, color=colors[4], linestyle='--')
-
-
+        if field is not None and len(self.sadd[indice].xy) != 0:
+            streams = self.sadd[indice]\
+                .get_streamlines_from_orientations(field,
+                reverse_direction=[True, False])
+            for stream in streams:
+                stream.display(kind='plot', color=colors[4])
 
     def display_traj(self, kind='default', **kw):
         """
@@ -922,9 +917,8 @@ class CritPoints(object):
             Additional arguments for 'TF.display()'
         """
         def update_cp(ind):
-            self.display(indice=ind)
+            self.display(indice=ind, field=TF.fields[ind])
         return TF.display(suppl_display=update_cp, **kw)
-
 
 
 ### Vortex properties ###
@@ -1445,8 +1439,11 @@ def get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     # compute directions
     saddles_ori = []
     for sad in saddles.xy:
-        saddles_ori.append(np.array(_get_saddle_orientations(vectorfield, sad)))
-    saddles.orientations = np.array(saddles_ori)
+        saddles_ori.append(np.array(_get_saddle_orientations(vectorfield,
+                                                             sad)))
+    tmp_opts = OrientedPoints()
+    tmp_opts.import_from_Points(saddles, saddles_ori)
+    saddles = tmp_opts
 
     ### Computing focus positions (rotatives and contrarotatives) ###
     focus = Points()
@@ -1609,7 +1606,7 @@ def _get_saddle_orientations(vectorfield, pt):
     else:
         orient1 = eigvects[:, 1]
         orient2 = eigvects[:, 0]
-    return orient1, orient2
+    return np.real(orient1), np.real(orient2)
 
 
 ### Separation point ###
@@ -2211,8 +2208,11 @@ def get_iota(vectorfield, mask=None, raw=False):
                    theta[ind_x, ind_y + 1] - np.pi/2,
                    theta[ind_x + 1, ind_y + 1] - np.pi/4]]
         theta_m = np.mod(theta_m, np.pi*2)
-        grad_x = (theta_m[2, 1] - theta_m[0, 1])/dx
-        grad_y = (theta_m[1, 2] - theta_m[1, 0])/dy
+        ### TODO : Warning, ot really the formula from article !!!
+        sin_theta = np.sin(theta_m)
+        #cos_theta = np.cos(theta_m)
+        grad_x = -(sin_theta[2, 1] - sin_theta[0, 1])/dx
+        grad_y = -(sin_theta[1, 2] - sin_theta[1, 0])/dy
         # calcul de gradthetaM
         grad_theta_m[ind_x, ind_y] = (grad_x**2 + grad_y**2)**(1./2)
     # application du masque
@@ -2490,3 +2490,22 @@ def _get_angles(Vx, Vy, check=False):
     theta = np.arccos(Vx/norm)
     theta[Vy < 0] = 2*np.pi - theta[Vy < 0]
     return theta
+
+
+### Others ###
+def _unique(a):
+    ind_unique = _argunique(a)
+    return a[ind_unique]
+
+def _argunique(a):
+    a = np.array(a)
+    unique_ind = []
+    for i, val in enumerate(a):
+        uniq = True
+        for ind in unique_ind:
+            if np.all(val == a[ind]):
+                uniq = False
+                break
+        if uniq:
+            unique_ind.append(i)
+    return unique_ind

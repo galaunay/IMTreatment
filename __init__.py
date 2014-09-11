@@ -39,9 +39,10 @@ Particular warnings
 It is strongly recommended not to use "import *" on this package.
 """
 from .core import make_unit,\
-    Profile, Points,\
+    Profile, Points, OrientedPoints,\
     ScalarField, VectorField, Fields, TemporalFields,\
     TemporalScalarFields, TemporalVectorFields, SpatialVectorFields
 __all__ = ["ScalarField", "VectorField",
            "Fields", "TemporalFields", "TemporalScalarFields",
-           "TemporalVectorFields", "Points", "Profile", "make_unit"]
+           "TemporalVectorFields", "Points", "OrientedPoints", "Profile",
+           "make_unit"]
