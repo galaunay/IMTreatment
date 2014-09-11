@@ -53,6 +53,7 @@ def matlab_parser(obj, name):
     else:
         raise IOError("Can't parser that : \n {}".format(obj))
 
+
 ### IMT ###
 def import_from_file(filepath, **kw):
     """
@@ -89,6 +90,7 @@ def import_from_file(filepath, **kw):
         raise IOError("File is not readable "
                       "(unknown extension : {})".format(extension))
     return obj
+
 
 def export_to_file(obj, filepath, compressed=True, **kw):
     """
@@ -165,12 +167,15 @@ def export_to_vtk(obj, filepath, axis=None, **kw):
     else:
         raise TypeError("Cannot (yet) export this kind of object to vtk")
 
+
 def __export_pts_to_vtk(pts, filepath, axis=None, line=False):
     """
-    Export the scalar field to a .vtk file, for Mayavi use.
+    Export the Points object to a .vtk file, for Mayavi use.
 
     Parameters
     ----------
+    pts : Point object
+        .
     filepath : string
         Path where to write the vtk file.
     axis : tuple of strings, optional
@@ -197,15 +202,15 @@ def __export_pts_to_vtk(pts, filepath, axis=None, line=False):
         raise ValueError("'axis' strings must be different")
     if not isinstance(line, bool):
         raise TypeError("'line' must be a boolean")
-    v = self.v
-    x = self.xy[:, 0]
-    y = self.xy[:, 1]
+    v = pts.v
+    x = pts.xy[:, 0]
+    y = pts.xy[:, 1]
     if v is None:
-        v = np.zeros(self.xy.shape[0])
+        v = np.zeros(pts.xy.shape[0])
     point_data = pyvtk.PointData(pyvtk.Scalars(v, 'Points values'))
-    x_vtk = np.zeros(self.xy.shape[0])
-    y_vtk = np.zeros(self.xy.shape[0])
-    z_vtk = np.zeros(self.xy.shape[0])
+    x_vtk = np.zeros(pts.xy.shape[0])
+    y_vtk = np.zeros(pts.xy.shape[0])
+    z_vtk = np.zeros(pts.xy.shape[0])
     if axis[0] == 'x':
         x_vtk = x
     elif axis[0] == 'y':
@@ -226,6 +231,7 @@ def __export_pts_to_vtk(pts, filepath, axis=None, line=False):
         grid = pyvtk.UnstructuredGrid(pts, vertex=vertex)
     data = pyvtk.VtkData(grid, 'Scalar Field from python', point_data)
     data.tofile(filepath)
+
 
 def __export_sf_to_vtk(obj, filepath, axis=None):
     """
@@ -743,6 +749,7 @@ def import_pts_from_ascii(pts, filename, x_col=1, y_col=2, v_col=None,
         else:
             v = None
         pts.__init__(zip(x, y), v, unit_x, unit_y, unit_v)
+
 
 def import_sf_from_ascii(filename, x_col=1, y_col=2, vx_col=3,
                          unit_x=make_unit(""),

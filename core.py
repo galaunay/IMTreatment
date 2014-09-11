@@ -9,6 +9,7 @@ import scipy.interpolate as spinterp
 import scipy.ndimage.measurements as msr
 import scipy.io as spio
 import scipy.optimize as spopt
+import matplotlib as mpl
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import numpy as np
@@ -31,6 +32,9 @@ NUMBERTYPES = (int, long, float, complex)
 STRINGTYPES = (str, unicode)
 MYTYPES = ('Profile', 'ScalarField', 'VectorField', 'VelocityField',
            'VelocityFields', 'TemporalVelocityFields', 'patialVelocityFields')
+
+class ShapeError(StandardError):
+    pass
 
 
 class PTest(object):
@@ -86,8 +90,9 @@ class PTest(object):
                 if not isinstance(kwargs[key], kwtypes[key]):
                     actual_types = str(kwtypes[key]).replace('<type ', '')\
                                                     .replace('>', '')
-                    wanted_types = str(type(kwargs[key])).replace('<type ', '')\
-                                                         .replace('>', '')
+                    wanted_types = str(type(kwargs[key]))\
+                        .replace('<type ', '')\
+                        .replace('>', '')
                     raise TypeError("'{}' should be {}, not {}."
                                     .format(key, actual_types, wanted_types))
             return funct(*args, **kwargs)
@@ -256,9 +261,9 @@ class Points(object):
 
     Parameters
     ----------
-    xy : tuple of 2x1 arrays or tuple of 3x1 arrays.
-        Representing the coordinates of each point of the set.
-    v : array, optional
+    xy : nx2 array.
+        Representing the coordinates of each point of the set (n points).
+    v : n array, optional
         Representing values attached at each points.
     unit_x : Unit object, optional
         X unit_y.
@@ -285,7 +290,7 @@ class Points(object):
         self.name = name
 
     def __iter__(self):
-        if self.v is None:
+        if self.v is None or len(self.v) == 0:
             for i in np.arange(len(self.xy)):
                 yield self.xy[i]
         else:
@@ -475,7 +480,7 @@ class Points(object):
         except AttributeError:
             return self.__dict__['unit_v']
 
-    @unit_y.setter
+    @unit_v.setter
     def unit_v(self, unit):
         if isinstance(unit, unum.Unum):
             self.__unit_v = unit
@@ -756,9 +761,9 @@ class Points(object):
             x = ndimage.gaussian_filter(x, smooth)
             y = ndimage.gaussian_filter(y, smooth)
         # getting velocity between points
-        Vx = np.array([ (x[i + 1] - x[i])/dt[i]
+        Vx = np.array([(x[i + 1] - x[i])/dt[i]
                        for i in np.arange(len(x) - 1)])
-        Vy = np.array([ (y[i + 1] - y[i])/dt[i]
+        Vy = np.array([(y[i + 1] - y[i])/dt[i]
                        for i in np.arange(len(y) - 1)])
         # returning profiles
         unit_Vx = self.unit_x/self.unit_v
@@ -843,10 +848,10 @@ class Points(object):
             if not isinstance(v, NUMBERTYPES):
                 raise TypeError()
         self.xy = np.append(self.xy, [pt], axis=0)
-        if ((self.v is not None and v is not None)
+        if ((self.v.shape[0] != 0 and v is not None)
                 or (len(self.xy) == 1 and v is not None)):
             self.v = np.append(self.v, v)
-        elif self.v is None and v is None:
+        elif self.v.shape[0] == 0 and v is None:
             pass
         else:
             raise ValueError()
@@ -951,7 +956,7 @@ class Points(object):
         return a tuple of Points object, with only one point per object.
         """
         if len(self) == 1:
-            raise StandardError()
+            return [self]
         if len(self) != len(self.v):
             raise StandardError()
         pts_tupl = []
@@ -1003,6 +1008,321 @@ class Points(object):
         return plot
 
 
+class OrientedPoints(Points):
+    """
+    Class representing a set of points with associated orientations.
+    You can use 'make_unit' to provide unities.
+
+    Parameters
+    ----------
+    xy : nx2 arrays.
+        Representing the coordinates of each point of the set (n points).
+    orientations : nxdx2 array
+        Representing the orientations of each point in the set
+        (d orientations for each n points).
+    v : n array, optional
+        Representing values attached at each points.
+    unit_x : Unit object, optional
+        X unit_y.
+    unit_y : Unit object, optional
+        Y unit_y.
+    unit_v : Unit object, optional
+        values unit_y.
+    name : string, optional
+        Name of the points set
+    """
+
+    ### Operators ###
+    def __init__(self, xy=np.empty((0, 2), dtype=float), orientations=[], v=[],
+                 unit_x='', unit_y='', unit_v='', name=''):
+        # check parameters
+        if not isinstance(orientations, ARRAYTYPES):
+            raise TypeError()
+        orientations = np.array(orientations)
+        if len(xy) != 0 and not orientations.ndim == 3:
+            raise ShapeError("'orientations' must have 3 dimensions, not {}"
+                             .format(orientations.ndim))
+        if not orientations.shape[0:3:2] != [len(xy), 2]:
+            raise ShapeError()
+        Points.__init__(self, xy=xy, v=v, unit_x=unit_x, unit_y=unit_y,
+                        unit_v=unit_v, name=name)
+        self.orientations = orientations
+
+    def __iter__(self):
+        for i in np.arange(len(self.xy)):
+            yield Points.__iter__(self)[i], self.orientations[i]
+
+    def __add__(self, obj):
+        if isinstance(obj, Points):
+            tmp_pts = Points.__add__(self, obj)
+            tmp_ori = np.append(self.orientations, obj.orientations, axis=0)
+            tmp_opts = OrientedPoints()
+            tmp_opts.import_from_Points(tmp_pts, tmp_ori)
+            return tmp_opts
+
+    ### Attributes ###
+    @property
+    def orientations(self):
+        return self.__orientations
+
+    @orientations.setter
+    def orientations(self, new_ori):
+        if not isinstance(new_ori, ARRAYTYPES):
+            raise TypeError()
+        new_ori = np.array(new_ori)
+        if new_ori.dtype not in NUMBERTYPES:
+            raise TypeError()
+        if len(self.xy) != 0 and new_ori.shape[0:3:2] != (len(self.xy), 2):
+            raise ShapeError("'orientations' shape must be (n, d, 2)  (with n"
+                             " the number of points ({}) and d the number of "
+                             "directions), not {}"
+                             .format(len(self.xy), new_ori.shape))
+        self.__orientations = new_ori
+
+    ### Watchers ###
+    def get_streamlines(self, vf, delta=.25, interp='linear',
+                        reverse_direction=False):
+        """
+        Return the streamlines coming from the points, based on the given
+        field.
+
+        Parameters
+        ----------
+        vf : VectorField or velocityField object
+            Field on which compute the streamlines
+        delta : number, optional
+            Spatial discretization of the stream lines,
+            relative to a the spatial discretization of the field.
+        interp : string, optional
+            Used interpolation for streamline computation.
+            Can be 'linear'(default) or 'cubic'
+        reverse_direction : boolean, optional
+            If True, the streamline goes upstream.
+
+        Returns
+        -------
+        streams : tuple of Points objects
+            Each Points object represent a streamline
+        """
+        # check parameters
+        from .field_treatment import get_streamlines
+        if not isinstance(vf, VectorField):
+            raise TypeError()
+        # getting streamlines
+        streams = get_streamlines(vf, self.xy, delta=delta, interp=interp,
+                                  reverse_direction=reverse_direction)
+        return streams
+
+    def get_streamlines_from_orientations(self, vf, delta=.25, interp='linear',
+                                          reverse_direction=False):
+        """
+        Return the streamlines coming from the points orientations, based on
+        the given field.
+
+        Parameters
+        ----------
+        vf : VectorField or velocityField object
+            Field on which compute the streamlines
+        delta : number, optional
+            Spatial discretization of the stream lines,
+            relative to a the spatial discretization of the field.
+        interp : string, optional
+            Used interpolation for streamline computation.
+            Can be 'linear'(default) or 'cubic'
+        reverse_direction : boolean or tuple of boolean, optional
+            If 'False' (default), the streamline goes downstream.
+            If 'True', the streamline goes upstream.
+            a tuple of booleans can be specified to apply different behaviors
+            to the different orientations
+
+        Returns
+        -------
+        streams : tuple of Points objects
+            Each Points object represent a streamline
+        """
+        # check parameters
+        nmb_dir = self.orientations.shape[1]
+        from .field_treatment import get_streamlines
+        if not isinstance(vf, VectorField):
+            raise TypeError()
+        if isinstance(reverse_direction, bool):
+            reverse_direction = np.array([reverse_direction]*nmb_dir)
+        elif isinstance(reverse_direction, ARRAYTYPES):
+            reverse_direction = np.array(reverse_direction)
+        else:
+            raise TypeError()
+        if reverse_direction.shape != (nmb_dir,):
+            raise ShapeError()
+        # get coef
+        coef = np.max([vf.axe_x[1] - vf.axe_x[0],
+                       vf.axe_y[1] - vf.axe_y[0]])*2.
+        # get streamlines
+        streams = []
+        # for each points and each directions
+        for i, pt in enumerate(self.xy):
+            for n in np.arange(nmb_dir):
+                # get streamlines
+                pt1 = pt - self.orientations[i, n]*coef
+                pt2 = pt + self.orientations[i, n]*coef
+                reverse = reverse_direction[n]
+                tmp_stream = get_streamlines(vf, [pt1, pt2], delta=delta,
+                                             interp=interp,
+                                             reverse_direction=reverse)
+                # add the first point
+                for st in tmp_stream:
+                    st.xy = np.append([pt], st.xy, axis=0)
+                streams += tmp_stream
+        # returning
+        return streams
+
+    ### Modifiers ###
+    def import_from_Points(self, pts, orientations):
+        """
+        Import data from a Points object
+        """
+        self.xy = pts.xy
+        self.v = pts.v
+        self.unit_x = pts.unit_x
+        self.unit_y = pts.unit_y
+        self.unit_v = pts.unit_v
+        self.name = pts.name
+        self.orientations = orientations
+
+    def add(self, pt, orientations, v=None):
+        """
+        Add a new point.
+
+        Parameters
+        ----------
+        pt : 2x1 array of numbers
+            Point to add.
+        orientations : dx2 array
+            orientations associated to the points (d orientations)
+        v : number, optional
+            Value of the point (needed if other points have values).
+        """
+        Points.add(self, pt, v)
+        self.orientations = np.append(self.orientations, [orientations],
+                                      axis=0)
+
+    def remove(self, ind):
+        """
+        Remove the point number 'ind' of the points cloud.
+        In place.
+
+        Parameters
+        ----------
+        ind : integer or array of integer
+        """
+        Points.remove(self, ind)
+        self.orientations = np.delete(self.orientations, ind, axis=0)
+
+    def trim(self, interv_x=None, interv_y=None):
+        """
+        Return a trimmed point cloud.
+
+        Parameters
+        ----------
+        interv_x : 2x1 tuple
+            Interval on x axis
+        interv_y : 2x1 tuple
+            Interval on y axis
+
+        Returns
+        -------
+        tmp_pts : OrientedPoints object
+            Trimmed version of the point cloud.
+        """
+        Points.trim(self, interv_x, interv_y)
+        mask = np.zeros(len(self.xy))
+        if interv_x is not None:
+            out_zone = np.logical_or(self.xy[:, 0] < interv_x[0],
+                                     self.xy[:, 0] > interv_x[1])
+            mask = np.logical_or(mask, out_zone)
+        if interv_y is not None:
+            out_zone = np.logical_or(self.xy[:, 1] < interv_y[0],
+                                     self.xy[:, 1] > interv_y[1])
+            mask = np.logical_or(mask, out_zone)
+        self.orientations = self.orientations[~mask]
+
+    def cut(self, interv_x=None, interv_y=None):
+        """
+        Return a point cloud where the given area has been removed.
+
+        Parameters
+        ----------
+        interv_x : 2x1 tuple
+            Interval on x axis
+        interv_y : 2x1 tuple
+            Interval on y axis
+
+        Returns
+        -------
+        tmp_pts : OrientedPoints object
+            Cutted version of the point cloud.
+        """
+        Points.cut(self, interv_x, interv_y)
+        mask = np.ones(len(self.xy))
+        if interv_x is not None:
+            out_zone = np.logical_and(self.xy[:, 0] > interv_x[0],
+                                      self.xy[:, 0] < interv_x[1])
+            mask = np.logical_and(mask, out_zone)
+        if interv_y is not None:
+            out_zone = np.logical_and(self.xy[:, 1] > interv_y[0],
+                                      self.xy[:, 1] < interv_y[1])
+            mask = np.logical_and(mask, out_zone)
+        self.orientations = self.orientations[~mask]
+
+    def decompose(self):
+        """
+        Return a tuple of OrientedPoints object, with only one point per
+        object.
+        """
+        if len(self) == 1:
+            return [self]
+        if len(self) != len(self.v):
+            raise StandardError()
+        pts_tupl = []
+        for i in np.arange(len(self)):
+            pts_tupl.append(OrientedPoints([self.xy[i]],
+                                           [self.orientations[i]],
+                                           [self.v[i]], self.unit_x,
+                                           self.unit_y, self.unit_v,
+                                           self.name))
+        return pts_tupl
+
+    ### Displayers ###
+    def _display(self, kind=None, **plotargs):
+        # display like a Points object
+        plot = Points._display(self, kind=kind, **plotargs)
+        if kind is None:
+            if self.v is None:
+                kind = 'plot'
+            else:
+                kind = 'scatter'
+        # setting color
+        if 'color' in plotargs.keys():
+            colors = [plotargs.pop('color')]
+        else:
+            colors = mpl.rcParams['axes.color_cycle']
+        # displaying orientation lines
+        x_range = plt.xlim()
+        Dx = x_range[1] - x_range[0]
+        y_range = plt.ylim()
+        Dy = y_range[1] - y_range[0]
+        coef = np.min([Dx, Dy])/20.
+        for i in np.arange(len(self.xy)):
+            loc_oris = self.orientations[i]
+            color = colors[i % len(colors)]
+            pt = self.xy[i]
+            for ori in loc_oris:
+                line_x = [pt[0] - ori[0]*coef, pt[0] + ori[0]*coef]
+                line_y = [pt[1] - ori[1]*coef, pt[1] + ori[1]*coef]
+                plt.plot(line_x, line_y, color=color)
+
+        return plot
+
+
 class Profile(object):
     """
     Class representing a profile.
@@ -1019,8 +1339,8 @@ class Profile(object):
     """
 
     ### Operators ###
-    def __init__(self, x=[], y=[], mask=False, unit_x=make_unit(""),
-                 unit_y=make_unit(""), name=""):
+    def __init__(self, x=[], y=[], mask=False, unit_x="",
+                 unit_y="", name=""):
         """
         Profile builder.
         """
@@ -1031,7 +1351,7 @@ class Profile(object):
         if not isinstance(y, ARRAYTYPES):
             raise TypeError("'y' must be an array")
         if not isinstance(y, (np.ndarray, np.ma.MaskedArray)):
-            y = np.array(y, dtype=float)
+            y = np.array(y)
         if isinstance(mask, bool):
             mask = np.empty(x.shape, dtype=bool)
             mask.fill(False)
@@ -1041,8 +1361,12 @@ class Profile(object):
             mask = np.array(mask, dtype=bool)
         if not isinstance(name, STRINGTYPES):
             raise TypeError("'name' must be a string")
+        if isinstance(unit_x, STRINGTYPES):
+            unit_x = make_unit(unit_x)
         if not isinstance(unit_x, unum.Unum):
             raise TypeError("'unit_x' must be a 'Unit' object")
+        if isinstance(unit_y, STRINGTYPES):
+            unit_y = make_unit(unit_y)
         if not isinstance(unit_y, unum.Unum):
             raise TypeError("'unit_y' must be a 'Unit' object")
         if not len(x) == len(y):
@@ -1170,46 +1494,6 @@ class Profile(object):
     def __len__(self):
         return len(self.x)
 
-#    def export_to_file(self, filepath, compressed=True, **kw):
-#        """
-#        Write the Profile object in the specified file usint the JSON format.
-#        Additionnals arguments for the JSON encoder may be set with the **kw
-#        argument. Such arguments may be 'indent' (for visual indentation in
-#        file, default=0) or 'encoding' (to change the file encoding,
-#        default='utf-8').
-#        If existing, specified file will be truncated. If not, it will
-#        be created.
-#
-#        Parameters
-#        ----------
-#        filepath : string
-#            Path specifiing where to save the ScalarField.
-#        compressed : boolean, optional
-#            If 'True' (default), the json file is compressed using gzip.
-#        """
-#        import IMTreatment.io.io as imtio
-#        imtio.export_to_file(self, filepath, compressed, **kw)
-
-#    def import_from_file(self, filepath, **kw):
-#        """
-#        Load a Profile object from the specified file using the JSON
-#        format.
-#        Additionnals arguments for the JSON decoder may be set with the **kw
-#        argument. Such as'encoding' (to change the file
-#        encoding, default='utf-8').
-#
-#        Parameters
-#        ----------
-#        filepath : string
-#            Path specifiing the Profile to load.
-#        """
-#        import IMTreatment.io.io as imtio
-#        tmp_p = imtio.import_from_file(filepath, **kw)
-#        if tmp_p.__classname__ != self.__classname__:
-#            raise IOError("This file do not contain a Profile, cabron")
-#        self.__init__(tmp_p.x, tmp_p.y, tmp_p.unit_x, tmp_p.unit_y, tmp_p.name)
-
-
     ### Attributes ###
     @property
     def x(self):
@@ -1238,7 +1522,7 @@ class Profile(object):
             self.__y = values.data
             self.__mask = values.mask
         elif isinstance(values, ARRAYTYPES):
-            self.__y =  np.array(values)
+            self.__y = np.array(values)
             self.__mask = np.isnan(values)
         else:
             raise Exception()
@@ -1402,6 +1686,7 @@ class Profile(object):
         if y is not None and x is not None:
             raise ValueError("Maybe you would like to look at the help "
                              "one more time...")
+        # getting data
         if x is not None:
             value = x
             values = np.array(self.x)
@@ -1410,18 +1695,24 @@ class Profile(object):
             value = y
             values = np.ma.masked_array(self.y, self.mask)
             values2 = np.array(self.x)
-        i_values = []
-        for ind in np.arange(0, len(values) - 1):
-            val_i = values[ind]
-            val_ipp = values[ind + 1]
-            val2_i = values2[ind]
-            val2_ipp = values2[ind + 1]
-            if (val_i >= value and val_ipp < value) \
-                    or (val_i <= value and val_ipp > value):
-                i_value = ((val2_i*np.abs(val_ipp - value)
-                           + val2_ipp*np.abs(values[ind] - value))
-                           / np.abs(values[ind] - val_ipp))
-                i_values.append(i_value)
+        # if the wanted value is already present
+        if np.any(value == values):
+            i_values = values2[np.where(value == values)[0]]
+        # if we have to do an interpolation
+        else:
+            i_values = []
+            for ind in np.arange(0, len(values) - 1):
+                val_i = values[ind]
+                val_ipp = values[ind + 1]
+                val2_i = values2[ind]
+                val2_ipp = values2[ind + 1]
+                if (val_i >= value and val_ipp < value) \
+                        or (val_i <= value and val_ipp > value):
+                    i_value = ((val2_i*np.abs(val_ipp - value)
+                               + val2_ipp*np.abs(values[ind] - value))
+                               / np.abs(values[ind] - val_ipp))
+                    i_values.append(i_value)
+        # returning
         return i_values
 
     def get_integral(self):
@@ -1503,7 +1794,8 @@ class Profile(object):
         scaling : string, optional
             If 'base' (default), result are in component unit.
             If 'spectrum', the power spectrum is returned (in unit^2).
-            If 'density', the power spectral density is returned (in unit^2/Hz)
+            If 'density', the power spectral density is returned
+            (in unit^2/(1/unit_x))
         fill : string or float
             Specifies the way to treat missing values.
             A value for value filling.
@@ -1552,40 +1844,55 @@ class Profile(object):
         elif scaling == 'spectrum':
             unit_y = self.unit_y**2
         elif scaling == 'density':
-            unit_y = self.unit_y**2/make_unit('Hz')
+            unit_y = self.unit_y**2*self.unit_x
         else:
             raise Exception()
-        magn_prof = Profile(frq, magn, unit_x=make_unit('Hz'),
+        magn_prof = Profile(frq, magn, unit_x=1./self.unit_x,
                             unit_y=unit_y)
         return magn_prof
 
-    def get_auto_correlation(self, window_len=None):
+    def get_auto_correlation(self, window_len, raw=False):
         """
-        Return the associated correlation profile.
+        Return the auto-correlation profile.
+
+        This algorithm make auto-correlation for all the possible values,
+        and an average of the resulting profile.
+        Profile are normalized, so the central value of the returned profile
+        should be 1.
 
         Parameters
         ----------
-        window_len : integer, optional
-            Window length for sweep correlation. if 'None' (default), all the
-            signal is used, and boundary effect can be seen.
+        window_len : integer
+            Window length for sweep correlation.
+        raw : bool, optional
+            If 'True', return an array
+            If 'False' (default), return a profile
         """
-        if window_len is None:
-            x = self.x
-            corr = np.correlate(self.y, self.y, "same")
+        # checking parameters
+        if not isinstance(window_len, int):
+            raise TypeError()
+        if window_len >= len(self.y) - 1:
+            raise ValueError()
+        window_len = np.floor(window_len/2.)
+        # loop on possible central values
+        corr = np.zeros(2*window_len + 1)
+        corr_ad = 0
+        nmb = 0
+        for i in np.arange(window_len, len(self.y) - window_len - 1):
+            central_val = self.y[i]
+            surr_vals = self.y[i - window_len:i + window_len + 1]
+            tmp_corr = surr_vals*central_val
+            corr_ad += central_val**2
+            corr += tmp_corr
+            nmb += 1
+        corr /= corr_ad
+        # returning
+        if raw:
+            return corr
         else:
-            if not isinstance(window_len, int):
-                raise TypeError()
-            if window_len > len(self.y):
-                raise ValueError()
-#            s = 0
-#            corr = np.zeros((len(self.y) - window_len + 1))
-#            for i in np.arange(0, len(self.y), window_len):
-#                corr += np.correlate(self.y, self.y[i:i + window_len])
-#                s += 1
-#            corr /= s
-            corr = np.correlate(self.y, self.y[0:window_len])
-            x = self.x[0:len(corr)]
-        return Profile(x, corr, unit_x=self.unit_x, unit_y=make_unit(''))
+            dx = self.x[1] - self.x[0]
+            x = np.arange(0, dx*len(corr), dx)
+            return Profile(x, corr, unit_x=self.unit_x, unit_y=make_unit(''))
 
     def get_fitting(self, func, p0=None, output_param=False):
         """
@@ -1722,8 +2029,8 @@ class Profile(object):
             x = self.x[filt]
             y = self.y[filt]
             interp = spinterp.interp1d(x, y, kind=kind,
-                                      bounds_error=False,
-                                      fill_value=fill_value)
+                                       bounds_error=False,
+                                       fill_value=fill_value)
             # replacing missing values
             new_y = copy.copy(self.y)
             missing_x = self.x[mask]
@@ -1918,7 +2225,7 @@ class Profile(object):
             If 'False', x is put in the abscissa and y in the ordinate. If
             'True', the inverse.
         kind : string
-            Kind of display to plot ('plot', 'semilogx', 'semilogy')
+            Kind of display to plot ('plot', 'semilogx', 'semilogy', 'loglog')
         **plotargs : dict, optionnale
             Additional argument for the 'plot' command.
 
@@ -2041,7 +2348,7 @@ class Field(object):
         """
         return copy.deepcopy(self)
 
-    def get_indice_on_axe(self, direction, value, nearest=False):
+    def get_indice_on_axe(self, direction, value, kind='bounds'):
         """
         Return, on the given axe, the indices representing the positions
         surrounding 'value'.
@@ -2052,8 +2359,10 @@ class Field(object):
         direction : int
             1 or 2, for axes choice.
         value : number
-        nearest : boolean
-            If 'True', only the nearest indice is returned.
+        kind : string
+            If 'bounds' (default), return the bounding indices.
+            if 'nearest', return the nearest indice
+            if 'decimal', return a decimal indice (interpolated)
 
         Returns
         -------
@@ -2073,24 +2382,37 @@ class Field(object):
             axe = self.axe_y
             if value < axe[0] or value > axe[-1]:
                 raise ValueError("'value' is out of bound.")
+        if not isinstance(kind, STRINGTYPES):
+            raise TypeError()
+        if not kind in ['bounds', 'nearest', 'decimal']:
+            raise ValueError()
         # getting the borning indices
         ind = np.searchsorted(axe, value)
         if axe[ind] == value:
-            inds = [ind]
+            inds = [ind, ind]
         else:
             inds = [int(ind - 1), int(ind)]
-        if not nearest:
+        # returning bounds
+        if kind == 'bounds':
             return inds
-        # getting the nearest indice
-        else:
-            if len(inds) != 1:
-                if np.abs(axe[inds[0]] - value) < np.abs(axe[inds[1]] - value):
-                    ind = inds[0]
-                else:
-                    ind = inds[1]
-            else:
+        # returning nearest
+        elif kind == 'nearest':
+            if inds[0] == inds[1]:
+                return inds[0]
+            if np.abs(axe[inds[0]] - value) < np.abs(axe[inds[1]] - value):
                 ind = inds[0]
+            else:
+                ind = inds[1]
             return int(ind)
+        # returning decimal
+        elif kind == 'decimal':
+            if inds[0] == inds[1]:
+                return inds[0]
+            value_1 = axe[inds[0]]
+            value_2 = axe[inds[1]]
+            delta = np.abs(value_2 - value_1)
+            return (inds[0]*np.abs(value - value_2)/delta
+                    + inds[1]*np.abs(value - value_1)/delta)
 
     def get_points_around(self, center, radius, ind=False):
         """
@@ -2114,7 +2436,7 @@ class Field(object):
             [(ind1x, ind1y), (ind2x, ind2y), ...].
             You can easily put them in the axes to obtain points coordinates
         """
-        #checkin parameters coherence
+        #checking parameters
         if not isinstance(center, ARRAYTYPES):
             raise TypeError("'center' must be an array")
         center = np.array(center, dtype=float)
@@ -2124,35 +2446,43 @@ class Field(object):
             raise TypeError("'radius' must be a number")
         if not radius > 0:
             raise ValueError("'radius' must be positive")
-        # getting somme properties
+        # getting indice data when 'ind=False'
+        if not ind:
+            dx = self.axe_x[1] - self.axe_x[0]
+            dy = self.axe_y[1] - self.axe_y[0]
+            delta = (dx + dy)/2.
+            radius = radius/delta
+            center_x = self.get_indice_on_axe(1, center[0], kind='decimal')
+            center_y = self.get_indice_on_axe(2, center[1], kind='decimal')
+            center = [center_x, center_y]
+        # pre-computing somme properties
         radius2 = radius**2
         radius_int = radius/np.sqrt(2)
+        # isolating possibles indices
+        inds_x = np.arange(np.int(np.ceil(center[0] - radius)),
+                           np.int(np.floor(center[0] + radius)) + 1)
+        inds_y = np.arange(np.int(np.ceil(center[1] - radius)),
+                           np.int(np.floor(center[1] + radius)) + 1)
+        inds_x, inds_y = np.meshgrid(inds_x, inds_y)
+        inds_x = inds_x.flatten()
+        inds_y = inds_y.flatten()
+        # loop on possibles points
         inds = []
-        for indices, coord, _ in self:
-            if ind:
-                x = indices[0]
-                y = indices[1]
-            else:
-                x = coord[0]
-                y = coord[1]
-            # test if the point is not in the square surrounding the cercle
-            if x >= center[0] + radius \
-                    and x <= center[0] - radius \
-                    and y >= center[1] + radius \
-                    and y <= center[1] - radius:
-                pass
+        for i in np.arange(len(inds_x)):
+            x = inds_x[i]
+            y = inds_y[i]
             # test if the point is in the square 'compris' in the cercle
-            elif x <= center[0] + radius_int \
+            if x <= center[0] + radius_int \
                     and x >= center[0] - radius_int \
                     and y <= center[1] + radius_int \
                     and y >= center[1] - radius_int:
-                inds.append(indices)
+                inds.append([x, y])
             # test if the point is the center
             elif all([x, y] == center):
                 pass
             # test if the point is in the circle
             elif ((x - center[0])**2 + (y - center[1])**2 <= radius2):
-                inds.append(indices)
+                inds.append([x, y])
         return np.array(inds, subok=True)
 
     ### Modifiers ###
@@ -2572,7 +2902,7 @@ class ScalarField(Field):
     def values(self, new_values):
         if not isinstance(new_values, ARRAYTYPES):
             raise TypeError()
-        new_values = np.array(new_values, dtype=float)
+        new_values = np.array(new_values)
         if self.shape == new_values.shape:
             # adapting mask to 'nan' values
             self.__mask = np.isnan(new_values)
@@ -2659,7 +2989,7 @@ class ScalarField(Field):
         return np.mean(self.values[np.logical_not(self.mask)])
 
     ### Field maker ###
-    def import_from_arrays(self, axe_x, axe_y, values, mask=False,
+    def import_from_arrays(self, axe_x, axe_y, values, mask=None,
                            unit_x="", unit_y="", unit_values=""):
         """
         Set the field from a set of arrays.
@@ -2688,7 +3018,8 @@ class ScalarField(Field):
         self.axe_x = axe_x
         self.axe_y = axe_y
         self.values = values
-        self.mask = mask
+        if mask is not None:
+            self.mask = mask
         self.unit_x = unit_x
         self.unit_y = unit_y
         self.unit_values = unit_values
@@ -2886,7 +3217,7 @@ class ScalarField(Field):
             return None
         return Points(coords, unit_x=self.unit_x, unit_y=self.unit_y)
 
-    def get_profile(self, direction, position):
+    def get_profile(self, direction, position, ind=False):
         """
         Return a profile of the scalar field, at the given position (or at
         least at the nearest possible position).
@@ -2903,6 +3234,9 @@ class ScalarField(Field):
             Direction along which we choose a position (1 for x and 2 for y)
         position : float, interval of float or string
             Position, interval in which we want a profile or 'all'
+        ind : boolean
+            If 'True', position has to be given in indices
+            If 'False' (default), position has to be given in axis unit.
 
         Returns
         -------
@@ -2925,6 +3259,8 @@ class ScalarField(Field):
         elif isinstance(position, STRINGTYPES):
             if position != 'all':
                 raise ValueError()
+        if not isinstance(ind, bool):
+            raise TypeError()
         # geting data
         if direction == 1:
             axe = self.axe_x
@@ -2935,22 +3271,31 @@ class ScalarField(Field):
             unit_x = self.unit_x
             unit_y = self.unit_values
         # applying interval type
-        if isinstance(position, ARRAYTYPES):
+        if isinstance(position, ARRAYTYPES) and not ind:
             for pos in position:
                 if pos > axe.max() or pos < axe.min():
                     raise ValueError("'position' must be included in"
                                      " the choosen axis values")
-        elif isinstance(position, NUMBERTYPES):
+        elif isinstance(position, ARRAYTYPES) and ind:
+            if np.min(position) < 0 or np.max(position) > len(axe) - 1:
+                raise ValueError("'position' must be included in"
+                                 " the choosen axis values")
+        elif isinstance(position, NUMBERTYPES) and not ind:
             if position > axe.max() or position < axe.min():
                 raise ValueError("'position' must be included in the choosen"
                                  " axis values (here [{0},{1}])"
                                  .format(axe.min(), axe.max()))
+        elif isinstance(position, NUMBERTYPES) and ind:
+            if np.min(position) < 0 or np.max(position) > len(axe) - 1:
+                raise ValueError("'position' must be included in the choosen"
+                                 " axis values (here [{0},{1}])"
+                                 .format(0, len(axe) - 1))
         elif position == 'all':
             position = np.array([axe[0], axe[-1]])
         else:
             raise ValueError()
-        # computation of the profile for a single position
-        if isinstance(position, NUMBERTYPES):
+        # passage from values to indices
+        if isinstance(position, NUMBERTYPES) and not ind:
             for i in np.arange(1, len(axe)):
                 if (axe[i] >= position and axe[i-1] <= position) \
                         or (axe[i] <= position and axe[i-1] >= position):
@@ -2969,8 +3314,19 @@ class ScalarField(Field):
                 profile = self.values[:, finalindice]
                 axe = self.axe_x
                 cutposition = self.axe_y[finalindice]
+        elif isinstance(position, NUMBERTYPES) and ind:
+            if direction == 1:
+                prof_mask = self.mask[position, :]
+                profile = self.values[position, :]
+                axe = self.axe_y
+                cutposition = self.axe_x[position]
+            else:
+                prof_mask = self.mask[:, position]
+                profile = self.values[:, position]
+                axe = self.axe_x
+                cutposition = self.axe_y[position]
         # Calculation of the profile for an interval of position
-        else:
+        elif isinstance(position, ARRAYTYPES) and not ind:
             axe_mask = np.logical_and(axe >= position[0], axe <= position[1])
             if direction == 1:
                 prof_mask = self.mask[axe_mask, :].mean(0)
@@ -2982,7 +3338,156 @@ class ScalarField(Field):
                 profile = self.values[:, axe_mask].mean(1)
                 axe = self.axe_x
                 cutposition = self.axe_y[axe_mask]
-        return Profile(axe, profile, prof_mask, unit_x, unit_y, "Profile"), cutposition
+        elif isinstance(position, ARRAYTYPES) and ind:
+            if direction == 1:
+                prof_mask = self.mask[position[0]:position[1] + 1, :].mean(0)
+                profile = self.values[position[0]:position[1] + 1, :].mean(0)
+                axe = self.axe_y
+                cutposition = self.axe_x[position[0]:position[1] + 1].mean()
+            else:
+                prof_mask = self.mask[:, position[0]:position[1] + 1].mean(1)
+                profile = self.values[:, position[0]:position[1] + 1].mean(1)
+                axe = self.axe_x
+                cutposition = self.axe_y[position[0]:position[1] + 1].mean()
+        return (Profile(axe, profile, prof_mask, unit_x, unit_y, "Profile"),
+                cutposition)
+
+    def get_spatial_autocorrelation(self, direction, window_len=None):
+        """
+        Return the spatial auto-correlation along the wanted direction.
+
+        Take the middle point for reference for correlation computation.
+
+        Parameters
+        ----------
+        direction : string
+            'x' or 'y'
+        window_len : integer, optional
+            Window length for sweep correlation. if 'None' (default), all the
+            signal is used, and boundary effect can be seen.
+
+        Returns
+        -------
+        profile : Profile object
+            Spatial correlation
+        """
+        # Direction X
+        if direction == 'x':
+            # loop on profiles
+            cor = np.zeros(np.floor(window_len/2.)*2 + 1)
+            nmb = 0
+            for i, y in enumerate(self.axe_y):
+                tmp_prof, _ = self.get_profile(2, i, ind=True)
+                cor += tmp_prof.get_auto_correlation(window_len, raw=True)
+                nmb += 1
+            cor /= nmb
+            # returning
+            dx = self.axe_x[1] - self.axe_x[0]
+            x = np.arange(0, len(cor)*dx, dx)
+            return Profile(x=x, y=cor, unit_x=self.unit_x,
+                           unit_y=make_unit(''))
+        elif direction == 'y':
+            # loop on profiles
+            cor = np.zeros(np.floor(window_len/2.)*2 + 1)
+            nmb = 0
+            for i, x in enumerate(self.axe_x):
+                tmp_prof, _ = self.get_profile(1, i, ind=True)
+                cor += tmp_prof.get_auto_correlation(window_len, raw=True)
+                nmb += 1
+            cor /= nmb
+            # returning
+            dy = self.axe_y[1] - self.axe_y[0]
+            y = np.arange(0, len(cor)*dy, dy)
+            return Profile(x=y, y=cor, unit_x=self.unit_y,
+                           unit_y=make_unit(''))
+        else:
+            raise ValueError()
+
+    def get_spatial_spectrum(self, direction, intervx=None, intervy=None,
+                             welch_seglen=None, scaling='base', fill='linear'):
+        """
+        Return a spatial spectrum.
+
+        Parameters
+        ----------
+        direction : string
+            'x' or 'y'.
+        intervx and intervy : 2x1 arrays of number, optional
+            To chose the zone where to calculate the spectrum.
+            If not specified, the biggest possible interval is choosen.
+        welch_seglen : integer, optional
+            If specified, welch's method is used (dividing signal into
+            overlapping segments, and averaging periodogram) with the given
+            segments length (in number of points).
+        scaling : string, optional
+            If 'base' (default), result are in component unit.
+            If 'spectrum', the power spectrum is returned (in unit^2).
+            If 'density', the power spectral density is returned (in unit^2/Hz)
+        fill : string or float
+            Specifies the way to treat missing values.
+            A value for value filling.
+            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
+            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
+            interpolation of first, second or third order) for interpolation.
+
+        Returns
+        -------
+        spec : Profile object
+            Magnitude spectrum.
+        """
+         # check parameters
+        if not isinstance(direction, STRINGTYPES):
+            raise TypeError()
+        if not direction in ['x', 'y']:
+            raise ValueError()
+        if intervx is None:
+            intervx = [self.axe_x[0], self.axe_x[-1]]
+        if not isinstance(intervx, ARRAYTYPES):
+            raise TypeError()
+        intervx = np.array(intervx)
+        if intervx[0] < self.axe_x[0]:
+            intervx[0] = self.axe_x[0]
+        if intervx[1] > self.axe_x[-1]:
+            intervx[1] = self.axe_x[-1]
+        if intervx[1] <= intervx[0]:
+            raise ValueError()
+        if intervy is None:
+            intervy = [self.axe_y[0], self.axe_y[-1]]
+        if not isinstance(intervy, ARRAYTYPES):
+            raise TypeError()
+        intervy = np.array(intervy)
+        if intervy[0] < self.axe_y[0]:
+            intervy[0] = self.axe_y[0]
+        if intervy[1] > self.axe_y[-1]:
+            intervy[1] = self.axe_y[-1]
+        if intervy[1] <= intervy[0]:
+            raise ValueError()
+        # getting data
+        tmp_SF = self.trim_area(intervx, intervy)
+        # getting spectrum
+        if direction == 'x':
+            # first spectrum
+            prof, _ = tmp_SF.get_profile(2, tmp_SF.axe_y[0])
+            spec = prof.get_spectrum(welch_seglen=welch_seglen,
+                                     scaling=scaling, fill=fill)
+            # otherones
+            for y in tmp_SF.axe_y[1::]:
+                prof, _ = tmp_SF.get_profile(2, y)
+                spec += prof.get_spectrum(welch_seglen=welch_seglen,
+                                          scaling=scaling, fill=fill)
+            spec /= len(tmp_SF.axe_y)
+        else:
+            # first spectrum
+            prof, _ = tmp_SF.get_profile(1, tmp_SF.axe_x[0])
+            spec = prof.get_spectrum(welch_seglen=welch_seglen,
+                                     scaling=scaling, fill=fill)
+            # otherones
+            for x in tmp_SF.axe_x[1::]:
+                prof, _ = tmp_SF.get_profile(1, x)
+                spec += prof.get_spectrum(welch_seglen=welch_seglen,
+                                          scaling=scaling, fill=fill)
+            spec /= len(tmp_SF.axe_x)
+        return spec
 
     def integrate_over_line(self, direction, interval):
         """
@@ -3059,71 +3564,6 @@ class ScalarField(Field):
                     / len(axe2_y))
         unit = trimfield.unit_values*unit_x*unit_y
         return integral*unit
-
-#    def get_curve(self, bornes=[.75, 1], rel=True, order=5):
-#        """
-#        Return a Points object, representing the choosen zone, and polynomial
-#        interpolation coefficient of these points.
-#
-#        Parameters
-#        ----------
-#        bornes : 2x1 array, optionnal
-#            Trigger values determining the zones.
-#            '[inferior borne, superior borne]'
-#        rel : Boolean
-#            If 'rel' is 'True' (default), values of 'bornes' are relative to
-#            the extremum values of the field.
-#            If 'rel' is 'False', values of bornes are treated like absolute
-#            values.
-#        order : number
-#            Order of the polynomial interpolation (default=5).
-#
-#        Returns
-#        -------
-#        pts : Points object
-#        coefp : array of number
-#            interpolation coefficients (higher order first).
-#        """
-#        if not isinstance(bornes, ARRAYTYPES):
-#            raise TypeError("'bornes' must be an array")
-#        if not isinstance(bornes, np.ndarray):
-#            bornes = np.array(bornes)
-#        if not bornes.shape == (2,):
-#            raise ValueError("'bornes' must be a 2x1 array")
-#        if not bornes[0] < bornes[1]:
-#            raise ValueError("'bornes' must be crescent")
-#        if not isinstance(rel, bool):
-#            raise TypeError("'rel' must be a boolean")
-#        if rel:
-#            if np.abs(bornes[0]) > np.abs(bornes[1]):
-#                bornes *= np.abs(self.get_min())
-#                coef = -1
-#            else:
-#                bornes *= np.abs(self.get_max())
-#                coef = 1
-#        # récupération des zones
-#        zone = np.logical_and(self.values > bornes[0], self.values < bornes[1])
-#        labeledzones, nmbzones = msr.label(zone)
-#        # vérification du nombre de zones et récupération de la plus grande
-#        areas = []
-#        if nmbzones > 1:
-#            zones = msr.find_objects(labeledzones, nmbzones)
-#            area = []
-#            for i in np.arange(nmbzones):
-#                slices = zones[i]
-#                area = (slices[0].stop - slices[0].start) *  \
-#                       (slices[1].stop - slices[1].start)
-#                areas.append(area)
-#            areas = np.array(areas)
-#            ind = areas.argmax()
-#            labeledzones = labeledzones == ind + 1
-#        # Récupération des points
-#        mask = labeledzones == 0
-#        pts = self.export_to_scatter(mask=mask)
-#        pts.v = pts.v*coef
-#        # interpolation
-#        coefp = pts.fit(order=order)
-#        return pts, coefp
 
     def copy(self):
         """
@@ -3306,7 +3746,7 @@ class ScalarField(Field):
             y = not_masked[:, 1]
             v = values[not_mask]
             interp = spinterp.SmoothBivariateSpline(x, y, v, kx=order,
-                                                        ky=order, s=2)
+                                                    ky=order, s=2)
             mask_val = [interp(masked[i, 0], masked[i, 1])[0][0]
                         for i in np.arange(len(masked[:, 0]))]
             values[mask] = mask_val
@@ -3664,6 +4104,12 @@ class VectorField(Field):
         tmpvf.comp_y = np.power(tmpvf.comp_y, number)
         return tmpvf
 
+    def __abs__(self):
+        tmpvf = self.copy()
+        tmpvf.comp_x = np.abs(tmpvf.comp_x)
+        tmpvf.comp_y = np.abs(tmpvf.comp_y)
+        return tmpvf
+
     def __iter__(self):
         mask = self.mask
         datax = self.comp_x
@@ -3683,7 +4129,7 @@ class VectorField(Field):
     def comp_x(self, new_comp_x):
         if not isinstance(new_comp_x, ARRAYTYPES):
             raise TypeError()
-        new_comp_x = np.array(new_comp_x, dtype=float)
+        new_comp_x = np.array(new_comp_x)
         if not new_comp_x.shape == self.shape:
             raise ValueError("'comp_x' must be coherent with axis system")
         # storing dat
@@ -3710,7 +4156,7 @@ class VectorField(Field):
     def comp_y(self, new_comp_y):
         if not isinstance(new_comp_y, ARRAYTYPES):
             raise TypeError()
-        new_comp_y = np.array(new_comp_y, dtype=float)
+        new_comp_y = np.array(new_comp_y)
         if not new_comp_y.shape == self.shape:
             raise ValueError()
         # storing data
@@ -3851,7 +4297,6 @@ class VectorField(Field):
                                   unit_y=self.unit_y,
                                   unit_values=self.unit_values)
         return tmp_sf
-
 
     ### Field Maker ###
     def import_from_arrays(self, axe_x, axe_y, comp_x, comp_y, mask=False,
@@ -4252,6 +4697,10 @@ class VectorField(Field):
                               "$" + str(legendarrow)
                               + unit_values.strUnit() + "$",
                               labelpos='W', fontproperties={'weight': 'bold'})
+            elif kind == 'stream':
+                if not 'color' in plotargs.keys():
+                    cb = plt.colorbar()
+                    cb.set_label("Magnitude " + unit_values.strUnit())
             plt.title("Values " + unit_values.strUnit())
         elif component == 'x':
             cb = plt.colorbar()
@@ -4363,24 +4812,33 @@ class TemporalFields(Fields, Field):
         self.field_type = None
 
     def __add__(self, other):
-        if isinstance(other, self.__class__):
-            if not len(self) == len(other):
-                raise Exception()
-            if not np.all(self.axe_x == other.axe_x) \
-                    and np.all(self.axe_y == other.axe_y):
-                raise Exception()
-            if not np.all(self.times == other.times):
-                raise Exception()
-            tfs = self.__class__()
-            for i in np.arange(len(self)):
-                tfs.add_field(self.fields[i] + other.fields[i])
-            return tfs
+        if isinstance(other, self.fields[0].__class__):
+            tmp_TF = self.copy()
+            for i in np.arange(len(tmp_TF.fields)):
+                tmp_TF.fields[i] += other
+            return tmp_TF
+        elif isinstance(other, self.__class__):
+            tmp_tf = self.copy()
+            if np.all(self.times == other.times):
+                for i in np.arange(len(self.fields)):
+                    tmp_tf.fields[i] += other.fields[i]
+            else:
+                for i in np.arange(len(other.fields)):
+                    tmp_tf.add_field(other.fields[i])
+            return tmp_tf
+
         else:
             raise TypeError("cannot concatenate {} with"
                             " {}.".format(self.__class__, type(other)))
 
     def __sub__(self, other):
         return self.__add__(-other)
+
+    def __neg__(self):
+        tmp_tf = self.copy()
+        for i in np.arange(len(self.fields)):
+            tmp_tf.fields[i] = -tmp_tf.fields[i]
+        return tmp_tf
 
     def __mul__(self, other):
         if isinstance(other, self.__class__):
@@ -4499,7 +4957,6 @@ class TemporalFields(Fields, Field):
     @times.deleter
     def times(self):
         raise Exception("Nope, can't do that")
-    # TODO : HERE !!!!!
 
     @property
     def unit_times(self):
@@ -4542,7 +4999,7 @@ class TemporalFields(Fields, Field):
         result_f = self.fields[0].copy()
         result_f.fill(tof='value', value=0., crop_border=False)
         mask_cum = np.zeros(self.shape, dtype=int)
-        mask_cum[np.logical_not(self.fields[0].mask)] +=1
+        mask_cum[np.logical_not(self.fields[0].mask)] += 1
 #        comp_x_cum = np.zeros(self.shape, dtype=float)
 #        comp_y_cum = np.zeros(self.shape, dtype=float)
         for field in self.fields[1::]:
@@ -4591,6 +5048,83 @@ class TemporalFields(Fields, Field):
             fluct_fields.add_field(field - mean_field)
         return fluct_fields
 
+    def get_spatial_spectrum(self, component, direction, intervx=None,
+                             intervy=None, intervtime=None, welch_seglen=None,
+                             scaling='base', fill='linear'):
+        """
+        Return a spatial spectrum.
+        If more than one time are specified, spectrums are averaged.
+
+        Parameters
+        ----------
+        component : string
+            Should be an attribute name of the stored fields.
+        direction : string
+            Direction in which perform the spectrum ('x' or 'y').
+        intervx and intervy : 2x1 arrays of number, optional
+            To chose the zone where to calculate the spectrum.
+            If not specified, the biggest possible interval is choosen.
+        intervtime : 2x1 array, optional
+            Interval of time on which averaged the spectrum.
+        welch_seglen : integer, optional
+            If specified, welch's method is used (dividing signal into
+            overlapping segments, and averaging periodogram) with the given
+            segments length (in number of points).
+        scaling : string, optional
+            If 'base' (default), result are in component unit.
+            If 'spectrum', the power spectrum is returned (in unit^2).
+            If 'density', the power spectral density is returned (in unit^2/Hz)
+        fill : string or float, optional
+            Specifies the way to treat missing values.
+            A value for value filling.
+            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
+            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
+            interpolation of first, second or third order) for interpolation.
+        """
+        # check parameters
+        try:
+            self[0].__getattribute__('{}_as_sf'.format(component))
+        except AttributeError():
+            raise ValueError()
+        if not isinstance(direction, STRINGTYPES):
+            raise TypeError()
+        if not direction in ['x', 'y']:
+            raise ValueError()
+        if intervtime is None:
+            intervtime = [self.times[0], self.times[-1]]
+        if not isinstance(intervtime, ARRAYTYPES):
+            raise TypeError()
+        intervtime = np.array(intervtime)
+        if not intervtime.shape == (2,):
+            raise ValueError()
+        if intervtime[0] < self.times[0]:
+            intervtime[0] = self.times[0]
+        if intervtime[-1] > self.times[-1]:
+            intervtime[-1] = self.times[-1]
+        if intervtime[0] >= intervtime[1]:
+            raise ValueError()
+        # loop on times
+        spec = 0
+        nmb = 0
+        for i, time in enumerate(self.times):
+            if time < intervtime[0] or time > intervtime[1]:
+                continue
+            comp = self[i].__getattribute__('{}_as_sf'.format(component))
+            if spec == 0:
+                spec = comp.get_spatial_spectrum(direction, intervx=intervx,
+                                                 intervy=intervy,
+                                                 welch_seglen=welch_seglen,
+                                                 scaling=scaling, fill=fill)
+            else:
+                spec += comp.get_spatial_spectrum(direction, intervx=intervx,
+                                                  intervy=intervy,
+                                                  welch_seglen=welch_seglen,
+                                                  scaling=scaling, fill=fill)
+            nmb += 1
+        # returning
+        spec /= nmb
+        return spec
+
     def get_time_profile(self, component, x, y, wanted_times=None, ind=False):
         """
         Return a profile contening the time evolution of the given component.
@@ -4629,8 +5163,8 @@ class TemporalFields(Fields, Field):
             ind_x = x
             ind_y = y
         else:
-            ind_x = self.get_indice_on_axe(1, x, nearest=True)
-            ind_y = self.get_indice_on_axe(2, y, nearest=True)
+            ind_x = self.get_indice_on_axe(1, x, kind='nearest')
+            ind_y = self.get_indice_on_axe(2, y, kind='nearest')
         axe_x, axe_y = self.axe_x, self.axe_y
         if not (0 <= ind_x < len(axe_x) and 0 <= ind_y < len(axe_y)):
             raise ValueError("'x' ans 'y' values out of bounds")
@@ -4659,19 +5193,22 @@ class TemporalFields(Fields, Field):
         for i, time_ind in enumerate(w_times_ind):
             prof_values[i] = compo[time_ind, ind_x, ind_y]
             prof_mask[i] = masks[time_ind, ind_x, ind_y]
-        return Profile(time, prof_values, prof_mask, unit_x=unit_time, unit_y=unit_values)
+        return Profile(time, prof_values, prof_mask, unit_x=unit_time,
+                       unit_y=unit_values)
 
-    def get_spectrum(self, component, pt, ind=False, wanted_times=None,
-                     welch_seglen=None,
-                     scaling='base', fill='linear', mask_error=True):
+    def get_temporal_spectrum(self, component, pt, ind=False,
+                              wanted_times=None, welch_seglen=None,
+                              scaling='base', fill='linear', mask_error=True):
         """
-        Return a Profile object, with the frequential spectrum of 'component',
+        Return a Profile object, with the temporal spectrum of 'component',
         on the point 'pt'.
 
         Parameters
         ----------
         component : string
+            .
         pt : 2x1 array of numbers
+            .
         ind : boolean
             If true, 'pt' is read as indices,
             else, 'pt' is read as coordinates.
@@ -4724,9 +5261,9 @@ class TemporalFields(Fields, Field):
                                            mask_error=mask_error)
         return magn_prof
 
-    def get_spectrum_over_area(self, component, intervalx, intervaly,
-                               ind=False, welch_seglen=None,
-                               scaling='base', fill='linear'):
+    def get_temporal_spectrum_over_area(self, component, intervalx, intervaly,
+                                        ind=False, welch_seglen=None,
+                                        scaling='base', fill='linear'):
         """
         Return a Profile object, contening a mean spectrum of the given
         component, on all the points included in the given intervals.
@@ -4798,7 +5335,10 @@ class TemporalFields(Fields, Field):
                     or np.max(intervalx) > axe_x_max\
                     or np.min(intervaly) < axe_y_min\
                     or np.max(intervaly) > axe_y_max:
-                raise ValueError("intervals are out of bounds")
+                raise ValueError("intervals ({}) are out of bounds ({})"
+                                 .format([intervalx, intervaly],
+                                         [[axe_x_min, axe_x_max],
+                                          [axe_y_min, axe_y_max]]))
             ind_x_min = self.get_indice_on_axe(1, intervalx[0])[-1]
             ind_x_max = self.get_indice_on_axe(1, intervalx[1])[0]
             ind_y_min = self.get_indice_on_axe(2, intervaly[0])[-1]
@@ -4809,10 +5349,10 @@ class TemporalFields(Fields, Field):
         real_nmb_fields = nmb_fields
         for i in np.arange(ind_x_min, ind_x_max + 1):
             for j in np.arange(ind_y_min, ind_y_max + 1):
-                tmp_m = self.get_spectrum(component, [i, j], ind=True,
-                                          welch_seglen=welch_seglen,
-                                          scaling=scaling,
-                                          fill=fill, mask_error=True)
+                tmp_m = self.get_temporal_spectrum(component, [i, j], ind=True,
+                                                   welch_seglen=welch_seglen,
+                                                   scaling=scaling,
+                                                   fill=fill, mask_error=True)
                 # check if the position is masked
                 if tmp_m is None:
                     real_nmb_fields -= 1
@@ -4844,7 +5384,8 @@ class TemporalFields(Fields, Field):
         if not isinstance(field, (VectorField, ScalarField)):
             raise TypeError()
         if not isinstance(time, NUMBERTYPES):
-            raise TypeError()
+            raise TypeError("'time' should be a number, not {}"
+                            .format(type(time)))
         if isinstance(unit_times, unum.Unum):
             if unit_times.asNumber() != 1:
                 raise ValueError()
@@ -4986,7 +5527,8 @@ class TemporalFields(Fields, Field):
                                    inplace=True)
         # soft cropping
         else:
-            # getting positions to remove (column or line with only masked values)
+            # getting positions to remove
+            # (column or line with only masked values)
             axe_y_m = ~np.all(mask_temp, axis=0)
             axe_x_m = ~np.all(mask_temp, axis=1)
             # skip if nothing to do
@@ -5057,8 +5599,8 @@ class TemporalFields(Fields, Field):
         self.fields = self.fields[ind_sort]
 
     ### Displayers ###
-    def display_multiple(self, component, kind=None,  fields_ind=None, samecb=False,
-                same_axes=False, **plotargs):
+    def display_multiple(self, component, kind=None,  fields_ind=None,
+                         samecb=False, same_axes=False, **plotargs):
         """
         Display a component of the velocity fields.
 
@@ -5123,7 +5665,7 @@ class TemporalFields(Fields, Field):
                 fig.delaxes(ax)
             plt.tight_layout()
 
-    def display(self, compo=None, **plotargs):
+    def display(self, compo=None, suppl_display=None, **plotargs):
         """
         Create a windows to display temporals field, controlled by buttons.
         http://matplotlib.org/1.3.1/examples/widgets/buttons.html
@@ -5162,18 +5704,22 @@ class TemporalFields(Fields, Field):
                 plotargs['vmax'] = np.max(maxs)
         elif isinstance(comp[0], VectorField):
             if 'clim' not in plotargs.keys() and kind is not 'stream':
-                mins = [np.min(field.magnitude[np.logical_not(field.mask)]) for field in comp]
-                maxs = [np.max(field.magnitude[np.logical_not(field.mask)]) for field in comp]
+                mins = [np.min(field.magnitude[np.logical_not(field.mask)])
+                        for field in comp]
+                maxs = [np.max(field.magnitude[np.logical_not(field.mask)])
+                        for field in comp]
                 mini = np.min(mins)
                 maxi = np.max(maxs)
                 plotargs['clim'] = [mini, maxi]
         else:
             pdb.set_trace()
             raise Exception()
+
         # button gestion class
         class Index(object):
 
-            def __init__(self, obj, compo, comp, kind, plotargs):
+            def __init__(self, obj, compo, comp, kind, suppl_display,
+                         plotargs):
                 self.fig = plt.figure()
                 self.ax = self.fig.add_axes(plt.axes([0.1, 0.2, .9, 0.7]))
                 self.incr = 1
@@ -5183,6 +5729,7 @@ class TemporalFields(Fields, Field):
                 self.compo = compo
                 self.comp = comp
                 self.kind = kind
+                self.suppl_display = suppl_display
                 self.plotargs = plotargs
                 # display initial
                 self.displ = comp[0].display(**self.plotargs)
@@ -5210,23 +5757,15 @@ class TemporalFields(Fields, Field):
                 self.update()
 
             def update(self):
-                # use __uypdate_sf et __update_vf
-                if isinstance(self.comp[0], VectorField)\
-                        and (self.kind is None or self.kind == "quiver"):
-                    self.obj._update_vf(self.ind, self.fig, self.ax,
-                                         self.displ, self.ttl, self.comp,
-                                         self.compo, self.plotargs)
-                elif isinstance(comp[0], ScalarField)\
-                        or isinstance(comp[0], VectorField):
-                    self.obj._update_sf(self.ind, self.fig, self.ax,
-                                         self.displ, self.ttl, self.comp,
-                                         self.compo, self.plotargs)
-                else:
-                    raise TypeError()
+                self.obj._update_sf(self.ind, self.fig, self.ax,
+                                    self.displ, self.ttl, self.comp,
+                                    self.compo, self.plotargs)
+                if self.suppl_display is not None:
+                    self.suppl_display(self.ind)
                 plt.draw()
 
         #window creation
-        callback = Index(self, compo, comp, kind, plotargs)
+        callback = Index(self, compo, comp, kind, suppl_display, plotargs)
         axprev = callback.fig.add_axes(plt.axes([0.02, 0.02, 0.1, 0.05]))
         axnext = callback.fig.add_axes(plt.axes([0.88, 0.02, 0.1, 0.05]))
         axslid = callback.fig.add_axes(plt.axes([0.15, 0.02, 0.6, 0.05]))
@@ -5352,20 +5891,16 @@ class TemporalFields(Fields, Field):
         ttl.set_text(title)
         return displ,
 
-    def _update_vf(self, num, fig, ax, displ, ttl, comp, compo, plotargs):
-        plt.sca(ax)
-        vx = np.transpose(comp[num].comp_x)
-        vy = np.transpose(comp[num].comp_y)
-        mask = np.transpose(comp[num].mask)
-        vx = np.ma.masked_array(vx, mask)
-        vy = np.ma.masked_array(vy, mask)
-        magn = np.transpose(comp[num].magnitude)
-        displ.set_UVC(vx, vy, magn)
-        title = "{}, at t={:.2f} {}"\
-            .format(compo, float(self.times[num]),
-                    self.unit_times.strUnit())
-        ttl.set_text(title)
-        return ax
+#    def _update_vf(self, num, fig, ax, displ, ttl, comp, compo, plotargs):
+#        plt.sca(ax)
+#        ax.cla()
+#        displ = comp[num]._display(**plotargs)
+#        title = "{}, at t={:.2f} {}"\
+#            .format(compo, float(self.times[num]),
+#                    self.unit_times.strUnit())
+#        ttl.set_text(title)
+#        return ax
+
 
 class TemporalScalarFields(TemporalFields):
     """
@@ -5388,11 +5923,7 @@ class TemporalScalarFields(TemporalFields):
     ### Attributes ###
     @property
     def values_as_sf(self):
-        dim = len(self)
-        values = np.empty(dim, dtype=object)
-        for i, field in enumerate(self.fields):
-            values[i] = field
-        return values
+        return self
 
     @property
     def values(self):
@@ -5500,7 +6031,8 @@ class TemporalVectorFields(TemporalFields):
     def Vx_as_sf(self):
         values = TemporalScalarFields()
         for i, field in enumerate(self.fields):
-            values.add_field(field.comp_x_as_sf)
+            values.add_field(field.comp_x_as_sf, time=self.times[i],
+                             unit_times=self.unit_times)
         return values
 
     @property
@@ -5515,7 +6047,8 @@ class TemporalVectorFields(TemporalFields):
     def Vy_as_sf(self):
         values = TemporalScalarFields()
         for i, field in enumerate(self.fields):
-            values.add_field(field.comp_y_as_sf)
+            values.add_field(field.comp_y_as_sf, time=self.times[i],
+                             unit_times=self.unit_times)
         return values
 
     @property
@@ -5816,7 +6349,7 @@ class SpatialVectorFields(Fields):
         """
         Return a copy of the velocityfields
         """
-        tmp_svfs = SpatialVelocityFields()
+        tmp_svfs = SpatialVectorFields()
         tmp_svfs.import_from_svfs(self)
         return tmp_svfs
 
