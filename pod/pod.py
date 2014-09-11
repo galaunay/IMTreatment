@@ -21,7 +21,7 @@ class ModalFields(Field):
     """
 
     def __init__(self, decomp_type, mean_field, modes, modes_numbers,
-                 temporal_evolutions,
+                 temporal_evolutions, modes_nrj,
                  eigvals=None, eigvects=None, ritz_vals=None, mode_norms=None,
                  growth_rate=None, pulsation=None):
         """
@@ -51,6 +51,10 @@ class ModalFields(Field):
             raise TypeError()
         if not len(temporal_evolutions) == len(modes):
             raise ValueError()
+        if not isinstance(modes_nrj, Profile):
+            raise TypeError()
+        if not len(modes_nrj.x) == len(modes):
+            raise ShapeError()
         if eigvals is not None:
             if not isinstance(eigvals, Profile):
                 raise TypeError()
@@ -94,6 +98,9 @@ class ModalFields(Field):
         self.modes = modes
         self.modes_nmb = modes_numbers
         self.temp_evo = temporal_evolutions
+        self.modes_nrj = modes_nrj
+        self.modes_nrj_cum = modes_nrj.copy()
+        self.modes_nrj_cum.y = np.cumsum(self.modes_nrj.y)
         self.times = temporal_evolutions[0].x
         self.unit_times = temporal_evolutions[0].unit_x
         if eigvals is not None:
@@ -241,16 +248,24 @@ class ModalFields(Field):
         """
         Display some important diagram for the decomposition.
         """
+        from matplotlib.ticker import MaxNLocator
         if self.decomp_type == 'pod':
             plt.figure()
             plt.subplot(2, 3, 1)
-
+            tmp_prof = self.modes_nrj.copy()
+            tmp_prof.y /= np.sum(tmp_prof.y)
+            tmp_prof.display()
+            plt.title('Modes energy')
+            plt.ylim(ymin=0, ymax=1)
             plt.subplot(2, 3, 2)
             self.modes[0].display()
             plt.title("Mode 1")
             plt.subplot(2, 3, 4)
-            self.eigvals.display()
-            plt.title('Eigenvalues evolution')
+            tmp_prof = self.modes_nrj_cum.copy()
+            tmp_prof.y /= np.sum(self.modes_nrj.y)
+            tmp_prof.display()
+            plt.title('Cumulative modes energy')
+            plt.ylim(ymin=0, ymax=1)
             plt.subplot(2, 3, 5)
             self.temp_evo[0].display()
             plt.title("Temporal evolution of mode 1")
@@ -288,7 +303,7 @@ class ModalFields(Field):
             plt.title("Mode amplitude spectrum")
             plt.xlabel("Pulsation [rad/s]")
             plt.ylabel("Mode amplitude []")
-            plt.subplot(2, 3, 4)
+            plt.subplot(2, 3, 5)
             stab_sort = np.argsort(np.abs(self.growth_rate.y))
             tmp_sf = self.modes[stab_sort[0]].copy()
             if isinstance(tmp_sf, ScalarField):
@@ -300,17 +315,12 @@ class ModalFields(Field):
             plt.title("More stable mode (pulsation={:.2f})\n"
                       "(Real representation)"
                       .format(self.pulsation.y[stab_sort[-0]]))
-            plt.subplot(2, 3, 5)
-            tmp_sf = self.modes[stab_sort[1]].copy()
-            if isinstance(tmp_sf, ScalarField):
-                tmp_sf.values = np.real(tmp_sf.values)
-            elif isinstance(tmp_sf, VectorField):
-                tmp_sf.comp_x = np.real(tmp_sf.comp_x)
-                tmp_sf.comp_y = np.real(tmp_sf.comp_y)
-            tmp_sf.display()
-            plt.title("Second more stable mode (pulsation={:.2f})\n"
-                      "(Real representation)"
-                      .format(self.pulsation.y[stab_sort[1]]))
+            plt.subplot(2, 3, 4)
+            tmp_prof = self.modes_nrj.copy()
+            tmp_prof.y /= np.sum(tmp_prof.y)
+            tmp_prof.display()
+            plt.title('Modes energy')
+            plt.ylim(ymin=0, ymax=1)
             plt.subplot(2, 3, 6)
             norm_sort = np.argsort(self.mode_norms.y)
             tmp_sf = self.modes[norm_sort[-1]].copy()
@@ -343,7 +353,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     modal_field : ModalField object
         .
     """
-    # test parameters
+    ### Test parameters
     if not isinstance(TF, TemporalFields):
         raise TypeError()
     if not isinstance(kind, STRINGTYPES):
@@ -364,7 +374,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     ind_fields = np.arange(len(TF.fields))
     mean_field = TF.get_mean_field()
     TF = TF - mean_field
-    # link data
+    ### Link data
     if isinstance(TF, TemporalScalarFields):
         snaps = [modred.VecHandleInMemory(TF.fields[i].values)
                  for i in np.arange(len(TF.fields))]
@@ -374,7 +384,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
                   for t in ind_fields]
         values = np.transpose(values, (0, 2, 3, 1))
         snaps = [modred.VecHandleInMemory(values[i]) for i in ind_fields]
-    # setting the decomposition mode
+    ### Setting the decomposition mode
     eigvals = None
     eigvect = None
     ritz_vals = None
@@ -418,11 +428,11 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
                             unit_y=make_unit('rad')/TF.unit_times)
     else:
         raise ValueError("Unknown kind of decomposition : {}".format(kind))
-    # decomposing and getting modes
+    ### Decomposing and getting modes
     modes = [modred.VecHandleInMemory(np.zeros(TF.fields[0].shape))
              for i in np.arange(len(wanted_modes))]
     my_decomp.compute_modes(wanted_modes, modes)
-    # getting temporal evolution (maybe is there a better way to do that)
+    ### Getting temporal evolution (maybe is there a better way to do that)
     # TODO : améliorer pob reconstruction
     temporal_prof = []
     if kind == 'pod':
@@ -442,7 +452,19 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
                                unit_x=TF.unit_times,
                                unit_y=TF.unit_values)
             temporal_prof.append(tmp_prof)
-    # returning
+    ### Getting NRJ repartition on modes
+    modes_nrj = np.zeros((len(modes),))
+    for n in np.arange(len(modes)):
+        if isinstance(TF, TemporalScalarFields):
+            magnitude = 1./2.*np.real(modes[n].get())**2
+        elif isinstance(TF, TemporalVectorFields):
+            magnitude = 1./2.*(np.real(modes[n].get()[:, :, 0])**2
+                               + np.real(modes[n].get()[:, :, 1])**2)
+        coef_temp = np.mean(np.real(temporal_prof[n].y)**2)
+        modes_nrj[n] = np.sum(magnitude)*coef_temp
+    modes_nrj = Profile(np.arange(len(modes)), modes_nrj, mask=False,
+                        unit_x="", unit_y=TF.unit_values**2, name="")
+    ### Returning
     modes_f = []
     for i in np.arange(len(modes)):
         if isinstance(TF, TemporalScalarFields):
@@ -461,7 +483,8 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
                                          unit_values=TF.unit_values)
         modes_f.append(tmp_field)
     modal_field = ModalFields(kind, mean_field, modes_f, wanted_modes,
-                              temporal_prof, eigvals=eigvals, eigvects=eigvect,
+                              temporal_prof, modes_nrj,
+                              eigvals=eigvals, eigvects=eigvect,
                               ritz_vals=ritz_vals, mode_norms=mode_norms,
                               growth_rate=growth_rate, pulsation=pulsation)
     return modal_field
