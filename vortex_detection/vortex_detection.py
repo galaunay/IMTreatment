@@ -1877,7 +1877,127 @@ def get_critical_line(VF, source_point, direction, kol='stream',
         raise ValueError("Unknown kind of fitting")
 
 
-### Criterion ###
+### Angle based criterion ###
+def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
+                        raw=False, local_treatment='none', order=1):
+    """
+    Return the angle deviation field.
+
+    Parameters
+    ----------
+    vectorfield : VectorField object
+        .
+    radius : number, optionnal
+        The radius used to choose the zone where to compute
+        for each field oint. If not mentionned, a value is choosen in
+        ordre to have about 8 points in the circle. It allow to get good
+        result, without big computation cost.
+    ind : boolean
+        If 'True', radius is expressed on number of vectors.
+        If 'False' (default), radius is expressed on axis unit.
+    mask : array of boolean, optionnal
+        Has to be an array of the same size of the vector field object,
+        gamma will be compute only where mask is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
+    local_treatment : string, optional
+        If 'None' (default), angles are taken directly from the velocity field
+        If 'galilean_inv', angles are taken from localy averaged velocity field
+        if 'local', angles are taken from velocity fields where the velocity of
+        the central point is localy substracted.
+    order : number, optional
+        Order used to compute the deviation
+        (default 1 for sum of differences, 2 for standart deviation (std)
+        or more)
+    """
+    ### Checking parameters coherence ###
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'vectorfield' must be a VectorField object")
+    if radius is None:
+        radius = 1.9
+        ind = True
+    if not isinstance(radius, NUMBERTYPES):
+        raise TypeError("'radius' must be a number")
+    if not isinstance(ind, bool):
+        raise TypeError("'ind' must be a boolean")
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+    if mask is None:
+        mask = np.zeros(vectorfield.shape)
+    elif not isinstance(mask, ARRAYTYPES):
+        raise TypeError("'zone' must be an array of boolean")
+    else:
+        mask = np.array(mask)
+    if not isinstance(raw, bool):
+        raise TypeError()
+    if not isinstance(local_treatment, STRINGTYPES):
+        raise TypeError()
+    if not local_treatment in ['none', 'galilean_inv', 'local']:
+        raise ValueError()
+    if not isinstance(order, NUMBERTYPES):
+        raise TypeError()
+    if order < 1:
+        raise ValueError()
+    ### Getting data ###
+    theta = vectorfield.theta
+    mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
+        _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
+                                            dev_pass=False)
+    ### Computing criterion ###
+    # creating reference dispersion functions
+    best_fun = np.array([2.*np.pi/nmbpts]*nmbpts)
+    worse_fun = np.array([0]*(nmbpts - 1) + [2.*np.pi])
+    worse_value = (np.sum(np.abs(worse_fun - best_fun)**order))**(1./order)
+    # Loop on points
+    deviation = np.zeros(vectorfield.shape)
+    for inds, pos, _ in vectorfield:
+        ind_x = inds[0]
+        ind_y = inds[1]
+        # stop if masked or on border or with a masked surrouinding point
+        if mask[ind_x, ind_y] or mask_surr[ind_x, ind_y]\
+                or mask_border[ind_x, ind_y]:
+            continue
+        # getting neighbour points
+        indsaround = motif + inds
+        # getting neighbour angles  (galilean inv or not)
+        if local_treatment == 'none':
+            angles = theta[indsaround[:, 0], indsaround[:, 1]]
+        elif local_treatment == 'galilean_inv':
+            tmp_Vx = vectorfield.comp_x[indsaround[:, 0], indsaround[:, 1]]
+            tmp_Vy = vectorfield.comp_y[indsaround[:, 0], indsaround[:, 1]]
+            tmp_Vx -= np.mean(tmp_Vx)
+            tmp_Vy -= np.mean(tmp_Vy)
+            angles = _get_angles(tmp_Vx, tmp_Vy)
+        elif local_treatment == 'local':
+            tmp_Vx = vectorfield.comp_x[indsaround[:, 0], indsaround[:, 1]]
+            tmp_Vy = vectorfield.comp_y[indsaround[:, 0], indsaround[:, 1]]
+            tmp_Vx -= vectorfield.comp_x[ind_x, ind_y]
+            tmp_Vy -= vectorfield.comp_x[ind_x, ind_y]
+            angles = _get_angles(tmp_Vx, tmp_Vy)
+        # getting neightbour angles repartition
+        angles = np.sort(angles)
+        d_angles = np.empty(angles.shape)
+        d_angles[0:-1] = angles[1::] - angles[:-1:]
+        d_angles[-1] = angles[0] + 2*np.pi - angles[-1]
+        # getting neighbour angles deviation
+        deviation[ind_x, ind_y] = (1 - (np.sum(np.abs(d_angles - best_fun)
+                                               ** order))
+                                   ** (1./order)/worse_value)
+    ### Applying masks ###
+    mask = np.logical_or(mask, mask_border)
+    mask = np.logical_or(mask, mask_surr)
+    ### Creating gamma ScalarField ###
+    if raw:
+        return np.ma.masked_array(deviation, mask)
+    else:
+        deviation_sf = ScalarField()
+        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
+        deviation_sf.import_from_arrays(axe_x, axe_y, deviation, mask,
+                                        unit_x=unit_x, unit_y=unit_y,
+                                        unit_values=make_unit(''))
+        return deviation_sf
+
+
 def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
               raw=False, dev_pass=True):
     """
@@ -2146,53 +2266,6 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         return kappa_sf
 
 
-def get_q_criterion(vectorfield, mask=None, raw=False):
-    """
-    Return the normalized scalar field of the 2D Q criterion .
-    Define as "1/2*(sig**2 - S**2)" , with "sig" the deformation tensor,
-    norm and "S" the rate of rotation tensor norm.
-
-    Parameters
-    ----------
-    vectorfield : VectorField object
-    mask : array of boolean, optional
-        Has to be an array of the same size of the vector field object,
-        iota2 will be compute only where zone is 'False'.
-    raw : boolean, optional
-        If 'False' (default), a ScalarField is returned,
-        if 'True', an array is returned.
-    """
-    if not isinstance(vectorfield, VectorField):
-        raise TypeError("'vectorfield' must be a VectorField object")
-    if mask is None:
-        mask = np.zeros(vectorfield.shape)
-    elif not isinstance(mask, ARRAYTYPES):
-        raise TypeError("'mask' must be an array of boolean")
-    else:
-        mask = np.array(mask)
-    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    Vx = vectorfield.comp_x
-    Vy = vectorfield.comp_y
-    #calcul des gradients
-    Exx, Exy = np.gradient(Vx)
-    Eyx, Eyy = np.gradient(Vy)
-    # calcul de 'sig**2' et 'S**2'
-    sig = 2.*(Exy - Eyx)**2
-    S = (2.*Exx)**2 + 2.*(Eyx + Exy)**2 + (2.*Eyy)**2
-    # calcul de Qcrit
-    qcrit = 1./2*(sig - S)
-    qcrit = np.ma.masked_array(qcrit, mask)
-    qcrit = qcrit/np.abs(qcrit).max()
-    if raw:
-        return np.ma.masked_array(qcrit, mask)
-    else:
-        q_sf = ScalarField()
-        q_sf.import_from_arrays(axe_x, axe_y, qcrit, mask,
-                                unit_x=vectorfield.unit_x,
-                                unit_y=vectorfield.unit_y)
-        return q_sf
-
-
 def get_iota(vectorfield, mask=None, raw=False):
     """
     Return the iota scalar field. iota criterion is used in
@@ -2268,188 +2341,6 @@ def get_iota(vectorfield, mask=None, raw=False):
                                    unit_x=unit_x, unit_y=unit_y,
                                    unit_values=make_unit(''))
         return iota_sf
-
-
-def get_lambda2(vectorfield, mask=None, raw=False):
-    """
-    Return the lambda2 scalar field. lambda2 criterion is used in
-    vortex analysis.
-    The fonction is only usable on orthogonal fields.
-
-    Parameters
-    ----------
-    vectorfield : VectorField object
-    mask : array of boolean, optionnal
-        Has to be an array of the same size of the vector field object,
-        iota2 will be compute only where zone is 'False'.
-    raw : boolean, optional
-        If 'False' (default), a ScalarField is returned,
-        if 'True', an array is returned.
-    """
-    # check parameter
-    if not isinstance(vectorfield, VectorField):
-        raise TypeError("'vectorfield' must be a VectorField object")
-    if mask is None:
-        mask = np.zeros(vectorfield.shape)
-    elif not isinstance(mask, ARRAYTYPES):
-        raise TypeError("'mask' must be an array of boolean")
-    else:
-        mask = np.array(mask)
-    mask = np.logical_or(mask, vectorfield.mask)
-    # getting velocity gradients
-    Udx, Udy, Vdx, Vdy = get_gradients(vectorfield, raw=True)
-    mask = np.logical_or(mask, Udx.mask)
-    # creating returning matrix
-    lambda2 = np.zeros(vectorfield.shape)
-    # loop on points
-    for ij, _, _ in vectorfield:
-        i, j = ij
-        # check if masked
-        if mask[i, j]:
-            continue
-        # getting symmetric and antisymetric parts
-        S = 1./2.*np.array([[2*Udx[i, j], Udy[i, j] + Vdx[i, j]],
-                            [Vdx[i, j] + Udy[i, j], 2*Vdy[i, j]]])
-        Omega = 1./2.*np.array([[0, Udy[i, j] - Vdx[i, j]],
-                                [Vdx[i, j] - Udy[i, j], 0]])
-        # getting S^2 + Omega^2
-        M = S**2 + Omega**2
-        # getting second eigenvalue
-        lambds = linalg.eig(M, left=False, right=False)
-        l2 = np.max(lambds)
-        # storing lambda2
-        lambda2[i, j] = l2.real
-    #returning
-    if raw:
-        return np.ma.masked_array(l2, mask)
-    else:
-        lambd_sf = ScalarField()
-        axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
-        lambd_sf.import_from_arrays(axe_x, axe_y, lambda2, mask,
-                                    unit_x=unit_x, unit_y=unit_y,
-                                    unit_values=make_unit(''))
-        return lambd_sf
-
-
-def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
-                        raw=False, local_treatment='none', order=1):
-    """
-    Return the angle deviation field.
-
-    Parameters
-    ----------
-    vectorfield : VectorField object
-        .
-    radius : number, optionnal
-        The radius used to choose the zone where to compute
-        for each field oint. If not mentionned, a value is choosen in
-        ordre to have about 8 points in the circle. It allow to get good
-        result, without big computation cost.
-    ind : boolean
-        If 'True', radius is expressed on number of vectors.
-        If 'False' (default), radius is expressed on axis unit.
-    mask : array of boolean, optionnal
-        Has to be an array of the same size of the vector field object,
-        gamma will be compute only where mask is 'False'.
-    raw : boolean, optional
-        If 'False' (default), a ScalarField is returned,
-        if 'True', an array is returned.
-    local_treatment : string, optional
-        If 'None' (default), angles are taken directly from the velocity field
-        If 'galilean_inv', angles are taken from localy averaged velocity field
-        if 'local', angles are taken from velocity fields where the velocity of
-        the central point is localy substracted.
-    order : number, optional
-        Order used to compute the deviation
-        (default 1 for sum of differences, 2 for standart deviation (std)
-        or more)
-    """
-    ### Checking parameters coherence ###
-    if not isinstance(vectorfield, VectorField):
-        raise TypeError("'vectorfield' must be a VectorField object")
-    if radius is None:
-        radius = 1.9
-        ind = True
-    if not isinstance(radius, NUMBERTYPES):
-        raise TypeError("'radius' must be a number")
-    if not isinstance(ind, bool):
-        raise TypeError("'ind' must be a boolean")
-    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    if mask is None:
-        mask = np.zeros(vectorfield.shape)
-    elif not isinstance(mask, ARRAYTYPES):
-        raise TypeError("'zone' must be an array of boolean")
-    else:
-        mask = np.array(mask)
-    if not isinstance(raw, bool):
-        raise TypeError()
-    if not isinstance(local_treatment, STRINGTYPES):
-        raise TypeError()
-    if not local_treatment in ['none', 'galilean_inv', 'local']:
-        raise ValueError()
-    if not isinstance(order, NUMBERTYPES):
-        raise TypeError()
-    if order < 1:
-        raise ValueError()
-    ### Getting data ###
-    theta = vectorfield.theta
-    mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
-        _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
-                                            dev_pass=False)
-    ### Computing criterion ###
-    # creating reference dispersion functions
-    best_fun = np.array([2.*np.pi/nmbpts]*nmbpts)
-    worse_fun = np.array([0]*(nmbpts - 1) + [2.*np.pi])
-    worse_value = (np.sum(np.abs(worse_fun - best_fun)**order))**(1./order)
-    # Loop on points
-    deviation = np.zeros(vectorfield.shape)
-    for inds, pos, _ in vectorfield:
-        ind_x = inds[0]
-        ind_y = inds[1]
-        # stop if masked or on border or with a masked surrouinding point
-        if mask[ind_x, ind_y] or mask_surr[ind_x, ind_y]\
-                or mask_border[ind_x, ind_y]:
-            continue
-        # getting neighbour points
-        indsaround = motif + inds
-        # getting neighbour angles  (galilean inv or not)
-        if local_treatment == 'none':
-            angles = theta[indsaround[:, 0], indsaround[:, 1]]
-        elif local_treatment == 'galilean_inv':
-            tmp_Vx = vectorfield.comp_x[indsaround[:, 0], indsaround[:, 1]]
-            tmp_Vy = vectorfield.comp_y[indsaround[:, 0], indsaround[:, 1]]
-            tmp_Vx -= np.mean(tmp_Vx)
-            tmp_Vy -= np.mean(tmp_Vy)
-            angles = _get_angles(tmp_Vx, tmp_Vy)
-        elif local_treatment == 'local':
-            tmp_Vx = vectorfield.comp_x[indsaround[:, 0], indsaround[:, 1]]
-            tmp_Vy = vectorfield.comp_y[indsaround[:, 0], indsaround[:, 1]]
-            tmp_Vx -= vectorfield.comp_x[ind_x, ind_y]
-            tmp_Vy -= vectorfield.comp_x[ind_x, ind_y]
-            angles = _get_angles(tmp_Vx, tmp_Vy)
-        # getting neightbour angles repartition
-        angles = np.sort(angles)
-        d_angles = np.empty(angles.shape)
-        d_angles[0:-1] = angles[1::] - angles[:-1:]
-        d_angles[-1] = angles[0] + 2*np.pi - angles[-1]
-        # getting neighbour angles deviation
-        deviation[ind_x, ind_y] = (1 - (np.sum(np.abs(d_angles - best_fun)
-                                               ** order))
-                                   ** (1./order)/worse_value)
-    ### Applying masks ###
-    mask = np.logical_or(mask, mask_border)
-    mask = np.logical_or(mask, mask_surr)
-    ### Creating gamma ScalarField ###
-    if raw:
-        return np.ma.masked_array(deviation, mask)
-    else:
-        deviation_sf = ScalarField()
-        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
-        deviation_sf.import_from_arrays(axe_x, axe_y, deviation, mask,
-                                        unit_x=unit_x, unit_y=unit_y,
-                                        unit_values=make_unit(''))
-        return deviation_sf
 
 
 def _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
@@ -2534,6 +2425,299 @@ def _get_angles(Vx, Vy, check=False):
     theta[Vy < 0] = 2*np.pi - theta[Vy < 0]
     return theta
 
+
+### Tensor based criterion ###
+def get_vorticity(vf, raw=False):
+    """
+    Return a scalar field with the z component of the vorticity.
+
+    Parameters
+    ----------
+    vf : VectorField or Velocityfield
+        Field on which compute shear stress
+    raw : boolean, optional
+        If 'True', return an arrays,
+        if 'False' (default), return a ScalarField object.
+    """
+    if not isinstance(vf, VectorField):
+        raise TypeError()
+    tmp_vf = vf.copy()
+    tmp_vf.fill(crop_border=True)
+    axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
+    mask = tmp_vf.mask
+    dx = axe_x[1] - axe_x[0]
+    dy = axe_y[1] - axe_y[0]
+    _, Exy = np.gradient(comp_x, dx, dy)
+    Eyx, _ = np.gradient(comp_y, dx, dy)
+    vort = Eyx - Exy
+    if raw:
+        return vort
+    else:
+        unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
+        unit_values = vf.unit_values/vf.unit_x
+        vort *= unit_values.asNumber()
+        unit_values /= unit_values.asNumber()
+        vort_sf = ScalarField()
+        vort_sf.import_from_arrays(axe_x, axe_y, vort, mask=mask,
+                                   unit_x=unit_x, unit_y=unit_y,
+                                   unit_values=unit_values)
+        return vort_sf
+
+
+def get_swirling_strength(vf, raw=False):
+    """
+    Return a scalar field with the swirling strength
+    (imaginary part of the eigenvalue of the velocity laplacian matrix)
+
+    Parameters
+    ----------
+    vf : VectorField or Velocityfield
+        Field on which compute shear stress
+    raw : boolean, optional
+        If 'True', return an arrays,
+        if 'False' (default), return a ScalarField object.
+    """
+    if not isinstance(vf, VectorField):
+        raise TypeError()
+    tmp_vf = vf.copy()
+    tmp_vf.fill(crop_border=True)
+    # Getting gradients and axes
+    axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
+    mask = tmp_vf.mask
+    dx = axe_x[1] - axe_x[0]
+    dy = axe_y[1] - axe_y[0]
+    du_dx, du_dy = np.gradient(comp_x, dx, dy)
+    dv_dx, dv_dy = np.gradient(comp_y, dx, dy)
+    # swirling stregnth matrix
+    swst = np.zeros(tmp_vf.shape)
+    # loop on  points
+    for i in np.arange(len(axe_x)):
+        for j in np.arange(len(axe_y)):
+            if not mask[i, j]:
+                lapl = [[du_dx[i, j], du_dy[i, j]],
+                        [dv_dx[i, j], dv_dy[i, j]]]
+                eigvals = np.linalg.eigvals(lapl)
+                swst[i, j] = np.max(np.imag(eigvals))
+    mask = np.logical_or(mask, np.isnan(swst))
+    # creating ScalarField object
+    if raw:
+        return swst
+    else:
+        unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
+        # TODO: implémenter unité
+        unit_values = ""
+        tmp_sf = ScalarField()
+        tmp_sf.import_from_arrays(axe_x, axe_y, swst, mask=mask,
+                                  unit_x=unit_x, unit_y=unit_y,
+                                  unit_values=unit_values)
+        return tmp_sf
+
+
+def get_q_criterion(vectorfield, mask=None, raw=False):
+    """
+    Return the scalar field of the 2D Q criterion .
+    Define as "1/2*(R**2 - S**2)" , with "R" the deformation tensor,
+    norm and "S" the rate of rotation tensor norm.
+
+    Parameters
+    ----------
+    vectorfield : VectorField object
+    mask : array of boolean, optional
+        Has to be an array of the same size of the vector field object,
+        iota2 will be compute only where zone is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
+    """
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'vectorfield' must be a VectorField object")
+    if mask is None:
+        mask = np.zeros(vectorfield.shape)
+    elif not isinstance(mask, ARRAYTYPES):
+        raise TypeError("'mask' must be an array of boolean")
+    else:
+        mask = np.array(mask)
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+    #calcul des gradients
+    Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
+    # calcul de Qcrit
+    norm_rot = 2.*(Exy - Eyx)**2
+    norm_shear = (2.*Exx)**2 + (2.*Eyy)**2 + 2.*(Exy + Eyx)**2
+    qcrit = .5*(norm_rot - norm_shear)
+    unit_values = vectorfield.unit_values**2
+    if raw:
+        return np.ma.masked_array(qcrit, mask)
+    else:
+        q_sf = ScalarField()
+        q_sf.import_from_arrays(axe_x, axe_y, qcrit, mask,
+                                unit_x=vectorfield.unit_x,
+                                unit_y=vectorfield.unit_y,
+                                unit_values=unit_values)
+        return q_sf
+
+
+def get_delta_criterion(vectorfield, mask=None, raw=False):
+    """
+    Return the scalar field of the 2D Delta criterion .
+    Define as "(Q/3)**3 + (R/2)**2" , with "Q" the Q criterion,
+    and "R" the determinant of the jacobian matrice of the velocity.
+
+    Parameters
+    ----------
+    vectorfield : VectorField object
+    mask : array of boolean, optional
+        Has to be an array of the same size of the vector field object,
+        iota2 will be compute only where zone is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
+    """
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'vectorfield' must be a VectorField object")
+    if mask is None:
+        mask = np.zeros(vectorfield.shape)
+    elif not isinstance(mask, ARRAYTYPES):
+        raise TypeError("'mask' must be an array of boolean")
+    else:
+        mask = np.array(mask)
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+    #calcul des gradients
+    Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
+    # calcul de Q
+    norm_rot = 2.*(Exy - Eyx)**2
+    norm_shear = (2.*Exx)**2 + (2.*Eyy)**2 + 2.*(Exy + Eyx)**2
+    Q = .5*(norm_rot - norm_shear)
+    unit_values = vectorfield.unit_values**2
+    # calcul de R
+    R = np.zeros(Exx.shape)
+    for i in np.arange(Exx.shape[0]):
+        for j in np.arange(Exx.shape[1]):
+            R[i, j] = np.linalg.det([[Exx[i, j], Exy[i, j]],
+                                     [Eyx[i, j], Eyy[i, j]]])
+    # calcul de Delta
+    delta = (Q/3.)**3 + (R/2.)**2
+    if raw:
+        return np.ma.masked_array(delta, mask)
+    else:
+        delta_sf = ScalarField()
+        delta_sf.import_from_arrays(axe_x, axe_y, delta, mask,
+                                    unit_x=vectorfield.unit_x,
+                                    unit_y=vectorfield.unit_y,
+                                    unit_values=unit_values)
+        return delta_sf
+
+
+def get_lambda2(vectorfield, mask=None, raw=False):
+    """
+    Return the lambda2 scalar field. lambda2 criterion is used in
+    vortex analysis.
+    The fonction is only usable on orthogonal fields.
+
+    Parameters
+    ----------
+    vectorfield : VectorField object
+    mask : array of boolean, optionnal
+        Has to be an array of the same size of the vector field object,
+        iota2 will be compute only where zone is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
+    """
+    # check parameter
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'vectorfield' must be a VectorField object")
+    if mask is None:
+        mask = np.zeros(vectorfield.shape)
+    elif not isinstance(mask, ARRAYTYPES):
+        raise TypeError("'mask' must be an array of boolean")
+    else:
+        mask = np.array(mask)
+    mask = np.logical_or(mask, vectorfield.mask)
+    # getting velocity gradients
+    Udx, Udy, Vdx, Vdy = get_gradients(vectorfield, raw=True)
+    mask = np.logical_or(mask, Udx.mask)
+    # creating returning matrix
+    lambda2 = np.zeros(vectorfield.shape)
+    # loop on points
+    for ij, _, _ in vectorfield:
+        i, j = ij
+        # check if masked
+        if mask[i, j]:
+            continue
+        # getting symmetric and antisymetric parts
+        S = 1./2.*np.array([[2*Udx[i, j], Udy[i, j] + Vdx[i, j]],
+                            [Vdx[i, j] + Udy[i, j], 2*Vdy[i, j]]])
+        Omega = 1./2.*np.array([[0, Udy[i, j] - Vdx[i, j]],
+                                [Vdx[i, j] - Udy[i, j], 0]])
+        # getting S^2 + Omega^2
+        M = np.dot(S, S) + np.dot(Omega, Omega)
+        # getting second eigenvalue
+        lambds = linalg.eig(M, left=False, right=False)
+        l2 = np.min(lambds)
+        # storing lambda2
+        lambda2[i, j] = l2.real
+    #returning
+    if raw:
+        return np.ma.masked_array(l2, mask)
+    else:
+        lambd_sf = ScalarField()
+        axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
+        lambd_sf.import_from_arrays(axe_x, axe_y, lambda2, mask,
+                                    unit_x=unit_x, unit_y=unit_y,
+                                    unit_values=make_unit(''))
+        return lambd_sf
+
+def get_residual_vorticity(vf, raw=False):
+    """
+    Return a scalar field with the residual of the vorticity.
+    (see Kolar (2007)).
+
+    Parameters
+    ----------
+    vf : VectorField or Velocityfield
+        Field on which compute shear stress
+    raw : boolean, optional
+        If 'True', return an arrays,
+        if 'False' (default), return a ScalarField object.
+    """
+    if not isinstance(vf, VectorField):
+        raise TypeError()
+    # getting data
+    tmp_vf = vf.copy()
+    tmp_vf.fill(crop_border=True)
+    axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
+    mask = tmp_vf.mask
+    dx = axe_x[1] - axe_x[0]
+    dy = axe_y[1] - axe_y[0]
+    # getting gradients
+    Exx, Exy = np.gradient(comp_x, dx, dy)
+    Eyx, Eyy = np.gradient(comp_y, dx, dy)
+    # getting principal rate of strain (s)
+    s = np.sqrt(4*Exx**2 + (Exy + Eyx)**2)/2.
+    # getting the vorticity-tensor component
+    omega = (Eyx - Exy)/2.
+    omega_abs = np.abs(omega)
+    sign_omega = omega/omega_abs
+    filt = s < omega_abs
+    # getting the residual vorticity
+    res_vort = np.zeros(vf.shape)
+    res_vort[filt] = sign_omega[filt]*(omega_abs[filt] - s[filt])
+    if raw:
+        return res_vort
+    else:
+        unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
+        unit_values = vf.unit_values/vf.unit_x
+        res_vort *= unit_values.asNumber()
+        unit_values /= unit_values.asNumber()
+        vort_sf = ScalarField()
+        vort_sf.import_from_arrays(axe_x, axe_y, res_vort, mask=mask,
+                                   unit_x=unit_x, unit_y=unit_y,
+                                   unit_values=unit_values)
+        return vort_sf
 
 ### Others ###
 def _unique(a):

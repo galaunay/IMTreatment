@@ -12,4 +12,6 @@ from .vortex_detection import \
     get_gamma, get_kappa, get_q_criterion, get_iota,\
     get_vortex_radius, get_vortex_radius_time_evolution,\
     get_vortex_circulation, get_lambda2, CritPoints,\
-    get_angle_deviation, _get_saddle_orientations
+    get_angle_deviation, _get_saddle_orientations,\
+    get_vorticity, get_swirling_strength, get_delta_criterion,\
+    get_residual_vorticity
