@@ -244,19 +244,67 @@ class ModalFields(Field):
                 TF.add_field(tmp_vf, time=times[t], unit_times=self.unit_times)
         return TF
 
-    def display(self):
+    def get_temporal_coherence(self, raw=False):
+        """
+        Return a profile where each value represent the probability for a mode
+        to be coherent (non-random).
+        Can be used to determine the modes to take to filter the turbulence
+        (and so perform a tri-decomposition (mean + coherent + turbulent))
+
+        Parameters
+        ----------
+        raw : bool, optional
+            If 'False' (default), a Profile object is returned
+            If 'True', an array is returned
+
+        Returns
+        -------
+        var_spec : array or Profile object
+            Probability estimation for each mode of being coherent in time.
+
+        Notes
+        -----
+        Returned values are, for each modes, the variance of the normalized
+        spectrum of the temporal evolution.
+        Variance is high when spectrum show predominant frequencies
+        (coherent behavior), inversely, variance is low when spectrum is
+        nearly uniform (random behavior).
+        """
+        # computing maximal variance
+        max_std_spec = np.zeros(len(self.times))
+        max_std_spec[0] = 1
+        max_std_spec /= np.trapz(max_std_spec)
+        max_std = np.std(max_std_spec)
+        var_spec = np.empty((len(self.modes)))
+        for n in np.arange(len(self.modes)):
+            prof = self.temp_evo[n]
+            spec = prof.get_spectrum(scaling='density')
+            spec /= np.trapz(spec.y)
+            var_spec[n] = np.std(spec.y)/max_std
+        if raw:
+            return var_spec
+        else:
+            prof = Profile(np.arange(len(self.modes)), var_spec, unit_x='',
+                           unit_y='', name="")
+            return prof
+#        from scipy.stats import normaltest
+#        p_vals = np.empty((len(self.modes)))
+#        for n in np.arange(len(self.modes)):
+#            values = self.temp_evo[n].y
+#            p_vals[n] = normaltest(values)[1]
+
+    def display(self, figsize=(15, 10)):
         """
         Display some important diagram for the decomposition.
         """
-        from matplotlib.ticker import MaxNLocator
         if self.decomp_type == 'pod':
-            plt.figure()
+            plt.figure(figsize=figsize)
             plt.subplot(2, 3, 1)
-            tmp_prof = self.modes_nrj.copy()
-            tmp_prof.y /= np.sum(tmp_prof.y)
-            tmp_prof.display()
-            plt.title('Modes energy')
-            plt.ylim(ymin=0, ymax=1)
+            p_vals = self.get_temporal_coherence()
+            p_vals.display()
+            plt.title('Coherence indicator')
+            plt.xlabel('Modes')
+            plt.ylabel('Coherence')
             plt.subplot(2, 3, 2)
             self.modes[0].display()
             plt.title("Mode 1")
@@ -278,7 +326,7 @@ class ModalFields(Field):
         elif self.decomp_type == 'dmd':
             self.pulsation.change_unit('y', 'rad/s')
             self.growth_rate.change_unit('y', '1/s')
-            plt.figure()
+            plt.figure(figsize=figsize)
             plt.subplot(2, 3, 1)
             plt.plot(np.real(self.ritz_vals.y), np.imag(self.ritz_vals.y), 'o')
             plt.title("Ritz eigenvalues in the complexe plane")
@@ -333,6 +381,8 @@ class ModalFields(Field):
             plt.title("Mode with the bigger norm (pulsation={:.2f})\n"
                       "(Real representation)"
                       .format(self.pulsation.y[norm_sort[-1]]))
+        plt.tight_layout()
+
 
 
 def modal_decomposition(TF, kind='pod', wanted_modes='all'):

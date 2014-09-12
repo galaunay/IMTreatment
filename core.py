@@ -1489,7 +1489,8 @@ class Profile(object):
             raise TypeError("You only can use a number for the power "
                             "on a Profile")
         y = np.power(self.y, number)
-        return Profile(self.x, y, self.unit_x, self.unit_y, name=self.name)
+        return Profile(x=self.x, y=y, unit_x=self.unit_x, unit_y=self.unit_y,
+                       name=self.name)
 
     def __len__(self):
         return len(self.x)
