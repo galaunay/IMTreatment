@@ -5,10 +5,10 @@ Created on Thu Mar 06 13:29:17 2014
 @author: glaunay
 """
 
-from ..core import Points, ScalarField, VectorField, make_unit,\
+from ..core import ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
-    TemporalVectorFields, SpatialVectorFields, TemporalScalarFields,\
-    SpatialScalarFields, Field
+    TemporalVectorFields, TemporalScalarFields,\
+    Field
 from IMTreatment import *
 import numpy as np
 import pdb
@@ -29,7 +29,7 @@ class ModalFields(Field):
         """
         Field.__init__(self)
         # check parameters
-        if not decomp_type in ['pod', 'dmd']:
+        if not decomp_type in ['pod', 'dmd', 'bpod']:
             raise ValueError()
         self.field_class = mean_field.__class__
         if not isinstance(modes, ARRAYTYPES):
@@ -155,7 +155,7 @@ class ModalFields(Field):
             if wanted_modes == 'all':
                 wanted_modes = np.arange(len(self.modes))
         elif isinstance(wanted_modes, NUMBERTYPES):
-            if self.decomp_type == 'pod':
+            if self.decomp_type in ['pod', 'bpod']:
                 wanted_modes = np.arange(wanted_modes)
             elif self.decomp_type == 'dmd':
                 wanted_modes = (np.argsort(np.abs(self.growth_rate.y))
@@ -177,14 +177,14 @@ class ModalFields(Field):
         times = np.array(times)
         if times.ndim != 1:
             raise ValueError()
-        if self.decomp_type == 'pod':
+        if self.decomp_type in ['pod', 'bpod']:
             if (times.max() > self.times.max()
                     or times.min() < self.times.min()):
                 raise ValueError()
         # getting datas
         ind_times = np.arange(len(times))
         # reconstruction temporal evolution if needed
-        if self.decomp_type == 'pod':
+        if self.decomp_type in ['pod', 'bpod']:
             temp_evo = self.temp_evo
         elif self.decomp_type == 'dmd' and np.all(self.times == times):
             temp_evo = self.temp_evo
@@ -297,7 +297,7 @@ class ModalFields(Field):
         """
         Display some important diagram for the decomposition.
         """
-        if self.decomp_type == 'pod':
+        if self.decomp_type in ['pod', 'bpod']:
             plt.figure(figsize=figsize)
             plt.subplot(2, 3, 1)
             p_vals = self.get_temporal_coherence()
@@ -384,7 +384,6 @@ class ModalFields(Field):
         plt.tight_layout()
 
 
-
 def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     """
     Compute POD modes of the given fields using the snapshot method.
@@ -393,6 +392,8 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     ----------
     TF : TemporalFields (TemporalScalarFields or TemporalVectorFields)
         Fields to extract modes from
+    kind : string, optional
+        Kind of decomposition, can be 'pod' (default), 'bpod' or 'dmd'.
     wanted_modes : string or number or array of numbers
         If 'all', extract all modes,
         If a number, extract the associated mode,
@@ -402,12 +403,21 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     ------
     modal_field : ModalField object
         .
+
+    Notes
+    -----
+    You can use partially masked fields as input.
+    If so, the asked values are set to zero before doing the decomposition.
+    their influence is so minimized (zero energy points) and reported only in
+    the last modes.
     """
     ### Test parameters
     if not isinstance(TF, TemporalFields):
         raise TypeError()
     if not isinstance(kind, STRINGTYPES):
         raise TypeError()
+    if not kind in ['pod', 'bpod', 'dmd']:
+        raise ValueError()
     if isinstance(wanted_modes, STRINGTYPES):
         if not wanted_modes == 'all':
             raise ValueError()
@@ -423,12 +433,13 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     # remove mean field or not
     ind_fields = np.arange(len(TF.fields))
     mean_field = TF.get_mean_field()
-    TF = TF - mean_field
+    TF = TF.get_fluctuant_fields()
+    TF.fill(kind='spatial', tof='value', value=0.0)
     ### Link data
     if isinstance(TF, TemporalScalarFields):
-        snaps = [modred.VecHandleInMemory(TF.fields[i].values)
-                 for i in np.arange(len(TF.fields))]
         values = [TF.fields[t].values for t in ind_fields]
+        snaps = [modred.VecHandleInMemory(values[t])
+                 for t in np.arange(len(TF.fields))]
     elif isinstance(TF, TemporalVectorFields):
         values = [[TF.fields[t].comp_x, TF.fields[t].comp_y]
                   for t in ind_fields]
@@ -444,6 +455,14 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     if kind == 'pod':
         my_decomp = modred.PODHandles(np.vdot)
         eigvect, eigvals = my_decomp.compute_decomp(snaps)
+        wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
+        eigvect = np.array(eigvect)
+        eigvect = eigvect[:, wanted_modes]
+        eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
+                          unit_x=TF.unit_times, unit_y='')
+    elif kind == 'bpod':
+        my_decomp = modred.BPODHandles(np.vdot)
+        eigvect, eigvals, eigvect_l = my_decomp.compute_decomp(snaps, snaps)
         wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
         eigvect = np.array(eigvect)
         eigvect = eigvect[:, wanted_modes]
@@ -479,22 +498,29 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     else:
         raise ValueError("Unknown kind of decomposition : {}".format(kind))
     ### Decomposing and getting modes
-    modes = [modred.VecHandleInMemory(np.zeros(TF.fields[0].shape))
-             for i in np.arange(len(wanted_modes))]
-    my_decomp.compute_modes(wanted_modes, modes)
+    if kind in ['pod', 'dmd']:
+        modes = [modred.VecHandleInMemory(np.zeros(TF.fields[0].shape))
+                 for i in np.arange(len(wanted_modes))]
+        my_decomp.compute_modes(wanted_modes, modes)
+    elif kind in ['bpod']:
+        modes = [modred.VecHandleInMemory(np.zeros(TF.fields[0].shape))
+                 for i in np.arange(len(wanted_modes))]
+        adj_modes = [modred.VecHandleInMemory(np.zeros(TF.fields[0].shape))
+                     for i in np.arange(len(wanted_modes))]
+        my_decomp.compute_direct_modes(wanted_modes, modes)
+        my_decomp.compute_adjoint_modes(wanted_modes, adj_modes)
     ### Getting temporal evolution (maybe is there a better way to do that)
     # TODO : améliorer pob reconstruction
     temporal_prof = []
-    if kind == 'pod':
-        for i in np.arange(len(modes)):
-            tmp_prof = [np.vdot(modes[i].get(), values[j])
+    if kind in ['pod', 'bpod']:
+        for n in np.arange(len(modes)):
+            tmp_prof = [np.vdot(modes[n].get(), values[j])
                         for j in np.arange(len(TF.fields))]
             tmp_prof = Profile(TF.times, tmp_prof, mask=False,
                                unit_x=TF.unit_times,
                                unit_y=TF.unit_values)
             temporal_prof.append(tmp_prof)
     elif kind == 'dmd':
-        temporal_prof = []
         for n in np.arange(len(modes)):
             tmp_prof = [ritz_vals.y[n]**(k)
                         for k in np.arange(len(TF.fields))]

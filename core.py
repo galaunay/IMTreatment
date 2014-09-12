@@ -5001,32 +5001,16 @@ class TemporalFields(Fields, Field):
         result_f.fill(tof='value', value=0., crop_border=False)
         mask_cum = np.zeros(self.shape, dtype=int)
         mask_cum[np.logical_not(self.fields[0].mask)] += 1
-#        comp_x_cum = np.zeros(self.shape, dtype=float)
-#        comp_y_cum = np.zeros(self.shape, dtype=float)
         for field in self.fields[1::]:
             added_field = field.copy()
             added_field.fill(tof='value', value=0., crop_border=False)
             result_f += added_field
             mask_cum[np.logical_not(field.mask)] += 1
-#            comp_x = field.comp_x
-#            comp_x[field.mask] = 0
-#            comp_y = field.comp_y
-#            comp_y[field.mask] = 0
-#            comp_x_cum += comp_x
-#            comp_y_cum += comp_y
-#            mask_cum += np.logical_not(field.mask)
         mask = mask_cum <= nmb_min
-#        not_masked = np.logical_not(mask)
         result_f.mask = mask
         fact = mask_cum
         fact[mask] = 1
         result_f /= fact
-#        comp_x_cum[not_masked] /= mask_cum[not_masked]
-#        comp_y_cum[not_masked] /= mask_cum[not_masked]
-#        result_f.import_from_arrays(self.axe_x, self.axe_y, comp_x_cum,
-#                                    comp_y_cum, mask=mask, unit_x=self.unit_x,
-#                                    unit_y=self.unit_y,
-#                                    unit_values=self.unit_values)
         return result_f
 
     def get_fluctuant_fields(self, nmb_min_mean=1):
@@ -5045,8 +5029,9 @@ class TemporalFields(Fields, Field):
         """
         fluct_fields = self.__class__()
         mean_field = self.get_mean_field(nmb_min=nmb_min_mean)
-        for field in self.fields:
-            fluct_fields.add_field(field - mean_field)
+        for i, field in enumerate(self.fields):
+            fluct_fields.add_field(field - mean_field, time=self.times[i],
+                                   unit_times=self.unit_times)
         return fluct_fields
 
     def get_spatial_spectrum(self, component, direction, intervx=None,
@@ -5698,10 +5683,10 @@ class TemporalFields(Fields, Field):
         # getting min and max data
         if isinstance(comp[0], ScalarField):
             if 'vmin' not in plotargs.keys():
-                mins = [field.min for field in comp]
+                mins = [field.min for field in comp.fields]
                 plotargs['vmin'] = np.min(mins)
             if 'vmax' not in plotargs.keys():
-                maxs = [field.max for field in comp]
+                maxs = [field.max for field in comp.fields]
                 plotargs['vmax'] = np.max(maxs)
         elif isinstance(comp[0], VectorField):
             if 'clim' not in plotargs.keys() and kind is not 'stream':
@@ -5935,7 +5920,7 @@ class TemporalScalarFields(TemporalFields):
         return values
 
     ### Modifiers ###
-    def fill(self, kind='temporal', tof='interplin', value=0.,
+    def fill(self, kind='temporal', tof='interp', order=3, value=0.,
              crop_border=True):
         """
         Fill the masked part of the array in place.
@@ -5948,8 +5933,9 @@ class TemporalScalarFields(TemporalFields):
         tof : string, optional
             Type of algorithm used to fill.
             'value' : fill with a given value
-            'interplin' : fill using linear interpolation
-            'interpcub' : fill using cubic interpolation
+            'interp' : fill using interpolation
+        order : integer, optional
+            Interpolation order
         value : number
             Value for filling (only usefull with tof='value')
         crop_border : boolean
@@ -5976,22 +5962,18 @@ class TemporalScalarFields(TemporalFields):
             for i, j in np.argwhere(super_mask):
                 prof = self.get_time_profile('values', i, j, ind=True)
                 # checking if all time profile value are masked
-                if np.all(prof.y.mask):
+                if np.all(prof.mask):
                     continue
                 # getting masked position on profile
-                inds_masked = np.where(prof.y.mask)[0]
+                inds_masked = np.where(prof.mask)[0]
                 # creating interpolation function
                 if tof == 'value':
                     def interp_x(x):
                         return value
-                elif tof == 'interplin':
-                    interp = spinterp.interp1d(prof.x[~prof.y.mask],
-                                               prof.y[~prof.y.mask],
+                elif tof == 'interp':
+                    interp = spinterp.interp1d(prof.x[~prof.mask],
+                                               prof.y[~prof.mask],
                                                kind='linear')
-                elif tof == 'interpcub':
-                    interp = spinterp.interp1d(prof.x[~prof.y.mask],
-                                               prof.y[~prof.y.mask],
-                                               kind='cubic')
                 # loop on all profile masked points
                 for ind_masked in inds_masked:
                     try:
