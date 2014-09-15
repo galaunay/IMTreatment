@@ -1935,7 +1935,18 @@ class Profile(object):
             return fit_prof
 
     ### Modifiers ###
-    def trim(self, interval, ind=False):
+    def crop_masked_border(self):
+        """
+        Remove the masked values at the border of the profile in place.
+        """
+        mask = self.mask
+        inds_not_masked = np.where(mask == False)[0]
+        first = inds_not_masked[0]
+        last = inds_not_masked[-1] + 1
+        self.trim([first, last], ind=True, inplace=True)
+        return None
+
+    def trim(self, interval, ind=False, inplace=False):
         """
         Return a trimed copy of the profile along x with respect to 'interval'.
 
@@ -1946,6 +1957,8 @@ class Profile(object):
         ind : Boolean, optionnal
             If 'False' (Default), 'interval' are values along x axis,
             if 'True', 'interval' are indices of values along x.
+        inplace : boolean, optional
+            .
         """
         # checking parameters coherence
         if not isinstance(interval, ARRAYTYPES):
@@ -1988,15 +2001,21 @@ class Profile(object):
             x_new = self.x[interval[0]:interval[1]]
             y_new = self.y[interval[0]:interval[1]]
             mask_new = self.mask[interval[0]:interval[1]]
-        tmp_prof = Profile(x_new, y_new, mask_new, self.unit_x, self.unit_y)
-        return tmp_prof
+        if inplace:
+            self.x = x_new
+            self.y = y_new
+            self.mask = mask_new
+            return None
+        else:
+            tmp_prof = Profile(x_new, y_new, mask_new, self.unit_x, self.unit_y)
+            return tmp_prof
 
-    def fill(self, kind='slinear', fill_value=0., inplace=False):
+    def fill(self, kind='slinear', fill_value=0., inplace=False, crop=False):
         """
         Return a filled profile (no more masked values).
 
-        Warning : border masked values can't be interpolated and are filled
-        with 'fill_value'.
+        Warning : If 'crop' is False, border masked values can't be
+        interpolated and are filled with 'fill_value' or the nearest value.
 
         Parameters
         ----------
@@ -2008,20 +2027,30 @@ class Profile(object):
             the spline interpolator to use. Default is ‘linear’.
         fill_value : number, optional
             For kind = 'value', filling value.
+        inplace : boolean, optional
+            .
+        crop : boolean, optional
+            .
 
         Returns
         -------
         prof : Profile object
             Filled profile
         """
+        # check if filling really necessary
         if not np.any(self.mask) and inplace:
             return None,
         elif not np.any(self.mask):
             return self.copy()
+        # crop if asked
+        if crop:
+            self.crop_masked_border()
+        # get mask
         mask = self.mask
         filt = np.logical_not(mask)
         if np.all(mask):
             raise Exception("There is no values on this profile")
+        # check fill type
         if kind == 'value':
             new_y = copy.copy(self.y)
             new_y[filt] = fill_value
@@ -2036,6 +2065,13 @@ class Profile(object):
             new_y = copy.copy(self.y)
             missing_x = self.x[mask]
             new_y[mask] = interp(missing_x)
+            # replacing border value by nearest value
+            inds_masked = np.where(np.logical_not(mask))[0]
+            first = inds_masked[0]
+            last = inds_masked[-1]
+            new_y[0:first] = new_y[first]
+            new_y[last + 1::] = new_y[last]
+        # returning
         if inplace:
             self.y = new_y
             self.mask = False
@@ -3423,7 +3459,8 @@ class ScalarField(Field):
         scaling : string, optional
             If 'base' (default), result are in component unit.
             If 'spectrum', the power spectrum is returned (in unit^2).
-            If 'density', the power spectral density is returned (in unit^2/Hz)
+            If 'density', the power spectral density is returned
+            (in unit^2/(1/unit_axe))
         fill : string or float
             Specifies the way to treat missing values.
             A value for value filling.
@@ -5059,13 +5096,19 @@ class TemporalFields(Fields, Field):
         scaling : string, optional
             If 'base' (default), result are in component unit.
             If 'spectrum', the power spectrum is returned (in unit^2).
-            If 'density', the power spectral density is returned (in unit^2/Hz)
+            If 'density', the power spectral density is returned
+            (in unit^2/(1/unit_axe))
         fill : string or float, optional
             Specifies the way to treat missing values.
             A value for value filling.
             A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
             ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
             interpolation of first, second or third order) for interpolation.
+
+        Notes
+        -----
+        Warning : If masked values are present at the border of the field, it
+        can greatly deteriorate the spectrum.
         """
         # check parameters
         try:
@@ -5163,23 +5206,18 @@ class TemporalFields(Fields, Field):
         else:
             w_times_ind = np.arange(len(self.times))
         # getting component values
-        dim = (len(self.fields), self.shape[0], self.shape[1])
-        compo = np.empty(dim)
-        masks = np.empty(dim)
-        for i, field in enumerate(self.fields):
-            compo[i] = field.__getattribute__(component)
-            masks[i] = field.mask
+        dim = len(w_times_ind)
+        compo = np.empty(dim, dtype=float)
+        masks = np.empty(dim, dtype=float)
+        for i, time_ind in enumerate(w_times_ind):
+            compo[i] = self.fields[time_ind].__getattribute__(component)[ind_x, ind_y]
+            masks[i] = self.fields[time_ind].mask[ind_x, ind_y]
         # gettign others datas
         time = self.times[w_times_ind]
         unit_time = self.unit_times
-        prof_values = np.zeros(len(w_times_ind))
-        prof_mask = np.zeros(len(w_times_ind), dtype=bool)
         unit_values = self.unit_values
         # getting position indices
-        for i, time_ind in enumerate(w_times_ind):
-            prof_values[i] = compo[time_ind, ind_x, ind_y]
-            prof_mask[i] = masks[time_ind, ind_x, ind_y]
-        return Profile(time, prof_values, prof_mask, unit_x=unit_time,
+        return Profile(time, compo, masks, unit_x=unit_time,
                        unit_y=unit_values)
 
     def get_temporal_spectrum(self, component, pt, ind=False,
