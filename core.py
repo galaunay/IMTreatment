@@ -20,6 +20,7 @@ import copy
 import os
 from scipy import ndimage
 from scipy import stats
+import time
 try:
     units.counts = unum.Unum.unit('counts')
     units.pixel = unum.Unum.unit('pixel')
@@ -3740,62 +3741,92 @@ class ScalarField(Field):
                            [axe_y_min, axe_y_max],
                            ind=True, inplace=True)
 
-    def fill(self, tof='interp', order=3, value=0.,
-             crop_border=True, ):
+    def fill(self, kind='linear', value=0., inplace=False, reduce_tri=True):
         """
-        Fill the masked part of the array in place.
+        Fill the masked part of the array.
 
         Parameters
         ----------
-        tof : string, optional
+        kind : string, optional
             Type of algorithm used to fill.
-            'value' : fill with a given value
-            'interp' : fill using spline interpolation
-        order : integer, optional
-            Interpolation order (for tof='interp').
+            'value' : fill with the given value
+            'nearest' : fill with the nearest value
+            'linear' (default): fill using linear interpolation
+            (Delaunay triangulation)
+            'cubic' : fill using cubic interpolation (Delaunay triangulation)
         value : number
-            Value used to fill (for tof='fill').
-        crop_border : boolean
-            If 'True' (default), masked borders of the field are cropped
-            before filling. Else, values on border are extrapolated (poorly).
+            Value used to fill (for kind='value').
+        inplace : boolean, optional
+            If 'True', fill the ScalarField in place.
+            If 'False' (default), return a filled version of the field.
+        reduce_tri : boolean, optional
+            If 'True', treatment is used to reduce the triangulation effort
+            (faster when a lot of masked values)
+            If 'False', no treatment
+            (faster when few masked values)
         """
         # check parameters coherence
-        if not isinstance(tof, STRINGTYPES):
-            raise TypeError("'tof' must be a string")
+        if not isinstance(kind, STRINGTYPES):
+            raise TypeError("'kind' must be a string")
         if not isinstance(value, NUMBERTYPES):
             raise TypeError("'value' must be a number")
-        # deleting the masked border (useless field part)
-        if crop_border:
-            self.crop_masked_border()
         # getting data
-        axe_x, axe_y = self.axe_x, self.axe_y
-        mask = self.mask
-        not_mask = np.logical_not(mask)
+        x, y = self.axe_x, self.axe_y
+        X, Y = np.meshgrid(x, y)
+        X, Y = X.transpose(), Y.transpose()
+        xy = np.array(zip(X.flat, Y.flat))
         values = self.values
-        values[mask] = np.nan
+        mask = self.mask
+        filt = np.logical_not(mask)
+        xy_masked = xy[mask.flatten()]
+        if reduce_tri:
+            import scipy.ndimage as spim
+            dilated = spim.binary_dilation(self.mask,
+                                           np.arange(9).reshape((3, 3)))
+            filt_good = np.logical_and(filt, dilated)
+            xy_good = xy[filt_good.flatten()]
+            values_good = values[filt_good]
+        else:
+            xy_good = xy[filt.flatten()]
+            values_good = values[filt]
+        # getting the zone to interpolate
+
+
         # if there is nothing to do...
         if not np.any(mask):
             pass
         # if interpolation
-        elif tof == 'interp':
-            masked = np.argwhere(mask)
-            not_masked = np.argwhere(not_mask)
-            x = not_masked[:, 0]
-            y = not_masked[:, 1]
-            v = values[not_mask]
-            interp = spinterp.SmoothBivariateSpline(x, y, v, kx=order,
-                                                    ky=order, s=2)
-            mask_val = [interp(masked[i, 0], masked[i, 1])[0][0]
-                        for i in np.arange(len(masked[:, 0]))]
-            values[mask] = mask_val
-            self.values = values
-            self.mask = np.isnan(values)
-        elif tof == 'value':
+        elif kind == 'value':
             values[mask] = value
-            self.values = values
-            self.mask = np.isnan(values)
+        elif kind == 'nearest':
+            nearest = spinterp.NearestNDInterpolator(xy_good, values_good)
+            values[mask] = nearest(xy_masked)
+        elif kind == 'linear':
+            linear = spinterp.LinearNDInterpolator(xy_good, values_good)
+            values[mask] = linear(xy_masked)
+            new_mask = np.isnan(values)
+            if np.any(new_mask):
+                nearest = spinterp.NearestNDInterpolator(xy_good, values_good)
+                values[new_mask] = nearest(xy[new_mask.flatten()])
+        elif kind == 'cubic':
+            cubic = spinterp.CloughTocher2DInterpolator(xy_good, values_good)
+            values[mask] = cubic(xy_masked)
+            new_mask = np.isnan(values)
+            if np.any(new_mask):
+                nearest = spinterp.NearestNDInterpolator(xy_good, values_good)
+                values[new_mask] = nearest(xy[new_mask.flatten()])
         else:
             raise ValueError("unknown 'tof' value")
+        # returning
+        if inplace:
+            self.values = values
+            self.mask = False
+        else:
+            sf = ScalarField()
+            sf.import_from_arrays(x, y, values, mask=None, unit_x=self.unit_x,
+                                  unit_y=self.unit_y,
+                                  unit_values=self.unit_values)
+            return sf
 
     def smooth(self, tos='uniform', size=None, **kw):
         """
@@ -4456,91 +4487,55 @@ class VectorField(Field):
         self.comp_x = Vx
         self.comp_y = Vy
 
-    def fill(self, tof='interp', order=3, value=[0., 0.],
-             crop_border=True):
+    def fill(self, kind='linear', value=[0., 0.], inplace=False,
+             reduce_tri=True):
         """
-        Fill the masked part of the field in place.
+        Fill the masked part of the array.
 
         Parameters
         ----------
-        tof : string, optional
+        kind : string, optional
             Type of algorithm used to fill.
-            'value' : fill with a given value
-            'interp' : fill using interpolation
-        order : integer, optional
-            Interpolation order
-        value : number
-            Values for filling (only usefull with tof='fill')
-        crop_border : boolean
-            If 'True' (default), masked borders of the field are cropped
-            before filling. Else, values on border are extrapolated (poorly).
+            'value' : fill with the given value
+            'nearest' : fill with the nearest value
+            'linear' (default): fill using linear interpolation
+            (Delaunay triangulation)
+            'cubic' : fill using cubic interpolation (Delaunay triangulation)
+        value : 2x1 array of numbers
+            Values used to fill (for kind='value').
+        inplace : boolean, optional
+            If 'True', fill the ScalarField in place.
+            If 'False' (default), return a filled version of the field.
+        reduce_tri : boolean, optional
+            If 'True', treatment is used to reduce the triangulation effort
+            (faster when a lot of masked values)
+            If 'False', no treatment (faster when few masked values)
         """
         # check parameters coherence
-        if not isinstance(tof, STRINGTYPES):
-            raise TypeError("'tof' must be a string")
-        if isinstance(value, NUMBERTYPES):
-            value = np.array([0., 0.])
-        elif isinstance(value, ARRAYTYPES):
-            value = np.array(value)
-            if not value.shape == (2,):
-                raise ValueError()
-        else:
-            raise TypeError("'value' must be a number or a 2x1 array")
+        if not isinstance(value, ARRAYTYPES):
+            raise TypeError()
+        value = np.array(value)
+        if not value.shape == (2,):
+            raise ShapeError()
         # filling components
-        if crop_border:
-            self.crop_masked_border()
-        sfx = self.comp_x_as_sf
-        sfy = self.comp_y_as_sf
-        sfx.fill(tof=tof, order=order, value=value[0], crop_border=crop_border)
-        sfy.fill(tof=tof, order=order, value=value[1], crop_border=crop_border)
-        self.comp_x = sfx.values
-        self.comp_y = sfy.values
-        self.__mask = np.logical_or(sfx.mask, sfy.mask)
-#        # deleting the masked border (useless field part)
-#        if crop_border:
-#            self.crop_masked_border()
-#        # getting data
-#        axe_x, axe_y = self.axe_x, self.axe_y
-#        mask = self.mask
-#        not_mask = np.logical_not(mask)
-#        comp_x = self.comp_x
-#        comp_y = self.comp_y
-#        comp_x[mask] = np.nan
-#        comp_y[mask] = np.nan
-#        # if there is nothing to do...
-#        if not np.any(mask):
-#            pass
-#        elif tof == 'interp':
-#            X, Y = np.meshgrid(axe_x, axe_y)
-#            masked = np.argwhere(mask)
-#            not_masked = np.argwhere(not_mask)
-#            x = not_masked[:, 0]
-#            y = not_masked[:, 1]
-#            vx = comp_x[not_mask]
-#            vy = comp_y[not_mask]
-#            interpx = spinterp.SmoothBivariateSpline(x, y, vx, kx=order,
-#                                                     ky=order)
-#            interpy = spinterp.SmoothBivariateSpline(x, y, vy, kx=order,
-#                                                     ky=order)
-#            mask_val_x = [interpx(masked[i, 0], masked[i, 1])[0][0]
-#                          for i in np.arange(len(masked[:, 0]))]
-#            mask_val_y = [interpy(masked[i, 0], masked[i, 1])[0][0]
-#                          for i in np.arange(len(masked[:, 0]))]
-#            comp_x[mask] = mask_val_x
-#            comp_y[mask] = mask_val_y
-#            self.comp_x = comp_x
-#            self.comp_y = comp_y
-#            self.mask = np.logical_or(np.isnan(comp_x), np.isnan(comp_y))
-#        elif tof == 'value':
-#            Vx = self.comp_x
-#            Vy = self.comp_y
-#            Vx[mask] = value[0]
-#            Vy[mask] = value[1]
-#            self.comp_x = Vx
-#            self.comp_y = Vy
-#            self.mask = np.logical_or(np.isnan(comp_x), np.isnan(comp_y))
-#        else:
-#            raise ValueError("unknown 'tof' value")
+        comp_x = self.comp_x_as_sf
+        comp_y = self.comp_y_as_sf
+        new_comp_x = comp_x.fill(kind=kind, value=value[0], inplace=False,
+                                 reduce_tri=reduce_tri)
+        new_comp_y = comp_y.fill(kind=kind, value=value[1], inplace=False,
+                                 reduce_tri=reduce_tri)
+        # returning
+        if inplace:
+            self.comp_x = new_comp_x.values
+            self.comp_y = new_comp_y.values
+            self.mask = False
+        else:
+            vf = VectorField()
+            vf.import_from_arrays(self.axe_x, self.axe_y, new_comp_x.values,
+                                  new_comp_y.values, mask=False,
+                                  unit_x=self.unit_x, unit_y=self.unit_y,
+                                  unit_values=self.unit_values)
+            return vf
 
     def trim_area(self, intervalx=None, intervaly=None, ind=False,
                   inplace=False):
