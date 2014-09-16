@@ -20,7 +20,6 @@ import copy
 import os
 from scipy import ndimage
 from scipy import stats
-import time
 try:
     units.counts = unum.Unum.unit('counts')
     units.pixel = unum.Unum.unit('pixel')
@@ -3465,14 +3464,17 @@ class ScalarField(Field):
         fill : string or float
             Specifies the way to treat missing values.
             A value for value filling.
-            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
-            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
-            interpolation of first, second or third order) for interpolation.
+            A string (‘linear’, ‘nearest’ or 'cubic') for interpolation.
 
         Returns
         -------
         spec : Profile object
             Magnitude spectrum.
+
+        Notes
+        -----
+        If there is missing values on the field, 'fill' is used to linearly
+        interpolate the missing values (can impact the spectrum).
         """
          # check parameters
         if not isinstance(direction, STRINGTYPES):
@@ -3501,8 +3503,14 @@ class ScalarField(Field):
             intervy[1] = self.axe_y[-1]
         if intervy[1] <= intervy[0]:
             raise ValueError()
+        if isinstance(fill, NUMBERTYPES):
+            value = fill
+            fill = 'value'
+        else:
+            value = 0.
         # getting data
         tmp_SF = self.trim_area(intervx, intervy)
+        tmp_SF.fill(kind=fill, value=value, inplace=True, reduce_tri=True)
         # getting spectrum
         if direction == 'x':
             # first spectrum
@@ -3779,6 +3787,7 @@ class ScalarField(Field):
         mask = self.mask
         filt = np.logical_not(mask)
         xy_masked = xy[mask.flatten()]
+        # getting the zone to interpolate
         if reduce_tri:
             import scipy.ndimage as spim
             dilated = spim.binary_dilation(self.mask,
@@ -3789,9 +3798,6 @@ class ScalarField(Field):
         else:
             xy_good = xy[filt.flatten()]
             values_good = values[filt]
-        # getting the zone to interpolate
-
-
         # if there is nothing to do...
         if not np.any(mask):
             pass
@@ -4512,6 +4518,8 @@ class VectorField(Field):
             If 'False', no treatment (faster when few masked values)
         """
         # check parameters coherence
+        if isinstance(value, NUMBERTYPES):
+            value = [value, value]
         if not isinstance(value, ARRAYTYPES):
             raise TypeError()
         value = np.array(value)
@@ -4528,7 +4536,9 @@ class VectorField(Field):
         if inplace:
             self.comp_x = new_comp_x.values
             self.comp_y = new_comp_y.values
-            self.mask = False
+            mask = np.empty(self.shape, dtype=bool)
+            mask.fill(False)
+            self.__mask = mask
         else:
             vf = VectorField()
             vf.import_from_arrays(self.axe_x, self.axe_y, new_comp_x.values,
@@ -5030,16 +5040,19 @@ class TemporalFields(Fields, Field):
         if len(self.fields) == 0:
             raise ValueError("There is no fields in this object")
         result_f = self.fields[0].copy()
-        result_f.fill(tof='value', value=0., crop_border=False)
+        result_f.fill(kind='value', value=[0., 0.], inplace=True)
         mask_cum = np.zeros(self.shape, dtype=int)
         mask_cum[np.logical_not(self.fields[0].mask)] += 1
         for field in self.fields[1::]:
             added_field = field.copy()
-            added_field.fill(tof='value', value=0., crop_border=False)
+            added_field.fill(kind='value', value=0., inplace=True)
             result_f += added_field
             mask_cum[np.logical_not(field.mask)] += 1
         mask = mask_cum <= nmb_min
-        result_f.mask = mask
+        try:
+            result_f.mask = mask
+        except :
+            pdb.set_trace()
         fact = mask_cum
         fact[mask] = 1
         result_f /= fact
@@ -5093,17 +5106,15 @@ class TemporalFields(Fields, Field):
             If 'spectrum', the power spectrum is returned (in unit^2).
             If 'density', the power spectral density is returned
             (in unit^2/(1/unit_axe))
-        fill : string or float, optional
+        fill : string or float
             Specifies the way to treat missing values.
             A value for value filling.
-            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
-            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
-            interpolation of first, second or third order) for interpolation.
+            A string (‘linear’, ‘nearest’ or 'cubic') for interpolation.
 
         Notes
         -----
-        Warning : If masked values are present at the border of the field, it
-        can greatly deteriorate the spectrum.
+        If there is missing values on the field, 'fill' is used to linearly
+        interpolate the missing values (can impact the spectrum).
         """
         # check parameters
         try:
@@ -5447,7 +5458,8 @@ class TemporalFields(Fields, Field):
         self.__times = np.delete(self.times, fieldnumber)
         Fields.remove_field(self, fieldnumber)
 
-    def reduce_temporal_resolution(self, nmb_in_interval, mean=True):
+    def reduce_temporal_resolution(self, nmb_in_interval, mean=True,
+                                   inplace=False):
         """
         Return a TemporalVelocityFields, contening one field for each
         'nmb_in_interval' field in the initial TFVS.
@@ -5460,11 +5472,13 @@ class TemporalFields(Fields, Field):
         mean : boolean, optional
             If 'True', the resulting fields are average over the interval.
             Else, fields are taken directly.
+        inplace : boolean, optional
 
         Returns
         -------
         TVFS : TemporalVelocityFields
         """
+        # cehck parameters
         if not isinstance(nmb_in_interval, int):
             raise TypeError("'nmb_in_interval' must be an integer")
         if nmb_in_interval == 1:
@@ -5473,6 +5487,7 @@ class TemporalFields(Fields, Field):
             raise ValueError("'nmb_in_interval' is too big")
         if not isinstance(mean, bool):
             raise TypeError("'mean' must be a boolean")
+        #
         tmp_TFS = self.__class__()
         i = 0
         times = self.times
@@ -5489,7 +5504,12 @@ class TemporalFields(Fields, Field):
             i += nmb_in_interval
             if i + nmb_in_interval >= len(self):
                 break
-        return tmp_TFS
+        # returning
+        if inplace:
+            self.fields = tmp_TFS.fields
+            self.times = tmp_TFS.times
+        else:
+            return tmp_TFS
 
     def crop_masked_border(self, hard=False):
         """
@@ -5953,60 +5973,76 @@ class TemporalScalarFields(TemporalFields):
         return values
 
     ### Modifiers ###
-    def fill(self, kind='temporal', tof='interp', order=3, value=0.,
-             crop_border=True):
+    def fill(self, tof='spatial', kind='linear', value=[0., 0.],
+             inplace=False):
         """
         Fill the masked part of the array in place.
 
         Parameters
         ----------
-        kind : string
+        tof : string
             Can be 'temporal' for temporal interpolation, or 'spatial' for
             spatial interpolation.
-        tof : string, optional
+        kind : string, optional
             Type of algorithm used to fill.
             'value' : fill with a given value
-            'interp' : fill using interpolation
-        order : integer, optional
-            Interpolation order
-        value : number
-            Value for filling (only usefull with tof='value')
-        crop_border : boolean
-            If 'True' (default), masked borders of the field are cropped
-            before filling. Else, values on border are extrapolated (poorly).
+            'nearest' : fill with nearest available data
+            'linear' : fill using linear interpolation
+            'cubic' : fill using cubic interpolation
+        value : 2x1 array
+            Value for filling, '[Vx, Vy]' (only usefull with tof='value')
+        inplace : boolean, optional
+            .
         """
+        # TODO : utiliser Profile.fill au lieu d'une nouvelle méthode de filling
         # checking parameters coherence
-        if len(self.fields) < 3 and kind == 'temporal':
+        if len(self.fields) < 3 and tof == 'temporal':
             raise ValueError("Not enough fields to fill with temporal"
                              " interpolation")
-        # cropping masked borders if necessary
-        if crop_border:
-            self.crop_masked_border()
+        if not isinstance(tof, STRINGTYPES):
+            raise TypeError()
+        if tof not in ['temporal', 'spatial']:
+            raise ValueError()
+        if not isinstance(kind, STRINGTYPES):
+            raise TypeError()
+        if kind not in ['value', 'nearest', 'linear', 'cubic']:
+            raise ValueError()
         # temporal interpolation
-        if kind == 'temporal':
+        if tof == 'temporal':
             # getting datas
             axe_x, axe_y = self.axe_x, self.axe_y
             # getting super mask (0 where no value are masked and where all
             # values are masked)
-            super_mask = self.mask
-            super_mask = np.sum(super_mask, axis=0)
-            super_mask[super_mask == len(self.fields)] = 0
+            masks = self.mask
+            sum_masks = np.sum(masks, axis=0)
+            super_mask = np.logical_and(0 < sum_masks,
+                                        sum_masks < len(self.fields) - 2)
             # loop on each field position
             for i, j in np.argwhere(super_mask):
                 prof = self.get_time_profile('values', i, j, ind=True)
-                # checking if all time profile value are masked
-                if np.all(prof.mask):
-                    continue
                 # getting masked position on profile
-                inds_masked = np.where(prof.mask)[0]
+                inds_masked = np.where(values.mask)[0]
                 # creating interpolation function
-                if tof == 'value':
-                    def interp_x(x):
+                if kind == 'value':
+                    def interp(x):
                         return value
-                elif tof == 'interp':
-                    interp = spinterp.interp1d(prof.x[~prof.mask],
-                                               prof.y[~prof.mask],
+                elif kind == 'nearest':
+                    raise Exception("Not implemented yet")
+                elif kind == 'linear':
+                    prof_filt = np.logical_not(prof.mask)
+                    interp = spinterp.interp1d(prof.x[prof_filt],
+                                               prof.y[prof_filt],
                                                kind='linear')
+
+                elif kind == 'cubic':
+                    prof_filt = np.logical_not(prof.mask)
+                    interp = spinterp.interp1d(prof.x[prof_filt],
+                                               prof.y[prof_filt],
+                                               kind='cubic')
+                else:
+                    raise ValueError("Invalid value for 'kind'")
+                # inplace or not
+                fields = self.fields.copy()
                 # loop on all profile masked points
                 for ind_masked in inds_masked:
                     try:
@@ -6014,14 +6050,26 @@ class TemporalScalarFields(TemporalFields):
                     except ValueError:
                         continue
                     # putting interpolated value in the field
-                    self[ind_masked].values[i, j] = interp_val
+                    fields[ind_masked].values[i, j] = interp_val
+                    fields[ind_masked].mask[i, j] = False
         # spatial interpolation
-        elif kind == 'spatial':
-            for field in self.fields:
-                field.fill(tof=tof, value=value, crop_border=True)
-
+        elif tof == 'spatial':
+            if inplace:
+                fields = self.fields
+            else:
+                tmp_tsf = self.copy()
+                fields = tmp_tsf.fields
+            for i, field in enumerate(fields):
+                fields[i].fill(kind=kind, value=value, inplace=True)
         else:
-            raise ValueError("Unknown parameter for 'kind' : {}".format(kind))
+            raise ValueError("Unknown parameter for 'tof' : {}".format(tof))
+        # returning
+        if inplace:
+            self.fields = fields
+        else:
+            tmp_tsf = self.copy()
+            tmp_tsf.fields = fields
+            return tmp_tsf
 
 
 class TemporalVectorFields(TemporalFields):
@@ -6213,38 +6261,47 @@ class TemporalVectorFields(TemporalFields):
         return (rs_xx_sf, rs_yy_sf, rs_xy_sf)
 
     ### Modifiers ###
-    def fill(self, kind='temporal', tof='interp', order=3, value=[0., 0.],
-             crop_border=True):
+    def fill(self, tof='spatial', kind='linear', value=[0., 0.],
+             inplace=False):
         """
         Fill the masked part of the array in place.
 
         Parameters
         ----------
-        kind : string
+        tof : string
             Can be 'temporal' for temporal interpolation, or 'spatial' for
             spatial interpolation.
-        tof : string, optional
+        kind : string, optional
             Type of algorithm used to fill.
             'value' : fill with a given value
-            'interp' : fill using interpolation
-        order : integer, optional
-            Interpolation order
+            'nearest' : fill with nearest available data
+            'linear' : fill using linear interpolation
+            'cubic' : fill using cubic interpolation
         value : 2x1 array
             Value for filling, '[Vx, Vy]' (only usefull with tof='value')
-        crop_border : boolean
-            If 'True' (default), masked borders of the field are cropped
-            before filling. Else, values on border are extrapolated (poorly).
+        inplace : boolean, optional
+            .
         """
         # TODO : utiliser Profile.fill au lieu d'une nouvelle méthode de filling
         # checking parameters coherence
-        if len(self.fields) < 3 and kind == 'temporal':
+        if len(self.fields) < 3 and tof == 'temporal':
             raise ValueError("Not enough fields to fill with temporal"
                              " interpolation")
-        # cropping masked borders if necessary
-        if crop_border:
-            self.crop_masked_border()
+        if not isinstance(tof, STRINGTYPES):
+            raise TypeError()
+        if tof not in ['temporal', 'spatial']:
+            raise ValueError()
+        if not isinstance(kind, STRINGTYPES):
+            raise TypeError()
+        if kind not in ['value', 'nearest', 'linear', 'cubic']:
+            raise ValueError()
+        if isinstance(value, NUMBERTYPES):
+            value = [value, value]
+        elif not isinstance(value, ARRAYTYPES):
+            raise TypeError()
+        value = np.array(value)
         # temporal interpolation
-        if kind == 'temporal':
+        if tof == 'temporal':
             # getting datas
             axe_x, axe_y = self.axe_x, self.axe_y
             # getting super mask (0 where no value are masked and where all
@@ -6255,18 +6312,21 @@ class TemporalVectorFields(TemporalFields):
                                         sum_masks < len(self.fields) - 2)
             # loop on each field position
             for i, j in np.argwhere(super_mask):
+                # get time profiles
                 prof_x = self.get_time_profile('comp_x', i, j, ind=True)
                 prof_y = self.get_time_profile('comp_y', i, j, ind=True)
                 # getting masked position on profile
                 inds_masked_x = np.where(prof_x.mask)[0]
                 inds_masked_y = np.where(prof_y.mask)[0]
                 # creating interpolation function
-                if tof == 'value':
+                if kind == 'value':
                     def interp_x(x):
                         return value[0]
                     def interp_y(x):
                         return value[1]
-                elif tof == 'interp' and order == 1:
+                elif kind == 'nearest':
+                    raise Exception("Not implemented yet")
+                elif kind == 'linear':
                     prof_filt = np.logical_not(prof_x.mask)
                     interp_x = spinterp.interp1d(prof_x.x[prof_filt],
                                                  prof_x.y[prof_filt],
@@ -6275,7 +6335,7 @@ class TemporalVectorFields(TemporalFields):
                     interp_y = spinterp.interp1d(prof_y.x[prof_filt],
                                                  prof_y.y[prof_filt],
                                                  kind='linear')
-                elif tof == 'interp':
+                elif kind == 'cubic':
                     prof_filt = np.logical_not(prof_x.mask)
                     interp_x = spinterp.interp1d(prof_x.x[prof_filt],
                                                  prof_x.y[prof_filt],
@@ -6285,7 +6345,9 @@ class TemporalVectorFields(TemporalFields):
                                                  prof_y.y[prof_filt],
                                                  kind='cubic')
                 else:
-                    raise ValueError("Invalid value for 'tof'")
+                    raise ValueError("Invalid value for 'kind'")
+                # inplace or not
+                fields = self.fields.copy()
                 # loop on all x profile masked points
                 for ind_masked in inds_masked_x:
                     try:
@@ -6293,8 +6355,8 @@ class TemporalVectorFields(TemporalFields):
                     except ValueError:
                         continue
                     # putting interpolated value in the field
-                    self[ind_masked].comp_x[i, j] = interp_val
-                    self[ind_masked].mask[i, j] = False
+                    fields[ind_masked].comp_x[i, j] = interp_val
+                    fields[ind_masked].mask[i, j] = False
                 # loop on all y profile masked points
                 for ind_masked in inds_masked_y:
                     try:
@@ -6302,15 +6364,26 @@ class TemporalVectorFields(TemporalFields):
                     except ValueError:
                         continue
                     # putting interpolated value in the field
-                    self[ind_masked].comp_y[i, j] = interp_val
-                    self[ind_masked].mask[i, j] = False
+                    fields[ind_masked].comp_y[i, j] = interp_val
+                    fields[ind_masked].mask[i, j] = False
         # spatial interpolation
-        elif kind == 'spatial':
-            for field in self.fields:
-                field.fill(tof=tof, order=order, value=value, crop_border=True)
-
+        elif tof == 'spatial':
+            if inplace:
+                fields = self.fields
+            else:
+                tmp_tvf = self.copy()
+                fields = tmp_tvf.fields
+            for i, field in enumerate(fields):
+                fields[i].fill(kind=kind, value=value, inplace=True)
         else:
-            raise ValueError("Unknown parameter for 'kind' : {}".format(kind))
+            raise ValueError("Unknown parameter for 'tof' : {}".format(tof))
+        # returning
+        if inplace:
+            self.fields = fields
+        else:
+            tmp_tvf = self.copy()
+            tmp_tvf.fields = fields
+            return tmp_tvf
 
 
 class SpatialScalarFields(Fields):

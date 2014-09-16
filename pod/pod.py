@@ -396,9 +396,11 @@ class ModalFields(Field):
             plt.subplot(2, 3, 4)
             tmp_prof = self.get_modes_energy()
             tmp_prof.y /= np.sum(tmp_prof.y)
-            tmp_prof.display()
+            plt.plot(self.pulsation.y, tmp_prof.y, 'o')
             plt.title('Modes energy')
-            plt.ylim(ymin=0, ymax=1)
+            plt.ylabel("Normalized kinetic energy []")
+            plt.xlabel("Pulsation [rad/s]")
+            plt.ylim(ymin=0)
             plt.subplot(2, 3, 6)
             norm_sort = np.argsort(self.mode_norms.y)
             tmp_sf = self.modes[norm_sort[-1]].copy()
@@ -464,7 +466,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     ind_fields = np.arange(len(TF.fields))
     mean_field = TF.get_mean_field()
     TF = TF.get_fluctuant_fields()
-    TF.fill(kind='spatial', tof='value', value=0.0)
+    TF.fill(kind='value', value=0.0)
     ### Link data
     if isinstance(TF, TemporalScalarFields):
         values = [TF.fields[t].values for t in ind_fields]
@@ -483,7 +485,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     growth_rate = None
     pulsation = None
     if kind == 'pod':
-        my_decomp = modred.PODHandles(np.vdot, max_vecs_per_node=10000,
+        my_decomp = modred.PODHandles(np.vdot, max_vecs_per_node=1000,
                                       verbosity=0)
         eigvect, eigvals = my_decomp.compute_decomp(snaps)
         wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
@@ -492,7 +494,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
         eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
                           unit_x=TF.unit_times, unit_y='')
     elif kind == 'bpod':
-        my_decomp = modred.BPODHandles(np.vdot, max_vecs_per_node=10,
+        my_decomp = modred.BPODHandles(np.vdot, max_vecs_per_node=1000,
                                        verbosity=0)
         eigvect, eigvals, eigvect_l = my_decomp.compute_decomp(snaps, snaps)
         wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
@@ -501,7 +503,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
         eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
                           unit_x=TF.unit_times, unit_y='')
     elif kind == 'dmd':
-        my_decomp = modred.DMDHandles(np.vdot, max_vecs_per_node=10,
+        my_decomp = modred.DMDHandles(np.vdot, max_vecs_per_node=1000,
                                       verbosity=0)
         ritz_vals, mode_norms, build_coeffs = my_decomp.compute_decomp(snaps)
         wanted_modes = wanted_modes[wanted_modes < len(ritz_vals)]
