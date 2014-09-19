@@ -18,6 +18,7 @@ import unum
 import unum.units as units
 import copy
 import os
+import time
 from scipy import ndimage
 from scipy import stats
 try:
@@ -1503,7 +1504,7 @@ class Profile(object):
     @x.setter
     def x(self, values):
         if isinstance(values, ARRAYTYPES):
-            self.__x = np.array(values)
+            self.__x = np.array(values)*1.
         else:
             raise Exception("'x' should be an array, not {}"
                             .format(type(values)))
@@ -1523,7 +1524,7 @@ class Profile(object):
             self.__y = values.data
             self.__mask = values.mask
         elif isinstance(values, ARRAYTYPES):
-            self.__y = np.array(values)
+            self.__y = np.array(values)*1.
             self.__mask = np.isnan(values)
         else:
             raise Exception()
@@ -2151,7 +2152,8 @@ class Profile(object):
         return Profile(new_x, new_y, mask=False, unit_x=self.unit_x,
                        unit_y=self.unit_y, name=self.name)
 
-    def smooth(self, tos='uniform', size=None, direction='y', **kw):
+    def smooth(self, tos='uniform', size=None, direction='y',
+               inplace=False, **kw):
         """
         Return a smoothed profile.
         Warning : fill up the field
@@ -2167,6 +2169,9 @@ class Profile(object):
             Default is 3 for 'uniform' and 1 for 'gaussian'.
         dir : string, optional
             In which direction smoothing (can be 'x', 'y' or 'xy').
+        inplace : boolean
+            If 'False', return a smoothed profile
+            else, smooth in place.
         kw : dic
             Additional parameters for ndimage methods
             (See ndimage documentation)
@@ -2179,12 +2184,16 @@ class Profile(object):
             size = 1
         if not direction in ['x', 'y', 'xy']:
             raise ValueError()
-        tmp_prof = self.copy()
-        # filling up the field before smoothing
-        tmp_prof.fill(inplace=True)
-        # mask treatment
-        y = tmp_prof.y
-        x = tmp_prof.x
+        # getting data
+        if inplace:
+            self.fill(inplace=True)
+            y = self.y
+            x = self.x
+        else:
+            tmp_prof = self.copy()
+            tmp_prof.fill(inplace=True)
+            y = tmp_prof.y
+            x = tmp_prof.x
         # smoothing
         if tos == "uniform":
             if direction == 'y':
@@ -2205,9 +2214,13 @@ class Profile(object):
         else:
             raise ValueError("'tos' must be 'uniform' or 'gaussian'")
         # storing
-        tmp_prof.x = x
-        tmp_prof.y = y
-        return tmp_prof
+        if inplace:
+            self.x = x
+            self.y = y
+        else:
+            tmp_prof.x = x
+            tmp_prof.y = y
+            return tmp_prof
 
     ### Displayers ###
     def _display(self, kind='plot', reverse=False, **plotargs):
@@ -2807,6 +2820,7 @@ class ScalarField(Field):
             tmpsf = self.copy()
             values = self.values / obj.values
             mask = np.logical_or(self.mask, obj.mask)
+            mask = np.logical_or(mask, obj.values == 0.)
             unit = self.unit_values / obj.unit_values
             tmpsf.values = values*unit.asNumber()
             tmpsf.mask = mask
@@ -3780,24 +3794,27 @@ class ScalarField(Field):
             raise TypeError("'value' must be a number")
         # getting data
         x, y = self.axe_x, self.axe_y
-        X, Y = np.meshgrid(x, y)
-        X, Y = X.transpose(), Y.transpose()
-        xy = np.array(zip(X.flat, Y.flat))
         values = self.values
         mask = self.mask
-        filt = np.logical_not(mask)
-        xy_masked = xy[mask.flatten()]
+        if kind in ['nearest', 'linear', 'cubic']:
+            X, Y = np.meshgrid(x, y, indexing='ij')
+            xy = [X.flat[:], Y.flat[:]]
+            xy = np.transpose(xy)
+            filt = np.logical_not(mask)
+            xy_masked = xy[mask.flatten()]
         # getting the zone to interpolate
-        if reduce_tri:
+        if reduce_tri and kind in ['nearest', 'linear', 'cubic']:
             import scipy.ndimage as spim
             dilated = spim.binary_dilation(self.mask,
                                            np.arange(9).reshape((3, 3)))
             filt_good = np.logical_and(filt, dilated)
             xy_good = xy[filt_good.flatten()]
             values_good = values[filt_good]
-        else:
+        elif not reduce_tri and kind in ['nearest', 'linear', 'cubic']:
             xy_good = xy[filt.flatten()]
             values_good = values[filt]
+        else:
+            pass
         # if there is nothing to do...
         if not np.any(mask):
             pass
@@ -5040,7 +5057,11 @@ class TemporalFields(Fields, Field):
         if len(self.fields) == 0:
             raise ValueError("There is no fields in this object")
         result_f = self.fields[0].copy()
-        result_f.fill(kind='value', value=[0., 0.], inplace=True)
+        if isinstance(self, TemporalScalarFields):
+            value = 0.
+        else:
+            value = [0., 0.]
+        result_f.fill(kind='value', value=value, inplace=True)
         mask_cum = np.zeros(self.shape, dtype=int)
         mask_cum[np.logical_not(self.fields[0].mask)] += 1
         for field in self.fields[1::]:
@@ -5530,7 +5551,7 @@ class TemporalFields(Fields, Field):
         # hard cropping
         if hard:
             # remove trivial borders
-            self.crop_masked_border()
+            self.crop_masked_border(hard=False)
             # until there is no more masked values
             while True:
                 # getting mask
@@ -5562,7 +5583,7 @@ class TemporalFields(Fields, Field):
                                    inplace=True)
                 elif more_masked == 3:
                     len_y = len(self.axe_y)
-                    self.trim_area(intervalx=[0, len_y - 2], ind=True,
+                    self.trim_area(intervaly=[0, len_y - 2], ind=True,
                                    inplace=True)
         # soft cropping
         else:
@@ -5733,26 +5754,25 @@ class TemporalFields(Fields, Field):
             kind = plotargs['kind']
         else:
             kind = None
-        # getting min and max data
-        if isinstance(comp[0], ScalarField):
-            if 'vmin' not in plotargs.keys():
-                mins = [field.min for field in comp.fields]
-                plotargs['vmin'] = np.min(mins)
-            if 'vmax' not in plotargs.keys():
-                maxs = [field.max for field in comp.fields]
-                plotargs['vmax'] = np.max(maxs)
-        elif isinstance(comp[0], VectorField):
-            if 'clim' not in plotargs.keys() and kind is not 'stream':
-                mins = [np.min(field.magnitude[np.logical_not(field.mask)])
-                        for field in comp]
-                maxs = [np.max(field.magnitude[np.logical_not(field.mask)])
-                        for field in comp]
-                mini = np.min(mins)
-                maxi = np.max(maxs)
-                plotargs['clim'] = [mini, maxi]
-        else:
-            pdb.set_trace()
-            raise Exception()
+#        # getting min and max data
+#        if isinstance(comp[0], ScalarField):
+#            if 'vmin' not in plotargs.keys():
+#                mins = [field.min for field in comp.fields]
+#                plotargs['vmin'] = np.min(mins)
+#            if 'vmax' not in plotargs.keys():
+#                maxs = [field.max for field in comp.fields]
+#                plotargs['vmax'] = np.max(maxs)
+#        elif isinstance(comp[0], VectorField):
+#            if 'clim' not in plotargs.keys() and kind is not 'stream':
+#                mins = [np.min(field.magnitude[np.logical_not(field.mask)])
+#                        for field in comp]
+#                maxs = [np.max(field.magnitude[np.logical_not(field.mask)])
+#                        for field in comp]
+#                mini = np.min(mins)
+#                maxi = np.max(maxs)
+#                plotargs['clim'] = [mini, maxi]
+#        else:
+#            raise Exception()
 
         # button gestion class
         class Index(object):
@@ -5973,7 +5993,7 @@ class TemporalScalarFields(TemporalFields):
         return values
 
     ### Modifiers ###
-    def fill(self, tof='spatial', kind='linear', value=[0., 0.],
+    def fill(self, tof='spatial', kind='linear', value=0.,
              inplace=False):
         """
         Fill the masked part of the array in place.
@@ -6184,13 +6204,17 @@ class TemporalVectorFields(TemporalFields):
         """
         Calculate the turbulent kinetic energy.
         """
-        turb_vfs = self.get_fluctuant_fields()
-        vx_p = turb_vfs.Vx_as_sf
-        vy_p = turb_vfs.Vy_as_sf
-        del turb_vfs
+        mean_field = self.get_mean_field()
+        mean_x = mean_field.comp_x_as_sf
+        mean_y = mean_field.comp_y_as_sf
+        del mean_field
         tke = TemporalScalarFields()
-        for i in np.arange(len(vx_p)):
-            tke.add_field(1./2*(vx_p[i]**2 + vy_p[i]**2))
+        for i in np.arange(len(self.fields)):
+            comp_x = self.fields[i].comp_x_as_sf - mean_x
+            comp_y = self.fields[i].comp_y_as_sf - mean_y
+            tke.add_field(1./2*(comp_x**2 + comp_y**2),
+                          time=self.times[i],
+                          unit_times=self.unit_times)
         return tke
 
     def get_turbulent_intensity(self):

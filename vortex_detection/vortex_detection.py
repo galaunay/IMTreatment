@@ -917,9 +917,10 @@ class CritPoints(object):
         kw : dict, optional
             Additional arguments for 'TF.display()'
         """
-        def update_cp(ind):
-            self.display(indice=ind, field=TF.fields[ind])
-        return TF.display(suppl_display=update_cp, **kw)
+        return TF.display(suppl_display=self.update_cp, **kw)
+
+    def __update_cp(self, ind):
+        self.display(indice=ind, field=TF.fields[ind])
 
 #    def display_traj(self, kind='default'):
 #        """

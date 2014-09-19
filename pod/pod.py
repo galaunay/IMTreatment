@@ -124,6 +124,31 @@ class ModalFields(Field):
                                  unit_times=self.unit_times)
             return tmp_tf
 
+    def smooth_temporal_evolutions(self, tos='uniform', size=None,
+                                   inplace=True):
+        """
+        Smooth the temporal evolutions (to do before reconstructing)
+
+        Parameters
+        ----------
+        tos : string, optional
+            Type of smoothing, can be ‘uniform’ (default) or ‘gaussian’
+            (See ndimage module documentation for more details)
+        size : number, optional
+            Size of the smoothing
+            (is radius for ‘uniform’ and sigma for ‘gaussian’).
+            Default is 3 for ‘uniform’ and 1 for ‘gaussian’.
+        """
+        if inplace:
+            for n in np.arange(len(self.modes)):
+                self.temp_evo[n].smooth(tos=tos, size=size, inplace=True)
+        else:
+            tmp_MF = self.copy()
+            for n in np.arange(len(tmp_MF.modes)):
+                tmp_MF.temp_evo[n].smooth(tos=tos, size=size, inplace=True)
+            return tmp_MF
+
+
     def reconstruct(self, wanted_modes='all', times=None):
         """
         Recontruct fields resolved in time from modes.
@@ -462,21 +487,33 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
             raise ValueError()
     else:
         raise TypeError()
-    # remove mean field or not
+    # getting datas
     ind_fields = np.arange(len(TF.fields))
+    f_shape = TF.fields[0].shape
+    axe_x, axe_y = TF.axe_x, TF.axe_y
+    unit_x, unit_y = TF.unit_x, TF.unit_y
+    unit_values = TF.unit_values
+    times = TF.times
+    unit_times = TF.unit_times
     mean_field = TF.get_mean_field()
     TF = TF.get_fluctuant_fields()
-    TF.fill(kind='value', value=0.0)
+    TF.fill(kind='value', value=0.0, inplace=True)
     ### Link data
     if isinstance(TF, TemporalScalarFields):
         values = [TF.fields[t].values for t in ind_fields]
+        del TF
         snaps = [modred.VecHandleInMemory(values[t])
-                 for t in np.arange(len(TF.fields))]
+                 for t in ind_fields]
+        del values
     elif isinstance(TF, TemporalVectorFields):
         values = [[TF.fields[t].comp_x, TF.fields[t].comp_y]
                   for t in ind_fields]
-        values = np.transpose(values, (0, 2, 3, 1))
-        snaps = [modred.VecHandleInMemory(values[i]) for i in ind_fields]
+        del TF
+        snaps = [modred.VecHandleInMemory(np.transpose(values[i], (1, 2, 0)))
+                 for i in ind_fields]
+        del values
+    else:
+        raise Exception()
     ### Setting the decomposition mode
     eigvals = None
     eigvect = None
@@ -492,7 +529,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
         eigvect = np.array(eigvect)
         eigvect = eigvect[:, wanted_modes]
         eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
-                          unit_x=TF.unit_times, unit_y='')
+                          unit_x=unit_times, unit_y='')
     elif kind == 'bpod':
         my_decomp = modred.BPODHandles(np.vdot, max_vecs_per_node=1000,
                                        verbosity=0)
@@ -501,14 +538,15 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
         eigvect = np.array(eigvect)
         eigvect = eigvect[:, wanted_modes]
         eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
-                          unit_x=TF.unit_times, unit_y='')
+                          unit_x=unit_times, unit_y='')
     elif kind == 'dmd':
         my_decomp = modred.DMDHandles(np.vdot, max_vecs_per_node=1000,
                                       verbosity=0)
         ritz_vals, mode_norms, build_coeffs = my_decomp.compute_decomp(snaps)
+        del snaps
         wanted_modes = wanted_modes[wanted_modes < len(ritz_vals)]
         # supplementary charac
-        delta_t = TF.times[1] - TF.times[0]
+        delta_t = times[1] - times[0]
         lambd_i = np.imag(ritz_vals)
         lambd_r = np.real(ritz_vals)
         lambd_mod = np.abs(ritz_vals)
@@ -522,25 +560,25 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
         omega = lambd_arg/delta_t
         # creating profiles
         ritz_vals = Profile(wanted_modes, ritz_vals[wanted_modes], mask=False,
-                            unit_x=TF.unit_times, unit_y='')
+                            unit_x=unit_times, unit_y='')
         mode_norms = Profile(wanted_modes, mode_norms[wanted_modes],
-                             mask=False, unit_x=TF.unit_times, unit_y='')
+                             mask=False, unit_x=unit_times, unit_y='')
         growth_rate = Profile(wanted_modes, sigma[wanted_modes], mask=False,
-                              unit_x=TF.unit_times, unit_y=1./TF.unit_times)
+                              unit_x=unit_times, unit_y=1./unit_times)
         pulsation = Profile(wanted_modes, omega[wanted_modes], mask=False,
-                            unit_x=TF.unit_times,
-                            unit_y=make_unit('rad')/TF.unit_times)
+                            unit_x=unit_times,
+                            unit_y=make_unit('rad')/unit_times)
     else:
         raise ValueError("Unknown kind of decomposition : {}".format(kind))
     ### Decomposing and getting modes
     if kind in ['pod', 'dmd']:
-        modes = [modred.VecHandleInMemory(np.zeros(TF.fields[0].shape))
+        modes = [modred.VecHandleInMemory(np.zeros(f_shape))
                  for i in np.arange(len(wanted_modes))]
         my_decomp.compute_modes(wanted_modes, modes)
     elif kind in ['bpod']:
-        modes = [modred.VecHandleInMemory(np.zeros(TF.fields[0].shape))
+        modes = [modred.VecHandleInMemory(np.zeros(f_shape))
                  for i in np.arange(len(wanted_modes))]
-        adj_modes = [modred.VecHandleInMemory(np.zeros(TF.fields[0].shape))
+        adj_modes = [modred.VecHandleInMemory(np.zeros(f_shape))
                      for i in np.arange(len(wanted_modes))]
         my_decomp.compute_direct_modes(wanted_modes, modes)
         my_decomp.compute_adjoint_modes(wanted_modes, adj_modes)
@@ -549,38 +587,40 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     temporal_prof = []
     if kind in ['pod', 'bpod']:
         for n in np.arange(len(modes)):
-            tmp_prof = [np.vdot(modes[n].get(), values[j])
-                        for j in np.arange(len(TF.fields))]
-            tmp_prof = Profile(TF.times, tmp_prof, mask=False,
-                               unit_x=TF.unit_times,
-                               unit_y=TF.unit_values)
+            tmp_prof = [np.vdot(modes[n].get(), snaps[j].get())
+                        for j in ind_fields]
+            tmp_prof = Profile(times, tmp_prof, mask=False,
+                               unit_x=unit_times,
+                               unit_y=unit_values)
             temporal_prof.append(tmp_prof)
+        del snaps
     elif kind == 'dmd':
         for n in np.arange(len(modes)):
-            tmp_prof = [ritz_vals.y[n]**(k)
-                        for k in np.arange(len(TF.fields))]
-            tmp_prof = Profile(TF.times, tmp_prof, mask=False,
-                               unit_x=TF.unit_times,
-                               unit_y=TF.unit_values)
+            tmp_prof = [ritz_vals.y[n]**(k) for k in ind_fields]
+            tmp_prof = Profile(times, tmp_prof, mask=False, unit_x=unit_times,
+                               unit_y=unit_values)
             temporal_prof.append(tmp_prof)
     ### Returning
     modes_f = []
     for i in np.arange(len(modes)):
-        if isinstance(TF, TemporalScalarFields):
+        if isinstance(mean_field, ScalarField):
             tmp_field = ScalarField()
-            tmp_field.import_from_arrays(TF.axe_x, TF.axe_y, modes[i].get(),
-                                         mask=False, unit_x=TF.unit_x,
-                                         unit_y=TF.unit_y,
-                                         unit_values=TF.unit_values)
+            tmp_field.import_from_arrays(axe_x, axe_y, modes[i].get(),
+                                         mask=False, unit_x=unit_x,
+                                         unit_y=unit_y,
+                                         unit_values=unit_values)
+            modes[i] = 0
         else:
             tmp_field = VectorField()
             comp_x = modes[i].get()[:, :, 0]
             comp_y = modes[i].get()[:, :, 1]
-            tmp_field.import_from_arrays(TF.axe_x, TF.axe_y, comp_x, comp_y,
-                                         mask=False, unit_x=TF.unit_x,
-                                         unit_y=TF.unit_y,
-                                         unit_values=TF.unit_values)
+            modes[i] = 0
+            tmp_field.import_from_arrays(axe_x, axe_y, comp_x, comp_y,
+                                         mask=False, unit_x=unit_x,
+                                         unit_y=unit_y,
+                                         unit_values=unit_values)
         modes_f.append(tmp_field)
+    del modes
     modal_field = ModalFields(kind, mean_field, modes_f, wanted_modes,
                               temporal_prof,
                               eigvals=eigvals, eigvects=eigvect,
