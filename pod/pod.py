@@ -490,6 +490,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     # getting datas
     ind_fields = np.arange(len(TF.fields))
     f_shape = TF.fields[0].shape
+    filts = np.logical_not(TF.mask)
     axe_x, axe_y = TF.axe_x, TF.axe_y
     unit_x, unit_y = TF.unit_x, TF.unit_y
     unit_values = TF.unit_values
@@ -587,12 +588,14 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     temporal_prof = []
     if kind in ['pod', 'bpod']:
         for n in np.arange(len(modes)):
-            tmp_prof = [np.vdot(modes[n].get(), snaps[j].get())
+            tmp_prof = [np.vdot(modes[n].get()[filts[n]],
+                                snaps[j].get()[filts[n]])
                         for j in ind_fields]
             tmp_prof = Profile(times, tmp_prof, mask=False,
                                unit_x=unit_times,
                                unit_y=unit_values)
             temporal_prof.append(tmp_prof)
+        del filts
         del snaps
     elif kind == 'dmd':
         for n in np.arange(len(modes)):
