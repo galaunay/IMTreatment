@@ -664,15 +664,22 @@ class CritPoints(object):
                 """
                 Make a point of the field useless (None).
                 """
-                if not isinstance(i, int) or not isinstance(j, int):
-                    raise TypeError()
+                try:
+                    i = int(i)
+                    j = int(j)
+                except ValueError:
+                    raise TypeError("'i' and 'j' must be integers, not {}"
+                                    " and {}"
+                                    .format(type(i), type(j)))
                 self.points[i][j] = None
 
             def get_points_at_time(self, time):
                 """
                 Return all the points for a given time.
                 """
-                if not isinstance(time, int):
+                try:
+                    time = int(time)
+                except ValueError:
                     raise TypeError()
                 return self.points[time]
 
@@ -826,7 +833,7 @@ class CritPoints(object):
             if len(self.times) == 1:
                 time = self.times[0]
             else:
-                raise ValueError()
+                raise ValueError("You should specify a time or an indice")
         if time is not None and indice is not None:
             raise ValueError()
         if time is not None:
@@ -917,7 +924,7 @@ class CritPoints(object):
         kw : dict, optional
             Additional arguments for 'TF.display()'
         """
-        return TF.display(suppl_display=self.update_cp, **kw)
+        return TF.display(suppl_display=self.__update_cp, **kw)
 
     def __update_cp(self, ind):
         self.display(indice=ind, field=TF.fields[ind])
@@ -1388,6 +1395,17 @@ def get_cp_crit_on_TVF(TVF, window_size=4):
     pts : CritPoints object
         Containing all critical points
     """
+#    import multiprocessing
+#    cp = CritPoints(unit_time=TVF.unit_times)
+#    jobs = []
+#    for i, field in enumerate(TVF.fields):
+#        args = (TVF.fields[i],)
+#        kwargs = {'time': TVF.times[i], 'unit_time': TVF.unit_times,
+#                  'window_size': window_size}
+#        p = multiprocessing.Process(target=get_cp_crit_on_VF, args=args,
+#                                    kwargs=kwargs)
+#        jobs.append(p)
+#        p.start()
     cp = CritPoints(unit_time=TVF.unit_times)
     for i, field in enumerate(TVF.fields):
         cp += get_cp_crit_on_VF(field, time=TVF.times[i],
@@ -1483,8 +1501,12 @@ def get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     # compute directions
     saddles_ori = []
     for sad in saddles.xy:
-        saddles_ori.append(np.array(_get_saddle_orientations(vectorfield,
-                                                             sad)))
+        try:
+            saddles_ori.append(np.array(_get_saddle_orientations(vectorfield,
+                                                                 sad)))
+        except ValueError as error:
+            print("error : {}".format(error.message))
+            saddles_ori.append([[0, 0], [0, 0]])
     tmp_opts = OrientedPoints()
     tmp_opts.import_from_Points(saddles, saddles_ori)
     saddles = tmp_opts
@@ -1620,11 +1642,17 @@ def _get_saddle_orientations(vectorfield, pt):
     dy = vectorfield.axe_y[1] - vectorfield.axe_y[0]
     Vx = vectorfield.comp_x
     Vy = vectorfield.comp_y
-    # get surrounding gradients
+    # get surrounding points
     inds_x = vectorfield.get_indice_on_axe(1, pt[0], kind='bounds')
     inds_y = vectorfield.get_indice_on_axe(2, pt[1], kind='bounds')
     inds_x_2 = np.arange(-1, 3) + inds_x[0]
     inds_y_2 = np.arange(-1, 3) + inds_y[0]
+    # check if surrounding gradients are available
+    if (np.any(inds_x_2 > len(axe_x)) or np.any(inds_x_2 < 0) or
+        np.any(inds_y_2 > len(axe_y)) or np.any(inds_y_2 < 0)):
+        raise ValueError("Point is too close to the border, can't compute "
+                         "Jacobian")
+    # get surounding gradients
     inds_X_2, inds_Y_2 = np.meshgrid(inds_x_2, inds_y_2)
     local_Vx = Vx[inds_X_2, inds_Y_2]
     local_Vy = Vy[inds_X_2, inds_Y_2]

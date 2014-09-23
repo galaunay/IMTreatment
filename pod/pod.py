@@ -498,7 +498,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     unit_times = TF.unit_times
     mean_field = TF.get_mean_field()
     TF = TF.get_fluctuant_fields()
-    TF.fill(kind='value', value=0.0, inplace=True)
+    TF.fill(kind='value', value=0., inplace=True)
     ### Link data
     if isinstance(TF, TemporalScalarFields):
         values = [TF.fields[t].values for t in ind_fields]

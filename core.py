@@ -12,6 +12,7 @@ import scipy.optimize as spopt
 import matplotlib as mpl
 from matplotlib import cm
 import matplotlib.pyplot as plt
+#import guiqwt.pyplot as plt
 import numpy as np
 import pdb
 import unum
@@ -1314,6 +1315,8 @@ class OrientedPoints(Points):
         coef = np.min([Dx, Dy])/20.
         for i in np.arange(len(self.xy)):
             loc_oris = self.orientations[i]
+            if np.all(loc_oris == [[0, 0], [0, 0]]):
+                continue
             color = colors[i % len(colors)]
             pt = self.xy[i]
             for ori in loc_oris:
@@ -2243,10 +2246,6 @@ class Profile(object):
         fig : Plot reference
             Reference to the displayed plot.
         """
-        try:
-            plotargs["label"]
-        except KeyError:
-            plotargs["label"] = self.name
         if not reverse:
             x = self.x
             y = self.y
@@ -2284,6 +2283,10 @@ class Profile(object):
         fig : Plot reference
             Reference to the displayed plot.
         """
+        try:
+            plotargs["label"]
+        except KeyError:
+            plotargs["label"] = self.name
         plot = self._display(kind, reverse, **plotargs)
         plt.title(self.name)
         if not reverse:

@@ -175,7 +175,7 @@ class BlasiusBL(object):
             theta = np.linspace(0, 10, 1000)
             # solving with scipy ode solver
             sol = odeint(f_deriv, f0, theta)
-            #getting adimensionnale velocity
+            # getting adimensionnale velocity
             u_over_U = sol[:, 1]
             # getting dimensionnal values
             u = u_over_U*self.Uinf
