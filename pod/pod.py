@@ -201,6 +201,7 @@ class ModalFields(Field):
                 raise ValueError()
         # getting datas
         ind_times = np.arange(len(times))
+        super_mask = self.modes[0].mask
         # reconstruction temporal evolution if needed
         if self.decomp_type in ['pod', 'bpod']:
             temp_evo = self.temp_evo
@@ -232,6 +233,7 @@ class ModalFields(Field):
             for t in ind_times:
                 tmp_sf = ScalarField()
                 tmp_sf.import_from_arrays(self.axe_x, self.axe_y, tmp_tf[t],
+                                          mask=super_mask,
                                           unit_x=self.unit_x,
                                           unit_y=self.unit_y,
                                           unit_values=self.unit_values)
@@ -256,6 +258,7 @@ class ModalFields(Field):
                 tmp_vf = VectorField()
                 tmp_vf.import_from_arrays(self.axe_x, self.axe_y,
                                           tmp_tf_x[t], tmp_tf_y[t],
+                                          mask=super_mask,
                                           unit_x=self.unit_x,
                                           unit_y=self.unit_y,
                                           unit_values=self.unit_values)
@@ -498,6 +501,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     unit_times = TF.unit_times
     mean_field = TF.get_mean_field()
     TF = TF.get_fluctuant_fields()
+    super_mask = np.sum(TF.mask, axis=0) == TF.mask.shape[0]
     TF.fill(kind='value', value=0., inplace=True)
     ### Link data
     if isinstance(TF, TemporalScalarFields):
@@ -609,7 +613,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
         if isinstance(mean_field, ScalarField):
             tmp_field = ScalarField()
             tmp_field.import_from_arrays(axe_x, axe_y, modes[i].get(),
-                                         mask=False, unit_x=unit_x,
+                                         mask=super_mask, unit_x=unit_x,
                                          unit_y=unit_y,
                                          unit_values=unit_values)
             modes[i] = 0
@@ -619,7 +623,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
             comp_y = modes[i].get()[:, :, 1]
             modes[i] = 0
             tmp_field.import_from_arrays(axe_x, axe_y, comp_x, comp_y,
-                                         mask=False, unit_x=unit_x,
+                                         mask=super_mask, unit_x=unit_x,
                                          unit_y=unit_y,
                                          unit_values=unit_values)
         modes_f.append(tmp_field)
