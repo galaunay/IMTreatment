@@ -364,9 +364,6 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
     deltaabs = delta * ((axe_x[-1]-axe_x[0])/len(axe_x)
                         + (axe_y[-1]-axe_y[0])/len(axe_y))/2.
     deltaabs2 = deltaabs**2
-    # check if there are masked values
-    if np.any(mask):
-        raise Exception()
     # interpolation du champ de vitesse
     if interp == 'linear':
         interp_vx = spinterp.RectBivariateSpline(axe_x, axe_y, Vx,
@@ -401,6 +398,9 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
             tmp_vy = interp_vy(stream[i-1, 0], stream[i-1, 1])[0, 0]
             norm = np.linalg.norm([tmp_vx, tmp_vy])
             # tests d'arret
+            if tmp_vx == 0 and tmp_vy == 0:
+                # if masked value
+                break
             if i >= longmax-1:
                 break
             if i > 15:

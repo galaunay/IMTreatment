@@ -860,6 +860,7 @@ class CritPoints(object):
             for stream in streams:
                 stream.display(kind='plot', color=colors[4])
 
+
     def display_traj(self, kind='default', **kw):
         """
         Display the stored trajectories.
