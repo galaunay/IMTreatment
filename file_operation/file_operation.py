@@ -10,7 +10,7 @@ import pdb
 import gzip
 from glob import glob
 try:
-    import IM
+    import ReadIM
 except:
     pass
 from ..core import Points, ScalarField, VectorField, make_unit,\
@@ -349,7 +349,7 @@ def __export_vf_to_vtk(obj, filepath, axis=None):
 
 
 ### DAVIS ###
-def import_from_IM7(filename):
+def import_from_IM7(filename, infos=False):
     """
     Import a scalar field from a .IM7 file.
 
@@ -357,6 +357,8 @@ def import_from_IM7(filename):
     ----------
     filename : string
         Path to the IM7 file.
+    infos : boolean, optional
+        If 'True', also return a dictionary with informations on the im7
     """
     if not isinstance(filename, STRINGTYPES):
         raise TypeError("'filename' must be a string")
@@ -366,41 +368,67 @@ def import_from_IM7(filename):
     if not (ext == ".im7" or ext == ".IM7"):
         raise ValueError("I need the file to be an IM7 file (not a {} file)"
                          .format(ext))
-    v = IM.IM7(filename)
-    axe_x = v.Px[0, :]
-    axe_y = v.Py[:, 0]
-    values = np.transpose(v.I[0]*v.buffer['scaleI']['factor'])
-    unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
-    unit_x = unit_x.replace('[', '')
-    unit_x = unit_x.replace(']', '')
-    unit_x = make_unit(unit_x)
-    unit_y = v.buffer['scaleY']['unit'].split("\x00")[0]
-    unit_y = unit_y.replace('[', '')
-    unit_y = unit_y.replace(']', '')
-    unit_y = make_unit(unit_y)
-    unit_values = v.buffer['scaleI']['unit'].split("\x00")[0]
-    unit_values = unit_values.replace('[', '')
-    unit_values = unit_values.replace(']', '')
-    unit_values = make_unit(unit_values)
-    # check if axe are crescent
-    if axe_y[-1] < axe_y[0]:
-        axe_y = axe_y[::-1]
-        values = values[:, ::-1]
-    if axe_x[-1] < axe_x[0]:
-        axe_x = axe_x[::-1]
-        values = values[::-1, :]
+    # Importing from buffer
+    vbuff, vatts = ReadIM.extra.get_Buffer_andAttributeList(filename)
+    v_array, vbuff2 = ReadIM.extra.buffer_as_array(vbuff)
+    v_mask, vbuff3 = ReadIM.extra.buffer_mask_as_array(vbuff)
+    atts = ReadIM.extra.att2dict(vatts)
+    # Values and Mask
+    values = np.transpose(np.array(v_array[0]))
+    mask = np.transpose(np.logical_not(np.array(v_mask[0])))
+    shape = values.shape
+    scale_i = atts['_SCALE_I']
+    scale_i = scale_i.split("\n")
+    scale_val = scale_i[0].split(' ')
+    unit_values = scale_i[1]
+    values *= float(scale_val[0])
+    values += float(scale_val[1])
+    # X
+    scale_x = atts['_SCALE_X']
+    scale_x = scale_x.split("\n")
+    unit_x = scale_x[1]
+    scale_val = scale_x[0].split(' ')
+    x_init = float(scale_val[1])
+    dx = float(scale_val[0])
+    x_final = x_init + shape[0]*dx
+    if x_init > x_final:
+        x_init, x_final = x_final, x_init
+        dx = -dx
+        values[:, :] = values[::-1, :]
+        mask[:, :] = mask[::-1, :]
+    axe_x = np.arange(x_init, x_final, dx)
+    # Y
+    scale_y = atts['_SCALE_Y']
+    scale_y = scale_y.split("\n")
+    unit_y = scale_y[1]
+    scale_val = scale_y[0].split(' ')
+    y_init = float(scale_val[1])
+    dy = float(scale_val[0])
+    y_final = y_init + shape[1]*dy
+    if y_init > y_final:
+        y_init, y_final = y_final, y_init
+        dy = -dy
+        values[:, :] = values[:, ::-1]
+        mask[:, :] = mask[:, ::-1]
+    axe_y = np.arange(y_init, y_final, dy)
+    # deleting buffers
+    ReadIM.DestroyBuffer(vbuff)
+    ReadIM.DestroyBuffer(vbuff2)
+    ReadIM.DestroyBuffer(vbuff3)
+    del vbuff, vbuff2, vbuff3, vatts
+    # returning
     tmpsf = ScalarField()
-    mask = values.mask
-    values = values.data
     tmpsf.import_from_arrays(axe_x=axe_x, axe_y=axe_y, values=values,
                              mask=mask,
                              unit_x=unit_x, unit_y=unit_y,
                              unit_values=unit_values)
-    return tmpsf
+    if infos:
+        return tmpsf, atts
+    else:
+        return tmpsf
 
 
-def import_from_IM7s(fieldspath, kind='TSF', dt=1, t0=0, unit_time='s',
-                     fieldnumbers=None, incr=1):
+def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
     """
     Import scalar fields from .IM7 files.
     'fieldspath' should be a tuple of path to im7 files.
@@ -417,11 +445,8 @@ def import_from_IM7s(fieldspath, kind='TSF', dt=1, t0=0, unit_time='s',
     incr : integer
         Incrementation between fields to take. Default is 1, meaning all
         fields are taken.
-    dt : number
-        interval of time between fields.
-    t0: number, optional
-        Time for the first field.
     """
+    # check parameters
     if isinstance(fieldspath, ARRAYTYPES):
         if not isinstance(fieldspath[0], STRINGTYPES):
             raise TypeError("'fieldspath' must be a string or a tuple of"
@@ -447,8 +472,6 @@ def import_from_IM7s(fieldspath, kind='TSF', dt=1, t0=0, unit_time='s',
         raise TypeError("'incr' must be an integer")
     if incr <= 0:
         raise ValueError("'incr' must be positive")
-    if not isinstance(dt, NUMBERTYPES):
-        raise TypeError("'dt' must be a number")
     # Import
     if kind == 'TSF':
         fields = TemporalScalarFields()
@@ -456,19 +479,18 @@ def import_from_IM7s(fieldspath, kind='TSF', dt=1, t0=0, unit_time='s',
         fields = SpatialScalarFields()
     else:
         raise ValueError()
-    # loop on files
     start = fieldnumbers[0]
     end = fieldnumbers[1]
-    t = t0
+    # loop on files
+    unit_times = make_unit('us')
     for path in fieldspath[start:end:incr]:
-        tmp_sf = import_from_IM7(path)
-        time = t
-        fields.add_field(tmp_sf, time, unit_time)
-        t += dt*incr
+        tmp_sf, infos = import_from_IM7(path, infos=True)
+        time = float(infos['AcqTimeSeries0'])
+        fields.add_field(tmp_sf, time, unit_times)
     return fields
 
 
-def import_from_VC7(filename):
+def import_from_VC7(filename, infos=False):
     """
     Import a vector field or a velocity field from a .VC7 file
 
@@ -476,11 +498,8 @@ def import_from_VC7(filename):
     ----------
     filename : string
         Path to the file to import.
-    velocity : boolean, optional
-        If 'False' (default), a VectorField object is returned,
-        If 'True', a VelocityField object is returned.
-    time : number, optional
-        time parameter for VelocityField objects.
+    infos : boolean, optional
+        If 'True', also return a dictionary with informations on the im7
     """
     if not isinstance(filename, STRINGTYPES):
         raise TypeError("'filename' must be a string")
@@ -489,41 +508,73 @@ def import_from_VC7(filename):
     _, ext = os.path.splitext(filename)
     if not (ext == ".vc7" or ext == ".VC7"):
         raise ValueError("'filename' must be a vc7 file")
-    v = IM.VC7(filename)
-    # traitement des unités
-    unit_x = v.buffer['scaleX']['unit'].split("\x00")[0]
-    unit_x = unit_x.replace('[', '')
-    unit_x = unit_x.replace(']', '')
-    unit_y = v.buffer['scaleY']['unit'].split("\x00")[0]
-    unit_y = unit_y.replace('[', '')
-    unit_y = unit_y.replace(']', '')
-    unit_values = v.buffer['scaleI']['unit'].split("\x00")[0]
-    unit_values = unit_values.replace('[', '')
-    unit_values = unit_values.replace(']', '')
-    # vérification de l'ordre des axes (et correction)
-    x = v.Px[0, :]
-    y = v.Py[:, 0]
-    Vx = np.transpose(v.Vx[0])
-    Vy = np.transpose(v.Vy[0])
-    if x[-1] < x[0]:
-        x = x[::-1]
-        Vx = Vx[::-1, :]
-        Vy = Vy[::-1, :]
-    if y[-1] < y[0]:
-        y = y[::-1]
-        Vx = Vx[:, ::-1]
-        Vy = Vy[:, ::-1]
+    # Importing from buffer
+    vbuff, vatts = ReadIM.extra.get_Buffer_andAttributeList(filename)
+    v_array, vbuff2 = ReadIM.extra.buffer_as_array(vbuff)
+    v_mask, vbuff3 = ReadIM.extra.buffer_mask_as_array(vbuff)
+    atts = ReadIM.extra.att2dict(vatts)
+    vectorGrid = vbuff.vectorGrid
+    # Values and Mask
+    Vx = np.transpose(np.array(v_array[1]))
+    Vy = np.transpose(np.array(v_array[2]))
+    mask = np.transpose(np.logical_not(np.array(v_mask[0])))
+    mask2 = np.logical_not(np.transpose(np.array(v_array[0])))
+    mask = np.logical_or(mask, mask2)
+    shape = Vx.shape
+    scale_i = atts['_SCALE_I']
+    scale_i = scale_i.split("\n")
+    unit_values = scale_i[1]
+    scale_val = scale_i[0].split(' ')
+    Vx *= float(scale_val[0])
+    Vx += float(scale_val[1])
+    Vy *= float(scale_val[0])
+    Vy += float(scale_val[1])
+    # X
+    scale_x = atts['_SCALE_X']
+    scale_x = scale_x.split("\n")
+    unit_x = scale_x[1]
+    scale_val = scale_x[0].split(' ')
+    x_init = float(scale_val[1])
+    dx = float(scale_val[0])*vectorGrid
+    x_final = x_init + shape[0]*dx
+    if x_init > x_final:
+        x_init, x_final = x_final, x_init
+        dx = -dx
+        Vx[:, :] = -Vx[::-1, :]
+        Vy[:, :] = Vy[::-1, :]
+        mask[:, :] = mask[::-1, :]
+    axe_x = np.arange(x_init, x_final, dx)
+    # Y
+    scale_y = atts['_SCALE_Y']
+    scale_y = scale_y.split("\n")
+    unit_y = scale_y[1]
+    scale_val = scale_y[0].split(' ')
+    y_init = float(scale_val[1])
+    dy = float(scale_val[0])*vectorGrid
+    y_final = y_init + shape[1]*dy
+    if y_init > y_final:
+        y_init, y_final = y_final, y_init
+        dy = -dy
+        Vx[:, :] = Vx[:, ::-1]
+        Vy[:, :] = -Vy[:, ::-1]
+        mask[:, :] = mask[:, ::-1]
+    axe_y = np.arange(y_init, y_final, dy)
+    # deleting buffers
+    ReadIM.DestroyBuffer(vbuff)
+    ReadIM.DestroyBuffer(vbuff2)
+    ReadIM.DestroyBuffer(vbuff3)
+    del vbuff, vbuff2, vbuff3, vatts
+    # returning
     tmpvf = VectorField()
-    mask = np.logical_or(Vx.mask, Vy.mask)
-    Vx = Vx.data
-    Vy = Vy.data
-    tmpvf.import_from_arrays(x, y, Vx, Vy, mask=mask, unit_x=unit_x,
+    tmpvf.import_from_arrays(axe_x, axe_y, Vx, Vy, mask=mask, unit_x=unit_x,
                              unit_y=unit_y, unit_values=unit_values)
-    return tmpvf
+    if infos:
+        return tmpvf, atts
+    else:
+        return tmpvf
 
 
-def import_from_VC7s(fieldspath, kind='TVF', dt=1, t0=0, unit_time='s',
-                     fieldnumbers=None, incr=1):
+def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1):
     """
     Import velocity fields from .VC7 files.
     'fieldspath' should be a tuple of path to vc7 files.
@@ -540,10 +591,6 @@ def import_from_VC7s(fieldspath, kind='TVF', dt=1, t0=0, unit_time='s',
     incr : integer
         Incrementation between fields to take. Default is 1, meaning all
         fields are taken.
-    dt : number
-        interval of time between fields.
-    t0 : number, optional
-        Time for the first field.
     """
     if isinstance(fieldspath, ARRAYTYPES):
         if not isinstance(fieldspath[0], STRINGTYPES):
@@ -570,8 +617,6 @@ def import_from_VC7s(fieldspath, kind='TVF', dt=1, t0=0, unit_time='s',
         raise TypeError("'incr' must be an integer")
     if incr <= 0:
         raise ValueError("'incr' must be positive")
-    if not isinstance(dt, NUMBERTYPES):
-        raise TypeError("'dt' must be a number")
     # Import
     if kind == 'TVF':
         fields = TemporalVectorFields()
@@ -582,12 +627,16 @@ def import_from_VC7s(fieldspath, kind='TVF', dt=1, t0=0, unit_time='s',
     # loop on files
     start = fieldnumbers[0]
     end = fieldnumbers[1]
-    t = t0
+    t = 0.
     for path in fieldspath[start:end:incr]:
-        tmp_vf = import_from_VC7(path)
-        time = t
-        fields.add_field(tmp_vf, time, unit_time)
+        print(t)
+        tmp_vf, infos = import_from_VC7(path, infos=True)
+        dt = infos['FrameDt0'].split()
+        unit_time = make_unit(dt[1])
+        dt = float(dt[0])
         t += dt*incr
+        fields.add_field(tmp_vf, t, unit_time)
+
     return fields
 
 

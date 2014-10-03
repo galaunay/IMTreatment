@@ -3021,7 +3021,7 @@ class ScalarField(Field):
             else:
                 raise ValueError()
         elif isinstance(new_unit_values, STRINGTYPES):
-            self.__unit_values == make_unit(new_unit_values)
+            self.__unit_values = make_unit(new_unit_values)
         else:
             raise TypeError()
 
