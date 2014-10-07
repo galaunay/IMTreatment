@@ -130,6 +130,57 @@ def export_to_file(obj, filepath, compressed=True, **kw):
         pickle.dump(obj, f, protocol=-1)
         f.close()
 
+def imts_to_imt(imts_path, imt_path, kind):
+    """
+    Concatenate some .imt files to one .imt file.
+
+    Parameters
+    ----------
+    imts_path : string
+        Path to the .imt files
+    imt_path : string
+        Path to store the new imt file.
+    kind : string
+        Kind of object for the new imt file
+        (can be 'TSF' for TemporalScalarFields, 'SSF' for SpatialScalarFields,
+        'TVF' for TemporalVectorFields, 'SVF' for SpatialVectorFields)
+    """
+    # check parameters
+    if not isinstance(imts_path, STRINGTYPES):
+        raise TypeError()
+    if not isinstance(imt_path, STRINGTYPES):
+        raise TypeError()
+    if not isinstance(kind, STRINGTYPES):
+        raise TypeError()
+    # getting paths
+    paths = glob(imts_path + "/*")
+    # getting data type
+    if kind == 'TSF':
+        imts_type = 'SF'
+        fields = TemporalScalarFields()
+    elif kind == 'SSF':
+        imts_type = 'SF'
+        fields = SpatialScalarFields()
+    elif kind == 'SVF':
+        imts_type = 'VF'
+        fields = TemporalVectorFields()
+    elif kind == 'SVF':
+        imts_type = 'VF'
+        fields = SpatialVectorFields()
+    # importing data
+    for path in paths:
+        basename = os.path.basename(path)
+        name, ext = os.path.splitext(basename)
+        if ext in ['.imt', '.cimt']:
+            field = import_from_file(path)
+            if imts_type == 'SF' and not isinstance(field, ScalarField):
+                continue
+            elif imts_type == 'VF' and not isinstance(field, VectorField):
+                continue
+            fields.add_field(field)
+    # saving data
+    export_to_file(fields, imt_path)
+
 
 ### MATLAB ###
 def export_to_matlab(obj, name, filepath, **kw):
@@ -439,7 +490,8 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
     fieldspath : string or tuple of string
     kind : string, optional
         Kind of object to create with IM7 files.
-        (can be 'TSF' or 'SSF').
+        (can be 'TSF' for TemporalScalarFields
+         or 'SSF' for SpatialScalarFields).
     fieldnumbers : 2x1 tuple of int
         Interval of fields to import, default is all.
     incr : integer
@@ -536,14 +588,11 @@ def import_from_VC7(filename, infos=False):
     scale_val = scale_x[0].split(' ')
     x_init = float(scale_val[1])
     dx = float(scale_val[0])*vectorGrid
-    x_final = x_init + shape[0]*dx
-    if x_init > x_final:
-        x_init, x_final = x_final, x_init
-        dx = -dx
-        Vx[:, :] = -Vx[::-1, :]
-        Vy[:, :] = Vy[::-1, :]
-        mask[:, :] = mask[::-1, :]
-    axe_x = np.arange(x_init, x_final, dx)
+    len_axe_x = Vx.shape[0]
+    if dx < 0:
+        axe_x = x_init + np.arange(len_axe_x - 1, -1, -1)*dx
+    else:
+        axe_x = x_init + np.arange(len_axe_x)*dx
     # Y
     scale_y = atts['_SCALE_Y']
     scale_y = scale_y.split("\n")
@@ -551,14 +600,11 @@ def import_from_VC7(filename, infos=False):
     scale_val = scale_y[0].split(' ')
     y_init = float(scale_val[1])
     dy = float(scale_val[0])*vectorGrid
-    y_final = y_init + shape[1]*dy
-    if y_init > y_final:
-        y_init, y_final = y_final, y_init
-        dy = -dy
-        Vx[:, :] = Vx[:, ::-1]
-        Vy[:, :] = -Vy[:, ::-1]
-        mask[:, :] = mask[:, ::-1]
-    axe_y = np.arange(y_init, y_final, dy)
+    len_axe_y = Vx.shape[1]
+    if dy < 0:
+        axe_y = y_init + np.arange(len_axe_y - 1, -1, -1)*dy
+    else:
+        axe_y = y_init + np.arange(len_axe_y)*dy
     # deleting buffers
     ReadIM.DestroyBuffer(vbuff)
     ReadIM.DestroyBuffer(vbuff2)
@@ -629,7 +675,6 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1):
     end = fieldnumbers[1]
     t = 0.
     for path in fieldspath[start:end:incr]:
-        print(t)
         tmp_vf, infos = import_from_VC7(path, infos=True)
         dt = infos['FrameDt0'].split()
         unit_time = make_unit(dt[1])
@@ -640,7 +685,7 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1):
     return fields
 
 
-def IM7_to_imt(im7_path, imt_path, **kwargs):
+def IM7_to_imt(im7_path, imt_path, kind='SF', compressed=True, **kwargs):
     """
     Transfome an IM7 (davis) file into a, imt exploitable file.
 
@@ -652,6 +697,11 @@ def IM7_to_imt(im7_path, imt_path, **kwargs):
     imt_path : path to file or directory
         Path where to save imt files, has to be the same type of path
         than 'im7_path' (path to file or path to directory)
+    kind : string
+        Kind of object to store (can be 'TSF' for TemporalScalarFields,
+        'SSF' for SpatialScalarFields or 'SF' for multiple ScalarField)
+    compressed : boolean, optional
+        If 'True' (default), the file is compressed using gzip.
     kwargs : dict, optional
         Additional arguments for 'import_from_***()'.
     """
@@ -662,8 +712,19 @@ def IM7_to_imt(im7_path, imt_path, **kwargs):
         raise TypeError()
     # checking if file or directory
     if os.path.isdir(im7_path):
-        TSF = import_from_IM7s(im7_path, **kwargs)
-        export_to_file(TSF, imt_path)
+        if kind in ['SSF', 'TSF']:
+            ST_SF = import_from_IM7s(im7_path, kind=kind, **kwargs)
+            export_to_file(ST_SF, imt_path)
+        elif kind in ['SF']:
+            paths = glob(im7_path + "/*")
+            for path in paths:
+                name_ext = os.path.basename(path)
+                name, ext = os.path.splitext(name_ext)
+                if ext not in ['.im7', '.IM7']:
+                    continue
+                SF = import_from_IM7(path)
+                export_to_file(SF, imt_path + "/{}".format(name),
+                               compressed=compressed)
     elif os.path.isfile(im7_path):
         SF = import_from_IM7(im7_path, **kwargs)
         export_to_file(SF, imt_path)
@@ -671,7 +732,7 @@ def IM7_to_imt(im7_path, imt_path, **kwargs):
         raise ValueError()
 
 
-def VC7_to_imt(vc7_path, imt_path, **kwargs):
+def VC7_to_imt(vc7_path, imt_path, kind='VF', compressed=True, **kwargs):
     """
     Transfome an VC7 (davis) file into a, imt exploitable file.
 
@@ -682,6 +743,11 @@ def VC7_to_imt(vc7_path, imt_path, **kwargs):
         a directory contening multiples files.
     imt_path : path to file
         Path where to save imt file.
+    kind : string
+        Kind of object to store (can be 'TVF' for TemporalVectorFields,
+        'SVF' for SpatialVectorFields or 'VF' for multiple VectorField)
+    compressed : boolean, optional
+        If 'True' (default), the file is compressed using gzip.
     kwargs : dict, optional
         Additional arguments for 'import_from_***()'.
     """
@@ -692,11 +758,22 @@ def VC7_to_imt(vc7_path, imt_path, **kwargs):
         raise TypeError()
     # checking if file or directory
     if os.path.isdir(vc7_path):
-        TVF = import_from_VC7s(vc7_path, **kwargs)
-        export_to_file(TVF, imt_path)
+        if kind in ['SVF', 'TVF']:
+            ST_VF = import_from_VC7s(vc7_path, kind=kind, **kwargs)
+            export_to_file(ST_VF, imt_path)
+        elif kind in ['VF']:
+            paths = glob(vc7_path + "/*")
+            for path in paths:
+                name_ext = os.path.basename(path)
+                name, ext = os.path.splitext(name_ext)
+                if ext not in ['.vc7', '.VC7']:
+                    continue
+                VF = import_from_VC7(path)
+                export_to_file(VF, imt_path + "/{}".format(name),
+                               compressed=compressed)
     elif os.path.isfile(vc7_path):
-        VF = import_from_IM7(vc7_path, **kwargs)
-        export_to_file(VF, imt_path)
+        SF = import_from_IM7(vc7_path, **kwargs)
+        export_to_file(SF, imt_path)
     else:
         raise ValueError()
 
