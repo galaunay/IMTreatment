@@ -3854,7 +3854,7 @@ class ScalarField(Field):
                                   unit_values=self.unit_values)
             return sf
 
-    def smooth(self, tos='uniform', size=None, **kw):
+    def smooth(self, tos='uniform', size=None, inplace=False, **kw):
         """
         Smooth the scalarfield in place.
         Warning : fill up the field (should be used carefully with masked field
@@ -3869,6 +3869,9 @@ class ScalarField(Field):
             Size of the smoothing (is radius for 'uniform' and
             sigma for 'gaussian').
             Default is 3 for 'uniform' and 1 for 'gaussian'.
+        inplace : boolean, optional
+            If True, Field is smoothed in place,
+            else, the smoothed field is returned.
         kw : dic
             Additional parameters for ndimage methods
             (See ndimage documentation)
@@ -3880,9 +3883,12 @@ class ScalarField(Field):
         elif size is None and tos == 'gaussian':
             size = 1
         # filling up the field before smoothing
-        self.fill()
-        # mask treatment
-        values = self.values
+        if inplace:
+            self.fill(inplace=True)
+            values = self.values
+        else:
+            tmp_sf = self.fill(inplace=False)
+            values = tmp_sf.values
         # smoothing
         if tos == "uniform":
             values = ndimage.uniform_filter(values, size, **kw)
@@ -3891,7 +3897,11 @@ class ScalarField(Field):
         else:
             raise ValueError("'tos' must be 'uniform' or 'gaussian'")
         # storing
-        self.values = values
+        if inplace:
+            self.values = values
+        else:
+            tmp_sf.values = values
+            return tmp_sf
 
     ### Displayers ###
     def _display(self, component=None, kind=None, **plotargs):
