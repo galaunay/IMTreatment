@@ -130,6 +130,7 @@ def export_to_file(obj, filepath, compressed=True, **kw):
         pickle.dump(obj, f, protocol=-1)
         f.close()
 
+
 def imts_to_imt(imts_path, imt_path, kind):
     """
     Concatenate some .imt files to one .imt file.
@@ -413,6 +414,8 @@ def import_from_IM7(filename, infos=False):
     """
     if not isinstance(filename, STRINGTYPES):
         raise TypeError("'filename' must be a string")
+    if isinstance(filename, unicode):
+        raise TypeError("Unfortunately, ReadIM don't support unicode paths...")
     if not os.path.exists(filename):
         raise ValueError("I did not find your file, boy")
     _, ext = os.path.splitext(filename)
@@ -423,11 +426,12 @@ def import_from_IM7(filename, infos=False):
     vbuff, vatts = ReadIM.extra.get_Buffer_andAttributeList(filename)
     v_array, vbuff2 = ReadIM.extra.buffer_as_array(vbuff)
     v_mask, vbuff3 = ReadIM.extra.buffer_mask_as_array(vbuff)
+    if v_mask is None:
+        v_mask = np.ones(v_array.shape, dtype=bool)
     atts = ReadIM.extra.att2dict(vatts)
     # Values and Mask
     values = np.transpose(np.array(v_array[0]))
     mask = np.transpose(np.logical_not(np.array(v_mask[0])))
-    shape = values.shape
     scale_i = atts['_SCALE_I']
     scale_i = scale_i.split("\n")
     scale_val = scale_i[0].split(' ')
@@ -441,13 +445,13 @@ def import_from_IM7(filename, infos=False):
     scale_val = scale_x[0].split(' ')
     x_init = float(scale_val[1])
     dx = float(scale_val[0])
-    x_final = x_init + shape[0]*dx
-    if x_init > x_final:
-        x_init, x_final = x_final, x_init
-        dx = -dx
-        values[:, :] = values[::-1, :]
-        mask[:, :] = mask[::-1, :]
-    axe_x = np.arange(x_init, x_final, dx)
+    len_axe_x = values.shape[0]
+    if dx < 0:
+        axe_x = x_init + np.arange(len_axe_x - 1, -1, -1)*dx
+        values = values[::-1, :]
+        mask = mask[::-1, :]
+    else:
+        axe_x = x_init + np.arange(len_axe_x)*dx
     # Y
     scale_y = atts['_SCALE_Y']
     scale_y = scale_y.split("\n")
@@ -455,13 +459,13 @@ def import_from_IM7(filename, infos=False):
     scale_val = scale_y[0].split(' ')
     y_init = float(scale_val[1])
     dy = float(scale_val[0])
-    y_final = y_init + shape[1]*dy
-    if y_init > y_final:
-        y_init, y_final = y_final, y_init
-        dy = -dy
-        values[:, :] = values[:, ::-1]
-        mask[:, :] = mask[:, ::-1]
-    axe_y = np.arange(y_init, y_final, dy)
+    len_axe_y = values.shape[1]
+    if dy < 0:
+        axe_y = y_init + np.arange(len_axe_y - 1, -1, -1)*dy
+        values = values[:, ::-1]
+        mask = mask[:, ::-1]
+    else:
+        axe_y = y_init + np.arange(len_axe_y)*dy
     # deleting buffers
     ReadIM.DestroyBuffer(vbuff)
     ReadIM.DestroyBuffer(vbuff2)
@@ -555,6 +559,8 @@ def import_from_VC7(filename, infos=False):
     """
     if not isinstance(filename, STRINGTYPES):
         raise TypeError("'filename' must be a string")
+    if isinstance(filename, unicode):
+        raise TypeError("Unfortunately, ReadIM don't support unicode paths...")
     if not os.path.exists(filename):
         raise ValueError("'filename' must ne an existing file")
     _, ext = os.path.splitext(filename)
@@ -572,7 +578,6 @@ def import_from_VC7(filename, infos=False):
     mask = np.transpose(np.logical_not(np.array(v_mask[0])))
     mask2 = np.logical_not(np.transpose(np.array(v_array[0])))
     mask = np.logical_or(mask, mask2)
-    shape = Vx.shape
     scale_i = atts['_SCALE_I']
     scale_i = scale_i.split("\n")
     unit_values = scale_i[1]
@@ -591,6 +596,9 @@ def import_from_VC7(filename, infos=False):
     len_axe_x = Vx.shape[0]
     if dx < 0:
         axe_x = x_init + np.arange(len_axe_x - 1, -1, -1)*dx
+        Vx = -Vx[::-1, :]
+        Vy = Vy[::-1, :]
+        mask = mask[::-1, :]
     else:
         axe_x = x_init + np.arange(len_axe_x)*dx
     # Y
@@ -603,6 +611,9 @@ def import_from_VC7(filename, infos=False):
     len_axe_y = Vx.shape[1]
     if dy < 0:
         axe_y = y_init + np.arange(len_axe_y - 1, -1, -1)*dy
+        Vx = Vx[:, ::-1]
+        Vy = -Vy[:, ::-1]
+        mask = mask[:, ::-1]
     else:
         axe_y = y_init + np.arange(len_axe_y)*dy
     # deleting buffers

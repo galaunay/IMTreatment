@@ -725,13 +725,15 @@ class Points(object):
                                   unit_values=unit_values)
             return sf
 
-    def get_velocity(self, smooth=None):
+    def get_velocity(self, incr=1, smooth=None):
         """
         Assuming that associated 'v' values are times for each points,
         compute the velocity of the trajectory.
 
         Parameters
         ----------
+        incr : integer, optional
+            Increment use to get used points (default is 1).
         smooth : number, optional
             Size of smoothing (gaussian smoothing) applied on x and y values,
             before computing velocities.
@@ -758,10 +760,16 @@ class Points(object):
         xy = self.xy[ind_sort]
         x = xy[:, 0]
         y = xy[:, 1]
+        # using increment if necessary
+        if incr != 1:
+            x = x[::incr]
+            y = y[::incr]
+            times = times[::incr]
+            dt =  times[1::] - times[:-1]
         # smoothing if necessary
         if smooth is not None:
-            x = ndimage.gaussian_filter(x, smooth)
-            y = ndimage.gaussian_filter(y, smooth)
+            x = ndimage.gaussian_filter(x, smooth, mode='nearest')
+            y = ndimage.gaussian_filter(y, smooth, mode='nearest')
         # getting velocity between points
         Vx = np.array([(x[i + 1] - x[i])/dt[i]
                        for i in np.arange(len(x) - 1)])
@@ -2187,6 +2195,9 @@ class Profile(object):
             size = 1
         if not direction in ['x', 'y', 'xy']:
             raise ValueError()
+        # default smoothing border mode to 'nearest'
+        if not 'mode' in kw.keys():
+            kw.update({'mode': 'nearest'})
         # getting data
         if inplace:
             self.fill(inplace=True)
@@ -3911,7 +3922,7 @@ class ScalarField(Field):
         X, Y = np.meshgrid(self.axe_y, self.axe_x)
         # getting wanted component
         if component is None or component == 'values':
-            values = np.transpose(self.values)
+            values = np.transpose(self.values).astype(dtype=float)
             mask = np.transpose(self.mask)
             values[mask] = np.nan
         elif component == 'mask':
@@ -5545,7 +5556,7 @@ class TemporalFields(Fields, Field):
         else:
             return tmp_TFS
 
-    def crop_masked_border(self, hard=False):
+    def crop_masked_border(self, hard=False, inplace=False):
         """
         Crop the masked border of the velocity fields in place.
 
@@ -5553,6 +5564,9 @@ class TemporalFields(Fields, Field):
         ----------
         hard : boolean, optional
             If 'True', partially masked border are cropped as well.
+        inplace : boolean, optional
+            If 'True', crop the F in place,
+            else, return a cropped TF.
         """
         # getting big mask (where all the value are masked)
         masks_temp = self.mask
@@ -5563,14 +5577,18 @@ class TemporalFields(Fields, Field):
             return None
         # hard cropping
         if hard:
+            if inplace:
+                tmp_tf = self
+            else:
+                tmp_tf = self.copy()
             # remove trivial borders
-            self.crop_masked_border(hard=False)
+            tmp_tf.crop_masked_border(hard=False)
             # until there is no more masked values
             while True:
                 # getting mask
-                masks = self.mask
+                masks = tmp_tf.mask
                 mask = np.sum(masks, axis=0)
-                mask = mask == len(self.fields)
+                mask = mask == len(tmp_tf.fields)
                 # leaving if no masked values
                 if not np.any(mask):
                     break
@@ -5583,21 +5601,23 @@ class TemporalFields(Fields, Field):
                 more_masked = np.argmax([bd1, bd2, bd3, bd4])
                 # deleting more masked border
                 if more_masked == 0:
-                    len_x = len(self.axe_x)
-                    self.trim_area(intervalx=[1, len_x], ind=True,
-                                   inplace=True)
+                    len_x = len(tmp_tf.axe_x)
+                    tmp_tf.trim_area(intervalx=[1, len_x], ind=True,
+                                     inplace=True)
                 elif more_masked == 1:
-                    len_x = len(self.axe_x)
-                    self.trim_area(intervalx=[0, len_x - 2], ind=True,
-                                   inplace=True)
+                    len_x = len(tmp_tf.axe_x)
+                    tmp_tf.trim_area(intervalx=[0, len_x - 2], ind=True,
+                                     inplace=True)
                 elif more_masked == 2:
-                    len_y = len(self.axe_y)
-                    self.trim_area(intervaly=[1, len_y], ind=True,
-                                   inplace=True)
+                    len_y = len(tmp_tf.axe_y)
+                    tmp_tf.trim_area(intervaly=[1, len_y], ind=True,
+                                     inplace=True)
                 elif more_masked == 3:
-                    len_y = len(self.axe_y)
-                    self.trim_area(intervaly=[0, len_y - 2], ind=True,
-                                   inplace=True)
+                    len_y = len(tmp_tf.axe_y)
+                    tmp_tf.trim_area(intervaly=[0, len_y - 2], ind=True,
+                                     inplace=True)
+            if not inplace:
+                return tmp_tf
         # soft cropping
         else:
             # getting positions to remove
@@ -5613,9 +5633,16 @@ class TemporalFields(Fields, Field):
             axe_y_min = np.where(axe_y_m)[0][0]
             axe_y_max = np.where(axe_y_m)[0][-1]
             # trim
-            self.trim_area([axe_x_min, axe_x_max],
-                           [axe_y_min, axe_y_max],
-                           ind=True, inplace=True)
+            if inplace:
+                self.trim_area([axe_x_min, axe_x_max],
+                               [axe_y_min, axe_y_max],
+                               ind=True, inplace=True)
+            else:
+                tmp_tf = self.copy()
+                tmp_tf.trim_area([axe_x_min, axe_x_max],
+                                 [axe_y_min, axe_y_max],
+                                 ind=True, inplace=True)
+                return tmp_tf
 
     def trim_area(self, intervalx=None, intervaly=None, full_output=False,
                   ind=False, inplace=False):
