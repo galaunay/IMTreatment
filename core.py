@@ -46,7 +46,6 @@ class PTest(object):
     #FIXME:  +++ need to use OrderedDict instead of classical dicts +++
 
     def __init__(self, *types, **kwtypes):
-        print("Making a test !")
         self.types = list(types)
         self.ktypes = list([None]*len(types))
         self.ktypes += kwtypes.keys()
@@ -418,7 +417,6 @@ class Points(object):
         if not values.ndim == 1:
             raise ValueError()
         if not len(values) in [0, len(self.__xy)]:
-            print(values)
             raise ValueError()
         self.__v = values
 
@@ -1444,6 +1442,9 @@ class Profile(object):
                        unit_y=self.unit_y, name=name)
 
     __radd__ = __add__
+
+    def __sub__(self, otherone):
+        return self.__add__(-otherone)
 
     def __mul__(self, otherone):
         if isinstance(otherone, NUMBERTYPES):
@@ -3913,6 +3914,93 @@ class ScalarField(Field):
         else:
             tmp_sf.values = values
             return tmp_sf
+
+    def reduce_spatial_resolution(self, fact, inplace=False):
+        """
+        Reduce the spatial resolution of the field by a factor 'fact'
+
+        Parameters
+        ----------
+        fact : int
+            Reducing factor.
+        inplace : boolean, optional
+            .
+        """
+        if not isinstance(fact, int):
+            raise TypeError()
+        if fact%2 == 0:
+            pair = True
+        else:
+            pair = False
+        # get new axis
+        axe_x = self.axe_x
+        axe_y = self.axe_y
+        if pair:
+            new_axe_x = (axe_x[np.arange(fact/2 - 1, len(axe_x) - fact/2,
+                                         fact)]
+                         + axe_x[np.arange(fact/2, len(axe_x) - fact/2 + 1,
+                                           fact)])/2.
+            new_axe_y = (axe_y[np.arange(fact/2 - 1, len(axe_y) - fact/2,
+                                         fact)]
+                         + axe_y[np.arange(fact/2, len(axe_y) - fact/2 + 1,
+                                           fact)])/2.
+        else:
+            new_axe_x = axe_x[np.arange((fact - 1)/2,
+                                        len(axe_x) - (fact - 1)/2,
+                                        fact)]
+            new_axe_y = axe_y[np.arange((fact - 1)/2,
+                                        len(axe_y) - (fact - 1)/2,
+                                        fact)]
+        # get new values
+        values = self.values
+        mask = self.mask
+        if pair:
+            #raise StandardError()
+            inds_x = np.arange(fact/2, len(axe_x) - fact/2 + 1, fact)
+            inds_y = np.arange(fact/2, len(axe_y) - fact/2 + 1, fact)
+            new_values = np.zeros((len(inds_x), len(inds_y)))
+            new_mask = np.zeros((len(inds_x), len(inds_y)))
+            for i in np.arange(len(inds_x)):
+                interv_x = slice(inds_x[i] - fact/2, inds_x[i] + fact/2)
+                for j in np.arange(len(inds_y)):
+                    interv_y = slice(inds_y[j] - fact/2, inds_y[j] + fact/2)
+                    if np.all(mask[interv_x, interv_y]):
+                        new_mask[i, j] = True
+                        new_values[i, j] = 0.
+                    else:
+                        new_values[i, j] = np.mean(values[interv_x, interv_y])
+
+        else:
+            inds_x = np.arange((fact - 1)/2, len(axe_x) - (fact - 1)/2, fact)
+            inds_y = np.arange((fact - 1)/2, len(axe_y) - (fact - 1)/2, fact)
+            new_values = np.zeros((len(inds_x), len(inds_y)))
+            new_mask = np.zeros((len(inds_x), len(inds_y)))
+            for i in np.arange(len(inds_x)):
+                interv_x = slice(inds_x[i] - (fact - 1)/2,
+                                 inds_x[i] + (fact - 1)/2 + 1)
+                for j in np.arange(len(inds_y)):
+                    interv_y = slice(inds_y[j] - (fact - 1)/2,
+                                     inds_y[j] + (fact - 1)/2 + 1)
+                    if np.all(mask[interv_x, interv_y]):
+                        new_mask[i, j] = True
+                        new_values[i, j] = 0.
+                    else:
+                        new_values[i, j] = np.mean(values[interv_x, interv_y])
+        # returning
+        if inplace:
+            self.__init__()
+            self.import_from_arrays(new_axe_x, new_axe_y, new_values,
+                                    mask=new_mask,
+                                    unit_x=self.unit_x, unit_y=self.unit_y,
+                                    unit_values = self.unit_values)
+        else:
+            sf = ScalarField()
+            sf.import_from_arrays(new_axe_x, new_axe_y, new_values,
+                                  mask=new_mask,
+                                  unit_x=self.unit_x, unit_y=self.unit_y,
+                                  unit_values = self.unit_values)
+            return sf
+
 
     ### Displayers ###
     def _display(self, component=None, kind=None, **plotargs):
