@@ -2895,6 +2895,7 @@ class ScalarField(Field):
         elif isinstance(obj, unum.Unum):
             tmpsf = self.copy()
             tmpsf.values *= obj.asNumber()
+            print(tmpsf.unit_values)
             tmpsf.unit_values *= obj/obj.asNumber()
             tmpsf.mask = self.mask
             return tmpsf
@@ -3031,6 +3032,7 @@ class ScalarField(Field):
             if new_unit_values.asNumber() == 1:
                 self.__unit_values = new_unit_values
             else:
+                pdb.set_trace()
                 raise ValueError()
         elif isinstance(new_unit_values, STRINGTYPES):
             self.__unit_values = make_unit(new_unit_values)
@@ -3928,6 +3930,13 @@ class ScalarField(Field):
         """
         if not isinstance(fact, int):
             raise TypeError()
+        if fact < 1:
+            raise ValueError()
+        if fact == 1:
+            if inplace:
+                pass
+            else:
+                return self.copy()
         if fact%2 == 0:
             pair = True
         else:
@@ -3955,7 +3964,6 @@ class ScalarField(Field):
         values = self.values
         mask = self.mask
         if pair:
-            #raise StandardError()
             inds_x = np.arange(fact/2, len(axe_x) - fact/2 + 1, fact)
             inds_y = np.arange(fact/2, len(axe_y) - fact/2 + 1, fact)
             new_values = np.zeros((len(inds_x), len(inds_y)))
@@ -4537,7 +4545,7 @@ class VectorField(Field):
         self.unit_values = unit_values
 
     ### Watchers ###
-    def get_profile(self, component, direction, position):
+    def get_profile(self, component, direction, position, ind=False):
         """
         Return a profile of the vector field component, at the given position
         (or at least at the nearest possible position).
@@ -4546,7 +4554,7 @@ class VectorField(Field):
 
         Function
         --------
-        axe, profile, cutposition = get_profile(component, direction, position)
+        profile, cutposition = get_profile(component, direction, position, ind)
 
         Parameters
         ----------
@@ -4556,6 +4564,9 @@ class VectorField(Field):
             Direction along which we choose a position (1 for x and 2 for y).
         position : float or interval of float
             Position or interval in which we want a profile.
+        ind : boolean, optional
+            If 'True', position is taken as an indice
+            Else (default), position is in the field units.
 
         Returns
         -------
@@ -4567,9 +4578,9 @@ class VectorField(Field):
         if not isinstance(component, int):
             raise TypeError("'component' must be an integer")
         if component == 1:
-            return self.comp_x_as_sf.get_profile(direction, position)
+            return self.comp_x_as_sf.get_profile(direction, position, ind)
         elif component == 2:
-            return self.comp_y_as_sf.get_profile(direction, position)
+            return self.comp_y_as_sf.get_profile(direction, position, ind)
         else:
             raise ValueError("'component' must have the value of 1 or 2")
 
@@ -4580,7 +4591,7 @@ class VectorField(Field):
         return copy.deepcopy(self)
 
     ### Modifiers ###
-    def smooth(self, tos='uniform', size=None, **kw):
+    def smooth(self, tos='uniform', size=None, inplace=False, **kw):
         """
         Smooth the vectorfield in place.
         Warning : fill up the field (should be used carefully with masked field
@@ -4595,6 +4606,8 @@ class VectorField(Field):
             Size of the smoothing (is radius for 'uniform' and
             sigma for 'gaussian').
             Default is 3 for 'uniform' and 1 for 'gaussian'.
+        inplace : boolean, optional
+            .
         kw : dic
             Additional parameters for ndimage methods
             (See ndimage documentation)
@@ -4619,8 +4632,15 @@ class VectorField(Field):
         else:
             raise ValueError("'tos' must be 'uniform' or 'gaussian'")
         # storing
-        self.comp_x = Vx
-        self.comp_y = Vy
+        if inplace:
+            self.comp_x = Vx
+            self.comp_y = Vy
+        else:
+            vf = VectorField()
+            vf.import_from_arrays(self.axe_x, self.axe_y, Vx, Vy,
+                                  unit_x=self.unit_x, unit_y=self.unit_y,
+                                  unit_values=self.unit_values)
+            return vf
 
     def fill(self, kind='linear', value=[0., 0.], inplace=False,
              reduce_tri=True):
@@ -4769,6 +4789,38 @@ class VectorField(Field):
             self.trim_area([axe_x_min, axe_x_max],
                            [axe_y_min, axe_y_max],
                            ind=True, inplace=True)
+
+    def reduce_spatial_resolution(self, fact, inplace=False):
+        """
+        Reduce the spatial resolution of the field by a factor 'fact'
+
+        Parameters
+        ----------
+        fact : int
+            Reducing factor.
+        inplace : boolean, optional
+            .
+        """
+        # reducing
+        Vx = self.comp_x_as_sf
+        Vy = self.comp_y_as_sf
+        Vx.reduce_spatial_resolution(fact, inplace=True)
+        Vy.reduce_spatial_resolution(fact, inplace=True)
+        # returning
+        if inplace:
+            self.__init__()
+            self.import_from_arrays(Vx.axe_x, Vx.axe_y, Vx.values,
+                                    Vy.values,
+                                    mask=Vx.mask, unit_x=self.unit_x,
+                                    unit_y=self.unit_y,
+                                    unit_values=self.unit_values)
+        else:
+            vf = VectorField()
+            vf.import_from_arrays(Vx.axe_x, Vx.axe_y, Vx.values, Vy.values,
+                                  mask=Vx.mask, unit_x=self.unit_x,
+                                  unit_y=self.unit_y,
+                                  unit_values=self.unit_values)
+            return vf
 
     ### Displayers ###
     def _display(self, component=None, kind=None, **plotargs):

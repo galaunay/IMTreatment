@@ -8,6 +8,7 @@ Created on Fri May 16 22:37:21 2014
 import pdb
 import numpy as np
 import scipy.interpolate as spinterp
+from scipy.optimize import leastsq
 from ..core import Points, ScalarField, VectorField,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 import matplotlib.pyplot as plt
@@ -51,12 +52,14 @@ def get_gradients(field, raw=False):
             gradx = ScalarField()
             unit_values_x = field.unit_values/field.unit_x
             factx = unit_values_x.asNumber()
-            unit_values_x /= factx
+            unit_values_x = unit_values_x/factx
             grad_x *= factx
             unit_values_y = field.unit_values/field.unit_y
-            facty = unit_values_x.asNumber()
-            unit_values_y /= facty
+            facty = unit_values_y.asNumber()
+            unit_values_y = unit_values_y/facty
             grad_y *= facty
+            #pdb.set_trace()
+
             # returning
             gradx.import_from_arrays(field.axe_x, field.axe_y, grad_x.data,
                                      mask=mask, unit_x=field.unit_x,
@@ -122,6 +125,212 @@ def get_gradients(field, raw=False):
             return grad1, grad2, grad3, grad4
     else:
         raise TypeError()
+
+
+def reconstruct_from_gradients(field_dx, field_dy, field2_dx=None,
+                               field2_dy=None, ols=False, maxiter=10):
+    """
+    Reconstruct a field with the gradients of this field.
+
+    Parameters
+    ----------
+    field_dx, field_dy : ScalarField objects
+        Gradients along x and y.
+    field2_dx, field_dy : ScalarField objects, optional
+        Gradients for the second component, if the reconstructed field is a
+        vector field.
+    ols : boolean, optional
+        If 'True', ordinary least square is used to get a more precise result
+        (can be quite long).
+        If 'False' (default), a simple reconstruction based on taylor
+        developement is used.
+    maxiter : integer, optional
+        Maximum number of iteration for the ols solver (default: 10)
+        (more mean accurate results but slower computation).
+
+
+    Returns
+    -------
+    rec_field : ScalarField or VectorField object
+        Reconstructed field.
+
+    Notes
+    -----
+    Given result can only be relative values
+    (because of the information lost while derivating).
+    The returned result are normalized so that the mean of the field is egal
+    to zero.
+    """
+    ### checking parameters
+    if not isinstance(field_dx, ScalarField):
+        raise TypeError()
+    if not isinstance(field_dy, ScalarField):
+        raise TypeError()
+    if field2_dx is None and field2_dy is None:
+        kind = 'SF'
+        if field2_dx is not None or field2_dy is not None:
+            raise ValueError()
+    else:
+        kind = 'VF'
+        if not isinstance(field2_dx, ScalarField):
+            raise TypeError()
+        if not isinstance(field2_dy, ScalarField):
+            raise TypeError()
+    ### recursive loop for VF
+    if kind == 'VF':
+        Vx = reconstruct_from_gradients(field_dx, field_dy, ols=ols)
+        Vy = reconstruct_from_gradients(field2_dx, field2_dy, ols=ols)
+        mask = np.logical_or(Vx.mask, Vy.mask)
+        V = VectorField()
+        V.import_from_arrays(Vx.axe_x, Vx.axe_y, Vx.values, Vy.values,
+                             mask=mask, unit_x=Vx.unit_x, unit_y=Vx.unit_y,
+                             unit_values=Vx.unit_values)
+        return V
+    ### reconstruction for SF
+    else:
+        ### getting data
+        axe_x = field_dx.axe_x
+        axe_y = field_dy.axe_y
+        dx = axe_x[1] - axe_x[0]
+        dy = axe_y[1] - axe_y[0]
+        du_dx = field_dx.values
+        du_dy = field_dy.values
+        unit_values = field_dx.unit_values*field_dx.unit_x
+        fact_unit_values = unit_values.asNumber()
+        unit_values /= unit_values.asNumber()
+
+        ###  Getting borders
+        # 1 (0, 0)
+        u1 = np.zeros(du_dx.shape)
+        for i in np.arange(1, u1.shape[0]):
+            u1[i, 0] = u1[i - 1, 0] + dx*(du_dx[i - 1, 0]
+                                          + du_dx[i, 0])/2.
+        for i in np.arange(1, u1.shape[1]):
+            u1[0, i] = u1[0, i - 1] + dy*(du_dy[0, i - 1]
+                                          + du_dy[0, i])/2.
+        # 2(0, 1)
+        u2 = np.zeros(du_dx.shape)
+        for i in np.arange(1, u2.shape[0]):
+            u2[i, -1] = u2[i - 1, -1] + dx*(du_dx[i - 1, -1]
+                                            + du_dx[i, -1])/2.
+        for i in np.arange(u2.shape[1] - 2, -1, -1):
+            u2[0, i] = u2[0, i + 1] - dy*(du_dy[0, i + 1]
+                                          + du_dy[0, i])/2.
+        # 3 (1, 0)
+        u3 = np.zeros(du_dx.shape)
+        for i in np.arange(u3.shape[0] - 2, -1, -1):
+            u3[i, 0] = u3[i + 1, 0] - dx*(du_dx[i + 1, 0]
+                                          + du_dx[i, 0])/2.
+        for i in np.arange(1, u3.shape[1]):
+            u3[-1, i] = u3[-1, i - 1] + dy*(du_dy[-1, i - 1]
+                                            + du_dy[-1, i])/2.
+        # 4 (1, 1)
+        u4 = np.zeros(du_dx.shape)
+        for i in np.arange(u4.shape[0] - 2, -1, -1):
+            u4[i, -1] = u4[i + 1, -1] - dx*(du_dx[i + 1, -1]
+                                            + du_dx[i, -1])/2.
+        for i in np.arange(u4.shape[1] - 2, -1, -1):
+            u4[-1, i] = u4[-1, i + 1] - dy*(du_dy[-1, i + 1]
+                                            + du_dy[-1, i])/2.
+        # concatenate borders
+        filt_border = np.zeros(u1.shape, dtype=bool)
+        filt_border[:, 0] = True
+        filt_border[:, -1] = True
+        filt_border[0, :] = True
+        filt_border[-1, :] = True
+        u4 = (u4 - (u4[-1, 0] - u1[-1, 0] + u4[0, -1] - u1[0, -1])/2.)
+        u4[0:-1, 0:-1] = 0.
+        ua = u1 + u4
+        ua[-1, 0] /= 2.
+        ua[0, -1] /= 2.
+        ua[filt_border] -= np.mean(ua[filt_border])
+        u3 = (u3 - (u3[0, 0] - u2[0, 0] + u3[-1, -1] - u2[-1, -1])/2.)
+        u3[0:-1, 1::] = 0.
+        ub = u2 + u3
+        ub[0, 0] /= 2.
+        ub[-1, -1] /= 2.
+        ub[filt_border] -= np.mean(ub[filt_border])
+        u = (ua + ub)/2.
+        ### Getting center
+        # 1 from (0, 0)
+        u1 = u.copy()
+        for i in np.arange(1, u1.shape[0]):
+            for j in np.arange(1, u1.shape[1]):
+                est_a = u1[i - 1, j] + dx*(du_dx[i - 1, j]
+                                           + du_dx[i, j])/2.
+                est_b = u1[i, j - 1] + dy*(du_dy[i, j - 1]
+                                           + du_dy[i, j])/2.
+                u1[i, j] = (est_a + est_b)/2.
+        # 2 from (0, 1)
+        u2 = u.copy()
+        for i in np.arange(1, u2.shape[0]):
+            for j in np.arange(u2.shape[1] - 2, -1, -1):
+                est_a = u2[i - 1, j] + dx*(du_dx[i - 1, j]
+                                           + du_dx[i, j])/2.
+                est_b = u2[i, j + 1] - dy*(du_dy[i, j + 1]
+                                           + du_dy[i, j])/2.
+                u2[i, j] = (est_a + est_b)/2.
+        # 3 from (1, 0)
+        u3 = u.copy()
+        for i in np.arange(u3.shape[0] - 2, -1, -1):
+            for j in np.arange(1, u3.shape[1]):
+                est_a = u3[i + 1, j] - dx*(du_dx[i + 1, j]
+                                           + du_dx[i, j])/2.
+                est_b = u3[i, j - 1] + dy*(du_dy[i, j - 1]
+                                           + du_dy[i, j])/2.
+                u3[i, j] = (est_a + est_b)/2.
+        # 4 from (1, 1)
+        u4 = u.copy()
+        for i in np.arange(u4.shape[0] - 2, -1, -1):
+            for j in np.arange(u2.shape[1] - 2, -1, -1):
+                est_a = u4[i + 1, j] - dx*(du_dx[i + 1, j]
+                                           + du_dx[i, j])/2.
+                est_b = u4[i, j + 1] - dy*(du_dy[i, j + 1]
+                                           + du_dy[i, j])/2.
+                u4[i, j] = (est_a + est_b)/2.
+        # normalize
+        filt_corn = np.zeros(u.shape, dtype=int)
+        filt_corn[0, 0] = 1
+        filt_corn[0, -1] = 1
+        filt_corn[-1, 0] = 1
+        filt_corn[-1, -1] = 1
+        u1 -= np.mean(u1[filt_corn])
+        u2 -= np.mean(u2[filt_corn])
+        u3 -= np.mean(u3[filt_corn])
+        u4 -= np.mean(u4[filt_corn])
+        # concatenate (with linear weight fonction)
+        ### TODO : let or remove ?
+        X, Y = np.meshgrid(np.arange(u.shape[1]), np.arange(u.shape[0]),
+                           dtype=float)
+        weight1 = X[::-1, ::-1] + Y[::-1, ::-1]
+        weight2 = X[::-1, :] + Y[::-1, :]
+        weight3 = X[:, ::-1] + Y[:, ::-1]
+        weight4 = X + Y
+        weight_tot = weight1 + weight2 + weight3 + weight4
+        u = (u1*weight1 + u2*weight2 + u3*weight3 + u4*weight4)/weight_tot
+
+        ### Second OLS reconstruction
+        if ols:
+            def min_funct(u, du_dx, du_dy, dx, dy):
+                u = u.reshape(du_dx.shape)
+                du2_dx, du2_dy = np.gradient(u, dx, dy)
+                res = np.abs(du_dx - du2_dx) + np.abs(du_dy - du2_dy)
+                print(np.sum(res))
+                return res.flatten()
+            u, mess = leastsq(min_funct, u.flatten(),
+                              args=(du_dx, du_dy, dx, dy),
+                              maxfev=maxiter*len(u.flatten()))
+            u = u.reshape(du_dx.shape)
+        ### retuning
+        u *= fact_unit_values
+        u = u - np.mean(u)
+        U = ScalarField()
+        U.import_from_arrays(axe_x, axe_y, u,
+                             unit_x=field_dx.unit_x, unit_y=field_dx.unit_y,
+                             unit_values=unit_values)
+#        if ols:
+#            U.smooth(tos='gaussian', size=1, inplace=True)
+        return U
 
 
 def get_jacobian_eigenproperties(field, raw=False):

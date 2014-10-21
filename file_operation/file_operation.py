@@ -508,9 +508,9 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
             raise TypeError("'fieldspath' must be a string or a tuple of"
                             " string")
     elif isinstance(fieldspath, STRINGTYPES):
-        pattern = os.path.join(fieldspath, '*.IM7')
-        fieldspath = glob(pattern)
-        if len(fieldspath) == 0:
+        fieldspaths = [f for f in glob(os.path.join(fieldspath, '*'))
+                       if os.path.splitext(f)[-1] in ['.im7', '.IM7']]
+        if len(fieldspaths) == 0:
             raise ValueError()
     else:
         raise TypeError()
@@ -523,7 +523,7 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
                 or not isinstance(fieldnumbers[1], int):
             raise TypeError("'fieldnumbers' must be an array of integers")
     else:
-        fieldnumbers = [0, len(fieldspath)]
+        fieldnumbers = [0, len(fieldspaths)]
     if not isinstance(incr, int):
         raise TypeError("'incr' must be an integer")
     if incr <= 0:
@@ -539,7 +539,7 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
     end = fieldnumbers[1]
     # loop on files
     unit_times = make_unit('us')
-    for path in fieldspath[start:end:incr]:
+    for path in fieldspaths[start:end:incr]:
         tmp_sf, infos = import_from_IM7(path, infos=True)
         time = float(infos['AcqTimeSeries0'])
         fields.add_field(tmp_sf, time, unit_times)

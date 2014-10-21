@@ -79,7 +79,7 @@ class VF(object):
         window_size : integer, optional
             Minimal window size for PBI detection.
             Smaller window size allow detection where points are dense.
-            Default is finnest possible (2).
+            Default is finnest possible (1).
 
         Returns
         -------
@@ -90,16 +90,16 @@ class VF(object):
         """
         if not isinstance(window_size, int):
             raise TypeError()
-        if window_size < 2:
+        if window_size < 1:
             raise ValueError()
         delta_x = self.axe_x[1] - self.axe_x[0]
         delta_y = self.axe_y[1] - self.axe_y[0]
         positions = []
         pbis = []
         grid_x = np.append(np.arange(0, self.shape[0] - window_size + 1,
-                                     window_size), self.shape[0])
+                                     window_size - 1), self.shape[0])
         grid_y = np.append(np.arange(0, self.shape[1] - window_size + 1,
-                                     window_size), self.shape[1])
+                                     window_size - 1), self.shape[1])
         pool = self._split_the_field(grid_x, grid_y)
         # loop on the pool (funny no ?)
         while True:
@@ -129,6 +129,7 @@ class VF(object):
             # if the cp density is too high and the pbi is invalid
             else:
                 pool = np.delete(pool, 0)
+
         # removing doublons
         positions = np.array(positions)
         pbis = np.array(pbis)
@@ -283,15 +284,18 @@ class VF(object):
         """
         fields = []
         for i in np.arange(len(grid_x) - 1):
-            if grid_x[i] == 0:
-                slic_x = slice(grid_x[i], grid_x[i + 1] + 1)
+            if i == 0:
+                slic_x = slice(grid_x[i], grid_x[i + 1] + 2)
+#            elif i == len(grid_x) - 2:
+#                if grid_x[i] != grid_x[i + 1]:
+#                    slic_x = slice(grid_x[i], grid_x[i + 1] + 2)
             else:
-                slic_x = slice(grid_x[i] - 1, grid_x[i + 1] + 1)
+                slic_x = slice(grid_x[i], grid_x[i + 1] + 2)
             for j in np.arange(len(grid_y) - 1):
-                if grid_y[j] == 0:
-                    slic_y = slice(grid_y[j], grid_y[j + 1] + 1)
+                if j == 0:
+                    slic_y = slice(grid_y[j], grid_y[j + 1] + 2)
                 else:
-                    slic_y = slice(grid_y[j] - 1, grid_y[j + 1] + 1)
+                    slic_y = slice(grid_y[j], grid_y[j + 1] + 2)
                 vx_tmp = self.vx[slic_x, slic_y]
                 vy_tmp = self.vy[slic_x, slic_y]
                 mask_tmp = self.mask[slic_x, slic_y]
