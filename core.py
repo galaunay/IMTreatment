@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Module IMTreatment.
+IMTreatment module
 
     Auteur : Gaby Launay
 """
 
 import scipy.interpolate as spinterp
 import scipy.ndimage.measurements as msr
-import scipy.io as spio
 import scipy.optimize as spopt
 import matplotlib as mpl
 from matplotlib import cm
@@ -18,8 +17,6 @@ import pdb
 import unum
 import unum.units as units
 import copy
-import os
-import time
 from scipy import ndimage
 from scipy import stats
 try:
@@ -27,6 +24,7 @@ try:
     units.pixel = unum.Unum.unit('pixel')
 except:
     pass
+
 
 
 ARRAYTYPES = (np.ndarray, list, tuple)
@@ -763,7 +761,7 @@ class Points(object):
             x = x[::incr]
             y = y[::incr]
             times = times[::incr]
-            dt =  times[1::] - times[:-1]
+            dt = times[1::] - times[:-1]
         # smoothing if necessary
         if smooth is not None:
             x = ndimage.gaussian_filter(x, smooth, mode='nearest')
@@ -1953,7 +1951,7 @@ class Profile(object):
         Remove the masked values at the border of the profile in place.
         """
         mask = self.mask
-        inds_not_masked = np.where(mask == False)[0]
+        inds_not_masked = np.where(mask is False)[0]
         first = inds_not_masked[0]
         last = inds_not_masked[-1] + 1
         self.trim([first, last], ind=True, inplace=True)
@@ -2020,7 +2018,8 @@ class Profile(object):
             self.mask = mask_new
             return None
         else:
-            tmp_prof = Profile(x_new, y_new, mask_new, self.unit_x, self.unit_y)
+            tmp_prof = Profile(x_new, y_new, mask_new, self.unit_x,
+                               self.unit_y)
             return tmp_prof
 
     def fill(self, kind='slinear', fill_value=0., inplace=False, crop=False):
@@ -3937,7 +3936,7 @@ class ScalarField(Field):
                 pass
             else:
                 return self.copy()
-        if fact%2 == 0:
+        if fact % 2 == 0:
             pair = True
         else:
             pair = False
@@ -4000,15 +3999,14 @@ class ScalarField(Field):
             self.import_from_arrays(new_axe_x, new_axe_y, new_values,
                                     mask=new_mask,
                                     unit_x=self.unit_x, unit_y=self.unit_y,
-                                    unit_values = self.unit_values)
+                                    unit_values=self.unit_values)
         else:
             sf = ScalarField()
             sf.import_from_arrays(new_axe_x, new_axe_y, new_values,
                                   mask=new_mask,
                                   unit_x=self.unit_x, unit_y=self.unit_y,
-                                  unit_values = self.unit_values)
+                                  unit_values=self.unit_values)
             return sf
-
 
     ### Displayers ###
     def _display(self, component=None, kind=None, **plotargs):
@@ -4841,6 +4839,17 @@ class VectorField(Field):
                 if not 'color' in plotargs.keys():
                     plotargs['color'] = magn
                 displ = plt.streamplot(axe_x, axe_y, Vx, Vy, **plotargs)
+            elif kind == 'track':
+                from IMTreatment.field_treatment import get_track_field
+                track_field = get_track_field(self)
+                Vx = np.transpose(track_field.comp_x)
+                Vy = np.transpose(track_field.comp_y)
+                mask = track_field.mask
+                Vx = np.ma.masked_array(Vx, mask)
+                Vy = np.ma.masked_array(Vy, mask)
+                if not 'color' in plotargs.keys():
+                    plotargs['color'] = magn
+                displ = plt.streamplot(axe_x, axe_y, Vx, Vy, **plotargs)
             elif kind == 'quiver' or kind is None:
                 if 'C' in plotargs.keys():
                     C = plotargs.pop('C')
@@ -4921,7 +4930,7 @@ class VectorField(Field):
                               "$" + str(legendarrow)
                               + unit_values.strUnit() + "$",
                               labelpos='W', fontproperties={'weight': 'bold'})
-            elif kind == 'stream':
+            elif kind in ['stream', 'track']:
                 if not 'color' in plotargs.keys():
                     cb = plt.colorbar()
                     cb.set_label("Magnitude " + unit_values.strUnit())
@@ -5234,10 +5243,7 @@ class TemporalFields(Fields, Field):
             result_f += added_field
             mask_cum[np.logical_not(field.mask)] += 1
         mask = mask_cum <= nmb_min
-        try:
-            result_f.mask = mask
-        except :
-            pdb.set_trace()
+        result_f.mask = mask
         fact = mask_cum
         fact[mask] = 1
         result_f /= fact
@@ -5401,7 +5407,8 @@ class TemporalFields(Fields, Field):
         compo = np.empty(dim, dtype=float)
         masks = np.empty(dim, dtype=float)
         for i, time_ind in enumerate(w_times_ind):
-            compo[i] = self.fields[time_ind].__getattribute__(component)[ind_x, ind_y]
+            compo[i] = self.fields[time_ind].__getattribute__(component)[ind_x,
+                                                                         ind_y]
             masks[i] = self.fields[time_ind].mask[ind_x, ind_y]
         # gettign others datas
         time = self.times[w_times_ind]
@@ -6220,8 +6227,6 @@ class TemporalScalarFields(TemporalFields):
             # loop on each field position
             for i, j in np.argwhere(super_mask):
                 prof = self.get_time_profile('values', i, j, ind=True)
-                # getting masked position on profile
-                inds_masked = np.where(values.mask)[0]
                 # creating interpolation function
                 if kind == 'value':
                     def interp(x):
@@ -6244,14 +6249,14 @@ class TemporalScalarFields(TemporalFields):
                 # inplace or not
                 fields = self.fields.copy()
                 # loop on all profile masked points
-                for ind_masked in inds_masked:
+                for ind_masked in prof.mask:
                     try:
-                        interp_val = interp(prof.x[ind_masked])
+                        interp_val = interp(prof.x[prof.mask])
                     except ValueError:
                         continue
                     # putting interpolated value in the field
-                    fields[ind_masked].values[i, j] = interp_val
-                    fields[ind_masked].mask[i, j] = False
+                    fields[prof.mask].values[i, j] = interp_val
+                    fields[prof.mask].mask[i, j] = False
         # spatial interpolation
         elif tof == 'spatial':
             if inplace:

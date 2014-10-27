@@ -11,7 +11,6 @@ import scipy.interpolate as spinterp
 from scipy.optimize import leastsq
 from ..core import Points, ScalarField, VectorField,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES
-import matplotlib.pyplot as plt
 
 
 def get_gradients(field, raw=False):
@@ -475,7 +474,7 @@ def get_Kenwright_field(field, raw=False):
 def get_grad_field(field, direction=1):
     """
     Return a field based on original field gradients.
-    (V = dV/dx, Vy = DV/Vy)
+    (Vx = dV/dx, Vy = DV/Vy)
 
     Parameters
     ----------
@@ -510,6 +509,20 @@ def get_grad_field(field, direction=1):
                               unit_y=field.unit_y,
                               unit_values=field.unit_values)
     return gfield
+
+
+def get_track_field(vf):
+    """
+    Return the track field.
+    (Vx, Vy) => (-Vy, Vx)
+    """
+    Vx = -vf.comp_y
+    Vy = vf.comp_x
+    track_field = VectorField()
+    track_field.import_from_arrays(vf.axe_x, vf.axe_y, Vx, Vy, mask=vf.mask,
+                                   unit_x=vf.unit_x, unit_y=vf.unit_y,
+                                   unit_values=vf.unit_values)
+    return track_field
 
 
 def get_streamlines(vf, xy, delta=.25, interp='linear',
@@ -569,7 +582,6 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
     tmpvf.fill()
     unit_x, unit_y = vf.unit_x, vf.unit_y
     Vx, Vy = vf.comp_x, vf.comp_y
-    mask = vf.mask
     deltaabs = delta * ((axe_x[-1]-axe_x[0])/len(axe_x)
                         + (axe_y[-1]-axe_y[0])/len(axe_y))/2.
     deltaabs2 = deltaabs**2
@@ -645,41 +657,39 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
         return streams
 
 
-#def get_tracklines(vf, xy, delta=.25, interp='linear',
-#                   reverse_direction=False, direction=1, smooth=0):
-#    """
-#    Return a tuples of Points object representing the trackline begining
-#    at the points specified in xy.
-#
-#    Parameters
-#    ----------
-#    vf : VectorField or VelocityField object
-#        Field on which compute the tracklines.
-#    xy : tuple
-#        Tuple containing each starting point for streamline.
-#    delta : number, optional
-#        Spatial discretization of the tracklines,
-#        relative to a the spatial discretization of the field.
-#    interp : string, optional
-#        Used interpolation for trackline computation.
-#        Can be 'linear'(default) or 'cubic'
-#    direction : '1' or '2'
-#        Direction of gradients to consider (see 'get_grad_field' doc).
-#    smooth : number, optional
-#        Optional smooth for noisy fields.
-#    """
-#    # checking parameters
-#    if not isinstance(smooth, NUMBERTYPES):
-#        raise TypeError()
-#    if not smooth >= 0:
-#        raise ValueError()
-#    # getting grad field
-#    gfield = get_grad_field(vf, direction)
-#    if smooth != 0:
-#        gfield.smooth('gaussian', size=smooth)
-#    lines = get_streamlines(gfield, xy, delta=delta, interp=interp,
-#                            reverse_direction=reverse_direction)
-#    return lines
+def get_tracklines(vf, xy, delta=.25, interp='linear',
+                   reverse_direction=False):
+    """
+    Return a tuples of Points object representing the tracklines begining
+    at the points specified in xy.
+    Warning : fill the field before computing streamlines, can give bad
+    results if the field have a lot of masked values.
+
+    Parameters
+    ----------
+    vf : VectorField or velocityField object
+        Field on which compute the tracklines
+    xy : tuple
+        Tuple containing each starting point for tracklines.
+    delta : number, optional
+        Spatial discretization of the tracklines,
+        relative to a the spatial discretization of the field.
+    interp : string, optional
+        Used interpolation for trackline computation.
+        Can be 'linear'(default) or 'cubic'
+    reverse_direction : boolean, optional
+        If True, the trackline goes upstream.
+
+    Returns
+    -------
+    streams : tuple of Points object
+        Each Points object represent a trackline
+
+    """
+    # get the track field
+    track_field = get_track_field(vf)
+    return get_streamlines(track_field, xy, delta=delta, interp=interp,
+                           reverse_direction=reverse_direction)
 
 
 def get_shear_stress(vf, raw=False):
