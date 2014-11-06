@@ -539,7 +539,7 @@ class Points(object):
         resolution : integer or 2x1 tuple of integers, optional
             Resolution for the resulting field.
             Can be a tuple in order to specify resolution along x and y.
-        format : string, optional
+        output_format : string, optional
             'normalized' (default) : give position probability
                                      (integral egal 1).
             'ponderated' : give position probability ponderated by the number
@@ -1944,6 +1944,71 @@ class Profile(object):
             return fit_prof, popt
         else:
             return fit_prof
+
+    def get_distribution(self, output_format='normalized', resolution=100,
+                         bw_method='scott'):
+        """
+        Return he distribution of y values by using gaussian kernel estimator.
+
+        Parameters
+        ----------
+        output_format : string, optional
+            'normalized' (default) : give position probability
+                                     (integral egal 1).
+            'ponderated' : give position probability ponderated by the number
+                           or points (integral egal number of points).
+            'concentration' : give local concentration (in point per length).
+        resolution : integer
+            Resolution of the resulting profile (number of values in it).
+        bw_method : str or scalar, optional
+            The method used to calculate the estimator bandwidth.
+            Can be 'scott', 'silverman' or a number o set manually the
+            gaussians width.
+            (see 'scipy.stats.gaussian_kde' documentation for more details)
+        Returns
+        -------
+        distrib : Profile object
+            The y values distribution.
+        """
+        # checking parameters coherence
+        if not isinstance(resolution, int):
+            raise TypeError()
+        if resolution < 2:
+            raise ValueError()
+
+        # getting data
+        filt = np.logical_not(self.mask)
+        x = self.x[filt]
+        y = self.y[filt]
+
+        # getting kernel estimator
+        kernel = stats.gaussian_kde(y, bw_method=bw_method)
+
+        # getting distribution
+        distrib_x = np.linspace(np.min(y), np.max(y), resolution)
+        distrib_y = kernel(distrib_x)
+
+        # normalizing
+        if output_format == "normalized":
+            unit_y = make_unit('')
+        elif output_format == 'ponderated':
+            distrib_y *= len(x)
+            unit_y = make_unit('')
+        elif output_format == "percentage":
+            distrib_y *= 100.
+            unit_y = make_unit('')
+        elif output_format == "concentration":
+            unit_y = 1./self.unit_y
+            distrib_y *= len(x)
+        else:
+            raise ValueError()
+
+        # returning
+        distrib = Profile(distrib_x, distrib_y, mask=False, unit_x=self.unit_y,
+                          unit_y=unit_y)
+        return distrib
+
+
 
     ### Modifiers ###
     def crop_masked_border(self):
