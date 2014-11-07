@@ -2475,8 +2475,7 @@ def get_vorticity(vf, raw=False):
     """
     if not isinstance(vf, VectorField):
         raise TypeError()
-    tmp_vf = vf.copy()
-    tmp_vf.fill(crop_border=True)
+    tmp_vf = vf.fill(inplace=False)
     axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
     comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
     mask = tmp_vf.mask
@@ -2495,6 +2494,90 @@ def get_vorticity(vf, raw=False):
         vort_sf = ScalarField()
         vort_sf.import_from_arrays(axe_x, axe_y, vort, mask=mask,
                                    unit_x=unit_x, unit_y=unit_y,
+                                   unit_values=unit_values)
+        return vort_sf
+
+def get_stokes_vorticity(vf, window_size=2, raw=False):
+    """
+    Return a scalar field with the z component of the vorticity using
+    Stokes' theorem.
+    NOT WORKING YET !
+
+    Parameters
+    ----------
+    vf : VectorField or Velocityfield
+        Field on which compute shear stress
+    window_size : integer, optional
+        Window size for stokes approximation of the vorticity.
+    raw : boolean, optional
+        If 'True', return an arrays,
+        if 'False' (default), return a ScalarField object.
+
+    Notes
+    -----
+    Seal et al., “Quantitative characteristics of a laminar,
+    unsteady necklace vortex system at a rectangular block-flat plate
+    juncture,” Journal of Fluid Mechanics, vol. 286, pp. 117–135, 1995.
+
+    """
+    # getting data
+    axe_x, axe_y = vf.axe_x, vf.axe_y
+    dx = axe_x[1] - axe_x[0]
+    dy = axe_y[1] - axe_y[0]
+    Vx = vf.comp_x
+    Vy = vf.comp_y
+    mask = vf.mask
+    # creating new axis
+    new_axe_x = np.arange(np.mean(axe_x[0:window_size]),
+                          np.mean(axe_x[-window_size::] + dx),
+                          dx)
+    new_axe_y = np.arange(np.mean(axe_y[0:window_size]),
+                          np.mean(axe_y[-window_size::] + dx),
+                          dy)
+    # Loop on field
+    vort = np.zeros((len(new_axe_x), len(new_axe_y)))
+    new_mask = np.zeros((len(new_axe_x), len(new_axe_y)), dtype=bool)
+    for i in np.arange(len(axe_x) - window_size + 1):
+        for j in np.arange(len(axe_y) - window_size + 1):
+            # reinitialazing
+            tmp_vort = 0.
+            # checking masked values
+            if np.any(mask[i:i + window_size, j:j + window_size]):
+                new_mask[i, j] = True
+                continue
+            # summing over first border (ds = [-1, 0])
+            bord_vec = Vx[i, j:j + window_size].copy()
+            tmp_vort += -np.trapz(bord_vec, dx=dy)
+            print("")
+            print(bord_vec)
+            # summing over second border (ds = [1, 0])
+            bord_vec = Vx[i + window_size - 1, j:j + window_size].copy()
+            tmp_vort += np.trapz(bord_vec, dx=dy)
+            print("")
+            print(bord_vec)
+            # summing over third border (ds = [0, -1])
+            bord_vec = Vy[i:i + window_size, j].copy()
+            tmp_vort += -np.trapz(bord_vec, dx=dx)
+            print("")
+            print(bord_vec)
+            # summing over fourth border (ds = [0, 1])
+            bord_vec = Vy[i:i + window_size, j + window_size - 1].copy()
+            tmp_vort += np.trapz(bord_vec, dx=dx)
+            print("")
+            print(bord_vec)
+            ## adding coefficients
+            tmp_vort *= 1./(dx*dy*window_size**2)
+            # storing
+            vort[i, j] = tmp_vort
+            return 0
+    # returning
+    if raw:
+        return vort
+    else:
+        unit_values = vf.unit_values/vf.unit_x
+        vort_sf = ScalarField()
+        vort_sf.import_from_arrays(new_axe_x, new_axe_y, vort, mask=new_mask,
+                                   unit_x=vf.unit_x, unit_y=vf.unit_y,
                                    unit_values=unit_values)
         return vort_sf
 

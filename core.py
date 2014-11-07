@@ -1962,7 +1962,7 @@ class Profile(object):
             Resolution of the resulting profile (number of values in it).
         bw_method : str or scalar, optional
             The method used to calculate the estimator bandwidth.
-            Can be 'scott', 'silverman' or a number o set manually the
+            Can be 'scott', 'silverman' or a number to set manually the
             gaussians width.
             (see 'scipy.stats.gaussian_kde' documentation for more details)
         Returns

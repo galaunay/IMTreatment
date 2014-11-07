@@ -14,4 +14,4 @@ from .vortex_detection import \
     get_vortex_circulation, get_lambda2, CritPoints,\
     get_angle_deviation, _get_saddle_orientations,\
     get_vorticity, get_swirling_strength, get_delta_criterion,\
-    get_residual_vorticity
+    get_residual_vorticity, get_stokes_vorticity
