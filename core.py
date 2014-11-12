@@ -1387,29 +1387,9 @@ class Profile(object):
         self.unit_x = unit_x.copy()
         self.unit_y = unit_y.copy()
 
-    def __neg__(self, otherone):
-        if isinstance(otherone, NUMBERTYPES):
-            y = self.y - otherone
-            name = self.name
-        elif isinstance(otherone, unum.Unum):
-            y = self.y - otherone/self.unit_y
-            name = self.name
-        elif isinstance(otherone, Profile):
-            try:
-                self.unit_x + otherone.unit_x
-                self.unit_y + otherone.unit_y
-            except:
-                raise ValueError("Profiles have not the same unit system")
-            if not len(self.x) == len(otherone.x):
-                raise ValueError("Profiles have not the same length")
-            if not all(self.x == otherone.x):
-                raise ValueError("Profiles have not the same x axis")
-            y = self.y - self.unit_y/otherone.unit_y*otherone.y
-            name = "{0} - {1}".format(self.name, otherone.name)
-        else:
-            raise TypeError("You only can substract Profile with "
-                            "Profile or number")
-        return Profile(self.x, y, self.unit_x, self.unit_y, name=name)
+    def __neg__(self):
+        return Profile(self.x, -self.y, mask=self.mask, unit_x=self.unit_x,
+                       unit_y=self.unit_y, name=self.name)
 
     def __add__(self, otherone):
         if isinstance(otherone, NUMBERTYPES):
@@ -1443,6 +1423,9 @@ class Profile(object):
 
     def __sub__(self, otherone):
         return self.__add__(-otherone)
+
+    def __rsub__(self, otherone):
+        return -self.__add__(-otherone)
 
     def __mul__(self, otherone):
         if isinstance(otherone, NUMBERTYPES):

@@ -305,7 +305,8 @@ class WallLaw(object):
             else:
                 Utmp = self._undisturbed(yp)*self.Utau
             Ufin.append(Utmp)
-        Ufin = Profile(y, Ufin, make_unit("m"), make_unit("m/s"))
+        Ufin = Profile(y, Ufin, mask=False, unit_x=make_unit("m"),
+                       unit_y=make_unit("m/s"))
         return Ufin
 
     def integral(self, x, y):
@@ -352,9 +353,9 @@ class WakeLaw(WallLaw):
     Cc : number, optional
         The Coles parameters (n.u) (0.45 by default)
     visc_c : number, optional
-        Kinematic viscosity (m²/s)
+        Kinematic viscosity (m²/s) (defaul = 1e-6)
     rho : number, optional
-        liquid density (kg/m^3)
+        liquid density (kg/m^3) (default = 1000)
     """
 
     def _inner_turb(self, yp):
@@ -419,6 +420,56 @@ def get_bl_thickness(obj, direction=1,  perc=0.95):
     else:
         raise TypeError("Can't compute (yet ?) BL thickness on this kind of"
                         " data : {}".format(type(obj)))
+
+
+def get_clauser_thickness(obj, direction=1, rho=1000, nu=1e-6, tau=None):
+    """
+    Return the profile Clauser's thickness defined in 'Clauser (1956)'.
+    (Delta_star = integrale_0_h (u_top - u)/u_star dy)
+
+    Parameters
+    ----------
+    obj : Profile or ScalarField object
+    direction : integer, optional
+        If 'obj' is a ScalarField, determine the swept axis
+        (1 for x and 2 for y).
+    rho : number, optional
+        Density of the fluid (default fo water : 1000 kg/m^3)
+    nu : number, optional
+        Kinematic viscosity for the fluid (default for water : 1e-6 m^2/s)
+    tau : number, optional
+        Wall shear stress, if not specified, 'get_shear_stress' is used to
+        compute it.
+
+    Returns
+    -------
+    Delta_star : float or Profile
+        Boundary layer Clauser thickness, in axe x unit.
+    """
+    # if obj is a profile, getting Delta_star
+    if isinstance(obj, Profile):
+        # getting u_star
+        if tau is None:
+            tau = get_shear_stress(obj, direction=direction, nu=nu, rho=rho)
+            tau.change_unit('y', 'kg/m/s**2')
+            tau = tau.y[0]
+            print(tau)
+        u_star = np.sqrt(tau/rho)
+        # getting v_top
+        v_top = obj.y[-1]
+        Delta_star = get_displ_thickness(obj)*v_top/u_star
+        return Delta_star
+    # if obj is a scalarField
+    elif isinstance(obj, ScalarField):
+        if direction == 1:
+            axe = obj.axe_x
+        else:
+            axe = obj.axe_y
+        profiles = [obj.get_profile(direction, x) for x in axe]
+        values = [get_clauser_thickness(prof, direction=direction, rho=rho,
+                                        nu=nu)
+                  for prof, _ in profiles]
+        return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
 
 
 def get_displ_thickness(obj, direction=1):

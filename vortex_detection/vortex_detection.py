@@ -2529,10 +2529,10 @@ def get_stokes_vorticity(vf, window_size=2, raw=False):
     mask = vf.mask
     # creating new axis
     new_axe_x = np.arange(np.mean(axe_x[0:window_size]),
-                          np.mean(axe_x[-window_size::] + dx),
+                          np.mean(axe_x[-window_size::] + dx*.9),
                           dx)
     new_axe_y = np.arange(np.mean(axe_y[0:window_size]),
-                          np.mean(axe_y[-window_size::] + dx),
+                          np.mean(axe_y[-window_size::] + dy*.9),
                           dy)
     # Loop on field
     vort = np.zeros((len(new_axe_x), len(new_axe_y)))
@@ -2545,36 +2545,29 @@ def get_stokes_vorticity(vf, window_size=2, raw=False):
             if np.any(mask[i:i + window_size, j:j + window_size]):
                 new_mask[i, j] = True
                 continue
-            # summing over first border (ds = [-1, 0])
-            bord_vec = Vx[i, j:j + window_size].copy()
-            tmp_vort += -np.trapz(bord_vec, dx=dy)
-            print("")
-            print(bord_vec)
-            # summing over second border (ds = [1, 0])
-            bord_vec = Vx[i + window_size - 1, j:j + window_size].copy()
+            # summing over first border
+            bord_vec = -Vy[i, j:j + window_size].copy()
             tmp_vort += np.trapz(bord_vec, dx=dy)
-            print("")
-            print(bord_vec)
-            # summing over third border (ds = [0, -1])
-            bord_vec = Vy[i:i + window_size, j].copy()
-            tmp_vort += -np.trapz(bord_vec, dx=dx)
-            print("")
-            print(bord_vec)
-            # summing over fourth border (ds = [0, 1])
-            bord_vec = Vy[i:i + window_size, j + window_size - 1].copy()
+            # summing over second border
+            bord_vec = Vy[i + window_size - 1, j:j + window_size].copy()
+            tmp_vort += np.trapz(bord_vec, dx=dy)
+            # summing over third border
+            bord_vec = Vx[i:i + window_size, j].copy()
             tmp_vort += np.trapz(bord_vec, dx=dx)
-            print("")
-            print(bord_vec)
+            # summing over fourth border
+            bord_vec = -Vx[i:i + window_size, j + window_size - 1].copy()
+            tmp_vort += np.trapz(bord_vec, dx=dx)
             ## adding coefficients
             tmp_vort *= 1./(dx*dy*window_size**2)
             # storing
             vort[i, j] = tmp_vort
-            return 0
     # returning
     if raw:
         return vort
     else:
         unit_values = vf.unit_values/vf.unit_x
+        vort *= unit_values.asNumber()
+        unit_values /= unit_values.asNumber()
         vort_sf = ScalarField()
         vort_sf.import_from_arrays(new_axe_x, new_axe_y, vort, mask=new_mask,
                                    unit_x=vf.unit_x, unit_y=vf.unit_y,
