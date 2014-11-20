@@ -11,7 +11,7 @@ from scipy.integrate import odeint
 from .. import Profile, make_unit, ScalarField
 import pdb
 
-NUMBERTYPES = (int, float, long)
+NUMBERTYPES = (int, float, long, np.float, np.float16, np.float32)
 ARRAYTYPES = (list, np.ndarray)
 
 
@@ -188,6 +188,18 @@ class BlasiusBL(object):
             y = theta*delta.y[0]
             u = u_over_U*self.Uinf
         return Profile(y, u, unit_x=make_unit('m'), unit_y=make_unit('m/s'))
+
+    def get_x_from_delta(self, delta, allTurbulent=False):
+        """
+        Return a the x value that give the wanted delta.
+        """
+        # getting the laminar value of x
+        xpos = (delta**2*self.Uinf)/(4.92**2*self.nu)
+        # checking if turbulent
+        Re_x = self.get_Rex(xpos)
+        if Re_x > 5e5 or allTurbulent:
+            xpos = ((delta*self.Uinf**(.2))/(0.3806*self.nu**(.2)))**(1./.8)
+        return xpos
 
 
 class WallLaw(object):
@@ -453,7 +465,6 @@ def get_clauser_thickness(obj, direction=1, rho=1000, nu=1e-6, tau=None):
             tau = get_shear_stress(obj, direction=direction, nu=nu, rho=rho)
             tau.change_unit('y', 'kg/m/s**2')
             tau = tau.y[0]
-            print(tau)
         u_star = np.sqrt(tau/rho)
         # getting v_top
         v_top = obj.y[-1]

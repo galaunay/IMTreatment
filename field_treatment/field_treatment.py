@@ -9,7 +9,7 @@ import pdb
 import numpy as np
 import scipy.interpolate as spinterp
 from scipy.optimize import leastsq
-from ..core import Points, ScalarField, VectorField,\
+from ..core import Points, ScalarField, VectorField, Profile, \
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 
 
@@ -21,21 +21,22 @@ def get_gradients(field, raw=False):
 
     Parameters
     ----------
-    vf : VelocityField or ScalarField object
-        Field to comput gradient from.
+    vf : VelocityField, ScalarField or Profile object
+        Field/profile to compute gradient from.
     raw : boolean
         If 'False' (default), ScalarFields objects are returned.
         If 'True', arrays are returned.
 
     Returns
     -------
-    grad : tuple of ScalarField or arrays
+    grad : tuple of ScalarField or arrays or Profile
         For VectorField input : (dVx/dx, dVx/dy, dVy/dx, dVy/dy),
         for ScalarField input : (dV/dx, dV/dy).
+        for Profile input : dy/dx.
     """
-    dx = field.axe_x[1] - field.axe_x[0]
-    dy = field.axe_y[1] - field.axe_y[0]
     if isinstance(field, ScalarField):
+        dx = field.axe_x[1] - field.axe_x[0]
+        dy = field.axe_y[1] - field.axe_y[0]
         grad_x, grad_y = np.gradient(np.ma.masked_array(field.values,
                                                         field.mask),
                                      dx, dy)
@@ -71,6 +72,8 @@ def get_gradients(field, raw=False):
                                      unit_values=unit_values_y)
             return gradx, grady
     elif isinstance(field, VectorField):
+        dx = field.axe_x[1] - field.axe_x[0]
+        dy = field.axe_y[1] - field.axe_y[0]
         Vx_dx, Vx_dy = np.gradient(np.ma.masked_array(field.comp_x,
                                                       field.mask),
                                    dx, dy)
@@ -122,6 +125,22 @@ def get_gradients(field, raw=False):
                                      unit_y=field.unit_y,
                                      unit_values=unit_values_y)
             return grad1, grad2, grad3, grad4
+    elif isinstance(field, Profile):
+        tmp_prof = field.evenly_space('quadratic')
+        axe_x = tmp_prof.x
+        dx = axe_x[1] - axe_x[0]
+        mask = tmp_prof.mask
+        grad = np.gradient(tmp_prof.y)
+        if raw :
+            return grad
+        else:
+            unit_y = tmp_prof.unit_y/tmp_prof.unit_x
+            facty = unit_y.asNumber()
+            unit_y /= facty
+            grad *= facty
+            prof_grad = Profile(axe_x, grad, mask=mask,
+                                unit_x=tmp_prof.unit_x, unit_y=unit_y)
+            return prof_grad
     else:
         raise TypeError()
 

@@ -1994,6 +1994,14 @@ class Profile(object):
 
 
     ### Modifiers ###
+    def add_point(self, x, y):
+        """
+        Add the given point to the profile.
+        """
+        pos_ind = np.searchsorted(self.x, x)
+        self.x = np.concatenate((self.x[0:pos_ind], [x], self.x[pos_ind::]))
+        self.y = np.concatenate((self.y[0:pos_ind], [y], self.y[pos_ind::]))
+
     def crop_masked_border(self):
         """
         Remove the masked values at the border of the profile in place.
