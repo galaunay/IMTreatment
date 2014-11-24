@@ -2501,7 +2501,6 @@ def get_stokes_vorticity(vf, window_size=2, raw=False):
     """
     Return a scalar field with the z component of the vorticity using
     Stokes' theorem.
-    NOT WORKING YET !
 
     Parameters
     ----------
@@ -2636,7 +2635,7 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
     vectorfield : VectorField object
     mask : array of boolean, optional
         Has to be an array of the same size of the vector field object,
-        iota2 will be compute only where zone is 'False'.
+        Q criterion will be compute only where zone is 'False'.
     raw : boolean, optional
         If 'False' (default), a ScalarField is returned,
         if 'True', an array is returned.
@@ -2667,6 +2666,53 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
                                 unit_values=unit_values)
         return q_sf
 
+def get_Nk_criterion(vectorfield, mask=None, raw=False):
+    """
+    Return the scalar field of the 2D Nk criterion .
+    Define as "||Omega||/||S||" , with "||Omega||" the rotation rate tensor
+    norm and ||S|| the shear rate tensor norm.
+
+    Parameters
+    ----------
+    vectorfield : VectorField object
+    mask : array of boolean, optional
+        Has to be an array of the same size of the vector field object,
+        Nk criterion will be compute only where zone is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
+
+    Notes
+    -----
+    See J. Jeong and F. Hussain, “On the identification of a vortex,” Journal
+    of Fluid Mechanics, vol. 285, pp. 69–94, 1995.
+
+    """
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'vectorfield' must be a VectorField object")
+    if mask is None:
+        mask = np.zeros(vectorfield.shape)
+    elif not isinstance(mask, ARRAYTYPES):
+        raise TypeError("'mask' must be an array of boolean")
+    else:
+        mask = np.array(mask)
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+    #calcul des gradients
+    Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
+    # calcul de Nk
+    norm_rot = 2.*(Exy - Eyx)**2
+    norm_shear = (2.*Exx)**2 + (2.*Eyy)**2 + 2.*(Exy + Eyx)**2
+    Nkcrit = norm_rot/norm_shear
+    unit_values = make_unit('')
+    if raw:
+        return np.ma.masked_array(Nkcrit, mask)
+    else:
+        q_sf = ScalarField()
+        q_sf.import_from_arrays(axe_x, axe_y, Nkcrit, mask,
+                                unit_x=vectorfield.unit_x,
+                                unit_y=vectorfield.unit_y,
+                                unit_values=unit_values)
+        return q_sf
 
 def get_delta_criterion(vectorfield, mask=None, raw=False):
     """
@@ -2683,6 +2729,11 @@ def get_delta_criterion(vectorfield, mask=None, raw=False):
     raw : boolean, optional
         If 'False' (default), a ScalarField is returned,
         if 'True', an array is returned.
+
+    Note
+    ----
+    Negative values of Delta mean that the local streamline pattern is closed
+    or spiraled.
     """
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
@@ -2696,9 +2747,7 @@ def get_delta_criterion(vectorfield, mask=None, raw=False):
     #calcul des gradients
     Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
     # calcul de Q
-    norm_rot = 2.*(Exy - Eyx)**2
-    norm_shear = (2.*Exx)**2 + (2.*Eyy)**2 + 2.*(Exy + Eyx)**2
-    Q = .5*(norm_rot - norm_shear)
+    Q = -Exy*Eyx
     unit_values = vectorfield.unit_values**2
     # calcul de R
     R = np.zeros(Exx.shape)
@@ -2708,6 +2757,7 @@ def get_delta_criterion(vectorfield, mask=None, raw=False):
                                      [Eyx[i, j], Eyy[i, j]]])
     # calcul de Delta
     delta = (Q/3.)**3 + (R/2.)**2
+    unit_values = unit_values**3
     if raw:
         return np.ma.masked_array(delta, mask)
     else:
@@ -2797,7 +2847,8 @@ def get_residual_vorticity(vf, raw=False):
         raise TypeError()
     # getting data
     tmp_vf = vf.copy()
-    tmp_vf.fill(crop_border=True)
+    tmp_vf.crop_masked_border()
+    tmp_vf.fill(inplace=True, reduce_tri=True)
     axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
     comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
     mask = tmp_vf.mask

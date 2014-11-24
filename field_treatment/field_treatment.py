@@ -351,7 +351,8 @@ def reconstruct_from_gradients(field_dx, field_dy, field2_dx=None,
         return U
 
 
-def get_jacobian_eigenproperties(field, raw=False):
+def get_jacobian_eigenproperties(field, raw=False, eig_val=True,
+                                 eig_vect=True):
     """
     Return eigenvalues and eigenvectors of the jacobian matrix on all the
     field.
@@ -363,13 +364,21 @@ def get_jacobian_eigenproperties(field, raw=False):
     raw : boolean
         If 'False' (default), ScalarFields objects are returned.
         If 'True', arrays are returned.
+    eig_val : boolean, optional
+        If 'True', eigenvalues are returned.
+    eig_vect : boolean, optional
+        If 'True', eigenvectors are returned.
 
     Returns
     -------
-    eig1_sf : ScalarField object, or array
-        First eigenvalue.
-    eig2_sf : ScalarField object, or array
-        Second eigenvalue.
+    eig_val1_re : ScalarField object, or array
+        Real part of the first eigenvalue.
+    eig_val1_im : ScalarField object, or array
+        Imaginary part of the first eigenvalue.
+    eig_val2_re : ScalarField object, or array
+        Real part of the second eigenvalue.
+    eig_val2_im : ScalarField object, or array
+        Imaginary part of the second eigenvalue.
     eig1_vf : VectorField object, or tuple of arrays
         Eigenvector associated with first eigenvalue.
     eig2_vf : VectorField object, or tuple of arrays
@@ -387,8 +396,8 @@ def get_jacobian_eigenproperties(field, raw=False):
     Vy_dx = Vy_dx.data
     Vy_dy = Vy_dy.data
     # loop on flatten arrays
-    eig1 = np.zeros(shape)
-    eig2 = np.zeros(shape)
+    eig1 = np.zeros(shape, dtype=complex)
+    eig2 = np.zeros(shape, dtype=complex)
     eig1v_x = np.zeros(shape)
     eig1v_y = np.zeros(shape)
     eig2v_x = np.zeros(shape)
@@ -414,31 +423,56 @@ def get_jacobian_eigenproperties(field, raw=False):
         eig1v_y.flat[i] = loc_eigvect[1, max_eig]
         eig2v_x.flat[i] = loc_eigvect[0, min_eig]
         eig2v_y.flat[i] = loc_eigvect[1, min_eig]
-    #storing
+    # extracting real and imaginary
+    eig1_r = np.real(eig1)
+    eig1_i = np.imag(eig1)
+    eig2_r = np.real(eig2)
+    eig2_i = np.imag(eig2)
+    # returning
     if raw:
-        return eig1, eig2, (eig1v_x, eig1v_y), (eig2v_x, eig2v_y)
+        ret = ()
+        if eig_val:
+            ret += (eig1_r, eig1_i, eig2_r, eig2_i)
+        if eig_vect:
+            ret += ((eig1v_x, eig1v_y), (eig2v_x, eig2v_y))
+        return ret
     else:
-        eig1_sf = ScalarField()
-        eig1_sf.import_from_arrays(field.axe_x, field.axe_y, eig1,
-                                   mask=mask, unit_x=field.unit_x,
-                                   unit_y=field.unit_y,
-                                   unit_values="")
-        eig2_sf = ScalarField()
-        eig2_sf.import_from_arrays(field.axe_x, field.axe_y, eig2,
-                                   mask=mask, unit_x=field.unit_x,
-                                   unit_y=field.unit_y,
-                                   unit_values="")
-        eig1_vf = VectorField()
-        eig1_vf.import_from_arrays(field.axe_x, field.axe_y, eig1v_x, eig1v_y,
-                                   mask=mask, unit_x=field.unit_x,
-                                   unit_y=field.unit_y,
-                                   unit_values="")
-        eig2_vf = VectorField()
-        eig2_vf.import_from_arrays(field.axe_x, field.axe_y, eig2v_x, eig2v_y,
-                                   mask=mask, unit_x=field.unit_x,
-                                   unit_y=field.unit_y,
-                                   unit_values="")
-        return eig1_sf, eig2_sf, eig1_vf, eig2_vf
+        ret = ()
+        if eig_val:
+            eig1_re_sf = ScalarField()
+            eig1_re_sf.import_from_arrays(field.axe_x, field.axe_y, eig1_r,
+                                          mask=mask, unit_x=field.unit_x,
+                                          unit_y=field.unit_y,
+                                          unit_values="")
+            eig1_im_sf = ScalarField()
+            eig1_im_sf.import_from_arrays(field.axe_x, field.axe_y, eig1_i,
+                                          mask=mask, unit_x=field.unit_x,
+                                          unit_y=field.unit_y,
+                                          unit_values="")
+            eig2_re_sf = ScalarField()
+            eig2_re_sf.import_from_arrays(field.axe_x, field.axe_y, eig2_r,
+                                          mask=mask, unit_x=field.unit_x,
+                                          unit_y=field.unit_y,
+                                          unit_values="")
+            eig2_im_sf = ScalarField()
+            eig2_im_sf.import_from_arrays(field.axe_x, field.axe_y, eig2_i,
+                                          mask=mask, unit_x=field.unit_x,
+                                          unit_y=field.unit_y,
+                                          unit_values="")
+            ret += (eig1_re_sf, eig1_im_sf, eig2_re_sf, eig2_im_sf)
+        if eig_vect:
+            eig1_vf = VectorField()
+            eig1_vf.import_from_arrays(field.axe_x, field.axe_y, eig1v_x, eig1v_y,
+                                       mask=mask, unit_x=field.unit_x,
+                                       unit_y=field.unit_y,
+                                       unit_values="")
+            eig2_vf = VectorField()
+            eig2_vf.import_from_arrays(field.axe_x, field.axe_y, eig2v_x, eig2v_y,
+                                       mask=mask, unit_x=field.unit_x,
+                                       unit_y=field.unit_y,
+                                       unit_values="")
+            ret += (eig1_vf, eig2_vf)
+        return ret
 
 
 def get_Kenwright_field(field, raw=False):
