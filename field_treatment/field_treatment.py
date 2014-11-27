@@ -12,7 +12,7 @@ from scipy.optimize import leastsq
 from ..core import Points, ScalarField, VectorField, Profile, \
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 
-
+### Gradients based operation
 def get_gradients(field, raw=False):
     """
     Return gradients along x and y.
@@ -578,6 +578,7 @@ def get_track_field(vf):
     return track_field
 
 
+### Stream and track lines
 def get_streamlines(vf, xy, delta=.25, interp='linear',
                     reverse_direction=False):
     """
@@ -842,3 +843,113 @@ def get_swirling_vector(vf, raw=False):
                                   unit_x=unit_x, unit_y=unit_y,
                                   unit_values=unit_values)
         return tmp_vf
+
+
+### Modifying field
+def extrapolate_until_wall(field, direction='x', position=0.,
+                           kind_interp='linear'):
+    """
+    Interpolate the given fiels until it reach  wall (0 velocity) at the given
+    position.
+
+    Parameters
+    ----------
+    field : ScalarField or VectorField object.
+        Field to extend
+    direction : string
+        Axe on which the wall is placed (default to 'x')
+    position : number
+        position of the wall (in the same unit as the field)
+    kind_interp : string
+        Type of algorithm used to fill.
+        ‘linear’ (default): fill using linear interpolation
+        ‘cubic’ : fill using cubic interpolation
+
+    Returns
+    -------
+    extended_field : ScalarField or VectorField
+        Extended field.
+    """
+    # check params
+    axe_x, axe_y = field.axe_x, field.axe_y
+    dx = axe_x[1] - axe_x[0]
+    dy = axe_y[1] - axe_y[0]
+    if not isinstance(direction, STRINGTYPES):
+        raise TypeError()
+    if not direction in ['x', 'y']:
+        raise ValueError()
+    if not isinstance(position, NUMBERTYPES):
+        raise TypeError()
+    if direction == 'x':
+        if position < axe_x[-1] and position > axe_x[0]:
+            raise ValueError()
+    else:
+        if position < axe_y[-1] and position > axe_y[0]:
+            raise ValueError()
+    if not isinstance(kind_interp, STRINGTYPES):
+        raise TypeError()
+    if not kind_interp in ['linear', 'cubic']:
+        raise ValueError()
+    # enlarge the field
+    ext_field = field.copy()
+    if direction == 'x':
+        if position < axe_x[0]:
+            ext_field.extend(nmb_left=np.int((axe_x[0] - position)/dx),
+                             inplace=True)
+        else:
+            ext_field.extend(nmb_right=np.int((position - axe_x[1])/dx),
+                             inplace=True)
+    else:
+        if position < axe_y[0]:
+            ext_field.extend(nmb_down=np.int((axe_y[0] - position)/dy),
+                             inplace=True)
+        else:
+            ext_field.extend(nmb_up=np.int((position - axe_y[1])/dy),
+                             inplace=True)
+    # ScalarField
+    if isinstance(field, ScalarField):
+        # adding wall
+        if direction == 'x':
+            if position < axe_x[0]:
+                ext_field.values[0, :] = [0]*ext_field.shape[1]
+                ext_field.mask[0, :] = [False]*ext_field.shape[1]
+            else:
+                ext_field.values[-1, :] = [0]*ext_field.shape[1]
+                ext_field.mask[-1, :] = [False]*ext_field.shape[1]
+        else:
+            if position < axe_y[0]:
+                ext_field.values[:, 0] = [0]*ext_field.shape[0]
+                ext_field.mask[:, 0] = [False]*ext_field.shape[0]
+            else:
+                ext_field.values[:, -1] = [0]*ext_field.shape[0]
+                ext_field.mask[:, -1] = [False]*ext_field.shape[0]
+        # filling
+        ext_field.fill(kind=kind_interp, inplace=True, reduce_tri=False)
+        return ext_field
+    # VectorField
+    elif isinstance(field, VectorField):
+        # adding wall
+        if direction == 'x':
+            if position < axe_x[0]:
+                ext_field.comp_x[0, :] = [0]*ext_field.shape[1]
+                ext_field.comp_y[0, :] = [0]*ext_field.shape[1]
+                ext_field.mask[0, :] = [False]*ext_field.shape[1]
+            else:
+                ext_field.comp_x[-1, :] = [0]*ext_field.shape[1]
+                ext_field.comp_y[-1, :] = [0]*ext_field.shape[1]
+                ext_field.mask[-1, :] = [False]*ext_field.shape[1]
+        else:
+            if position < axe_y[0]:
+                ext_field.comp_x[:, 0] = [0]*ext_field.shape[0]
+                ext_field.comp_y[:, 0] = [0]*ext_field.shape[0]
+                ext_field.mask[:, 0] = [False]*ext_field.shape[0]
+            else:
+                ext_field.comp_x[:, -1] = [0]*ext_field.shape[0]
+                ext_field.comp_y[:, -1] = [0]*ext_field.shape[0]
+                ext_field.mask[:, -1] = [False]*ext_field.shape[0]
+        # filling
+        ext_field.fill(kind=kind_interp, inplace=True, reduce_tri=False)
+        return ext_field
+    else:
+        raise TypeError()
+

@@ -2725,6 +2725,39 @@ class Field(object):
                 return trimfield
 
 
+    def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
+               inplace=False):
+        """
+        Add columns or lines of masked values at the field.
+
+        Parameters
+        ----------
+        nmb_**** : integers
+            Number of lines/columns to add in each direction.
+        inplace : bool
+            If 'False', return a new extended field, if 'True', modify the
+            field inplace.
+        Returns
+        -------
+        Extended_field : Field object, optional
+            Extended field.
+        """
+        dx = self.axe_x[1] - self.axe_x[0]
+        dy = self.axe_y[1] - self.axe_y[0]
+        new_axe_x = np.arange(self.axe_x[0] - nmb_left*dx,
+                              self.axe_x[-1] + nmb_right*dx + dx, dx)
+        new_axe_y = np.arange(self.axe_y[0] - nmb_down*dy,
+                              self.axe_y[-1] + nmb_up*dy + dy, dy)
+        if inplace:
+            self.__axe_x = new_axe_x
+            self.__axe_y = new_axe_y
+        else:
+            fi = self.copy()
+            fi.__axe_x = new_axe_x
+            fi.__axe_y = new_axe_y
+            return fi
+
+
 class ScalarField(Field):
     """
     Class representing a scalar field (2D field, with one component on each
@@ -3780,6 +3813,66 @@ class ScalarField(Field):
                                          indmin_y:indmax_y + 1]
             return trimfield
 
+    def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
+               inplace=False):
+        """
+        Add columns or lines of masked values at the scalarfield.
+
+        Parameters
+        ----------
+        nmb_**** : integers
+            Number of lines/columns to add in each direction.
+        inplace : bool
+            If 'False', return a new extended field, if 'True', modify the
+            field inplace.
+        Returns
+        -------
+        Extended_field : Field object, optional
+            Extended field.
+        """
+        # check params
+        if not isinstance(nmb_left, int):
+            raise TypeError()
+        if not isinstance(nmb_right, int):
+            raise TypeError()
+        if not isinstance(nmb_up, int):
+            raise TypeError()
+        if not isinstance(nmb_down, int):
+            raise TypeError()
+        if np.any(np.array([nmb_left, nmb_right, nmb_up, nmb_down]) < 0):
+            raise ValueError()
+        # used herited method to extend the field
+        if inplace:
+            Field.extend(self, nmb_left=nmb_left, nmb_right=nmb_right,
+                         nmb_up=nmb_up, nmb_down=nmb_down, inplace=True)
+            new_shape = self.shape
+        else:
+            new_field = Field.extend(self, nmb_left=nmb_left,
+                                     nmb_right=nmb_right, nmb_up=nmb_up,
+                                     nmb_down=nmb_down, inplace=False)
+            new_shape = new_field.shape
+        # extend the value ans mask
+        new_values = np.zeros(new_shape, dtype=float)
+        if nmb_right == 0:
+            slice_x = slice(nmb_left, new_values.shape[0] + 2)
+        else:
+            slice_x = slice(nmb_left, -nmb_right)
+        if nmb_up == 0:
+            slice_y = slice(nmb_down, new_values.shape[1] + 2)
+        else:
+            slice_y = slice(nmb_down, -nmb_up)
+        new_values[slice_x, slice_y] = self.values
+        new_mask = np.ones(new_shape, dtype=bool)
+        new_mask[slice_x, slice_y] = self.mask
+        # return
+        if inplace:
+            self.values = new_values
+            self.mask = new_mask
+        else:
+            new_field.values = new_values
+            new_field.mask = new_mask
+            return new_field
+
     def crop_masked_border(self, hard=False):
         """
         Crop the masked border of the field in place.
@@ -4140,7 +4233,7 @@ class ScalarField(Field):
         """
         displ = self._display(component, kind,  **plotargs)
         plt.title("Scalar field Values " + self.unit_values.strUnit())
-        cb = plt.colorbar(displ, shrink=1, aspect=5)
+        cb = plt.colorbar(displ) #, shrink=1, aspect=5)
         cb.set_label(self.unit_values.strUnit())
         # search for limits in case of masked field
         if component != 'mask':
@@ -4843,6 +4936,56 @@ class VectorField(Field):
             self.trim_area([axe_x_min, axe_x_max],
                            [axe_y_min, axe_y_max],
                            ind=True, inplace=True)
+
+    def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
+               inplace=False):
+        """
+        Add columns or lines of masked values at the vectorfield.
+
+        Parameters
+        ----------
+        nmb_**** : integers
+            Number of lines/columns to add in each direction.
+        inplace : bool
+            If 'False', return a new extended field, if 'True', modify the
+            field inplace.
+        Returns
+        -------
+        Extended_field : Field object, optional
+            Extended field.
+        """
+        if inplace:
+            Field.extend(self, nmb_left=nmb_left, nmb_right=nmb_right,
+                         nmb_up=nmb_up, nmb_down=nmb_down, inplace=True)
+            new_shape = self.shape
+        else:
+            new_field = Field.extend(self, nmb_left=nmb_left,
+                                     nmb_right=nmb_right, nmb_up=nmb_up,
+                                     nmb_down=nmb_down, inplace=False)
+            new_shape = new_field.shape
+        new_Vx = np.zeros(new_shape, dtype=float)
+        new_Vy = np.zeros(new_shape, dtype=float)
+        if nmb_right == 0:
+            slice_x = slice(nmb_left, new_Vx.shape[0] + 2)
+        else:
+            slice_x = slice(nmb_left, -nmb_right)
+        if nmb_up == 0:
+            slice_y = slice(nmb_down, new_Vx.shape[1] + 2)
+        else:
+            slice_y = slice(nmb_down, -nmb_up)
+        new_Vx[slice_x, slice_y] = self.comp_x
+        new_Vy[slice_x, slice_y] = self.comp_y
+        new_mask = np.ones(new_shape, dtype=bool)
+        new_mask[slice_x, slice_y] = self.mask
+        if inplace:
+            self.comp_x = new_Vx
+            self.comp_y = new_Vy
+            self.mask = new_mask
+        else:
+            new_field.comp_x = new_Vx
+            new_field.comp_y = new_Vy
+            new_field.mask = new_mask
+            return new_field
 
     def reduce_spatial_resolution(self, fact, inplace=False):
         """
