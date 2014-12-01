@@ -124,6 +124,41 @@ class BlasiusBL(object):
                       unit_y=make_unit(''))
         return delta, Cf, Rex
 
+    def get_thickness_with_confinement(self, x, h, allTurbulent=False):
+        """
+        Return the boundary layer thickness and the friction coefficient
+        according to blasius theory and adapted for use with low water levels.
+        (Only valid in laminar BL)
+        Fonction
+        --------
+        delta, Cf = BlasiusBL(allTurbulent=False)
+
+        Parameters
+        ---------
+        x : number or array of number
+            Position where the boundary layer thickness is computed (m)
+            (can be a list).
+        h : number
+            Water depth (m).
+        allTurbulent : bool, optional
+            if True, the all boundary layer is considered turbulent.
+
+        Returns
+        -------
+        delta : Profile object
+            Boundary layer thickness profile (m)
+        """
+        if not isinstance(x, (NUMBERTYPES, ARRAYTYPES)):
+            raise TypeError("x is not a number or a list")
+        if isinstance(x, NUMBERTYPES):
+            x = np.array([x])
+        if isinstance(h, NUMBERTYPES):
+            h = np.array([h])
+        Re_x = self.get_Rex(x)
+        delta_blas = 4.92*x/Re_x**.5
+        delta_perso = delta_blas - delta_blas**2*0.26547/h
+        return delta_perso
+
     def get_wall_shear_stress(self, x, allTurbulent=False):
         """
         Return the theorical wall shear stress.
@@ -144,7 +179,7 @@ class BlasiusBL(object):
             tau_w = 0.664/Re_x**(0.5)*1./2.*self.rho*self.Uinf**2
         return tau_w
 
-    def get_profile(self, x, turbulent=False):
+    def get_profile(self, x, y=None, turbulent=False):
         """
         Return a Blasius-like (laminar) profile at the given position.
 
@@ -152,6 +187,9 @@ class BlasiusBL(object):
         ----------
         x : number
             Position of the profile along x axis
+        y : array of numbers
+            Point along y where to compute the profile (if not specified,
+            200 homogeneously placed points are used)
         turbulent : bool, optional
             if True, the boundary layer is considered turbulent.
 
@@ -160,7 +198,7 @@ class BlasiusBL(object):
         prof : Profile Object
             Wanted Blasius-like profile.
         """
-        # derivate function
+        # Not turbulent case
         if not turbulent:
             def f_deriv(F, theta):
                 """
@@ -171,21 +209,28 @@ class BlasiusBL(object):
                 return [F[1], F[2], -1./2.*F[0]*F[2]]
             # profile initial values
             f0 = [0, 0, 0.332]
-            # x values
-            theta = np.linspace(0, 10, 1000)
+            # y values
+            if y is None:
+                theta = np.linspace(0, 10, 200)
+                y = theta*np.sqrt(x)*np.sqrt(self.nu/self.Uinf)
+            else:
+                theta = y/(np.sqrt(x)*np.sqrt(self.nu/self.Uinf))
             # solving with scipy ode solver
             sol = odeint(f_deriv, f0, theta)
             # getting adimensionnale velocity
             u_over_U = sol[:, 1]
             # getting dimensionnal values
             u = u_over_U*self.Uinf
-            y = theta*np.sqrt(x)*np.sqrt(self.nu/self.Uinf)
+        # Turbulent case
         else:
             delta, _, _ = self.get_thickness(x, allTurbulent=True)
-            theta = np.linspace(0, 2, 200)
+            if y is None:
+                theta = np.linspace(0, 10, 200)
+                y = theta*delta.y[0]
+            else:
+                theta = y/delta.y[0]
             u_over_U = np.power(theta, 1./7.)
             u_over_U[theta > 1] = 1.
-            y = theta*delta.y[0]
             u = u_over_U*self.Uinf
         return Profile(y, u, unit_x=make_unit('m'), unit_y=make_unit('m/s'))
 

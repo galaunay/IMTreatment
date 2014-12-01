@@ -2033,7 +2033,7 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
 
 
 def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
-              raw=False, dev_pass=True):
+              raw=False, dev_pass=False):
     """
     Return the gamma scalar field. Gamma criterion is used in
     vortex analysis.
@@ -2067,7 +2067,8 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         if 'True', an array is returned.
     dev_pass : boolean, optional
         If 'True', the algorithm compute gamma criterion only where the
-        velocity angles deviation is strong (faster if there is few points)
+        velocity angles deviation is strong (faster if there is few points).
+        Work only with 'gamma1'
     """
     ### Checking parameters coherence ###
     if not isinstance(vectorfield, VectorField):
@@ -2090,6 +2091,8 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         raise TypeError("'zone' must be an array of boolean")
     else:
         mask = np.array(mask)
+    if kind in ['gamma2', 'gamma2b']:
+        dev_pass = False
     # getting data and masks
     Vx = vectorfield.comp_x
     Vy = vectorfield.comp_y
@@ -2577,7 +2580,7 @@ def get_stokes_vorticity(vf, window_size=2, raw=False):
 def get_swirling_strength(vf, raw=False):
     """
     Return a scalar field with the swirling strength
-    (imaginary part of the eigenvalue of the velocity laplacian matrix)
+    (imaginary part of the eigenvalue of the velocity Jacobian)
 
     Parameters
     ----------
