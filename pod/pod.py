@@ -14,6 +14,8 @@ import numpy as np
 import pdb
 import modred
 import matplotlib.pyplot as plt
+import scipy.integrate as spint
+import scipy.interpolate as spinter
 
 class ModalFields(Field):
     """
@@ -309,7 +311,7 @@ class ModalFields(Field):
     def get_temporal_coherence(self, raw=False):
         """
         Return a profile where each value represent the probability for a mode
-        to be coherent (non-random).
+        to be temporaly non-random (values from 0 to 1).
         Can be used to determine the modes to take to filter the turbulence
         (and so perform a tri-decomposition (mean + coherent + turbulent))
 
@@ -332,17 +334,105 @@ class ModalFields(Field):
         (coherent behavior), inversely, variance is low when spectrum is
         nearly uniform (random behavior).
         """
+        shape = (len(self.times),)
         # computing maximal variance
         max_std_spec = np.zeros(len(self.times))
         max_std_spec[0] = 1
         max_std_spec /= np.trapz(max_std_spec)
         max_std = np.std(max_std_spec)
+        # computing minimum variance
+        min_std = 0
+        for i in np.arange(20):
+            min_prof = Profile(self.times, 2*(0.5 - np.random.rand(*shape)))
+            min_spec = min_prof.get_spectrum(scaling='density')
+            min_spec /= np.trapz(min_spec.y)
+            min_std += np.std(min_spec.y)
+        min_std /= 20
+        # getting spectrum variance on modes
         var_spec = np.empty((len(self.modes)))
         for n in np.arange(len(self.modes)):
             prof = self.temp_evo[n]
             spec = prof.get_spectrum(scaling='density')
             spec /= np.trapz(spec.y)
-            var_spec[n] = np.std(spec.y)/max_std
+            var_spec[n] = (np.std(spec.y) - min_std)/max_std
+            if var_spec[n] < 0:
+                var_spec[n] = 0
+        if raw:
+            return var_spec
+        else:
+            prof = Profile(np.arange(len(self.modes)), var_spec, unit_x='',
+                           unit_y='', name="")
+            return prof
+
+    def get_spatial_coherence(self, raw=False):
+        """
+        Return a profile where each value represent the probability for a mode
+        to be spatialy non-random (values from 0 to 1).
+        Can be used to determine the modes to take to filter the turbulence
+        (and so perform a tri-decomposition (mean + coherent + turbulent))
+
+        Parameters
+        ----------
+        raw : bool, optional
+            If 'False' (default), a Profile object is returned
+            If 'True', an array is returned
+
+        Returns
+        -------
+        var_spec : array or Profile object
+            Probability estimation for each mode of being coherent in space.
+
+        Notes
+        -----
+        Returned values are, for each modes, the variance of the
+        normalized two-dimensional spectrum of Vx and Vy.
+        Variance is high when spectrum show predominant frequencies
+        (coherent behavior), inversely, variance is low when spectrum is
+        nearly uniform (random behavior).
+        """
+        # data
+        shape = self.modes[0].shape
+        axe_x = self.modes[0].axe_x
+        axe_y = self.modes[0].axe_y
+        center_x = np.int(len(axe_x)/2.)
+        center_y = np.int(len(axe_y)/2.)
+        # computing maximal variance
+        max_std_spec = np.zeros(shape)
+        max_std_spec[center_x, center_y] = 1.
+        max_std_spec /= spint.simps(spint.simps(max_std_spec))
+        max_std = np.std(max_std_spec)
+        # computing minimal variance (from random field)
+        min_std= 0.
+        for i in np.arange(20):
+            min_field = (0.5 - np.random.rand(*shape))*2.
+            min_spec = np.abs(np.real(np.fft.fft2(min_field)))
+            min_spec = np.fft.fftshift(min_spec)
+            min_spec /= spint.simps(spint.simps(min_spec))
+            min_std += np.std(min_spec)
+        min_std /= 20
+        # computing spectrum variation on each mode
+        var_spec = np.empty((len(self.modes)))
+        for n in np.arange(len(self.modes)):
+            if isinstance(self.modes[n], ScalarField):
+                data = self.modes[n].values
+                spec = np.abs(np.real(np.fft.rfft2(data)))
+                spec = np.fft.fftshift(spec)
+                spec /= spint.simps(spint.simps(spec))
+                var_spec[n] = np.std(spec)/max_std
+            elif isinstance(self.modes[n], VectorField):
+                datax = self.modes[n].comp_x
+                datay = self.modes[n].comp_y
+                specx = np.abs(np.real(np.fft.fft2(datax)))
+                specx = np.fft.fftshift(specx)
+                specy = np.abs(np.real(np.fft.fft2(datay)))
+                specy = np.fft.fftshift(specy)
+                specx /= spint.simps(spint.simps(specx))
+                specy /= spint.simps(spint.simps(specy))
+                var_spec[n] = (np.std(specx) + np.std(specy) - 2*min_std)/(max_std)
+                if var_spec[n] < 0:
+                    var_spec[n] = 0
+            else:
+                raise Exception()
         if raw:
             return var_spec
         else:
@@ -357,7 +447,7 @@ class ModalFields(Field):
         if self.decomp_type in ['pod', 'bpod']:
             plt.figure(figsize=figsize)
             plt.subplot(2, 3, 1)
-            p_vals = self.get_temporal_coherence()
+            p_vals = self.get_spatial_coherence()
             p_vals.display()
             plt.title('Coherence indicator')
             plt.xlabel('Modes')
