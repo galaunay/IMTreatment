@@ -15,4 +15,4 @@ from .vortex_detection import \
     get_angle_deviation, _get_saddle_orientations,\
     get_vorticity, get_swirling_strength, get_delta_criterion,\
     get_residual_vorticity, get_stokes_vorticity, get_Nk_criterion,\
-    get_shear_vorticity
+    get_shear_vorticity, velocityfield_to_vf, get_cp_cell_pbi_on_VF

@@ -7,7 +7,6 @@ Created on Sun Feb 23 18:07:07 2014
 For performance
 """
 
-
 import pdb
 from ..core import Points, OrientedPoints, Profile, ScalarField, VectorField,\
     make_unit, ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
@@ -23,6 +22,7 @@ import sets
 import scipy.ndimage.measurements as msr
 import unum
 import copy
+import sympy
 
 
 def velocityfield_to_vf(vectorfield, time):
@@ -66,13 +66,12 @@ class VF(object):
         tmp_vf.import_from_arrays(self.axe_x, self.axe_y, vx, vy, mask)
         return tmp_vf
 
-    def get_cp_position(self, window_size=2):
+    def get_cp_cell_position(self, window_size=2):
         """
-        Return critical points positions and their associated PBI.
+        Return critical points cell positions and their associated PBI.
         (PBI : Poincarre_Bendixson indice)
-        Positions are returned in axis unities (axe_x and axe_y) and are
-        always at the center of 4 points (maximum accuracy of this algorithm
-        is limited by the field spatial resolution).
+        Positions are returned in axis unities (axe_x and axe_y) at the center
+        of a cell.
 
         Parameters
         ----------
@@ -138,6 +137,123 @@ class VF(object):
         pbis = pbis[ind_pos]
         # returning
         return positions, pbis
+
+    def get_cp_position(self, window_size=2):
+        """
+        Return critical points positions and their associated PBI using
+        bilinear interpolation.
+        (PBI : Poincarre_Bendixson indice)
+        Positions are returned in axis unities (axe_x and axe_y).
+
+        Parameters
+        ----------
+        window_size : integer, optional
+            Minimal window size for PBI detection.
+            Smaller window size allow detection where points are dense.
+            Default is finnest possible (1).
+
+        Returns
+        -------
+        pos : 2xN array
+            position (x, y) of the detected critical points.
+        pbis : 1xN array
+            PBI (1 indicate a node, -1 a saddle point)
+
+        Note
+        ----
+        Using the work of :
+        [1]F. Effenberger and D. Weiskopf, “Finding and classifying critical
+        points of 2D vector fields: a cell-oriented approach using group
+        theory,” Computing and Visualization in Science, vol. 13, no. 8,
+        pp. 377–396, Dec. 2010.
+        """
+        ### TODO : peut être améliorer en utilisant le fait que les 0 levelsets
+        ###        sont des droites
+        # get the cell position
+        positions, pbis = self.get_cp_cell_position(window_size=window_size)
+        axe_x = self.axe_x
+        axe_y = self.axe_y
+        # prepare the analytical solution
+        a1, b1, c1, d1, a2, b2, c2, d2, x, y = sympy.symbols('a1, b1, c1, d1, '
+                                                             'a2, b2, c2, d2, '
+                                                             'x, y')
+        def funct1(x, y, Vx):
+            return sympy.Eq(a1*x + b1*y + c1*x*y + d1, Vx)
+        def funct2(x, y, Vy):
+            return sympy.Eq(a2*x + b2*y + c2*x*y + d2, Vy)
+        # for each position
+        new_positions = np.zeros(positions.shape)
+        for i, pos in enumerate(positions):
+            tmp_x = pos[0]
+            tmp_y = pos[1]
+            # get the cell indices
+            ind_x = np.where(tmp_x < axe_x)[0][0] - 1
+            ind_y = np.where(tmp_y < axe_y)[0][0] - 1
+            # get data
+            x_bl = axe_x[ind_x:ind_x + 2]
+            y_bl = axe_y[ind_y:ind_y + 2]
+            x_bl, y_bl = np.meshgrid(x_bl, y_bl)
+            Vx_bl = self.vx[ind_y:ind_y + 2, ind_x:ind_x + 2]
+            Vy_bl = self.vy[ind_y:ind_y + 2, ind_x:ind_x + 2]
+#            # get zero-velocity points
+#            def get_lin_zero(x1, x2, V1, V2):
+#                print(x1, x2, V1, V2)
+#                return x1 + (x2 - x1)/np.abs(V1 - V2)*np.abs(V1)
+#            x_bd = []
+#            y_bd = []
+#            if not np.sign(Vx_bl[0, 0]) == np.sign(Vx_bl[0, 1]):
+#                y_bd.append(get_lin_zero(y_bl[0, 0], y_bl[1, 1],
+#                                      Vx_bl[0, 0], Vx_bl[0, 1]))
+#                y_bd.append(get_lin_zero(y_bl[0, 0], y_bl[1, 1],
+#                                      Vx_bl[1, 0], Vx_bl[1, 1]))
+#                x_bd.append(get_lin_zero(x_bl[0, 0], x_bl[1, 1],
+#                                      Vy_bl[0, 0], Vy_bl[1, 0]))
+#                x_bd.append(get_lin_zero(x_bl[0, 0], x_bl[1, 1],
+#                                      Vy_bl[0, 1], Vy_bl[1, 1]))
+#            else:
+#                y_bd.append(get_lin_zero(y_bl[0, 0], y_bl[1, 1],
+#                                      Vy_bl[0, 0], Vy_bl[0, 1]))
+#                y_bd.append(get_lin_zero(y_bl[0, 0], y_bl[1, 1],
+#                                      Vy_bl[1, 0], Vy_bl[1, 1]))
+#                x_bd.append(get_lin_zero(x_bl[0, 0], x_bl[1, 1],
+#                                      Vx_bl[0, 0], Vx_bl[1, 0]))
+#                x_bd.append(get_lin_zero(x_bl[0, 0], x_bl[1, 1],
+#                                      Vx_bl[0, 1], Vx_bl[1, 1]))
+#            plt.figure()
+#            plt.quiver(x_bl, y_bl, Vx_bl, Vy_bl)
+##            plt.plot(x_bl[:, 0], x_bd, 'ok')
+#            plt.plot(x_bl[0, :], y_bd, 'ok-')
+#            plt.plot(x_bd, y_bl[:, 0], 'ok-')
+            # solve to get the zero velocity point
+            eq1 = funct1(x, y, 0)
+            bl11 = funct1(x_bl[0, 0], y_bl[0, 0], Vx_bl[0, 0])
+            bl12 = funct1(x_bl[0, 1], y_bl[0, 1], Vx_bl[0, 1])
+            bl13 = funct1(x_bl[1, 0], y_bl[1, 0], Vx_bl[1, 0])
+            bl14 = funct1(x_bl[1, 1], y_bl[1, 1], Vx_bl[1, 1])
+            eq2 = funct2(x, y, 0)
+            bl21 = funct2(x_bl[0, 0], y_bl[0, 0], Vy_bl[0, 0])
+            bl22 = funct2(x_bl[0, 1], y_bl[0, 1], Vy_bl[0, 1])
+            bl23 = funct2(x_bl[1, 0], y_bl[1, 0], Vy_bl[1, 0])
+            bl24 = funct2(x_bl[1, 1], y_bl[1, 1], Vy_bl[1, 1])
+            sol = sympy.solve([eq1, bl11, bl12, bl13, bl14, eq2, bl21, bl22,
+                               bl23, bl24])
+            # delete the points outside the cell
+            tmp_sol = []
+            for s in sol:
+                if np.iscomplex(s[x]) or np.iscomplex(s[y]):
+                    continue
+                if (s[x] < axe_x[ind_x] or s[x] > axe_x[ind_x + 1]
+                        or s[y] < axe_y[ind_y] or s[y] > axe_y[ind_y + 1]):
+                    continue
+                tmp_sol.append(s)
+            sol = tmp_sol
+            if len(sol) != 1:
+                raise Exception()
+            sol = sol[0]
+            # store the new position
+            new_positions[i] = [sol[x], sol[y]]
+        # returning
+        return new_positions, pbis
 
     def get_pbi(self, direction):
         """
@@ -1336,8 +1452,51 @@ def get_cp_pbi_on_TVF(TVF, window_size=4):
     return cp
 
 
+def get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
+                          window_size=4):
+    """
+    For a VectorField object, return the critical points positions and their
+    PBI (Poincarre Bendixson indice)
+
+    Parameters
+    ----------
+    vectorfield : a VectorField object.
+        .
+    time : number, optional
+        Time
+    unit_time : units object, optional
+        Time unit.
+    window_size : integer, optional
+        Minimal window size for PBI detection.
+        Smaller window size allow detection where points are dense.
+        Default is 4 (smallest is 2).
+
+    Returns
+    -------
+    pts : CritPoints object
+        Containing all critical points position
+    """
+    # checking parameters coherence
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'vectorfield' must be a VectorField")
+    # using VF methods to get cp position
+    field = velocityfield_to_vf(vectorfield, time)
+    pos, pbis = field.get_cp_cell_position(window_size=window_size)
+    pbi_m = Points()
+    pbi_p = Points()
+    for i, pbi in enumerate(pbis):
+        if pbi == -1:
+            pbi_m.add(pos[i])
+        elif pbi == 1:
+            pbi_p.add(pos[i])
+        else:
+            raise Exception()
+    pts = CritPoints(unit_time=unit_time)
+    pts.add_point(pbi_m=pbi_m, pbi_p=pbi_p, time=time)
+    return pts
+
 def get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
-                     window_size=4):
+                          window_size=4):
     """
     For a VectorField object, return the critical points positions and their
     PBI (Poincarre Bendixson indice)
@@ -1378,7 +1537,6 @@ def get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     pts = CritPoints(unit_time=unit_time)
     pts.add_point(pbi_m=pbi_m, pbi_p=pbi_p, time=time)
     return pts
-
 
 def get_cp_crit_on_TVF(TVF, window_size=4):
     """
@@ -1454,7 +1612,7 @@ def get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         raise TypeError("'VF' must be a VectorField")
     ### Getting pbi cp position and fields around ###
     VF_field = velocityfield_to_vf(vectorfield, time)
-    cp_positions, pbis = VF_field.get_cp_position(window_size=window_size)
+    cp_positions, pbis = VF_field.get_cp_cell_position(window_size=window_size)
     # creating velocityfields around critical points
     # and transforming into VectorField objects
     VF_tupl = []

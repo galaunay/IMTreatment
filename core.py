@@ -5122,8 +5122,11 @@ class VectorField(Field):
         Vx, Vy = self.comp_x, self.comp_y
         if component is None or component == 'V':
             if kind == 'quiver' or kind is None:
-                cb = plt.colorbar()
-                cb.set_label("Magnitude " + unit_values.strUnit())
+                if 'C' in plotargs.keys():
+                    C = plotargs.pop('C')
+                    if not (C == 0 or C is None):
+                        cb = plt.colorbar()
+                        cb.set_label("Magnitude " + unit_values.strUnit())
                 legendarrow = round(np.max([Vx.max(), Vy.max()]))
                 plt.quiverkey(displ, 1.075, 1.075, legendarrow,
                               "$" + str(legendarrow)
