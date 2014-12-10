@@ -4029,7 +4029,7 @@ class ScalarField(Field):
             (See ndimage module documentation for more details)
         size : number, optional
             Size of the smoothing (is radius for 'uniform' and
-            sigma for 'gaussian').
+            sigma for 'gaussian') in indice number.
             Default is 3 for 'uniform' and 1 for 'gaussian'.
         inplace : boolean, optional
             If True, Field is smoothed in place,
@@ -4441,6 +4441,14 @@ class VectorField(Field):
             tmpvf.comp_x *= other
             tmpvf.comp_y *= other
             tmpvf.mask = self.mask
+            return tmpvf
+        elif isinstance(other, ScalarField):
+            if other.shape != self.shape:
+                raise ValueError()
+            tmpvf = self.copy()
+            tmpvf.comp_x *= other.values
+            tmpvf.comp_y *= other.values
+            tmpvf.mask = np.logical_or(other.mask, self.mask)
             return tmpvf
         else:
             raise TypeError("You can only multiply a vector field "

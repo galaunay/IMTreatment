@@ -1656,8 +1656,8 @@ def get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     saddles = Points()
     if len(VF_saddle) != 0:
         for VF in VF_saddle:
-            tmp_dev = get_angle_deviation(VF, 1.9, ind=True)
-            pts = _min_detection(1 - tmp_dev)
+            tmp_iot = get_iota(VF, radius=1.9, ind=True)
+            pts = _min_detection(np.max(tmp_iot.values) - tmp_iot)
             if pts is not None:
                 if pts.xy[0][0] is not None and len(pts) == 1:
                     saddles += pts
@@ -2461,7 +2461,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         return kappa_sf
 
 
-def get_iota(vectorfield, mask=None, raw=False):
+def get_iota(vectorfield, mask=None, radius=None, ind=False, raw=False):
     """
     Return the iota scalar field. iota criterion is used in
     vortex analysis.
@@ -2475,6 +2475,12 @@ def get_iota(vectorfield, mask=None, raw=False):
     mask : array of boolean, optionnal
         Has to be an array of the same size of the vector field object,
         iota2 will be compute only where zone is 'False'.
+    radius : number, optionam
+        If specified, the velocity field is smoothed with gaussian filter
+        of the given radius before computing the vectors angles.
+    ind : boolean, optional
+        If 'True', radius is an indice number, if 'False', radius if in the
+        field units (default).
     raw : boolean, optional
         If 'False' (default), a ScalarField is returned,
         if 'True', an array is returned.
@@ -2488,51 +2494,80 @@ def get_iota(vectorfield, mask=None, raw=False):
     else:
         mask = np.array(mask)
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    # récupération de theta et de son masque
-    theta = vectorfield.theta
-    mask = np.logical_or(mask, vectorfield.mask)
-    # récupération des dx et dy
-    dx = np.abs(axe_x[0] - axe_x[2])
-    dy = np.abs(axe_y[0] - axe_y[2])
-    # boucle sur les points
-    grad_theta_m = np.zeros(vectorfield.shape)
-    maskf = mask.copy()
-    for inds, _, _ in vectorfield:
-        ind_x = inds[0]
-        ind_y = inds[1]
-        # arrete si on est sur un bords ou sur une valeurs masquée
-        if (ind_x == 0 or ind_y == 0 or ind_y == len(axe_y)-1
-                or ind_x == len(axe_x)-1):
-            maskf[ind_x, ind_y] = True
-            continue
-        if np.any(mask[ind_x-1:ind_x+2, ind_y-1:ind_y+2]):
-            maskf[ind_x, ind_y] = True
-            continue
-        # calcul de theta_m autours
-        theta_m = [[theta[ind_x - 1, ind_y - 1] + 3./4*np.pi,
-                   theta[ind_x, ind_y - 1] + np.pi/2,
-                   theta[ind_x + 1, ind_y - 1] + 1./4*np.pi],
-                  [theta[ind_x - 1, ind_y] + np.pi,
-                   0.,
-                   theta[ind_x + 1, ind_y]],
-                  [theta[ind_x - 1, ind_y + 1] - 3./4*np.pi,
-                   theta[ind_x, ind_y + 1] - np.pi/2,
-                   theta[ind_x + 1, ind_y + 1] - np.pi/4]]
-        theta_m = np.mod(theta_m, np.pi*2)
-        ### TODO : Warning, ot really the formula from article !!!
-        sin_theta = np.sin(theta_m)
-        #cos_theta = np.cos(theta_m)
-        grad_x = -(sin_theta[2, 1] - sin_theta[0, 1])/dx
-        grad_y = -(sin_theta[1, 2] - sin_theta[1, 0])/dy
-        # calcul de gradthetaM
-        grad_theta_m[ind_x, ind_y] = (grad_x**2 + grad_y**2)**(1./2)
-    # application du masque
+    # smoothing if necessary and getting theta
+    if radius is not None:
+        if not ind:
+            dx = axe_x[1] - axe_x[0]
+            dy = axe_y[1] - axe_y[0]
+            radius = radius/((dx + dy)/2.)
+            ind = True
+        tmp_vf = vectorfield.copy()
+        tmp_vf.smooth(tos='gaussian', size=radius, inplace=True)
+        theta = tmp_vf.theta
+        mask = np.logical_or(mask, tmp_vf.mask)
+    else:
+        theta = vectorfield.theta
+        mask = np.logical_or(mask, vectorfield.mask)
+    ### calcul du gradients de theta
+    # necesary steps to avoid big gradients by passing from 0 to 2*pi
+    theta1 = theta.copy()
+    theta2 = theta.copy()
+    theta2[theta2 > np.pi] -= 2*np.pi
+    theta1_x, theta1_y = np.gradient(theta1)
+    theta2_x, theta2_y = np.gradient(theta2)
+    filtx = np.abs(theta1_x) > np.abs(theta2_x)
+    filty = np.abs(theta1_y) > np.abs(theta2_y)
+    theta_x = theta1_x.copy()
+    theta_x[filtx] = theta2_x[filtx]
+    theta_y = theta1_y.copy()
+    theta_y[filty] = theta2_y[filty]
+    iota = np.sqrt(theta_x**2 + theta_y**2)
+
+###### Old way to do it #######
+#    # récupération des dx et dy
+#    dx = np.abs(axe_x[0] - axe_x[2])
+#    dy = np.abs(axe_y[0] - axe_y[2])
+#    # boucle sur les points
+#    grad_theta_m = np.zeros(vectorfield.shape)
+#    maskf = mask.copy()
+#    for inds, _, _ in vectorfield:
+#        ind_x = inds[0]
+#        ind_y = inds[1]
+#        # arrete si on est sur un bords ou sur une valeurs masquée
+#        if (ind_x == 0 or ind_y == 0 or ind_y == len(axe_y)-1
+#                or ind_x == len(axe_x)-1):
+#            maskf[ind_x, ind_y] = True
+#            continue
+#        if np.any(mask[ind_x-1:ind_x+2, ind_y-1:ind_y+2]):
+#            maskf[ind_x, ind_y] = True
+#            continue
+#        # calcul de theta_m autours
+#        theta_m = [[theta[ind_x - 1, ind_y - 1] + 3./4*np.pi,
+#                   theta[ind_x, ind_y - 1] + np.pi/2,
+#                   theta[ind_x + 1, ind_y - 1] + 1./4*np.pi],
+#                  [theta[ind_x - 1, ind_y] + np.pi,
+#                   0.,
+#                   theta[ind_x + 1, ind_y]],
+#                  [theta[ind_x - 1, ind_y + 1] - 3./4*np.pi,
+#                   theta[ind_x, ind_y + 1] - np.pi/2,
+#                   theta[ind_x + 1, ind_y + 1] - np.pi/4]]
+#        theta_m = np.mod(theta_m, np.pi*2)
+#        ### TODO : Warning, ot really the formula from article !!!
+#        sin_theta = np.sin(theta_m)
+#        #cos_theta = np.cos(theta_m)
+#        grad_x = -(sin_theta[2, 1] - sin_theta[0, 1])/dx
+#        grad_y = -(sin_theta[1, 2] - sin_theta[1, 0])/dy
+#        # calcul de gradthetaM
+#        grad_theta_m[ind_x, ind_y] = (grad_x**2 + grad_y**2)**(1./2)
+    # getting mask
+    maskf = np.logical_or(vectorfield.mask, np.isnan(iota))
+    # returning
     if raw:
-        return np.ma.masked_array(grad_theta_m, maskf)
+        return np.ma.masked_array(iota, maskf)
     else:
         iota_sf = ScalarField()
         unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
-        iota_sf.import_from_arrays(axe_x, axe_y, grad_theta_m, maskf,
+        iota_sf.import_from_arrays(axe_x, axe_y, iota, maskf,
                                    unit_x=unit_x, unit_y=unit_y,
                                    unit_values=make_unit(''))
         return iota_sf
