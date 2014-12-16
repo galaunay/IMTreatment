@@ -1327,7 +1327,6 @@ class OrientedPoints(Points):
                 line_x = [pt[0] - ori[0]*coef, pt[0] + ori[0]*coef]
                 line_y = [pt[1] - ori[1]*coef, pt[1] + ori[1]*coef]
                 plt.plot(line_x, line_y, color=color)
-
         return plot
 
 

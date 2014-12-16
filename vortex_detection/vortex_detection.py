@@ -167,20 +167,43 @@ class VF(object):
         theory,” Computing and Visualization in Science, vol. 13, no. 8,
         pp. 377–396, Dec. 2010.
         """
-        ### TODO : peut être améliorer en utilisant le fait que les 0 levelsets
-        ###        sont des droites
         # get the cell position
         positions, pbis = self.get_cp_cell_position(window_size=window_size)
         axe_x = self.axe_x
         axe_y = self.axe_y
+        dx = axe_x[1] - axe_x[0]
+        dy = axe_y[1] - axe_y[0]
         # prepare the analytical solution
-        a1, b1, c1, d1, a2, b2, c2, d2, x, y = sympy.symbols('a1, b1, c1, d1, '
-                                                             'a2, b2, c2, d2, '
-                                                             'x, y')
-        def funct1(x, y, Vx):
+        a1, b1, c1, d1, x, y = sympy.symbols('a1, b1, c1, d1, x, y')
+        def funct(params, x, y, Vx):
+            a1, b1, c1, d1 = tuple(params)
             return sympy.Eq(a1*x + b1*y + c1*x*y + d1, Vx)
-        def funct2(x, y, Vy):
-            return sympy.Eq(a2*x + b2*y + c2*x*y + d2, Vy)
+        def funct1(dx, dy, Vx):
+            return sympy.Eq(d1, Vx)
+        def funct2(dx, dy, Vx):
+            return sympy.Eq(a1*dx + d1, Vx)
+        def funct3(dx, dy, Vx):
+            return sympy.Eq(b1*dy + d1, Vx)
+        def funct4(dx, dy, Vx):
+            return sympy.Eq(a1*dx + b1*dy + c1*dx*dy + d1, Vx)
+        # get the analytical solution for arbitrary Vx and Vy
+        Vx_1, Vx_2, Vx_3, Vx_4 = sympy.symbols('Vx_1, Vx_2, Vx_3, Vx_4')
+        Vy_1, Vy_2, Vy_3, Vy_4 = sympy.symbols('Vy_1, Vy_2, Vy_3, Vy_4')
+        bl11 = funct1(dx, dy, Vx_1)
+        bl12 = funct2(dx, dy, Vx_2)
+        bl13 = funct3(dx, dy, Vx_3)
+        bl14 = funct4(dx, dy, Vx_4)
+        sol1 = sympy.solve([bl11, bl12, bl13, bl14], [a1, b1, c1, d1])
+        params = [sol1[a1], sol1[b1], sol1[c1], sol1[d1]]
+        eq1 = funct(params, x, y, 0.)
+        eq2 = eq1.subs(Vx_1, Vy_1)
+        eq2 = eq2.subs(Vx_2, Vy_2)
+        eq2 = eq2.subs(Vx_3, Vy_3)
+        eq2 = eq2.subs(Vx_4, Vy_4)
+        sol = sympy.solve([eq1, eq2], [x, y])
+        sol = np.array(sol)
+        if sol.ndim == 1:
+            sol = np.array([sol])
         # for each position
         new_positions = np.zeros(positions.shape)
         for i, pos in enumerate(positions):
@@ -190,68 +213,28 @@ class VF(object):
             ind_x = np.where(tmp_x < axe_x)[0][0] - 1
             ind_y = np.where(tmp_y < axe_y)[0][0] - 1
             # get data
-            x_bl = axe_x[ind_x:ind_x + 2]
-            y_bl = axe_y[ind_y:ind_y + 2]
-            x_bl, y_bl = np.meshgrid(x_bl, y_bl)
             Vx_bl = self.vx[ind_y:ind_y + 2, ind_x:ind_x + 2]
             Vy_bl = self.vy[ind_y:ind_y + 2, ind_x:ind_x + 2]
-#            # get zero-velocity points
-#            def get_lin_zero(x1, x2, V1, V2):
-#                print(x1, x2, V1, V2)
-#                return x1 + (x2 - x1)/np.abs(V1 - V2)*np.abs(V1)
-#            x_bd = []
-#            y_bd = []
-#            if not np.sign(Vx_bl[0, 0]) == np.sign(Vx_bl[0, 1]):
-#                y_bd.append(get_lin_zero(y_bl[0, 0], y_bl[1, 1],
-#                                      Vx_bl[0, 0], Vx_bl[0, 1]))
-#                y_bd.append(get_lin_zero(y_bl[0, 0], y_bl[1, 1],
-#                                      Vx_bl[1, 0], Vx_bl[1, 1]))
-#                x_bd.append(get_lin_zero(x_bl[0, 0], x_bl[1, 1],
-#                                      Vy_bl[0, 0], Vy_bl[1, 0]))
-#                x_bd.append(get_lin_zero(x_bl[0, 0], x_bl[1, 1],
-#                                      Vy_bl[0, 1], Vy_bl[1, 1]))
-#            else:
-#                y_bd.append(get_lin_zero(y_bl[0, 0], y_bl[1, 1],
-#                                      Vy_bl[0, 0], Vy_bl[0, 1]))
-#                y_bd.append(get_lin_zero(y_bl[0, 0], y_bl[1, 1],
-#                                      Vy_bl[1, 0], Vy_bl[1, 1]))
-#                x_bd.append(get_lin_zero(x_bl[0, 0], x_bl[1, 1],
-#                                      Vx_bl[0, 0], Vx_bl[1, 0]))
-#                x_bd.append(get_lin_zero(x_bl[0, 0], x_bl[1, 1],
-#                                      Vx_bl[0, 1], Vx_bl[1, 1]))
-#            plt.figure()
-#            plt.quiver(x_bl, y_bl, Vx_bl, Vy_bl)
-##            plt.plot(x_bl[:, 0], x_bd, 'ok')
-#            plt.plot(x_bl[0, :], y_bd, 'ok-')
-#            plt.plot(x_bd, y_bl[:, 0], 'ok-')
             # solve to get the zero velocity point
-            eq1 = funct1(x, y, 0)
-            bl11 = funct1(x_bl[0, 0], y_bl[0, 0], Vx_bl[0, 0])
-            bl12 = funct1(x_bl[0, 1], y_bl[0, 1], Vx_bl[0, 1])
-            bl13 = funct1(x_bl[1, 0], y_bl[1, 0], Vx_bl[1, 0])
-            bl14 = funct1(x_bl[1, 1], y_bl[1, 1], Vx_bl[1, 1])
-            eq2 = funct2(x, y, 0)
-            bl21 = funct2(x_bl[0, 0], y_bl[0, 0], Vy_bl[0, 0])
-            bl22 = funct2(x_bl[0, 1], y_bl[0, 1], Vy_bl[0, 1])
-            bl23 = funct2(x_bl[1, 0], y_bl[1, 0], Vy_bl[1, 0])
-            bl24 = funct2(x_bl[1, 1], y_bl[1, 1], Vy_bl[1, 1])
-            sol = sympy.solve([eq1, bl11, bl12, bl13, bl14, eq2, bl21, bl22,
-                               bl23, bl24])
+            tmp_dic = {Vx_1: Vx_bl[0, 0], Vx_2: Vx_bl[0, 1],
+                       Vx_3: Vx_bl[1, 0], Vx_4: Vx_bl[1, 1],
+                       Vy_1: Vy_bl[0, 0], Vy_2: Vy_bl[0, 1],
+                       Vy_3: Vy_bl[1, 0], Vy_4: Vy_bl[1, 1]}
+            x_sols = [sol[j][0].subs(tmp_dic) for j in np.arange(len(sol))]
+            y_sols = [sol[j][1].subs(tmp_dic) for j in np.arange(len(sol))]
             # delete the points outside the cell
             tmp_sol = []
-            for s in sol:
-                if np.iscomplex(s[x]) or np.iscomplex(s[y]):
+            for j in np.arange(len(x_sols)):
+                if (x_sols[j] < 0 or x_sols[j] > dx
+                        or y_sols[j] < 0 or y_sols[j] > dy):
                     continue
-                if (s[x] < axe_x[ind_x] or s[x] > axe_x[ind_x + 1]
-                        or s[y] < axe_y[ind_y] or s[y] > axe_y[ind_y + 1]):
-                    continue
-                tmp_sol.append(s)
-            sol = tmp_sol
-            if len(sol) != 1:
+                tmp_sol.append([x_sols[j], y_sols[j]])
+            if len(tmp_sol) != 1:
                 raise Exception()
-            sol = sol[0]
+            tmp_sol = tmp_sol[0]
             # store the new position
-            new_positions[i] = [sol[x], sol[y]]
+            new_positions[i] = np.array([tmp_sol[0] + axe_x[ind_x],
+                                        tmp_sol[1] + axe_y[ind_y]])
         # returning
         return new_positions, pbis
 
@@ -961,6 +944,8 @@ class CritPoints(object):
         if field is not None:
             if not isinstance(field, VectorField):
                 raise TypeError()
+        if field is not None:
+            sadd_ori = False
         # Set the color
         if 'color' in kw.keys():
             colors = [kw.pop('color')]*len(self.colors)
