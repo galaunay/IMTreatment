@@ -36,7 +36,7 @@ def velocityfield_to_vf(vectorfield, time):
     mask = np.transpose(vectorfield.mask)
     theta = np.transpose(vectorfield.theta)
     # TODO : add the following when fill will be optimized
-    #THETA.fill()
+    # THETA.fill()
     # using VF methods to get cp position
     vf = VF(vx, vy, ind_x, ind_y, mask, theta, time)
     return vf
@@ -207,6 +207,7 @@ class VF(object):
         # for each position
         new_positions = np.zeros(positions.shape)
         for i, pos in enumerate(positions):
+            print(i)
             tmp_x = pos[0]
             tmp_y = pos[1]
             # get the cell indices
@@ -222,9 +223,12 @@ class VF(object):
                        Vy_3: Vy_bl[1, 0], Vy_4: Vy_bl[1, 1]}
             x_sols = [sol[j][0].subs(tmp_dic) for j in np.arange(len(sol))]
             y_sols = [sol[j][1].subs(tmp_dic) for j in np.arange(len(sol))]
+
             # delete the points outside the cell
             tmp_sol = []
             for j in np.arange(len(x_sols)):
+                x_sols[j] = x_sols[j].as_real_imag()[0]
+                y_sols[j] = y_sols[j].as_real_imag()[0]
                 if (x_sols[j] < 0 or x_sols[j] > dx
                         or y_sols[j] < 0 or y_sols[j] > dy):
                     continue
@@ -325,9 +329,7 @@ class VF(object):
         poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
         poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
         ind_x = np.where(poi_x != 0)[0]
-        #ind_x = np.concatenate(([0], ind_x, [len(self.pbi_x) - 1]))
         ind_y = np.where(poi_y != 0)[0]
-        #ind_y = np.concatenate(([0], ind_y, [len(self.pbi_y) - 1]))
         # If there is only one or none distinct structure
         if ind_x.shape[0] <= 1 and ind_y.shape[0] <= 1:
             return None, None
@@ -588,8 +590,9 @@ class CritPoints(object):
                                                      epsilon=epsilon)
 
     ### Modifiers ###
-    def add_point(self, foc=None, foc_c=None, node_i=None, node_o=None,
-                  sadd=None, pbi_m=None, pbi_p=None, time=None):
+    def add_point(self, foc=Points(), foc_c=Points(), node_i=Points(),
+                  node_o=Points(), sadd=Points(), pbi_m=Points(),
+                  pbi_p=Points(), time=Points()):
         """
         Add a new point to the CritPoints object.
 
@@ -602,8 +605,6 @@ class CritPoints(object):
         """
         # check parameters
         for pt in [foc, foc_c, node_i, node_o, sadd, pbi_m, pbi_p]:
-            if pt is None:
-                continue
             if not isinstance(pt, Points):
                 raise TypeError()
             pt.v = np.array([])
@@ -660,6 +661,32 @@ class CritPoints(object):
         self.pbi_m = np.delete(self.pbi_m, indice)
         self.pbi_p = np.delete(self.pbi_p, indice)
         self.times = np.delete(self.times, indice)
+
+    def trim(self, intervx=None, intervy=None, inplace=False):
+        """
+        Trim the point field.
+        """
+        # default values
+        if intervx is None:
+            intervx = [-np.inf, np.inf]
+        if intervy is None:
+            intervy = [-np.inf, np.inf]
+        # inplace
+        if inplace:
+            tmp_cp = self
+        else:
+            tmp_cp = self.copy()
+        # loop on points
+        for kind in tmp_cp.iter:
+            for time in kind:
+                for i in np.arange(len(time.xy) - 1, -1, -1):
+                    xy = time.xy[i]
+                    if xy[0] < intervx[0] or xy[0] > intervx[1]\
+                            or xy[1] < intervy[0] or xy[1] > intervy[1]:
+                        time.remove(i)
+        # returning
+        if not inplace:
+            return tmp_cp
 
     ### Private ###
     def _sort_by_time(self):
@@ -944,8 +971,6 @@ class CritPoints(object):
         if field is not None:
             if not isinstance(field, VectorField):
                 raise TypeError()
-        if field is not None:
-            sadd_ori = False
         # Set the color
         if 'color' in kw.keys():
             colors = [kw.pop('color')]*len(self.colors)
@@ -964,7 +989,6 @@ class CritPoints(object):
                 reverse_direction=[True, False])
             for stream in streams:
                 stream.display(kind='plot', color=colors[4])
-
 
     def display_traj(self, kind='default', **kw):
         """
@@ -1034,48 +1058,6 @@ class CritPoints(object):
 
     def __update_cp(self, ind):
         self.display(indice=ind, field=TF.fields[ind])
-
-#    def display_traj(self, kind='default'):
-#        """
-#        Display the stored trajectories.
-#
-#        Parameters
-#        ----------
-#        kind : string
-#            If 'default', trajectories are plotted in a 2-dimensional plane.
-#            If 'x', x position of cp are plotted against time.
-#            If 'y', y position of cp are plotted against time.
-#        """
-#        # check if some trajectories are computed
-#        try:
-#            self.foc_traj
-#        except AttributeError:
-#            raise StandardError("you must compute trajectories before "
-#                                "displaying them")
-#        # display
-#        if kind == 'default':
-#            for i, trajs in enumerate(self.iter_traj):
-#                color = self.colors[i]
-#                if trajs is None:
-#                    continue
-#                for traj in trajs:
-#                    traj.display(kind='plot', marker='o', color=color)
-#        elif kind == 'x':
-#            for i, trajs in enumerate(self.iter_traj):
-#                color = self.colors[i]
-#                if trajs is None:
-#                    continue
-#                for traj in trajs:
-#                    plt.plot(traj.xy[:, 0], traj.v[:], 'o-', color=color)
-#        elif kind == 'y':
-#            for i, trajs in enumerate(self.iter_traj):
-#                color = self.colors[i]
-#                if trajs is None:
-#                    continue
-#                for traj in trajs:
-#                    plt.plot(traj.xy[:, 1], traj.v[:], 'o-', color=color)
-#        else:
-#            raise StandardError()
 
 
 ### Vortex properties ###
@@ -1278,147 +1260,101 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
     else:
         return circ
 
-
-#### Critical points ###
-#def get_cp_traj(TVFS, epsilon=None, kind='crit', window_size=4):
-#    """
-#    For a set of velocity field (TemporalVectorFields object), return the
-#    trajectory of critical points.
-#    If the number of points returned is low, you should smooth or filter your
-#    field (POD filtering for example).
-#
-#    Parameters
-#    ----------
-#    TVFS : TemporalVectorFields object
-#        .
-#    epsilon : float, optional
-#        Maximum length between two consecutive points in trajectory.
-#        (default is Inf), extremely usefull to put a correct value here.
-#    kind : string, optional
-#        If 'pbi', return cp position given by PBI algorithm.
-#        If 'crit' (default), return cp position given by PBI + criterion.
-#        (more accurate, but slower).
-#    window_size : integer, optional
-#        Minimal window size for PBI detection.
-#        Smaller window size allow detection where points are dense.
-#        Default is 4 (smallest is 2).
-#
-#    Returns
-#    -------
-#    focus_traj : tuple of Points objects
-#        Rotative focus trajectories
-#    focus_c_traj : tuple of Points objects
-#        Contrarotative focus trajectories
-#    nodes_i_traj : tuple of Points objects
-#        In nodes trajectories
-#    nodes_o_traj : tuple of Points objects
-#        Out nodes trajectories
-#    saddle_pts : tuple of Points objects
-#        Saddle points trajectories
-#    pbi_p : tuple of Points objects
-#        Points get by PBI algorithm (with pbi=1)
-#    pbi_m : tuple of Points objects
-#        Points get by PBI algorithm (with pbi=-1)
-#    """
-#    # check parameters coherence
-#    if not isinstance(TVFS, TemporalVectorFields):
-#        raise TypeError("'TVFS' must be a TemporalVectorFields")
-#    if epsilon is not None:
-#        if not isinstance(epsilon, NUMBERTYPES):
-#            raise TypeError("'epsilon' must be a positive real")
-#        if epsilon < 0:
-#            raise ValueError("'epsilon' must be a positive real")
-#    if not isinstance(kind, STRINGTYPES):
-#        raise TypeError("'kind' must be a string")
-#    # TODO : Add warning when masked values are present (or not ?)
-#    # create storage arrays
-#    focus = []
-#    focus_c = []
-#    nodes_i = []
-#    nodes_o = []
-#    saddles = []
-#    cp_pbi_p = []
-#    cp_pbi_m = []
-#    # getting first critical points for all fields
-#    times = TVFS.times
-#    for i, field in enumerate(TVFS.fields):
-#        if kind == 'crit':
-#            foc, foc_c, nod_i, nod_o, sadd, pbi \
-#                = get_cp_crit(field, times[i], window_size=window_size)
-#            pbi_p = [pbi_pt for pbi_pt in pbi if pbi_pt.pbi == 1]
-#            pbi_m = [pbi_pt for pbi_pt in pbi if pbi_pt.pbi == 0]
-#        elif kind == 'pbi':
-#            pos, pbis = get_cp_pbi(field, times[i], window_size=window_size)
-#            foc, foc_c, nod_i, nod_o, sadd = [], [], [], [], []
-#            pbi_p, pbi_m = [], []
-#            for j, pt in enumerate(pos):
-#                tmp_pt = Points([pt], [times[i]])
-#                tmp_pt.pbi = pbis[j]
-#                if pbis[j] == 1:
-#                    pbi_p.append(tmp_pt)
-#                else:
-#                    pbi_m.append(tmp_pt)
-#        else:
-#            raise ValueError()
-#        # Concatenate result of each field in bigger entities
-#        if len(foc) != 0:
-#            focus += foc
-#        if len(foc_c) != 0:
-#            focus_c += foc_c
-#        if len(nod_i) != 0:
-#            nodes_i += nod_i
-#        if len(nod_o) != 0:
-#            nodes_o += nod_o
-#        if len(sadd) != 0:
-#            saddles += sadd
-#        if len(pbi_p) != 0:
-#            cp_pbi_p += pbi_p
-#        if len(pbi_m) != 0:
-#            cp_pbi_m += pbi_m
-#    # getting times
-#    times = TVFS.times
-#    # getting critical points trajectory for eachkind of point
-#    if len(focus) != 0:
-#        focus_traj = get_cp_time_evolution(focus, times, epsilon)
-#    else:
-#        focus_traj = []
-#    if len(focus_c) != 0:
-#        focus_c_traj = get_cp_time_evolution(focus_c, times, epsilon)
-#    else:
-#        focus_c_traj = []
-#    if len(nodes_i) != 0:
-#        nodes_i_traj = get_cp_time_evolution(nodes_i, times, epsilon)
-#    else:
-#        nodes_i_traj = []
-#    if len(nodes_o) != 0:
-#        nodes_o_traj = get_cp_time_evolution(nodes_o, times, epsilon)
-#    else:
-#        nodes_o_traj = []
-#    if len(saddles) != 0:
-#        saddles_traj = get_cp_time_evolution(saddles, times, epsilon)
-#    else:
-#        saddles_traj = []
-#    if len(cp_pbi_p) != 0:
-#        cp_pbip_traj = get_cp_time_evolution(cp_pbi_p, times, epsilon)
-#    else:
-#        cp_pbip_traj = []
-#    if len(cp_pbi_m) != 0:
-#        cp_pbim_traj = get_cp_time_evolution(cp_pbi_m, times, epsilon)
-#    else:
-#        cp_pbim_traj = []
-#    # returning result
-#    return focus_traj, focus_c_traj, nodes_i_traj, nodes_o_traj, \
-#        saddles_traj,cp_pbim_traj, cp_pbip_traj
-
-def get_cp_pbi_on_TVF(TVF, window_size=4):
+def get_critical_points(obj, time=0, unit_time='', window_size=4,
+                        kind='pbi', mirroring=None):
     """
-    For a TemporalVectorField object, return the critical points positions and
-    their PBI (Poincarre Bendixson indice).
+    For a VectorField of a TemporalVectorField object, return the critical
+    points positions and informations on their type.
 
     Parameters
     ----------
-    TVF : a TemporalVectorField object.
+    obj : VectorField or TemporalVectorFields objects
+        Base vector field(s)
+    time : number, optional
+        if 'obj' is a VectorField, 'time' is the time associated to the field.
+    unit_time : string or Unum.units object
+        Unit for 'time'
+    window_size : integer, optional
+        Size of the interrogation windows for the computation of critical
+        point position (defaut : 4).
+    kind : string, optional
+        Method used to compute the critical points position.
+        can be : 'pbi' for simple (fast) Poincarre-Bendixson sweep.
+        'pbi_cell' for PB sweep and bi-linear interpolation inside cells.
+        'pbi_crit' for PB sweep and use of non-local criterions.
+    Mirroring : array of numbers
+        If specified, use mirroring to get the critical points on the
+        eventual walls. should be an array of
+        '[direction (1 or 2), position]*N'.
+    """
+    # if obj is a vector field
+    if isinstance(obj, VectorField):
+        # mirroring if necessary
+        if mirroring is not None:
+            tmp_vf = obj.copy()
+            for direction, position in mirroring:
+                tmp_vf.mirroring(direction, position,
+                                 inds_to_mirror=window_size*2,
+                                 inplace=True, interp='linear', value=[0, 0])
+        if kind == 'pbi':
+            res = _get_cp_pbi_on_VF(tmp_vf, time=time, unit_time=unit_time,
+                                    window_size=window_size)
+        elif kind == 'pbi_cell':
+            res = _get_cp_cell_pbi_on_VF(tmp_vf, time=time, unit_time=unit_time,
+                                         window_size=window_size)
+        elif kind == 'pbi_crit':
+            res = _get_cp_crit_on_VF(tmp_vf, time=time, unit_time=unit_time,
+                                     window_size=window_size)
+        else:
+            raise ValueError
+        # removing critical points outside of the field
+        x_median = (tmp_vf.axe_x[-1] + tmp_vf.axe_x[0])/2.
+        y_median = (tmp_vf.axe_y[-1] + tmp_vf.axe_y[0])/2.
+        intervx = np.array([-np.inf, np.inf])
+        intervy = np.array([-np.inf, np.inf])
+        for direction, position in mirroring:
+            if direction == 1:
+                if position < x_median and position > intervx[0]:
+                    intervx[0] = position
+                elif position < intervx[1]:
+                    intervx[1] = position
+            else:
+                if position < y_median and position > intervy[0]:
+                    intervy[0] = position
+                elif position < intervy[1]:
+                    intervy[1] = position
+            # adapting to near CP points
+            dx = tmp_vf.axe_x[1] - tmp_vf.axe_x[0]
+            dy = tmp_vf.axe_y[1] - tmp_vf.axe_y[0]
+            intervx += [-2.*dx, 2.*dx]
+            intervy += [-2.*dy, 2.*dy]
+            res.trim(intervx=intervx, intervy=intervy, inplace=True)
+    #if obj is vector fields
+    elif isinstance(obj, TemporalVectorFields):
+        res = CritPoints(unit_time=obj.unit_times)
+        for i, field in enumerate(obj.fields):
+            res += get_critical_points(field, time=obj.times[i],
+                                       unit_time=obj.unit_times,
+                                       window_size=window_size,
+                                       kind=kind, mirroring=mirroring)
+    else:
+        raise TypeError()
+    return res
+
+def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
+                     window_size=4):
+    """
+    For a VectorField object, return the critical points positions and their
+    PBI (Poincarre Bendixson indice)
+
+    Parameters
+    ----------
+    vectorfield : a VectorField object.
         .
+    time : number, optional
+        Time
+    unit_time : units object, optional
+        Time unit.
     window_size : integer, optional
         Minimal window size for PBI detection.
         Smaller window size allow detection where points are dense.
@@ -1429,15 +1365,27 @@ def get_cp_pbi_on_TVF(TVF, window_size=4):
     pts : CritPoints object
         Containing all critical points position
     """
-    cp = CritPoints(unit_time=TVF.unit_times)
-    for i, field in enumerate(TVF.fields):
-        cp += get_cp_pbi_on_VF(field, time=TVF.times[i],
-                               unit_time=TVF.unit_times,
-                               window_size=window_size)
-    return cp
+    # checking parameters coherence
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'vectorfield' must be a VectorField")
+    # using VF methods to get cp position
+    field = velocityfield_to_vf(vectorfield, time)
+    pos, pbis = field.get_cp_position(window_size=window_size)
+    pbi_m = Points()
+    pbi_p = Points()
+    for i, pbi in enumerate(pbis):
+        if pbi == -1:
+            pbi_m.add(pos[i])
+        elif pbi == 1:
+            pbi_p.add(pos[i])
+        else:
+            raise Exception()
+    pts = CritPoints(unit_time=unit_time)
+    pts.add_point(pbi_m=pbi_m, pbi_p=pbi_p, time=time)
+    return pts
 
 
-def get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
+def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                           window_size=4):
     """
     For a VectorField object, return the critical points positions and their
@@ -1480,89 +1428,8 @@ def get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     pts.add_point(pbi_m=pbi_m, pbi_p=pbi_p, time=time)
     return pts
 
-def get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
-                          window_size=4):
-    """
-    For a VectorField object, return the critical points positions and their
-    PBI (Poincarre Bendixson indice)
 
-    Parameters
-    ----------
-    vectorfield : a VectorField object.
-        .
-    time : number, optional
-        Time
-    unit_time : units object, optional
-        Time unit.
-    window_size : integer, optional
-        Minimal window size for PBI detection.
-        Smaller window size allow detection where points are dense.
-        Default is 4 (smallest is 2).
-
-    Returns
-    -------
-    pts : CritPoints object
-        Containing all critical points position
-    """
-    # checking parameters coherence
-    if not isinstance(vectorfield, VectorField):
-        raise TypeError("'vectorfield' must be a VectorField")
-    # using VF methods to get cp position
-    field = velocityfield_to_vf(vectorfield, time)
-    pos, pbis = field.get_cp_position(window_size=window_size)
-    pbi_m = Points()
-    pbi_p = Points()
-    for i, pbi in enumerate(pbis):
-        if pbi == -1:
-            pbi_m.add(pos[i])
-        elif pbi == 1:
-            pbi_p.add(pos[i])
-        else:
-            raise Exception()
-    pts = CritPoints(unit_time=unit_time)
-    pts.add_point(pbi_m=pbi_m, pbi_p=pbi_p, time=time)
-    return pts
-
-def get_cp_crit_on_TVF(TVF, window_size=4):
-    """
-    For a TemporalVectorField object, return the position of critical points.
-    This algorithm use the PBI algorithm, then a method based on criterion to
-    give more accurate results.
-
-    Parameters
-    ----------
-    TVF : a TemporalVectorField object.
-        .
-    window_size : integer, optional
-        Minimal window size for PBI detection.
-        Smaller window size allow detection where points are dense.
-        Default is 4 (smallest is 2).
-
-    Returns
-    -------
-    pts : CritPoints object
-        Containing all critical points
-    """
-#    import multiprocessing
-#    cp = CritPoints(unit_time=TVF.unit_times)
-#    jobs = []
-#    for i, field in enumerate(TVF.fields):
-#        args = (TVF.fields[i],)
-#        kwargs = {'time': TVF.times[i], 'unit_time': TVF.unit_times,
-#                  'window_size': window_size}
-#        p = multiprocessing.Process(target=get_cp_crit_on_VF, args=args,
-#                                    kwargs=kwargs)
-#        jobs.append(p)
-#        p.start()
-    cp = CritPoints(unit_time=TVF.unit_times)
-    for i, field in enumerate(TVF.fields):
-        cp += get_cp_crit_on_VF(field, time=TVF.times[i],
-                                unit_time=TVF.unit_times,
-                                window_size=window_size)
-    return cp
-
-
-def get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
+def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                       window_size=4):
     """
     For a VectorField object, return the position of critical points.
@@ -1796,8 +1663,8 @@ def _get_saddle_orientations(vectorfield, pt):
     inds_x_2 = np.arange(-1, 3) + inds_x[0]
     inds_y_2 = np.arange(-1, 3) + inds_y[0]
     # check if surrounding gradients are available
-    if (np.any(inds_x_2 > len(axe_x)) or np.any(inds_x_2 < 0) or
-        np.any(inds_y_2 > len(axe_y)) or np.any(inds_y_2 < 0)):
+    if (np.any(inds_x_2 > len(axe_x) - 1) or np.any(inds_x_2 < 0) or
+        np.any(inds_y_2 > len(axe_y) - 1) or np.any(inds_y_2 < 0)):
         raise ValueError("Point is too close to the border, can't compute "
                          "Jacobian")
     # get surounding gradients

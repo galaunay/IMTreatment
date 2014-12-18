@@ -1174,6 +1174,9 @@ class OrientedPoints(Points):
                 tmp_stream = get_streamlines(vf, [pt1, pt2], delta=delta,
                                              interp=interp,
                                              reverse_direction=reverse)
+                # if we are out of field
+                if tmp_stream is None:
+                    continue
                 # add the first point
                 for st in tmp_stream:
                     st.xy = np.append([pt], st.xy, axis=0)
@@ -1316,7 +1319,7 @@ class OrientedPoints(Points):
         Dx = x_range[1] - x_range[0]
         y_range = plt.ylim()
         Dy = y_range[1] - y_range[0]
-        coef = np.min([Dx, Dy])/20.
+        coef = np.min([Dx, Dy])/40.
         for i in np.arange(len(self.xy)):
             loc_oris = self.orientations[i]
             if np.all(loc_oris == [[0, 0], [0, 0]]):
@@ -2744,9 +2747,9 @@ class Field(object):
         dx = self.axe_x[1] - self.axe_x[0]
         dy = self.axe_y[1] - self.axe_y[0]
         new_axe_x = np.arange(self.axe_x[0] - nmb_left*dx,
-                              self.axe_x[-1] + nmb_right*dx + dx, dx)
+                              self.axe_x[-1] + nmb_right*dx + 0.1*dx, dx)
         new_axe_y = np.arange(self.axe_y[0] - nmb_down*dy,
-                              self.axe_y[-1] + nmb_up*dy + dy, dy)
+                              self.axe_y[-1] + nmb_up*dy + 0.1*dy, dy)
         if inplace:
             self.__axe_x = new_axe_x
             self.__axe_y = new_axe_y
@@ -2755,6 +2758,9 @@ class Field(object):
             fi.__axe_x = new_axe_x
             fi.__axe_y = new_axe_y
             return fi
+
+    def __clean(self):
+        self.__init__()
 
 
 class ScalarField(Field):
@@ -3206,50 +3212,55 @@ class ScalarField(Field):
         else:
             unit = 1.
         if ind:
-            return self.values[y, x]*unit
+            return self.values[x, y]*unit
         else:
             ind_x = None
             ind_y = None
             # getting indices interval
             inds_x = self.get_indice_on_axe(1, x)
             inds_y = self.get_indice_on_axe(2, y)
+            # if something masked
+            if np.any(self.mask[inds_x, inds_y]):
+                res = np.nan
             # if we are on a grid point
-            if len(inds_x) == 1 and len(inds_y) == 1:
-                return self.values[inds_y[0], inds_x[0]]*unit
+            elif inds_x[0] == inds_x[1] and inds_y[0] == inds_y[1]:
+                res = self.values[inds_x[0], inds_y[0]]*unit
             # if we are on a x grid branch
-            elif len(inds_x) == 1:
+            elif inds_x[0] == inds_x[1]:
                 ind_x = inds_x[0]
                 pos_y1 = self.axe_y[inds_y[0]]
                 pos_y2 = self.axe_y[inds_y[1]]
-                value1 = self.values[inds_y[0], ind_x]
-                value2 = self.values[inds_y[1], ind_x]
+                value1 = self.values[ind_x, inds_y[0]]
+                value2 = self.values[ind_x, inds_y[1]]
                 i_value = ((value2*np.abs(pos_y1 - y)
                            + value1*np.abs(pos_y2 - y))
                            / np.abs(pos_y1 - pos_y2))
-                return i_value*unit
-            # if we are on a x grid branch
-            elif len(inds_y) == 1:
+                res = i_value*unit
+            # if we are on a y grid branch
+            elif inds_y[0] == inds_y[1]:
                 ind_y = inds_y[0]
                 pos_x1 = self.axe_x[inds_x[0]]
                 pos_x2 = self.axe_x[inds_x[1]]
-                value1 = self.values[ind_y, inds_x[0]]
-                value2 = self.values[ind_y, inds_x[1]]
+                value1 = self.values[inds_x[0], ind_y]
+                value2 = self.values[inds_x[1], ind_y]
                 i_value = ((value2*np.abs(pos_x1 - x)
                             + value1*np.abs(pos_x2 - x))
                            / np.abs(pos_x1 - pos_x2))
                 return i_value*unit
             # if we are in the middle of nowhere (linear interpolation)
-            ind_x = inds_x[0]
-            ind_y = inds_y[0]
-            a, b = np.meshgrid(self.axe_x[ind_x:ind_x + 2],
-                               self.axe_y[ind_y:ind_y + 2])
-            values = self.values[ind_y:ind_y + 2, ind_x:ind_x + 2]
-            a = a.flatten()
-            b = b.flatten()
-            pts = zip(a, b)
-            interp_vx = spinterp.LinearNDInterpolator(pts, values.flatten())
-            i_value = float(interp_vx(x, y))
-            return i_value*unit
+            else:
+                ind_x = inds_x[0]
+                ind_y = inds_y[0]
+                a, b = np.meshgrid(self.axe_x[ind_x:ind_x + 2],
+                                   self.axe_y[ind_y:ind_y + 2])
+                values = self.values[ind_x:ind_x + 2, ind_y:ind_y + 2]
+                a = a.flatten()
+                b = b.flatten()
+                pts = zip(a, b)
+                interp_vx = spinterp.LinearNDInterpolator(pts, values.flatten())
+                i_value = float(interp_vx(x, y))
+                res = i_value*unit
+            return res
 
     def get_zones_centers(self, bornes=[0.75, 1], rel=True,
                           kind='ponderated'):
@@ -3813,7 +3824,7 @@ class ScalarField(Field):
             return trimfield
 
     def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
-               inplace=False):
+               inplace=False, ind=True):
         """
         Add columns or lines of masked values at the scalarfield.
 
@@ -3829,15 +3840,27 @@ class ScalarField(Field):
         Extended_field : Field object, optional
             Extended field.
         """
+        if not ind:
+            dx = self.axe_x[1] - self.axe_x[0]
+            dy = self.axe_y[1] - self.axe_y[0]
+            nmb_left = np.ceil(nmb_left/dx)
+            nmb_right = np.ceil(nmb_right/dx)
+            nmb_up = np.ceil(nmb_up/dy)
+            nmb_down = np.ceil(nmb_down/dy)
+            ind = True
         # check params
-        if not isinstance(nmb_left, int):
+        if not (isinstance(nmb_left, int) or nmb_left%1 == 0):
             raise TypeError()
-        if not isinstance(nmb_right, int):
+        if not (isinstance(nmb_right, int) or nmb_right%1 == 0):
             raise TypeError()
-        if not isinstance(nmb_up, int):
+        if not (isinstance(nmb_up, int) or nmb_up%1 == 0):
             raise TypeError()
-        if not isinstance(nmb_down, int):
+        if not (isinstance(nmb_down, int) or nmb_down%1 == 0):
             raise TypeError()
+        nmb_left = int(nmb_left)
+        nmb_right = int(nmb_right)
+        nmb_up = int(nmb_up)
+        nmb_down = int(nmb_down)
         if np.any(np.array([nmb_left, nmb_right, nmb_up, nmb_down]) < 0):
             raise ValueError()
         # used herited method to extend the field
@@ -3871,6 +3894,179 @@ class ScalarField(Field):
             new_field.values = new_values
             new_field.mask = new_mask
             return new_field
+
+    def mirroring(self, direction, position, inds_to_mirror='all',
+                  mir_coef=1, interp=None, value=0, inplace=False):
+        """
+        Return a field with additional mirrored values.
+
+        Parameters
+        ----------
+        direction : integer
+            Axe on which place the symetry plane (1 for x and 2 for y)
+        position : number
+            Position of the symetry plane alogn the given axe
+        inds_to_mirror : integer
+            Number of vector rows to symetrize (default is all)
+        mir_coef : number, optional
+            Optional coefficient applied only to the mirrored values.
+        inplace : boolean, optional
+            .
+        interp : string, optional
+            If specified, method used to fill the gap near the
+            symetry plane by interpoaltion.
+            ‘value’ : fill with the given value,
+            ‘nearest’ : fill with the nearest value,
+            ‘linear’ (default): fill using linear interpolation
+            (Delaunay triangulation),
+            ‘cubic’ : fill using cubic interpolation (Delaunay triangulation)
+        value : array, optional
+            Value at the symetry plane, in case of interpolation
+        """
+        # check params
+        if not isinstance(direction, int):
+            raise TypeError()
+        if not isinstance(position, NUMBERTYPES):
+            raise TypeError()
+        position = float(position)
+        # get data
+        axe_x = self.axe_x
+        axe_y = self.axe_y
+        if inplace:
+            tmp_vf = self
+        else:
+            tmp_vf = self.copy()
+        # get side to mirror
+        if direction == 1:
+            axe = axe_x
+            x_median = (axe_x[-1] + axe_x[0])/2.
+            delta = axe_x[1] - axe_x[0]
+            if position < axe_x[0]:
+                border = axe_x[0]
+                side = 'left'
+            elif position > axe_x[-1]:
+                border = axe_x[-1]
+                side = 'right'
+            elif position < x_median:
+                tmp_vf.trim_area(intervalx=[position, axe_x[-1]],
+                                 inplace=True)
+                side = 'left'
+                axe_x = tmp_vf.axe_x
+                border = axe_x[0]
+            elif position > x_median:
+                tmp_vf.trim_area(intervalx=[axe_x[0], position],
+                                 inplace=True)
+                side = 'right'
+                axe_x = tmp_vf.axe_x
+                border = axe_x[-1]
+            else:
+                raise ValueError()
+        elif direction == 2:
+            axe = axe_y
+            y_median = (axe_y[-1] + axe_y[0])/2.
+            delta = axe_y[1] - axe_y[0]
+            if position < axe_y[0]:
+                border = axe_y[0]
+                side = 'down'
+            elif position > axe_y[-1]:
+                border = axe_y[-1]
+                side = 'up'
+            elif position < y_median:
+                tmp_vf.trim_area(intervaly=[position, axe_y[-1]],
+                                 inplace=True)
+                side = 'down'
+                axe_y = tmp_vf.axe_y
+                border = axe_y[0]
+            elif position > y_median:
+                tmp_vf.trim_area(intervaly=[axe_x[0], position],
+                                 inplace=True)
+                side = 'up'
+                axe_y = tmp_vf.axe_y
+                border = axe_y[-1]
+            else:
+                raise ValueError()
+        else:
+            raise ValueError()
+        # get length to mirror
+        if inds_to_mirror == 'all':
+            inds_to_mirror = len(axe) - 1
+        if side in ['left', 'down']:
+            delta_gap = -(position - border)/delta
+        else:
+            delta_gap = (position - border)/delta
+        inds_to_add = np.floor(inds_to_mirror + 2*delta_gap)
+        # extend the field
+        tmp_dic = {'nmb_{}'.format(side): inds_to_add}
+        tmp_vf.extend(inplace=True, **tmp_dic)
+        new_axe_x = tmp_vf.axe_x
+        new_axe_y = tmp_vf.axe_y
+        # filling mirrored with interpolated values
+        for i, x in enumerate(new_axe_x):
+            for j, y in enumerate(new_axe_y):
+                if direction == 1:
+                    mir_pos = [position - (x - position), y]
+                else:
+                    mir_pos = [x, position - (y - position)]
+                if mir_pos[0] < new_axe_x[0] or mir_pos[0] > new_axe_x[-1] \
+                        or mir_pos[1] < new_axe_y[0] \
+                        or mir_pos[1] > new_axe_y[-1]:
+                    continue
+                mir_val = tmp_vf.get_value(*mir_pos, ind=False)
+                if not np.isnan(mir_val):
+                    tmp_vf.values[i, j] = mir_val*mir_coef
+                    tmp_vf.mask[i, j] = False
+        # interpolating between mirror images id necessary
+        if interp is not None:
+            # getting data
+            x, y = tmp_vf.axe_x, tmp_vf.axe_y
+            values = tmp_vf.values
+            mask = tmp_vf.mask
+            # geting filters from mask
+            if interp in ['nearest', 'linear', 'cubic']:
+                X, Y = np.meshgrid(x, y, indexing='ij')
+                xy = [X.flat[:], Y.flat[:]]
+                xy = np.transpose(xy)
+                filt = np.logical_not(mask)
+                xy_masked = xy[mask.flatten()]
+            # getting the zone to interpolate
+                xy_good = xy[filt.flatten()]
+                values_good = values[filt]
+            # adding the value at the symetry plane
+            if direction == 1:
+                addit_xy = zip([position]*len(tmp_vf.axe_y), tmp_vf.axe_y)
+                addit_values = [value]*len(tmp_vf.axe_y)
+            else:
+                addit_xy = zip(tmp_vf.axe_x, [position]*len(tmp_vf.axe_x))
+                addit_values = [value]*len(tmp_vf.axe_x)
+            xy_good = np.concatenate((xy_good, addit_xy))
+            values_good = np.concatenate((values_good, addit_values))
+            # if interpolation
+            if interp == 'value':
+                values[mask] = value
+            elif interp == 'nearest':
+                nearest = spinterp.NearestNDInterpolator(xy_good, values_good)
+                values[mask] = nearest(xy_masked)
+            elif interp == 'linear':
+                linear = spinterp.LinearNDInterpolator(xy_good, values_good)
+                values[mask] = linear(xy_masked)
+                new_mask = np.isnan(values)
+                if np.any(new_mask):
+                    nearest = spinterp.NearestNDInterpolator(xy_good, values_good)
+                    values[new_mask] = nearest(xy[new_mask.flatten()])
+            elif interp == 'cubic':
+                cubic = spinterp.CloughTocher2DInterpolator(xy_good, values_good)
+                values[mask] = cubic(xy_masked)
+                new_mask = np.isnan(values)
+                if np.any(new_mask):
+                    nearest = spinterp.NearestNDInterpolator(xy_good, values_good)
+                    values[new_mask] = nearest(xy[new_mask.flatten()])
+            else:
+                raise ValueError("unknown 'tof' value")
+            tmp_vf.values = values
+            tmp_vf.mask = False
+        # returning
+        if not inplace:
+            return tmp_vf
 
     def crop_masked_border(self, hard=False):
         """
@@ -4155,6 +4351,9 @@ class ScalarField(Field):
                                   unit_x=self.unit_x, unit_y=self.unit_y,
                                   unit_values=self.unit_values)
             return sf
+
+    def __clean(self):
+        self.__init__()
 
     ### Displayers ###
     def _display(self, component=None, kind=None, **plotargs):
@@ -4689,6 +4888,7 @@ class VectorField(Field):
         unit_values : string, optionnal
             Unit for the field components.
         """
+        self.__clean()
         self.axe_x = axe_x
         self.axe_y = axe_y
         self.comp_x = comp_x
@@ -4699,6 +4899,15 @@ class VectorField(Field):
         self.unit_values = unit_values
 
     ### Watchers ###
+    def get_value(self, x, y, ind=False, unit=False):
+        """
+        Return the vectir field compoenents on the point (x, y).
+        If ind is true, x and y are indices,
+        else, x and y are value on axes (interpolated if necessary).
+        """
+        return [self.comp_x_as_sf.get_value(x, y, ind=ind, unit=unit),
+                self.comp_y_as_sf.get_value(x, y, ind=ind, unit=unit)]
+
     def get_profile(self, component, direction, position, ind=False):
         """
         Return a profile of the vector field component, at the given position
@@ -4994,6 +5203,63 @@ class VectorField(Field):
             new_field.mask = new_mask
             return new_field
 
+    def mirroring(self, direction, position, inds_to_mirror='all',
+                  inplace=False, interp=None, value=[0, 0]):
+        """
+        Return a field with additional mirrored values.
+
+        Parameters
+        ----------
+        direction : integer
+            Axe on which place the symetry plane (1 for x and 2 for y)
+        position : number
+            Position of the symetry plane along the given axe
+        inds_to_mirror : integer
+            Number of vector rows to symetrize (default is all)
+        inplace : boolean, optional
+            .
+        interp : string, optional
+            If specified, method used to fill the gap near the
+            symetry plane by interpoaltion.
+            ‘value’ : fill with the given value,
+            ‘nearest’ : fill with the nearest value,
+            ‘linear’ (default): fill using linear interpolation
+            (Delaunay triangulation),
+            ‘cubic’ : fill using cubic interpolation (Delaunay triangulation)
+        value : array, optional
+            Value at the symetry plane, in case of interpolation
+        """
+        # getting components
+        vx = self.comp_x_as_sf
+        vy = self.comp_y_as_sf
+        # treating sign changments
+        if direction == 1:
+            coefx = -1
+            coefy = 1
+        else:
+            coefx = 1
+            coefy = -1
+        # mirroring on components
+        vx.mirroring(direction, position, inds_to_mirror=inds_to_mirror,
+                     interp=interp, value=value[0], inplace=True,
+                     mir_coef=coefx)
+        vy.mirroring(direction, position, inds_to_mirror=inds_to_mirror,
+                     interp=interp, value=value[1], inplace=True,
+                     mir_coef=coefy)
+        # storing
+        if inplace:
+            tmp_vf = self
+        else:
+            tmp_vf = VectorField()
+        mask = np.logical_or(vx.mask, vy.mask)
+        tmp_vf.import_from_arrays(vx.axe_x, vx.axe_y, vx.values, vy.values,
+                                  mask=mask, unit_x=vx.unit_x,
+                                  unit_y=vy.unit_y,
+                                  unit_values=vx.unit_values)
+        # returning
+        if not inplace:
+            return tmp_vf
+
     def reduce_spatial_resolution(self, fact, inplace=False):
         """
         Reduce the spatial resolution of the field by a factor 'fact'
@@ -5025,6 +5291,9 @@ class VectorField(Field):
                                   unit_y=self.unit_y,
                                   unit_values=self.unit_values)
             return vf
+
+    def __clean(self):
+        self.__init__()
 
     ### Displayers ###
     def _display(self, component=None, kind=None, **plotargs):
