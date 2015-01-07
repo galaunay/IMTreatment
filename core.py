@@ -28,7 +28,8 @@ except:
 
 
 ARRAYTYPES = (np.ndarray, list, tuple)
-NUMBERTYPES = (int, long, float, complex)
+NUMBERTYPES = (int, long, float, complex, np.float, np.float16, np.float32,
+               np.float64, np.int, np.int16, np.int32, np.int64, np.int8)
 STRINGTYPES = (str, unicode)
 MYTYPES = ('Profile', 'ScalarField', 'VectorField', 'VelocityField',
            'VelocityFields', 'TemporalVelocityFields', 'patialVelocityFields')
@@ -127,7 +128,7 @@ def make_unit(string):
         raise TypeError("Units should be define by a string, big boy")
     if len(string) == 0:
         return unum.Unum({})
-    brackets = ['(', ')']
+    brackets = ['(', ')', '[', ']']
     symbambig = {"**": "^"}
     operators = ['*', '^', '/']
 
@@ -165,9 +166,9 @@ def make_unit(string):
         level = 0
         levels = []
         for i in np.arange(len(strlist)):
-            if strlist[i] == '(':
+            if strlist[i] in ['(', '[']:
                 level += 1
-            elif (strlist[i-1] == ')') and (i-1 > 0):
+            elif strlist[i-1] in [')', ']'] and i-1 > 0:
                 level -= 1
             if level < 0:
                 raise ValueError("I think you have a problem"
@@ -549,10 +550,15 @@ class Points(object):
         raw : boolean, optional
             If 'False' (default), return a ScalarField object,
             if 'True', return numpy array.
+
+        Returns
+        -------
+        density : array, ScalarField object or None
+            Return 'None' if there is not enough points in the cloud.
         """
         # checking points length
         if len(self.xy) < 2:
-            raise Exception()
+            return None
         # getting data
         min_x = np.min(self.xy[:, 0])
         max_x = np.max(self.xy[:, 0])
@@ -580,8 +586,10 @@ class Points(object):
         # get kernel using scipy
         kernel = stats.gaussian_kde(self.xy.transpose(), bw_method=bw_method)
         # creating grid
-        axe_x = np.linspace(min_x, max_x, res_x)
-        axe_y = np.linspace(min_y, max_y, res_y)
+        dx = (max_x - min_x)/10.
+        dy = (max_y - min_y)/10.
+        axe_x = np.linspace(min_x - dx, max_x + dx, res_x)
+        axe_y = np.linspace(min_y - dy, max_y + dy, res_y)
         X, Y = np.meshgrid(axe_x, axe_y)
         X = X.flatten()
         Y = Y.flatten()
@@ -1002,7 +1010,7 @@ class Points(object):
             or 'scatter' (default if points have values).
         """
         plot = self._display(kind, **plotargs)
-        if self.v is not None and kind == 'scatter':
+        if self.v is not None and kind is not 'plot':
             cb = plt.colorbar(plot)
             cb.set_label(self.unit_v.strUnit())
         plt.xlabel('X ' + self.unit_x.strUnit())

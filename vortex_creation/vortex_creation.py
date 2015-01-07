@@ -57,7 +57,7 @@ class BurgerVortex(Vortex):
     the balance between vorticity creation at the center and vorticity
     diffusion.
     """
-    def __init__(self, x0=0, y0=0, alpha=1., ksi=1., viscosity=1e-6):
+    def __init__(self, x0=0., y0=0., alpha=1., ksi=1., viscosity=1e-6):
         """
         Parameters
         ----------

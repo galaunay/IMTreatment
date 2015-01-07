@@ -207,7 +207,6 @@ class VF(object):
         # for each position
         new_positions = np.zeros(positions.shape)
         for i, pos in enumerate(positions):
-            print(i)
             tmp_x = pos[0]
             tmp_y = pos[1]
             # get the cell indices
@@ -233,12 +232,22 @@ class VF(object):
                         or y_sols[j] < 0 or y_sols[j] > dy):
                     continue
                 tmp_sol.append([x_sols[j], y_sols[j]])
-            if len(tmp_sol) != 1:
-                raise Exception()
-            tmp_sol = tmp_sol[0]
-            # store the new position
-            new_positions[i] = np.array([tmp_sol[0] + axe_x[ind_x],
-                                        tmp_sol[1] + axe_y[ind_y]])
+            # if no more points
+            if len(tmp_sol) == 0:
+                new_positions[i] = np.array([tmp_x, tmp_y])
+            # if multiple points
+            elif len(tmp_sol) != 1:
+                tmp_sol = np.array(tmp_sol)
+                if not np.all(tmp_sol[0] == tmp_sol):
+                    raise Exception()
+                tmp_sol = tmp_sol[0]
+                new_positions[i] = np.array([tmp_sol[0] + axe_x[ind_x],
+                                             tmp_sol[1] + axe_y[ind_y]])
+            # if one point (ok case)
+            else:
+                tmp_sol = tmp_sol[0]
+                new_positions[i] = np.array([tmp_sol[0] + axe_x[ind_x],
+                                             tmp_sol[1] + axe_y[ind_y]])
         # returning
         return new_positions, pbis
 
@@ -475,6 +484,7 @@ class CritPoints(object):
         self.unit_x = make_unit('')
         self.unit_y = make_unit('')
         self.colors = ['r', 'b', 'y', 'm', 'g', 'w', 'k']
+        self.current_epsilon = None
 
     def __add__(self, obj):
         if isinstance(obj, CritPoints):
@@ -485,6 +495,9 @@ class CritPoints(object):
             if not self.unit_y == obj.unit_y:
                 raise ValueError()
             tmp_CP = CritPoints(unit_time=self.unit_time)
+            tmp_CP.unit_x = self.unit_x
+            tmp_CP.unit_y = self.unit_y
+            tmp_CP.unit_time = self.unit_time
             tmp_CP.foc = np.append(self.foc, obj.foc)
             tmp_CP.foc_c = np.append(self.foc_c, obj.foc_c)
             tmp_CP.node_i = np.append(self.node_i, obj.node_i)
@@ -544,6 +557,7 @@ class CritPoints(object):
             Maximal distance between two successive points.
             default value is Inf.
         """
+        self.current_epsilon = epsilon
         # get points together with v as time
         focs = np.array([])
         for i, pts in enumerate(self.foc):
@@ -589,6 +603,62 @@ class CritPoints(object):
         self.sadd_traj = self._get_cp_time_evolution(sadds, times=self.times,
                                                      epsilon=epsilon)
 
+    def get_points_density(self, kind, bw_method=None, resolution=100,
+                           output_format=None):
+        """
+        Return the presence density map for the given point type.
+
+        Parameters:
+        -----------
+        kind : string
+            Type of critical point for the density map
+            (can be 'foc', 'foc_c', 'sadd', 'node_i', 'node_o', 'pbi_p',
+            'pbi_m')
+        bw_method : str, scalar or callable, optional
+            The method used to calculate the estimator bandwidth.
+            This can be 'scott', 'silverman', a scalar constant or
+            a callable. If a scalar, this will be used directly as kde.factor.
+            If a callable, it should take a gaussian_kde instance as only
+            parameter and return a scalar. If None (default), 'scott' is used.
+            See Notes for more details.
+        resolution : integer or 2x1 tuple of integers, optional
+            Resolution for the resulting field.
+            Can be a tuple in order to specify resolution along x and y.
+        output_format : string, optional
+            'normalized' (default) : give position probability
+                                     (integral egal 1).
+            'ponderated' : give position probability ponderated by the number
+                           or points (integral egal number of points).
+            'concentration' : give local concentration (in point per surface).
+        """
+        # getting wanted points
+        if kind == 'foc':
+            pts = self.foc
+        elif kind == 'foc_c':
+            pts = self.foc_c
+        elif kind == 'sadd':
+            pts = self.sadd
+        elif kind == 'node_i':
+            pts = self.node_i
+        elif kind == 'node_o':
+            pts = self.node_o
+        elif kind == 'pbi_p':
+            pts = self.pbi_p
+        elif kind == 'pbi_m':
+            pts = self.pbi_m
+        else:
+            raise ValueError()
+        # concatenate
+        tot = Points()
+        for pt in pts:
+            tot += pt
+        # getting density map
+        dens = tot.get_points_density(bw_method=bw_method,
+                                      resolution=resolution,
+                                      output_format=output_format, raw=False)
+        # returning
+        return dens
+
     ### Modifiers ###
     def add_point(self, foc=Points(), foc_c=Points(), node_i=Points(),
                   node_o=Points(), sadd=Points(), pbi_m=Points(),
@@ -630,6 +700,8 @@ class CritPoints(object):
         self.pbi_p = np.append(self.pbi_p, pbi_p)
         self.times = np.append(self.times, time)
         self._sort_by_time()
+        # trajectories are obsolete
+        self.current_epsilon = None
 
     def remove_point(self, time=None, indice=None):
         """
@@ -661,6 +733,8 @@ class CritPoints(object):
         self.pbi_m = np.delete(self.pbi_m, indice)
         self.pbi_p = np.delete(self.pbi_p, indice)
         self.times = np.delete(self.times, indice)
+        # trajectories are obsolete
+        self.current_epsilon = None
 
     def trim(self, intervx=None, intervy=None, inplace=False):
         """
@@ -676,6 +750,8 @@ class CritPoints(object):
             tmp_cp = self
         else:
             tmp_cp = self.copy()
+        # trajectories are obsolete
+        tmp_cp.current_epsilon = None
         # loop on points
         for kind in tmp_cp.iter:
             for time in kind:
@@ -687,6 +763,29 @@ class CritPoints(object):
         # returning
         if not inplace:
             return tmp_cp
+
+    def clean_traj(self, min_nmb_in_traj):
+        """
+        Remove some isolated points.
+
+        Parameters
+        ----------
+        min_nmb_in_traj : integer
+            Trajectories that have less than this amount of points are deleted.
+            Associated points are also deleted.
+        """
+        if self.current_epsilon is None:
+            raise Exception("You must calculate trajectories"
+                            "before cleaning them")
+        # clean trajectories
+        for type_traj in self.iter_traj:
+            for i in np.arange(len(type_traj) - 1, -1, -1):
+                traj = type_traj[i]
+                if len(traj.xy) < min_nmb_in_traj:
+                    del type_traj[i]
+        # extend deleting to points
+        self._traj_to_pts()
+
 
     ### Private ###
     def _sort_by_time(self):
@@ -711,6 +810,25 @@ class CritPoints(object):
             raise ValueError()
         indice = indice[0][0]
         return indice
+
+    def _traj_to_pts(self):
+        """
+        Define new set of points based on the trajectories.
+        """
+        # loop on each point type
+        for i, traj_type in enumerate(self.iter_traj):
+            # concatenate
+            tot = Points()
+            for traj in traj_type:
+                tot += traj
+            # replace exising points
+            self.iter[i] = np.empty((len(self.times),), dtype=object)
+            for j, time in enumerate(self.times):
+                filt = tot.v == time
+                self.iter[i][j] = Points(tot.xy[filt], v=tot.v[filt],
+                                         unit_x=tot.unit_x,
+                                         unit_y=tot.unit_y,
+                                         unit_v=tot.unit_v)
 
     @staticmethod
     def _get_cp_time_evolution(points, times=None, epsilon=None):
@@ -737,7 +855,7 @@ class CritPoints(object):
             .
         """
         if len(points) == 0:
-            return None
+            return []
         if not isinstance(points, ARRAYTYPES):
             raise TypeError("'points' must be an array of Points objects")
         if times is not None:
@@ -986,7 +1104,7 @@ class CritPoints(object):
         if field is not None and len(self.sadd[indice].xy) != 0:
             streams = self.sadd[indice]\
                 .get_streamlines_from_orientations(field,
-                reverse_direction=[True, False])
+                    reverse_direction=[True, False])
             for stream in streams:
                 stream.display(kind='plot', color=colors[4])
 
@@ -1004,9 +1122,7 @@ class CritPoints(object):
             Arguments passed to plot.
         """
         # check if some trajectories are computed
-        try:
-            self.foc_traj
-        except AttributeError:
+        if self.current_epsilon is None:
             raise StandardError("you must compute trajectories before "
                                 "displaying them")
         # display
@@ -1057,7 +1173,7 @@ class CritPoints(object):
         return TF.display(suppl_display=self.__update_cp, **kw)
 
     def __update_cp(self, ind):
-        self.display(indice=ind, field=TF.fields[ind])
+        self.display(indice=ind)
 
 
 ### Vortex properties ###
@@ -1095,11 +1211,11 @@ def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
     # getting data
     gamma2 = get_gamma(VF, radius=gamma2_radius, ind=False, kind='gamma2',
                        raw=True)
-    ind_x = VF.get_indice_on_axe(1, vort_center[0], nearest=True)
-    ind_y = VF.get_indice_on_axe(2, vort_center[1], nearest=True)
+    ind_x = VF.get_indice_on_axe(1, vort_center[0], kind='nearest')
+    ind_y = VF.get_indice_on_axe(2, vort_center[1], kind='nearest')
     dx = VF.axe_x[1] - VF.axe_x[0]
     dy = VF.axe_y[1] - VF.axe_y[0]
-    # find vortex zones adn label them
+    # find vortex zones and label them
     vort = np.abs(gamma2) > 2/np.pi
     vort, nmb_vort = msr.label(vort)
     # get wanted zone label
@@ -1164,10 +1280,10 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
         If 'output_center' is 'True', contain the newly computed vortex center.
     """
     radii = np.empty((len(traj.xy),))
-    centers = Points(unit_x=TVFS.unit_x, unit_y=TVFS.unit_y,
-                     unit_v=TVFS.unit_times)
     # computing with vortex center
     if output_center:
+        centers = Points(unit_x=TVFS.unit_x, unit_y=TVFS.unit_y,
+                         unit_v=TVFS.unit_times)
         for i, pt in enumerate(traj):
             # getting time and associated velocity field
             time = traj.v[i]
@@ -1180,9 +1296,9 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
             centers.add(cent, time)
     # computing without vortex centers
     else:
-        for i, pt in enumerate(traj):
+        for i, _ in enumerate(traj):
             # getting time and associated velocity field
-            time = pt.v
+            time = traj.v[i]
             field = TVFS.fields[TVFS.times == time][0]
             # getting radius
             radii[i] = get_vortex_radius(field, traj.xy[i],
@@ -1250,18 +1366,14 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
     circ *= unit_circ.asNumber()
     unit_circ /= unit_circ.asNumber()
     # returning
-    plt.figure()
-    vort.display()
-    plt.plot(VF.axe_x[ind_x], VF.axe_y[ind_y], 'o')
-    plt.figure()
-    plt.imshow(vort_zone == lab, interpolation='nearest')
     if output_unit:
         return circ, unit_circ
     else:
         return circ
 
+
 def get_critical_points(obj, time=0, unit_time='', window_size=4,
-                        kind='pbi', mirroring=None):
+                        kind='pbi', mirroring=None, mirror_interp='linear'):
     """
     For a VectorField of a TemporalVectorField object, return the critical
     points positions and informations on their type.
@@ -1279,13 +1391,21 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         point position (defaut : 4).
     kind : string, optional
         Method used to compute the critical points position.
-        can be : 'pbi' for simple (fast) Poincarre-Bendixson sweep.
-        'pbi_cell' for PB sweep and bi-linear interpolation inside cells.
+        can be : 'pbi_cell' for simple (fast) Poincarre-Bendixson sweep.
+        'pbi' for PB sweep and bi-linear interpolation inside cells.
         'pbi_crit' for PB sweep and use of non-local criterions.
-    Mirroring : array of numbers
+    mirroring : array of numbers
         If specified, use mirroring to get the critical points on the
         eventual walls. should be an array of
         '[direction (1 or 2), position]*N'.
+    mirror_interp : string, optional
+        Method used to fill the gap at the wall.
+        ‘value’ : fill with the given value,
+        ‘nearest’ : fill with the nearest value,
+        ‘linear’ (default): fill using linear interpolation
+        (Delaunay triangulation),
+        ‘cubic’ : fill using cubic interpolation (Delaunay triangulation)
+
     """
     # if obj is a vector field
     if isinstance(obj, VectorField):
@@ -1295,12 +1415,14 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
             for direction, position in mirroring:
                 tmp_vf.mirroring(direction, position,
                                  inds_to_mirror=window_size*2,
-                                 inplace=True, interp='linear', value=[0, 0])
+                                 inplace=True, interp=mirror_interp,
+                                 value=[0, 0])
         if kind == 'pbi':
             res = _get_cp_pbi_on_VF(tmp_vf, time=time, unit_time=unit_time,
                                     window_size=window_size)
         elif kind == 'pbi_cell':
-            res = _get_cp_cell_pbi_on_VF(tmp_vf, time=time, unit_time=unit_time,
+            res = _get_cp_cell_pbi_on_VF(tmp_vf, time=time,
+                                         unit_time=unit_time,
                                          window_size=window_size)
         elif kind == 'pbi_crit':
             res = _get_cp_crit_on_VF(tmp_vf, time=time, unit_time=unit_time,
@@ -1312,26 +1434,25 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         y_median = (tmp_vf.axe_y[-1] + tmp_vf.axe_y[0])/2.
         intervx = np.array([-np.inf, np.inf])
         intervy = np.array([-np.inf, np.inf])
+        axe_x, axe_y = obj.axe_x, obj.axe_y
         for direction, position in mirroring:
             if direction == 1:
                 if position < x_median and position > intervx[0]:
-                    intervx[0] = position
+                    intervx[0] = axe_x[obj.get_indice_on_axe(1, position)[0]]
                 elif position < intervx[1]:
-                    intervx[1] = position
+                    intervx[1] = axe_x[obj.get_indice_on_axe(1, position)[1]]
             else:
                 if position < y_median and position > intervy[0]:
-                    intervy[0] = position
+                    intervy[0] = axe_y[obj.get_indice_on_axe(2, position)[0]]
                 elif position < intervy[1]:
-                    intervy[1] = position
-            # adapting to near CP points
-            dx = tmp_vf.axe_x[1] - tmp_vf.axe_x[0]
-            dy = tmp_vf.axe_y[1] - tmp_vf.axe_y[0]
-            intervx += [-2.*dx, 2.*dx]
-            intervy += [-2.*dy, 2.*dy]
-            res.trim(intervx=intervx, intervy=intervy, inplace=True)
-    #if obj is vector fields
+                    intervy[1] = axe_y[obj.get_indice_on_axe(2, position)[1]]
+        res.trim(intervx=intervx, intervy=intervy, inplace=True)
+    # if obj is vector fields
     elif isinstance(obj, TemporalVectorFields):
         res = CritPoints(unit_time=obj.unit_times)
+        res.unit_x = obj.unit_x
+        res.unit_y = obj.unit_y
+        res.unit_time = obj.unit_times
         for i, field in enumerate(obj.fields):
             res += get_critical_points(field, time=obj.times[i],
                                        unit_time=obj.unit_times,
@@ -1341,8 +1462,9 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         raise TypeError()
     return res
 
+
 def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
-                     window_size=4):
+                      window_size=4):
     """
     For a VectorField object, return the critical points positions and their
     PBI (Poincarre Bendixson indice)
@@ -1382,11 +1504,20 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
             raise Exception()
     pts = CritPoints(unit_time=unit_time)
     pts.add_point(pbi_m=pbi_m, pbi_p=pbi_p, time=time)
+    # setting units
+    pts.unit_x = vectorfield.unit_x
+    pts.unit_y = vectorfield.unit_y
+    pts.unit_v = unit_time
+    for pt in pts.iter:
+        pt = pt[0]
+        pt.unit_x = vectorfield.unit_x
+        pt.unit_y = vectorfield.unit_y
+        pt.unit_v = unit_time
     return pts
 
 
 def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
-                          window_size=4):
+                           window_size=4):
     """
     For a VectorField object, return the critical points positions and their
     PBI (Poincarre Bendixson indice)
@@ -1426,11 +1557,20 @@ def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
             raise Exception()
     pts = CritPoints(unit_time=unit_time)
     pts.add_point(pbi_m=pbi_m, pbi_p=pbi_p, time=time)
+    # setting units
+    pts.unit_x = vectorfield.unit_x
+    pts.unit_y = vectorfield.unit_y
+    pts.unit_v = unit_time
+    for pt in pts.iter:
+        pt = pt[0]
+        pt.unit_x = vectorfield.unit_x
+        pt.unit_y = vectorfield.unit_y
+        pt.unit_v = unit_time
     return pts
 
 
 def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
-                      window_size=4):
+                       window_size=4):
     """
     For a VectorField object, return the position of critical points.
     This algorithm use the PBI algorithm, then a method based on criterion to
@@ -1512,6 +1652,7 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
             pts = _min_detection(np.max(tmp_iot.values) - tmp_iot)
             if pts is not None:
                 if pts.xy[0][0] is not None and len(pts) == 1:
+                    pts.unit_v = saddles.unit_v
                     saddles += pts
     # compute directions
     saddles_ori = []
@@ -1520,7 +1661,7 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
             saddles_ori.append(np.array(_get_saddle_orientations(vectorfield,
                                                                  sad)))
         except ValueError as error:
-            print("error : {}".format(error.message))
+            #print("error : {}".format(error.message))
             saddles_ori.append([[0, 0], [0, 0]])
     tmp_opts = OrientedPoints()
     tmp_opts.import_from_Points(saddles, saddles_ori)
@@ -1539,12 +1680,14 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                 pts = _min_detection(-1.*tmp_gam)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
+                        pts.unit_v = focus.unit_v
                         focus += pts
             # contrarotative vortex
             else:
                 pts = _min_detection(tmp_gam)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
+                        pts.unit_v = focus_c.unit_v
                         focus_c += pts
     ### Computing nodes points positions (in or out) ###
     nodes_i = Points()
@@ -1559,17 +1702,28 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                 pts = _min_detection(-1.*tmp_kap)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
+                        pts.unit_v = nodes_o.unit_v
                         nodes_o += pts
             # in nodes
             else:
                 pts = _min_detection(tmp_kap)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
+                        pts.unit_v = nodes_i.unit_v
                         nodes_i += pts
     ### creating the CritPoints object for returning
     pts = CritPoints(unit_time=unit_time)
     pts.add_point(focus, focus_c, nodes_i, nodes_o, saddles,
                   pbi_m, pbi_p, time=time)
+    # setting units
+    pts.unit_x = vectorfield.unit_x
+    pts.unit_y = vectorfield.unit_y
+    pts.unit_v = unit_time
+    for pt in pts.iter:
+        pt = pt[0]
+        pt.unit_x = vectorfield.unit_x
+        pt.unit_y = vectorfield.unit_y
+        pt.unit_v = unit_time
     return pts
 
 
@@ -1592,7 +1746,7 @@ def _min_detection(SF):
     ind_min = np.argmin(values)
     ind_x, ind_y = np.unravel_index(ind_min, values.shape)
     pos = (x[ind_x], y[ind_y])
-    return Points([pos])
+    return Points([pos], unit_x=SF.unit_x, unit_y=SF.unit_y)
 
 
 def _gaussian_fit(SF):
@@ -1664,7 +1818,7 @@ def _get_saddle_orientations(vectorfield, pt):
     inds_y_2 = np.arange(-1, 3) + inds_y[0]
     # check if surrounding gradients are available
     if (np.any(inds_x_2 > len(axe_x) - 1) or np.any(inds_x_2 < 0) or
-        np.any(inds_y_2 > len(axe_y) - 1) or np.any(inds_y_2 < 0)):
+            np.any(inds_y_2 > len(axe_y) - 1) or np.any(inds_y_2 < 0)):
         raise ValueError("Point is too close to the border, can't compute "
                          "Jacobian")
     # get surounding gradients
@@ -1862,7 +2016,7 @@ def get_critical_line(VF, source_point, direction, kol='stream',
         raise TypeError("'source_point' must be a Point object")
     if not isinstance(direction, int):
         raise TypeError("'direction' must be an integer")
-    if not direction in [0, 1]:
+    if direction not in [0, 1]:
         raise ValueError("'direction' must be 0 or 1")
     if not isinstance(delta, int):
         raise TypeError("'delta' must be an integer")
@@ -1976,7 +2130,7 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
         raise TypeError()
     if not isinstance(local_treatment, STRINGTYPES):
         raise TypeError()
-    if not local_treatment in ['none', 'galilean_inv', 'local']:
+    if local_treatment not in ['none', 'galilean_inv', 'local']:
         raise ValueError()
     if not isinstance(order, NUMBERTYPES):
         raise TypeError()
@@ -2093,7 +2247,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     if not isinstance(kind, STRINGTYPES):
         raise TypeError("'kind' must be a string")
-    if not kind in ['gamma1', 'gamma2', 'gamma1b', 'gamma2b']:
+    if kind not in ['gamma1', 'gamma2', 'gamma1b', 'gamma2b']:
         raise ValueError("Unkown value for kind")
     if mask is None:
         mask = np.zeros(vectorfield.shape)
@@ -2235,7 +2389,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     if not isinstance(kind, STRINGTYPES):
         raise TypeError("'kind' must be a string")
-    if not kind in ['kappa1', 'kappa2']:
+    if kind not in ['kappa1', 'kappa2']:
         raise ValueError("Unkown value for kind")
     if mask is None:
         mask = np.zeros(vectorfield.shape)
@@ -2545,6 +2699,7 @@ def get_vorticity(vf, raw=False):
                                    unit_values=unit_values)
         return vort_sf
 
+
 def get_stokes_vorticity(vf, window_size=2, raw=False):
     """
     Return a scalar field with the z component of the vorticity using
@@ -2604,7 +2759,7 @@ def get_stokes_vorticity(vf, window_size=2, raw=False):
             # summing over fourth border
             bord_vec = -Vx[i:i + window_size, j + window_size - 1].copy()
             tmp_vort += np.trapz(bord_vec, dx=dx)
-            ## adding coefficients
+            # adding coefficients
             tmp_vort *= 1./(dx*dy*window_size**2)
             # storing
             vort[i, j] = tmp_vort
@@ -2697,7 +2852,7 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
     else:
         mask = np.array(mask)
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    #calcul des gradients
+    # calcul des gradients
     Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
     # calcul de Qcrit
     norm_rot = 2.*(Exy - Eyx)**2
@@ -2713,6 +2868,7 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
                                 unit_y=vectorfield.unit_y,
                                 unit_values=unit_values)
         return q_sf
+
 
 def get_Nk_criterion(vectorfield, mask=None, raw=False):
     """
@@ -2745,7 +2901,7 @@ def get_Nk_criterion(vectorfield, mask=None, raw=False):
     else:
         mask = np.array(mask)
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    #calcul des gradients
+    # calcul des gradients
     Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
     # calcul de Nk
     norm_rot = 2.*(Exy - Eyx)**2
@@ -2761,6 +2917,7 @@ def get_Nk_criterion(vectorfield, mask=None, raw=False):
                                 unit_y=vectorfield.unit_y,
                                 unit_values=unit_values)
         return q_sf
+
 
 def get_delta_criterion(vectorfield, mask=None, raw=False):
     """
@@ -2792,7 +2949,7 @@ def get_delta_criterion(vectorfield, mask=None, raw=False):
     else:
         mask = np.array(mask)
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-    #calcul des gradients
+    # calcul des gradients
     Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
     # calcul de Q
     Q = -Exy*Eyx
@@ -2866,7 +3023,7 @@ def get_lambda2(vectorfield, mask=None, raw=False):
         l2 = np.min(lambds)
         # storing lambda2
         lambda2[i, j] = l2.real
-    #returning
+    # returning
     if raw:
         return np.ma.masked_array(l2, mask)
     else:
@@ -2877,6 +3034,7 @@ def get_lambda2(vectorfield, mask=None, raw=False):
                                     unit_x=unit_x, unit_y=unit_y,
                                     unit_values=make_unit(''))
         return lambd_sf
+
 
 def get_residual_vorticity(vf, raw=False):
     """
@@ -2927,6 +3085,7 @@ def get_residual_vorticity(vf, raw=False):
                                    unit_x=unit_x, unit_y=unit_y,
                                    unit_values=unit_values)
         return vort_sf
+
 
 def get_shear_vorticity(vf, raw=False):
     """
@@ -2980,10 +3139,12 @@ def get_shear_vorticity(vf, raw=False):
                                    unit_values=unit_values)
         return vort_sf
 
+
 ### Others ###
 def _unique(a):
     ind_unique = _argunique(a)
     return a[ind_unique]
+
 
 def _argunique(a):
     a = np.array(a)
