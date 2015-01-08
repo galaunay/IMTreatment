@@ -2669,35 +2669,54 @@ def get_vorticity(vf, raw=False):
 
     Parameters
     ----------
-    vf : VectorField or Velocityfield
-        Field on which compute shear stress
+    vf : VectorField or TemporalVectorfields
+        Field(s) on which compute shear stress
     raw : boolean, optional
         If 'True', return an arrays,
         if 'False' (default), return a ScalarField object.
+
+    Returns
+    -------
+    vort : ScalarField or TemporalScalarFields
+        Vorticity field(s)
     """
-    if not isinstance(vf, VectorField):
-        raise TypeError()
-    tmp_vf = vf.fill(inplace=False)
-    axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
-    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
-    mask = tmp_vf.mask
-    dx = axe_x[1] - axe_x[0]
-    dy = axe_y[1] - axe_y[0]
-    _, Exy = np.gradient(comp_x, dx, dy)
-    Eyx, _ = np.gradient(comp_y, dx, dy)
-    vort = Eyx - Exy
-    if raw:
-        return vort
+    if isinstance(vf, VectorField):
+        tmp_vf = vf.fill(inplace=False)
+        axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+        comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
+        mask = tmp_vf.mask
+        dx = axe_x[1] - axe_x[0]
+        dy = axe_y[1] - axe_y[0]
+        _, Exy = np.gradient(comp_x, dx, dy)
+        Eyx, _ = np.gradient(comp_y, dx, dy)
+        vort = Eyx - Exy
+        if raw:
+            return vort
+        else:
+            unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
+            unit_values = vf.unit_values/vf.unit_x
+            vort *= unit_values.asNumber()
+            unit_values /= unit_values.asNumber()
+            vort_sf = ScalarField()
+            vort_sf.import_from_arrays(axe_x, axe_y, vort, mask=mask,
+                                       unit_x=unit_x, unit_y=unit_y,
+                                       unit_values=unit_values)
+            return vort_sf
+    elif isinstance(vf, TemporalVectorFields):
+        if raw:
+            vort_tsf = np.empty((len(vf.fields), vf.shape[0], vf.shape[1]),
+                                dtype=float)
+            for i, field in enumerate(vf.fields):
+                vort_tsf[i] = get_vorticity(field, raw=True)
+        else:
+            vort_tsf = TemporalScalarFields()
+            for i, field in enumerate(vf.fields):
+                tmp_vort = get_vorticity(field, raw=False)
+                vort_tsf.add_field(tmp_vort, time=vf.times[i],
+                                   unit_times=vf.unit_times)
+        return vort_tsf
     else:
-        unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
-        unit_values = vf.unit_values/vf.unit_x
-        vort *= unit_values.asNumber()
-        unit_values /= unit_values.asNumber()
-        vort_sf = ScalarField()
-        vort_sf.import_from_arrays(axe_x, axe_y, vort, mask=mask,
-                                   unit_x=unit_x, unit_y=unit_y,
-                                   unit_values=unit_values)
-        return vort_sf
+        raise TypeError()
 
 
 def get_stokes_vorticity(vf, window_size=2, raw=False):

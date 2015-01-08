@@ -568,7 +568,21 @@ class Points(object):
         if isinstance(resolution, int):
             width_x = max_x - min_x
             width_y = max_y - min_y
-            if width_x > width_y:
+            if width_x == 0 and width_y == 0:
+                raise Exception()
+            elif width_x == 0:
+                min_x = min_x - width_y/2.
+                max_x = max_x + width_y/2.
+                width_x = width_y
+                res_x = resolution
+                res_y = resolution
+            elif width_y == 0:
+                min_y = min_y - width_x/2.
+                max_y = max_y + width_x/2.
+                width_y = width_x
+                res_x = resolution
+                res_y = resolution
+            elif width_x > width_y:
                 res_x = resolution
                 res_y = np.round(resolution*width_y/width_x)
             else:
@@ -793,6 +807,113 @@ class Points(object):
         prof_y = Profile(time_y, Vy, mask=False, unit_x=self.unit_v,
                          unit_y=unit_Vy)
         return prof_x, prof_y
+
+    def get_evolution_on_sf(self, SF, axe_x=None):
+        """
+        Return the evolution of the value represented by a scalar field, on
+        the path of the trajectory.
+
+        Parameters
+        ----------
+        SF : ScalarField object
+        axe_x : string, optional
+            What put in the x axis (can be 'x', 'y', 'v').
+            default is 'v' when available and 'x' else.
+
+        Returns
+        -------
+        evol : Profile object
+        """
+        # check parameters
+        if not isinstance(SF, ScalarField):
+            raise TypeError()
+        if len(self.xy) == 0:
+            return Profile()
+        if axe_x is None:
+            if len(self.v) == len(self.xy):
+                axe_x = 'v'
+            else:
+                axe_x = 'x'
+        if not isinstance(axe_x, STRINGTYPES):
+            raise TypeError()
+        # get x values
+        if axe_x == 'v':
+            if len(self.v) == 0:
+                raise ValueError()
+            x_prof = self.v
+            unit_x = self.unit_v
+        elif axe_x == 'x':
+            x_prof = self.xy[:, 0]
+            unit_x = self.unit_x
+        elif axe_x == 'y':
+            x_prof = self.xy[:, 1]
+            unit_x = self.unit_y
+        else:
+            raise ValueError()
+        # get the y value
+        y_prof = np.empty((len(self.xy)), dtype=float)
+        for i, pt in enumerate(self.xy):
+            y_prof[i] = SF.get_value(*pt, ind=False, unit=False)
+        mask = np.isnan(y_prof)
+        unit_y = SF.unit_values
+        # returning
+        evol = Profile(x_prof, y_prof, mask=mask, unit_x=unit_x,
+                       unit_y=unit_y)
+        return evol
+
+    def get_evolution_on_tsf(self, TSF, axe_x=None):
+        """
+        Return the evolution of the value represented by scalar fields, on
+        the path of the trajectory.
+        Timse of the TSF must be consistent with the times of the Points.
+
+        Parameters
+        ----------
+        TSF : TemporalScalarField object
+        axe_x : string, optional
+            What put in the x axis (can be 'x', 'y', 'v').
+            default is 'v' (associated with time)
+
+        Returns
+        -------
+        evol : Profile object
+        """
+        # check parameters
+        if not isinstance(TSF, TemporalScalarFields):
+            raise TypeError()
+        if len(self.xy) == 0:
+            return Profile()
+        if axe_x is None:
+            axe_x = 'v'
+        if not isinstance(axe_x, STRINGTYPES):
+            raise TypeError()
+        # get x values
+        if axe_x == 'v':
+            if len(self.v) == 0:
+                raise ValueError()
+            x_prof = self.v
+            unit_x = self.unit_v
+        elif axe_x == 'x':
+            x_prof = self.xy[:, 0]
+            unit_x = self.unit_x
+        elif axe_x == 'y':
+            x_prof = self.xy[:, 1]
+            unit_x = self.unit_y
+        else:
+            raise ValueError()
+        # get the y value
+        times = self.v
+        y_prof = np.empty((len(self.xy)), dtype=float)
+        for i, pt in enumerate(self.xy):
+            time = times[i]
+            SF = TSF.fields[TSF.times == time][0]
+            y_prof[i] = SF.get_value(*pt, ind=False, unit=False)
+        mask = np.isnan(y_prof)
+        unit_y = TSF.unit_values
+        # returning
+        evol = Profile(x_prof, y_prof, mask=mask, unit_x=unit_x,
+                       unit_y=unit_y)
+        return evol
 
     def fit(self, kind='polynomial', order=2, simplify=False):
         """
@@ -6090,6 +6211,12 @@ class TemporalFields(Fields, Field):
         # TODO : pas de vérification de la cohérence des unitées !
         # checking parameters
         if not isinstance(field, (VectorField, ScalarField)):
+            raise TypeError()
+        if isinstance(self, TemporalScalarFields) \
+                and not isinstance(field, ScalarField):
+            raise TypeError()
+        if isinstance(self, TemporalVectorFields) \
+                and not isinstance(field, VectorField):
             raise TypeError()
         if not isinstance(time, NUMBERTYPES):
             raise TypeError("'time' should be a number, not {}"
