@@ -11,6 +11,7 @@ import scipy.optimize as spopt
 import matplotlib as mpl
 from matplotlib import cm
 import matplotlib.pyplot as plt
+import Plotlib as pplt
 #import guiqwt.pyplot as plt
 import numpy as np
 import pdb
@@ -559,6 +560,7 @@ class Points(object):
         # checking points length
         if len(self.xy) < 2:
             return None
+        resolution = int(resolution)
         # getting data
         min_x = np.min(self.xy[:, 0])
         max_x = np.max(self.xy[:, 0])
@@ -584,10 +586,10 @@ class Points(object):
                 res_y = resolution
             elif width_x > width_y:
                 res_x = resolution
-                res_y = np.round(resolution*width_y/width_x)
+                res_y = int(np.round(resolution*width_y/width_x))
             else:
                 res_y = resolution
-                res_x = np.round(resolution*width_x/width_y)
+                res_x = int(np.round(resolution*width_x/width_y))
         elif isinstance(resolution, ARRAYTYPES):
             if len(resolution) != 2:
                 raise ValueError()
@@ -654,7 +656,7 @@ class Points(object):
             density field. Default is 'False'.
         subres : odd integer, optional
             If specified, a subgrid of resolution res*subres is used to
-            make resulte more accurate.
+            make result more accurate.
         """
         # checking parameters
         if isinstance(res, int):
@@ -1841,6 +1843,35 @@ class Profile(object):
         # returning
         return i_values
 
+    def get_value_position(self, value):
+        """
+        Return the interpolated position(s) of the wanted value.
+
+        Parameters
+        ----------
+        value : number
+            .
+        """
+        # check parameters
+        if not isinstance(value, NUMBERTYPES):
+            raise TypeError()
+        # search for positions
+        filt = np.logical_not(self.mask)
+        y = self.y[filt] - value
+        x = self.x[filt]
+        sign = y > 0
+        chang = np.abs(sign[1::] - sign[0:-1:])
+        ind_0 = np.argwhere(chang)
+        pos_0 = np.empty((len(ind_0),), dtype=float)
+        for i, ind in enumerate(ind_0):
+            v1 = np.abs(y[ind])
+            v2 = np.abs(y[ind + 1])
+            x1 = x[ind]
+            x2 = x[ind + 1]
+            pos_0[i] = x1 + v1/(v1 + v2)*(x2 - x1)
+        # returning
+        return pos_0
+
     def get_integral(self):
         """
         Return the profile integral, and is unit.
@@ -2432,10 +2463,14 @@ class Profile(object):
         Parameters
         ----------
         kind : string
-            Kind of display to plot ('plot', 'semilogx', 'semilogy')
+            Kind of display to plot ('plot', 'semilogx', 'semilogy', 'loglog')
         reverse : Boolean, optionnal
             If 'False', x is put in the abscissa and y in the ordinate. If
             'True', the inverse.
+        color : string, number or array of numbers
+            Color of the line (can be an array for evolutive color)
+        color_label : string
+            Label for the colorbar if color is an array
         **plotargs : dict, optionnale
             Additional argument for the 'plot' command.
 
@@ -2450,6 +2485,18 @@ class Profile(object):
         else:
             x = self.y
             y = self.x
+        # check if color is an array
+        if 'color_label' in plotargs.keys():
+            color_label = plotargs.pop('color_label')
+        else:
+            color_label = ''
+        if 'color' in plotargs.keys():
+            if isinstance(plotargs['color'], ARRAYTYPES):
+                color = plotargs.pop('color')
+                plot = pplt.colored_plot(x, y, z=color, log=kind,
+                                         color_label=color_label, **plotargs)
+                return plot
+        # homogeneous color
         if kind == 'plot':
             plot = plt.plot(x, y, **plotargs)
         elif kind == 'semilogx':
@@ -2817,10 +2864,10 @@ class Field(object):
                 raise ValueError("Invalid trimming window")
         # finding interval indices
         if ind:
-            indmin_x = intervalx[0]
-            indmax_x = intervalx[1]
-            indmin_y = intervaly[0]
-            indmax_y = intervaly[1]
+            indmin_x = int(intervalx[0])
+            indmax_x = int(intervalx[1])
+            indmin_y = int(intervaly[0])
+            indmax_y = int(intervaly[1])
         else:
             if intervalx[0] <= axe_x[0]:
                 indmin_x = 0
@@ -4252,7 +4299,8 @@ class ScalarField(Field):
                            [axe_y_min, axe_y_max],
                            ind=True, inplace=True)
 
-    def fill(self, kind='linear', value=0., inplace=False, reduce_tri=True):
+    def fill(self, kind='linear', value=0., inplace=False, reduce_tri=True,
+             crop=False):
         """
         Fill the masked part of the array.
 
@@ -4275,12 +4323,16 @@ class ScalarField(Field):
             (faster when a lot of masked values)
             If 'False', no treatment
             (faster when few masked values)
-        """
+        crop : boolean, optional
+            If 'True', SF borders are cropped before filling.
+                """
         # check parameters coherence
         if not isinstance(kind, STRINGTYPES):
             raise TypeError("'kind' must be a string")
         if not isinstance(value, NUMBERTYPES):
             raise TypeError("'value' must be a number")
+        if crop:
+            self.crop_masked_border()
         # getting data
         x, y = self.axe_x, self.axe_y
         values = self.values
@@ -5135,7 +5187,7 @@ class VectorField(Field):
             return vf
 
     def fill(self, kind='linear', value=[0., 0.], inplace=False,
-             reduce_tri=True):
+             reduce_tri=True, crop=False):
         """
         Fill the masked part of the array.
 
@@ -5157,6 +5209,8 @@ class VectorField(Field):
             If 'True', treatment is used to reduce the triangulation effort
             (faster when a lot of masked values)
             If 'False', no treatment (faster when few masked values)
+        crop : boolean, optional
+            If 'True', TVF borders are cropped before filling.
         """
         # check parameters coherence
         if isinstance(value, NUMBERTYPES):
@@ -5166,6 +5220,8 @@ class VectorField(Field):
         value = np.array(value)
         if not value.shape == (2,):
             raise ShapeError()
+        if crop:
+            self.crop_masked_border()
         # filling components
         comp_x = self.comp_x_as_sf
         comp_y = self.comp_y_as_sf
@@ -5268,8 +5324,7 @@ class VectorField(Field):
                                    inplace=True)
                 elif more_masked == 3:
                     len_y = len(self.axe_y)
-                    self.trim_area(intervalx=[0, len_y - 2], ind=True,
-                                   inplace=True)
+                    self.trim_area(intervaly=[0, len_y - 2], ind=True, inplace=True)
         # soft cropping
         else:
             axe_x_m = np.logical_not(np.all(mask, axis=1))
@@ -5841,7 +5896,7 @@ class TemporalFields(Fields, Field):
             value = 0.
         else:
             value = [0., 0.]
-        result_f.fill(kind='value', value=value, inplace=True)
+        result_f.fill(kind='value', value=value, crop=False, inplace=True)
         mask_cum = np.zeros(self.shape, dtype=int)
         mask_cum[np.logical_not(self.fields[0].mask)] += 1
         for field in self.fields[1::]:
@@ -6794,7 +6849,7 @@ class TemporalScalarFields(TemporalFields):
 
     ### Modifiers ###
     def fill(self, tof='spatial', kind='linear', value=0.,
-             inplace=False):
+             inplace=False, crop=False):
         """
         Fill the masked part of the array in place.
 
@@ -6813,6 +6868,8 @@ class TemporalScalarFields(TemporalFields):
             Value for filling, '[Vx, Vy]' (only usefull with tof='value')
         inplace : boolean, optional
             .
+        crop : boolean, optional
+            If 'True', TVF borders are cropped before filling.
         """
         # TODO : utiliser Profile.fill au lieu d'une nouvelle méthode de filling
         # checking parameters coherence
@@ -6827,6 +6884,8 @@ class TemporalScalarFields(TemporalFields):
             raise TypeError()
         if kind not in ['value', 'nearest', 'linear', 'cubic']:
             raise ValueError()
+        if crop:
+            self.crop_masked_border()
         # temporal interpolation
         if tof == 'temporal':
             # getting datas
@@ -7026,10 +7085,7 @@ class TemporalVectorFields(TemporalFields):
 
     def get_mean_tke(self):
         tke = self.get_tke()
-        mean_tke = tke[0]
-        for field in tke[1::]:
-            mean_tke += field
-        mean_tke /= len(tke)
+        mean_tke = tke.get_mean_field()
         return mean_tke
 
     def get_reynolds_stress(self, nmb_val_min=1):
@@ -7073,18 +7129,18 @@ class TemporalVectorFields(TemporalFields):
         unit_values = self.unit_values
         rs_xx_sf = ScalarField()
         rs_xx_sf.import_from_arrays(axe_x, axe_y, rs_xx, mask_rs,
-                                    unit_x, unit_y, unit_values)
+                                    unit_x, unit_y, unit_values**2)
         rs_yy_sf = ScalarField()
         rs_yy_sf.import_from_arrays(axe_x, axe_y, rs_yy, mask_rs,
-                                    unit_x, unit_y, unit_values)
+                                    unit_x, unit_y, unit_values**2)
         rs_xy_sf = ScalarField()
         rs_xy_sf.import_from_arrays(axe_x, axe_y, rs_xy, mask_rs,
-                                    unit_x, unit_y, unit_values)
+                                    unit_x, unit_y, unit_values**2)
         return (rs_xx_sf, rs_yy_sf, rs_xy_sf)
 
     ### Modifiers ###
     def fill(self, tof='spatial', kind='linear', value=[0., 0.],
-             inplace=False):
+             inplace=False, crop=False):
         """
         Fill the masked part of the array in place.
 
@@ -7103,6 +7159,8 @@ class TemporalVectorFields(TemporalFields):
             Value for filling, '[Vx, Vy]' (only usefull with tof='value')
         inplace : boolean, optional
             .
+        crop : boolean, optional
+            If 'True', TVF borders are cropped before filling.
         """
         # TODO : utiliser Profile.fill au lieu d'une nouvelle méthode de filling
         # checking parameters coherence
@@ -7122,6 +7180,8 @@ class TemporalVectorFields(TemporalFields):
         elif not isinstance(value, ARRAYTYPES):
             raise TypeError()
         value = np.array(value)
+        if crop:
+            self.crop_masked_border()
         # temporal interpolation
         if tof == 'temporal':
             # getting datas

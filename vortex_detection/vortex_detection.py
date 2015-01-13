@@ -557,6 +557,11 @@ class CritPoints(object):
             Maximal distance between two successive points.
             default value is Inf.
         """
+        # check parameters
+        if epsilon is None:
+            epsilon = np.inf
+        if not isinstance(epsilon, NUMBERTYPES):
+            raise ValueError()
         self.current_epsilon = epsilon
         # get points together with v as time
         focs = np.array([])
@@ -1208,6 +1213,7 @@ def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
     unit_radius : Unit object
         Radius unity
     """
+
     # getting data
     gamma2 = get_gamma(VF, radius=gamma2_radius, ind=False, kind='gamma2',
                        raw=True)
@@ -1434,18 +1440,18 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         y_median = (tmp_vf.axe_y[-1] + tmp_vf.axe_y[0])/2.
         intervx = np.array([-np.inf, np.inf])
         intervy = np.array([-np.inf, np.inf])
-        axe_x, axe_y = obj.axe_x, obj.axe_y
+        axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
         for direction, position in mirroring:
             if direction == 1:
                 if position < x_median and position > intervx[0]:
-                    intervx[0] = axe_x[obj.get_indice_on_axe(1, position)[0]]
+                    intervx[0] = axe_x[tmp_vf.get_indice_on_axe(1, position)[0]]
                 elif position < intervx[1]:
-                    intervx[1] = axe_x[obj.get_indice_on_axe(1, position)[1]]
+                    intervx[1] = axe_x[tmp_vf.get_indice_on_axe(1, position)[1]]
             else:
                 if position < y_median and position > intervy[0]:
-                    intervy[0] = axe_y[obj.get_indice_on_axe(2, position)[0]]
+                    intervy[0] = axe_y[tmp_vf.get_indice_on_axe(2, position)[0]]
                 elif position < intervy[1]:
-                    intervy[1] = axe_y[obj.get_indice_on_axe(2, position)[1]]
+                    intervy[1] = axe_y[tmp_vf.get_indice_on_axe(2, position)[1]]
         res.trim(intervx=intervx, intervy=intervy, inplace=True)
     # if obj is vector fields
     elif isinstance(obj, TemporalVectorFields):
