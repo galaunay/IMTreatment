@@ -1111,9 +1111,9 @@ class CritPoints(object):
                 .get_streamlines_from_orientations(field,
                     reverse_direction=[True, False])
             for stream in streams:
-                stream.display(kind='plot', color=colors[4])
+                stream._display(kind='plot', color=colors[4])
 
-    def display_traj(self, kind='default', **kw):
+    def display_traj(self, kind='default', reverse=False, **kw):
         """
         Display the stored trajectories.
 
@@ -1123,6 +1123,8 @@ class CritPoints(object):
             If 'default', trajectories are plotted in a 2-dimensional plane.
             If 'x', x position of cp are plotted against time.
             If 'y', y position of cp are plotted against time.
+        reverse : boolean, optional
+            If 'True', reverse the axis
         kw : dict, optional
             Arguments passed to plot.
         """
@@ -1141,27 +1143,50 @@ class CritPoints(object):
                 if trajs is None:
                     continue
                 for traj in trajs:
-                    traj.display(kind='plot', marker='o', color=color)
-            plt.xlabel('x {}'.format(self.unit_x.strUnit()))
-            plt.xlabel('y {}'.format(self.unit_y.strUnit()))
+                    traj.display(kind='plot', marker='o', color=color,
+                                 reverse=reverse, **kw)
+            if reverse:
+                plt.ylabel('x {}'.format(self.unit_x.strUnit()))
+                plt.xlabel('y {}'.format(self.unit_y.strUnit()))
+            else:
+                plt.xlabel('x {}'.format(self.unit_x.strUnit()))
+                plt.ylabel('y {}'.format(self.unit_y.strUnit()))
         elif kind == 'x':
             for i, trajs in enumerate(self.iter_traj):
                 color = colors[i]
                 if trajs is None:
                     continue
                 for traj in trajs:
-                    plt.plot(traj.xy[:, 0], traj.v[:], 'o-', color=color)
-            plt.xlabel('x {}'.format(self.unit_x.strUnit()))
-            plt.ylabel('time {}'.format(self.unit_time.strUnit()))
+                    if reverse:
+                        plt.plot(traj.v[:], traj.xy[:, 0], 'o-', color=color,
+                                 **kw)
+                    else:
+                        plt.plot(traj.xy[:, 0], traj.v[:], 'o-', color=color,
+                                 **kw)
+            if reverse:
+                plt.ylabel('x {}'.format(self.unit_x.strUnit()))
+                plt.xlabel('time {}'.format(self.unit_time.strUnit()))
+            else:
+                plt.xlabel('x {}'.format(self.unit_x.strUnit()))
+                plt.ylabel('time {}'.format(self.unit_time.strUnit()))
         elif kind == 'y':
             for i, trajs in enumerate(self.iter_traj):
                 color = colors[i]
                 if trajs is None:
                     continue
                 for traj in trajs:
-                    plt.plot(traj.xy[:, 1], traj.v[:], 'o-', color=color)
-            plt.ylabel('time {}'.format(self.unit_time.strUnit()))
-            plt.xlabel('y {}'.format(self.unit_y.strUnit()))
+                    if reverse:
+                        plt.plot(traj.v[:], traj.xy[:, 1], 'o-', color=color,
+                                 **kw)
+                    else:
+                        plt.plot(traj.xy[:, 1], traj.v[:], 'o-', color=color,
+                                 **kw)
+            if reverse:
+                plt.xlabel('time {}'.format(self.unit_time.strUnit()))
+                plt.ylabel('y {}'.format(self.unit_y.strUnit()))
+            else:
+                plt.ylabel('time {}'.format(self.unit_time.strUnit()))
+                plt.xlabel('y {}'.format(self.unit_y.strUnit()))
         else:
             raise StandardError()
 
@@ -1311,7 +1336,8 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
                                          gamma2_radius=gamma2_radius,
                                          output_center=False)
     # returning
-    radii_prof = Profile(traj.v, radii, mask=False, unit_x=TVFS.unit_times,
+    mask = radii == 0.
+    radii_prof = Profile(traj.v, radii, mask=mask, unit_x=TVFS.unit_times,
                          unit_y=TVFS.unit_x)
     if output_center:
         return radii_prof, centers
@@ -1423,6 +1449,8 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                                  inds_to_mirror=window_size*2,
                                  inplace=True, interp=mirror_interp,
                                  value=[0, 0])
+        else:
+            tmp_vf = obj
         if kind == 'pbi':
             res = _get_cp_pbi_on_VF(tmp_vf, time=time, unit_time=unit_time,
                                     window_size=window_size)
@@ -1436,23 +1464,24 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         else:
             raise ValueError
         # removing critical points outside of the field
-        x_median = (tmp_vf.axe_x[-1] + tmp_vf.axe_x[0])/2.
-        y_median = (tmp_vf.axe_y[-1] + tmp_vf.axe_y[0])/2.
-        intervx = np.array([-np.inf, np.inf])
-        intervy = np.array([-np.inf, np.inf])
-        axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
-        for direction, position in mirroring:
-            if direction == 1:
-                if position < x_median and position > intervx[0]:
-                    intervx[0] = axe_x[tmp_vf.get_indice_on_axe(1, position)[0]]
-                elif position < intervx[1]:
-                    intervx[1] = axe_x[tmp_vf.get_indice_on_axe(1, position)[1]]
-            else:
-                if position < y_median and position > intervy[0]:
-                    intervy[0] = axe_y[tmp_vf.get_indice_on_axe(2, position)[0]]
-                elif position < intervy[1]:
-                    intervy[1] = axe_y[tmp_vf.get_indice_on_axe(2, position)[1]]
-        res.trim(intervx=intervx, intervy=intervy, inplace=True)
+        if mirroring is not None:
+            x_median = (tmp_vf.axe_x[-1] + tmp_vf.axe_x[0])/2.
+            y_median = (tmp_vf.axe_y[-1] + tmp_vf.axe_y[0])/2.
+            intervx = np.array([-np.inf, np.inf])
+            intervy = np.array([-np.inf, np.inf])
+            axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+            for direction, position in mirroring:
+                if direction == 1:
+                    if position < x_median and position > intervx[0]:
+                        intervx[0] = axe_x[tmp_vf.get_indice_on_axe(1, position)[0]]
+                    elif position < intervx[1]:
+                        intervx[1] = axe_x[tmp_vf.get_indice_on_axe(1, position)[1]]
+                else:
+                    if position < y_median and position > intervy[0]:
+                        intervy[0] = axe_y[tmp_vf.get_indice_on_axe(2, position)[0]]
+                    elif position < intervy[1]:
+                        intervy[1] = axe_y[tmp_vf.get_indice_on_axe(2, position)[1]]
+            res.trim(intervx=intervx, intervy=intervy, inplace=True)
     # if obj is vector fields
     elif isinstance(obj, TemporalVectorFields):
         res = CritPoints(unit_time=obj.unit_times)

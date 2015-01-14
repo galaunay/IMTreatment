@@ -110,6 +110,8 @@ class ModalFields(Field):
             self.growth_rate = growth_rate
         if pulsation is not None:
             self.pulsation = pulsation
+        self.__temp_coh = None
+        self.__spat_coh = None
 
     @property
     def modes_as_tf(self):
@@ -334,29 +336,35 @@ class ModalFields(Field):
         (coherent behavior), inversely, variance is low when spectrum is
         nearly uniform (random behavior).
         """
-        shape = (len(self.times),)
-        # computing maximal variance
-        max_std_spec = np.zeros(len(self.times))
-        max_std_spec[0] = 1
-        max_std_spec /= np.trapz(max_std_spec)
-        max_std = np.std(max_std_spec)
-        # computing minimum variance
-        min_std = 0
-        for i in np.arange(20):
-            min_prof = Profile(self.times, 2*(0.5 - np.random.rand(*shape)))
-            min_spec = min_prof.get_spectrum(scaling='density')
-            min_spec /= np.trapz(min_spec.y)
-            min_std += np.std(min_spec.y)
-        min_std /= 20
-        # getting spectrum variance on modes
-        var_spec = np.empty((len(self.modes)))
-        for n in np.arange(len(self.modes)):
-            prof = self.temp_evo[n]
-            spec = prof.get_spectrum(scaling='density')
-            spec /= np.trapz(spec.y)
-            var_spec[n] = (np.std(spec.y) - min_std)/max_std
-            if var_spec[n] < 0:
-                var_spec[n] = 0
+        if self._ModalFields__temp_coh is not None:
+            var_spec = self._ModalFields__temp_coh
+        else:
+            shape = (len(self.times),)
+            # computing maximal variance
+            max_std_spec = np.zeros(len(self.times))
+            max_std_spec[0] = 1
+            max_std_spec /= np.trapz(max_std_spec)
+            max_std = np.std(max_std_spec)
+            # computing minimum variance
+            min_std = 0
+            for i in np.arange(20):
+                min_prof = Profile(self.times, 2*(0.5 - np.random.rand(*shape)))
+                min_spec = min_prof.get_spectrum(scaling='density')
+                min_spec /= np.trapz(min_spec.y)
+                min_std += np.std(min_spec.y)
+            min_std /= 20
+            # getting spectrum variance on modes
+            var_spec = np.empty((len(self.modes)))
+            for n in np.arange(len(self.modes)):
+                prof = self.temp_evo[n]
+                spec = prof.get_spectrum(scaling='density')
+                spec /= np.trapz(spec.y)
+                var_spec[n] = (np.std(spec.y) - min_std)/max_std
+                if var_spec[n] < 0:
+                    var_spec[n] = 0
+            # storing on object
+            self._ModalFields__temp_coh = var_spec
+        # returning
         if raw:
             return var_spec
         else:
@@ -390,49 +398,54 @@ class ModalFields(Field):
         (coherent behavior), inversely, variance is low when spectrum is
         nearly uniform (random behavior).
         """
-        # data
-        shape = self.modes[0].shape
-        axe_x = self.modes[0].axe_x
-        axe_y = self.modes[0].axe_y
-        center_x = np.int(len(axe_x)/2.)
-        center_y = np.int(len(axe_y)/2.)
-        # computing maximal variance
-        max_std_spec = np.zeros(shape)
-        max_std_spec[center_x, center_y] = 1.
-        max_std_spec /= spint.simps(spint.simps(max_std_spec))
-        max_std = np.std(max_std_spec)
-        # computing minimal variance (from random field)
-        min_std= 0.
-        for i in np.arange(20):
-            min_field = (0.5 - np.random.rand(*shape))*2.
-            min_spec = np.abs(np.real(np.fft.fft2(min_field)))
-            min_spec = np.fft.fftshift(min_spec)
-            min_spec /= spint.simps(spint.simps(min_spec))
-            min_std += np.std(min_spec)
-        min_std /= 20
-        # computing spectrum variation on each mode
-        var_spec = np.empty((len(self.modes)))
-        for n in np.arange(len(self.modes)):
-            if isinstance(self.modes[n], ScalarField):
-                data = self.modes[n].values
-                spec = np.abs(np.real(np.fft.rfft2(data)))
-                spec = np.fft.fftshift(spec)
-                spec /= spint.simps(spint.simps(spec))
-                var_spec[n] = np.std(spec)/max_std
-            elif isinstance(self.modes[n], VectorField):
-                datax = self.modes[n].comp_x
-                datay = self.modes[n].comp_y
-                specx = np.abs(np.real(np.fft.fft2(datax)))
-                specx = np.fft.fftshift(specx)
-                specy = np.abs(np.real(np.fft.fft2(datay)))
-                specy = np.fft.fftshift(specy)
-                specx /= spint.simps(spint.simps(specx))
-                specy /= spint.simps(spint.simps(specy))
-                var_spec[n] = (np.std(specx) + np.std(specy) - 2*min_std)/(max_std)
-                if var_spec[n] < 0:
-                    var_spec[n] = 0
-            else:
-                raise Exception()
+        if self._ModalFields__spat_coh is not None:
+            var_spec = self._ModalFields__spat_coh
+        else:
+            # data
+            shape = self.modes[0].shape
+            axe_x = self.modes[0].axe_x
+            axe_y = self.modes[0].axe_y
+            center_x = np.int(len(axe_x)/2.)
+            center_y = np.int(len(axe_y)/2.)
+            # computing maximal variance
+            max_std_spec = np.zeros(shape)
+            max_std_spec[center_x, center_y] = 1.
+            max_std_spec /= spint.simps(spint.simps(max_std_spec))
+            max_std = np.std(max_std_spec)
+            # computing minimal variance (from random field)
+            min_std= 0.
+            for i in np.arange(20):
+                min_field = (0.5 - np.random.rand(*shape))*2.
+                min_spec = np.abs(np.real(np.fft.fft2(min_field)))
+                min_spec = np.fft.fftshift(min_spec)
+                min_spec /= spint.simps(spint.simps(min_spec))
+                min_std += np.std(min_spec)
+            min_std /= 20
+            # computing spectrum variation on each mode
+            var_spec = np.empty((len(self.modes)))
+            for n in np.arange(len(self.modes)):
+                if isinstance(self.modes[n], ScalarField):
+                    data = self.modes[n].values
+                    spec = np.abs(np.real(np.fft.rfft2(data)))
+                    spec = np.fft.fftshift(spec)
+                    spec /= spint.simps(spint.simps(spec))
+                    var_spec[n] = np.std(spec)/max_std
+                elif isinstance(self.modes[n], VectorField):
+                    datax = self.modes[n].comp_x
+                    datay = self.modes[n].comp_y
+                    specx = np.abs(np.real(np.fft.fft2(datax)))
+                    specx = np.fft.fftshift(specx)
+                    specy = np.abs(np.real(np.fft.fft2(datay)))
+                    specy = np.fft.fftshift(specy)
+                    specx /= spint.simps(spint.simps(specx))
+                    specy /= spint.simps(spint.simps(specy))
+                    var_spec[n] = (np.std(specx) + np.std(specy) - 2*min_std)/(max_std)
+                    if var_spec[n] < 0:
+                        var_spec[n] = 0
+                else:
+                    raise Exception()
+            # storing in object
+            self._ModalFields__spat_coh = var_spec
         if raw:
             return var_spec
         else:
@@ -580,7 +593,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
             raise ValueError()
     else:
         raise TypeError()
-    # getting datas
+    ### getting datas
     ind_fields = np.arange(len(TF.fields))
     f_shape = TF.fields[0].shape
     filts = np.logical_not(TF.mask)

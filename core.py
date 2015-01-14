@@ -3164,7 +3164,6 @@ class ScalarField(Field):
         elif isinstance(obj, unum.Unum):
             tmpsf = self.copy()
             tmpsf.values *= obj.asNumber()
-            print(tmpsf.unit_values)
             tmpsf.unit_values *= obj/obj.asNumber()
             tmpsf.mask = self.mask
             return tmpsf
@@ -6459,7 +6458,8 @@ class TemporalFields(Fields, Field):
                                  ind=True, inplace=True)
                 return tmp_tf
 
-    def trim_area(self, intervalx=None, intervaly=None, full_output=False,
+    def trim_area(self, intervalx=None, intervaly=None, intervalt=None,
+                  full_output=False,
                   ind=False, inplace=False):
         """
         Return a trimed field in respect with given intervals.
@@ -6470,23 +6470,55 @@ class TemporalFields(Fields, Field):
             interval wanted along x
         intervaly : array, optional
             interval wanted along y
+        intervalt : array, optional
+            interval wanted along time
         full_output : boolean, optional
             If 'True', cutting indices are alson returned
         inplace : boolean, optional
             If 'True', fields are trimed in place.
         """
+        # check parameters
+        if intervalt is not None:
+            if not isinstance(intervalt, ARRAYTYPES):
+                raise TypeError()
+            intervalt = np.array(intervalt, dtype=float)
+            if intervalt.shape != (2, ):
+                raise ValueError()
+        # get wanted times
+        if intervalt is not None:
+            if ind:
+                intervalt = np.arange(intervalt[0], intervalt[1] + 1)
+            else:
+                if intervalt[0] < self.times[0]:
+                    ind1 = 0
+                elif intervalt[0] > self.times[-1]:
+                    raise ValueError()
+                else:
+                    ind1 = np.where(intervalt[0] <= self.times)[0][0]
+                if intervalt[1] > self.times[-1]:
+                    ind2 = len(self.times) - 1
+                elif intervalt[1] < self.times[0]:
+                    raise ValueError()
+                else:
+                    ind2 = np.where(intervalt[1] >= self.times)[0][-1]
+                intervalt = [ind1, ind2]
+        ### trim
         if inplace:
-            Field.trim_area(self, intervalx, intervaly, ind=ind,
-                            inplace=inplace)
-            for field in self.fields:
-                field.trim_area(intervalx, intervaly, ind=ind,
-                                inplace=inplace)
+            trimfield = self
         else:
-            trimfield = self.__class__()
-            for i, field in enumerate(self.fields):
-                trimfield.add_field(field.trim_area(intervalx, intervaly,
-                                                    ind=ind),
-                                    self.times[i], self.unit_times)
+            trimfield = self.copy()
+        # temporal
+        if intervalt is not None:
+            trimfield.fields = trimfield.fields[intervalt[0]:intervalt[1] + 1]
+            trimfield.times = trimfield.times[intervalt[0]:intervalt[1] + 1]
+        # spatial
+        Field.trim_area(trimfield, intervalx, intervaly, ind=ind,
+                        inplace=True)
+        for field in trimfield.fields:
+            field.trim_area(intervalx, intervaly, ind=ind,
+                            inplace=True)
+        # returning
+        if not inplace:
             return trimfield
 
     def set_origin(self, x=None, y=None):
