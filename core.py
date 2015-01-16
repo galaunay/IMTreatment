@@ -534,7 +534,9 @@ class Points(object):
         bw_method : str, scalar or callable, optional
             The method used to calculate the estimator bandwidth.
             This can be ‘scott’, ‘silverman’, a scalar constant or
-            a callable. If a scalar, this will be used directly as kde.factor.
+            a callable. If a scalar, this will be used as std
+            (it should aprocimately be the size of the density
+            node you want to see).
             If a callable, it should take a gaussian_kde instance as only
             parameter and return a scalar. If None (default), ‘scott’ is used.
             See Notes for more details.
@@ -600,7 +602,20 @@ class Points(object):
         if res_x < 2 or res_y < 2:
             raise ValueError()
         # get kernel using scipy
+        if isinstance(bw_method, NUMBERTYPES):
+            if width_x > width_y:
+                bw_method /= width_y
+            else:
+                bw_method /= width_x
         kernel = stats.gaussian_kde(self.xy.transpose(), bw_method=bw_method)
+        # little adaptation to avoi streched density map
+
+        if width_x > width_y:
+            kernel.inv_cov[0, 0] *= (width_x/width_y)**2
+        else:
+            kernel.inv_cov[1, 1] *= (width_y/width_x)**2
+        kernel.inv_cov[0, 1] *= 0
+        kernel.inv_cov[1, 0] *= 0
         # creating grid
         dx = (max_x - min_x)/10.
         dy = (max_y - min_y)/10.
@@ -988,7 +1003,7 @@ class Points(object):
         if ((self.v.shape[0] != 0 and v is not None)
                 or (len(self.xy) == 1 and v is not None)):
             self.v = np.append(self.v, v)
-        elif self.v.shape[0] == 0 and v is None:
+        elif self.v.shape[0] == 0 or v is None:
             pass
         else:
             raise ValueError()
@@ -1103,26 +1118,32 @@ class Points(object):
         return pts_tupl
 
     ### Displayers ###
-    def _display(self, kind=None, **plotargs):
+    def _display(self, kind=None, reverse=False, **plotargs):
         if kind is None:
             if self.v is None:
                 kind = 'plot'
             else:
                 kind = 'scatter'
+        if reverse:
+            x_values = self.xy[:, 1]
+            y_values = self.xy[:, 0]
+        else:
+            x_values = self.xy[:, 0]
+            y_values = self.xy[:, 1]
         if kind == 'scatter':
             if self.v is None:
-                plot = plt.scatter(self.xy[:, 0], self.xy[:, 1], **plotargs)
+                plot = plt.scatter(x_values, y_values, **plotargs)
             else:
                 if not 'cmap' in plotargs:
                     plotargs['cmap'] = plt.cm.jet
                 if not 'c' in plotargs:
                     plotargs['c'] = self.v
-                plot = plt.scatter(self.xy[:, 0], self.xy[:, 1], **plotargs)
+                plot = plt.scatter(x_values, y_values, **plotargs)
         elif kind == 'plot':
-            plot = plt.plot(self.xy[:, 0], self.xy[:, 1], **plotargs)
+            plot = plt.plot(x_values, y_values, **plotargs)
         return plot
 
-    def display(self, kind=None, **plotargs):
+    def display(self, kind=None, reverse=False, **plotargs):
         """
         Display the set of points.
 
@@ -1131,13 +1152,19 @@ class Points(object):
         kind : string, optional
             Can be 'plot' (default if points have not values).
             or 'scatter' (default if points have values).
+        reverse : boolean, optional
+            If 'True', axis are reversed.
         """
         plot = self._display(kind, **plotargs)
-        if self.v is not None and kind is not 'plot':
+        if len(self.v) != 0 and kind is not 'plot':
             cb = plt.colorbar(plot)
             cb.set_label(self.unit_v.strUnit())
-        plt.xlabel('X ' + self.unit_x.strUnit())
-        plt.ylabel('Y ' + self.unit_y.strUnit())
+        if reverse:
+            plt.ylabel('X ' + self.unit_x.strUnit())
+            plt.xlabel('Y ' + self.unit_y.strUnit())
+        else:
+            plt.xlabel('X ' + self.unit_x.strUnit())
+            plt.ylabel('Y ' + self.unit_y.strUnit())
         if self.name is None:
             plt.title('Set of points')
         else:
@@ -4163,7 +4190,7 @@ class ScalarField(Field):
         else:
             raise ValueError()
         # get length to mirror
-        if inds_to_mirror == 'all':
+        if inds_to_mirror == 'all' or inds_to_mirror > len(axe):
             inds_to_mirror = len(axe) - 1
         if side in ['left', 'down']:
             delta_gap = -(position - border)/delta
@@ -4797,6 +4824,11 @@ class VectorField(Field):
                             "by numbers")
 
     __div__ = __truediv__
+
+    def __rtruediv__(self, other):
+        return other * self**(-1)
+
+    __rdiv__ = __rtruediv__
 
     def __mul__(self, other):
         if isinstance(other, ARRAYTYPES):

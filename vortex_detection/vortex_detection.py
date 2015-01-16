@@ -23,7 +23,7 @@ import scipy.ndimage.measurements as msr
 import unum
 import copy
 import sympy
-
+import unum
 
 def velocityfield_to_vf(vectorfield, time):
     """
@@ -622,7 +622,9 @@ class CritPoints(object):
         bw_method : str, scalar or callable, optional
             The method used to calculate the estimator bandwidth.
             This can be 'scott', 'silverman', a scalar constant or
-            a callable. If a scalar, this will be used directly as kde.factor.
+            a callable. If a scalar, this will be used as std
+            (it should aprocimately be the size of the density
+            node you want to see).
             If a callable, it should take a gaussian_kde instance as only
             parameter and return a scalar. If None (default), 'scott' is used.
             See Notes for more details.
@@ -1405,7 +1407,8 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
 
 
 def get_critical_points(obj, time=0, unit_time='', window_size=4,
-                        kind='pbi', mirroring=None, mirror_interp='linear'):
+                        kind='pbi', mirroring=None, mirror_interp='linear',
+                        smoothing_size=0):
     """
     For a VectorField of a TemporalVectorField object, return the critical
     points positions and informations on their type.
@@ -1437,20 +1440,55 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         ‘linear’ (default): fill using linear interpolation
         (Delaunay triangulation),
         ‘cubic’ : fill using cubic interpolation (Delaunay triangulation)
+    smoothing_size : number, optional
+        If specified, a gaussian smoothing of the wanted size is used before
+        detecting the CP.
 
     """
+    # check parameters
+    if not isinstance(time, NUMBERTYPES):
+        raise TypeError()
+    if not isinstance(unit_time, STRINGTYPES + (unum.Unum,)):
+        raise TypeError()
+    if not isinstance(window_size,  NUMBERTYPES):
+        raise TypeError()
+    window_size = int(window_size)
+    if not isinstance(kind, STRINGTYPES):
+        raise TypeError()
+    if not kind in ['pbi', 'pbi_crit', 'pbi_cell']:
+        raise ValueError()
+    if mirroring is not None:
+        if not isinstance(mirroring, ARRAYTYPES):
+            raise TypeError()
+        mirroring = np.array(mirroring)
+        if mirroring.ndim != 2:
+            raise ValueError()
+        if mirroring.shape[1] != 2:
+            raise ValueError()
+    if not isinstance(mirror_interp, STRINGTYPES):
+        raise TypeError()
+    if not mirror_interp in ['linear', 'value', 'nearest', 'cubic']:
+        raise ValueError()
+    if not isinstance(smoothing_size, NUMBERTYPES):
+        raise TypeError()
+    if smoothing_size < 0:
+        raise ValueError()
     # if obj is a vector field
     if isinstance(obj, VectorField):
         # mirroring if necessary
         if mirroring is not None:
             tmp_vf = obj.copy()
             for direction, position in mirroring:
-                tmp_vf.mirroring(direction, position,
+                tmp_vf.mirroring(int(direction), position,
                                  inds_to_mirror=window_size*2,
                                  inplace=True, interp=mirror_interp,
                                  value=[0, 0])
         else:
             tmp_vf = obj
+        # smoothing if necessary
+        if smoothing_size != 0:
+            tmp_vf.smooth(tos='gaussian', size=smoothing_size, inplace=True)
+        # get cp positions
         if kind == 'pbi':
             res = _get_cp_pbi_on_VF(tmp_vf, time=time, unit_time=unit_time,
                                     window_size=window_size)
@@ -1473,14 +1511,14 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
             for direction, position in mirroring:
                 if direction == 1:
                     if position < x_median and position > intervx[0]:
-                        intervx[0] = axe_x[tmp_vf.get_indice_on_axe(1, position)[0]]
+                        intervx[0] = axe_x[tmp_vf.get_indice_on_axe(1, position)[0] - 1]
                     elif position < intervx[1]:
-                        intervx[1] = axe_x[tmp_vf.get_indice_on_axe(1, position)[1]]
+                        intervx[1] = axe_x[tmp_vf.get_indice_on_axe(1, position)[1] + 1]
                 else:
                     if position < y_median and position > intervy[0]:
-                        intervy[0] = axe_y[tmp_vf.get_indice_on_axe(2, position)[0]]
+                        intervy[0] = axe_y[tmp_vf.get_indice_on_axe(2, position)[0] - 1]
                     elif position < intervy[1]:
-                        intervy[1] = axe_y[tmp_vf.get_indice_on_axe(2, position)[1]]
+                        intervy[1] = axe_y[tmp_vf.get_indice_on_axe(2, position)[1] + 1]
             res.trim(intervx=intervx, intervy=intervy, inplace=True)
     # if obj is vector fields
     elif isinstance(obj, TemporalVectorFields):
@@ -2001,7 +2039,7 @@ def get_separation_position(obj, wall_direction, wall_position,
         seps = seps[~np.isnan(seps)]
         lines_pos = lines_pos[~np.isnan(seps)]
     interp = UnivariateSpline(lines_pos, seps, k=1)
-    return interp(wall_position)
+    return float(interp(wall_position))
 
 
 ### Critical lines ###
