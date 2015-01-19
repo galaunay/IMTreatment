@@ -12,7 +12,7 @@ import matplotlib as mpl
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import Plotlib as pplt
-#import guiqwt.pyplot as plt
+# import guiqwt.pyplot as plt
 import numpy as np
 import pdb
 import unum
@@ -26,14 +26,13 @@ try:
 except:
     pass
 
-
-
 ARRAYTYPES = (np.ndarray, list, tuple)
 NUMBERTYPES = (int, long, float, complex, np.float, np.float16, np.float32,
                np.float64, np.int, np.int16, np.int32, np.int64, np.int8)
 STRINGTYPES = (str, unicode)
 MYTYPES = ('Profile', 'ScalarField', 'VectorField', 'VelocityField',
            'VelocityFields', 'TemporalVelocityFields', 'patialVelocityFields')
+
 
 class ShapeError(StandardError):
     pass
@@ -2034,6 +2033,50 @@ class Profile(object):
         magn_prof = Profile(frq, magn, unit_x=1./self.unit_x,
                             unit_y=unit_y)
         return magn_prof
+
+    def get_pdf(self, bw_method='scott', resolution=1000, raw=False):
+        """
+        Return the probability density function.
+
+        Parameters
+        ----------
+        bw_method : str, scalar or callable, optional
+            The method used to calculate the estimator bandwidth. This can be
+            ‘scott’, ‘silverman’, a scalar constant or a callable. If a scalar,
+            this will be used directly as kde.factor. If a callable, it should
+            take a gaussian_kde instance as only parameter and return a scalar.
+            If None (default), ‘scott’ is used.
+            See 'scipy.stats.kde' for more details.
+        resolution : integer, optional
+            Resolution of the returned pdf.
+        raw : boolean, optional
+            If 'True', return an array, else, return a Profile object.
+        """
+        # check params
+        if not isinstance(resolution, int):
+            raise TypeError()
+        if resolution < 1:
+            raise ValueError()
+        if not isinstance(raw, bool):
+            raise TypeError()
+        # remove masked values
+        filt = np.logical_not(self.mask)
+        y = self.y[filt]
+        y_min = np.min(y)
+        y_max = np.max(y)
+        # get kernel
+        import scipy.stats.kde as spkde
+        kernel = spkde.gaussian_kde(y)
+        # get values
+        pdf_x = np.linspace(y_min, y_max, resolution)
+        pdf_y = kernel(pdf_x)
+        # returning
+        if raw:
+            return pdf_y
+        else:
+            prof = Profile(pdf_x, pdf_y, mask=False, unit_x=self.unit_y,
+                           unit_y='')
+            return prof
 
     def get_auto_correlation(self, window_len, raw=False):
         """
