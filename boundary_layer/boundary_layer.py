@@ -154,10 +154,13 @@ class BlasiusBL(object):
             x = np.array([x])
         if isinstance(h, NUMBERTYPES):
             h = np.array([h])
-        Re_x = self.get_Rex(x)
-        delta_blas = 4.92*x/Re_x**.5
-        delta_perso = delta_blas - delta_blas**2*0.26547/h
-        return delta_perso
+        delta_blas = self.get_thickness(x, allTurbulent=allTurbulent)[0].y[0]
+
+        delta_perso = delta_blas*(1 - 0.26547*delta_blas/h)
+        # returning
+        delta = Profile(x, delta_perso, unit_x=make_unit('m'),
+                        unit_y=make_unit('m'))
+        return delta
 
     def get_wall_shear_stress(self, x, allTurbulent=False):
         """
@@ -179,7 +182,7 @@ class BlasiusBL(object):
             tau_w = 0.664/Re_x**(0.5)*1./2.*self.rho*self.Uinf**2
         return tau_w
 
-    def get_profile(self, x, y=None, turbulent=False):
+    def get_profile(self, x, y=None, allTurbulent=False):
         """
         Return a Blasius-like (laminar) profile at the given position.
 
@@ -190,7 +193,7 @@ class BlasiusBL(object):
         y : array of numbers
             Point along y where to compute the profile (if not specified,
             200 homogeneously placed points are used)
-        turbulent : bool, optional
+        allTurbulent : bool, optional
             if True, the boundary layer is considered turbulent.
 
         Returns
@@ -198,8 +201,11 @@ class BlasiusBL(object):
         prof : Profile Object
             Wanted Blasius-like profile.
         """
+        # check
+        if not isinstance(x, NUMBERTYPES):
+            raise TypeError()
         # Not turbulent case
-        if not turbulent:
+        if not allTurbulent:
             def f_deriv(F, theta):
                 """
                 y' = dy/dx
@@ -233,6 +239,40 @@ class BlasiusBL(object):
             u_over_U[theta > 1] = 1.
             u = u_over_U*self.Uinf
         return Profile(y, u, unit_x=make_unit('m'), unit_y=make_unit('m/s'))
+
+    def get_profile_with_confinement(self, x, h, y=None, allTurbulent=False):
+        """
+        Return a Blasius-like (laminar) profile at the given position, ajusted
+        for confined BL.
+
+        Parameters
+        ----------
+        x : number
+            Position of the profile along x axis
+        h : number
+            Pater level.
+        y : array of numbers
+            Point along y where to compute the profile (if not specified,
+            200 homogeneously placed points are used)
+        allTurbulent : bool, optional
+            if True, the boundary layer is considered turbulent.
+
+        Returns
+        -------
+        prof : Profile Object
+            Wanted Blasius-like profile.
+        """
+        # check
+        if not isinstance(x, NUMBERTYPES):
+            raise TypeError()
+        if not isinstance(h, NUMBERTYPES):
+            raise TypeError()
+        # get
+        delta = self.get_thickness_with_confinement(x, h,
+                                                    allTurbulent=allTurbulent)
+        eq_x = self.get_x_from_delta(delta.y[0])
+        # return
+        return self.get_profile(eq_x, y=y, allTurbulent=allTurbulent)
 
     def get_x_from_delta(self, delta, allTurbulent=False):
         """

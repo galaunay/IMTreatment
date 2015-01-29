@@ -4652,7 +4652,7 @@ class ScalarField(Field):
         else:
             raise ValueError("Unknown 'kind' of plot for ScalarField object")
         # setting labels
-        plt.axis('equal')
+        plt.axis('image')
         plt.xlabel("X " + unit_x.strUnit())
         plt.ylabel("Y " + unit_y.strUnit())
         return displ
@@ -5594,7 +5594,7 @@ class VectorField(Field):
                     displ = plt.quiver(axe_x, axe_y, Vx, Vy, magn, **plotargs)
             else:
                 raise ValueError("Unknown value of 'kind'")
-            plt.axis('equal')
+            plt.axis('image')
             plt.xlabel("X " + unit_x.strUnit())
             plt.ylabel("Y " + unit_y.strUnit())
         elif component == "x":
