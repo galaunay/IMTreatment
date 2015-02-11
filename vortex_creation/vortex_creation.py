@@ -57,14 +57,14 @@ class BurgerVortex(Vortex):
     the balance between vorticity creation at the center and vorticity
     diffusion.
     """
-    def __init__(self, x0=0., y0=0., alpha=1., ksi=1., viscosity=1e-6):
+    def __init__(self, x0=0., y0=0., alpha=1e-6, ksi=1., viscosity=1e-6):
         """
         Parameters
         ----------
         x0, y0 : numbers, optional
             Position of the vortex center (default : [0, 0]).
         alpha : number, optional
-            Positive constant (default : 1.), low value for big vortex.
+            Positive constant (default : 1e-6), low value for big vortex.
         ksi : number, optional
             Constant (default : 1.), make the overall velocity augment.
             Can also be used to switch the rotation direction.

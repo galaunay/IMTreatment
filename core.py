@@ -1029,6 +1029,46 @@ class Points(object):
         self.xy = np.delete(self.xy, ind, axis=0)
         self.v = np.delete(tmp_v, ind, axis=0)
 
+    def change_unit(self, axe, new_unit):
+        """
+        Change the unit of an axe.
+
+        Parameters
+        ----------
+        axe : string
+            'y' for changing the profile y axis unit
+            'x' for changing the profile x axis unit
+            'v' for changing the profile values unit
+        new_unit : Unum.unit object or string
+            The new unit.
+        """
+        if isinstance(new_unit, STRINGTYPES):
+            new_unit = make_unit(new_unit)
+        if not isinstance(new_unit, unum.Unum):
+            raise TypeError()
+        if not isinstance(axe, STRINGTYPES):
+            raise TypeError()
+        if axe == 'x':
+            old_unit = self.unit_x
+            new_unit = old_unit.asUnit(new_unit)
+            fact = new_unit.asNumber()
+            self.xy[:, 0] *= fact
+            self.unit_x = new_unit/fact
+        elif axe == 'y':
+            old_unit = self.unit_y
+            new_unit = old_unit.asUnit(new_unit)
+            fact = new_unit.asNumber()
+            self.xy[:, 1] *= fact
+            self.unit_y = new_unit/fact
+        elif axe == 'v':
+            old_unit = self.unit_v
+            new_unit = old_unit.asUnit(new_unit)
+            fact = new_unit.asNumber()
+            self.v *= fact
+            self.unit_v = new_unit/fact
+        else:
+            raise ValueError()
+
     def trim(self, interv_x=None, interv_y=None):
         """
         Return a trimmed point cloud.
@@ -2854,6 +2894,37 @@ class Field(object):
         return np.array(inds, subok=True)
 
     ### Modifiers ###
+    def change_unit(self, axe, new_unit):
+        """
+        Change the unit of an Field.
+
+        Parameters
+        ----------
+        axe : string
+            'y' for changing the profile y axis unit
+            'x' for changing the profile x axis unit
+        new_unit : Unum.unit object or string
+            The new unit.
+        """
+        if isinstance(new_unit, STRINGTYPES):
+            new_unit = make_unit(new_unit)
+        if not isinstance(new_unit, unum.Unum):
+            raise TypeError()
+        if not isinstance(axe, STRINGTYPES):
+            raise TypeError()
+        if axe == 'x':
+            old_unit = self.unit_x
+            new_unit = old_unit.asUnit(new_unit)
+            fact = new_unit.asNumber()
+            self.unit_x = new_unit/fact
+        elif axe == 'y':
+            old_unit = self.unit_y
+            new_unit = old_unit.asUnit(new_unit)
+            fact = new_unit.asNumber()
+            self.unit_y = new_unit/fact
+        else:
+            raise ValueError()
+
     def set_origin(self, x=None, y=None):
         """
         Modify the axis in order to place the origin at the givev point (x, y)
@@ -4031,6 +4102,42 @@ class ScalarField(Field):
         return Points(pts, v, self.unit_x, self.unit_y, self.unit_values)
 
     ### Modifiers ###
+    def change_unit(self, axe, new_unit):
+        """
+        Change the unit of an axe.
+
+        Parameters
+        ----------
+        axe : string
+            'y' for changing the profile y axis unit
+            'x' for changing the profile x axis unit
+            'values' or changing values unit
+        new_unit : Unum.unit object or string
+            The new unit.
+        """
+        if isinstance(new_unit, STRINGTYPES):
+            new_unit = make_unit(new_unit)
+        if not isinstance(new_unit, unum.Unum):
+            raise TypeError()
+        if not isinstance(axe, STRINGTYPES):
+            raise TypeError()
+        if axe == 'x':
+            old_unit = self.unit_x
+            Field.change_unit(self, axe, new_unit)
+            self.axe_x /= self.unit_x/old_unit
+        elif axe == 'y':
+            old_unit = self.unit_y
+            Field.change_unit(self, axe, new_unit)
+            self.axe_y /= self.unit_y/old_unit
+        elif axe =='values':
+            old_unit = self.unit_values
+            new_unit = old_unit.asUnit(new_unit)
+            fact = new_unit.asNumber()
+            self.values *= fact
+            self.unit_values = new_unit/fact
+        else:
+            raise ValueError()
+
     def trim_area(self, intervalx=None, intervaly=None, ind=False,
                   inplace=False):
         """
@@ -4652,7 +4759,7 @@ class ScalarField(Field):
         else:
             raise ValueError("Unknown 'kind' of plot for ScalarField object")
         # setting labels
-        plt.axis('image')
+        #plt.axis('image')
         plt.xlabel("X " + unit_x.strUnit())
         plt.ylabel("Y " + unit_y.strUnit())
         return displ
@@ -5209,6 +5316,44 @@ class VectorField(Field):
         return copy.deepcopy(self)
 
     ### Modifiers ###
+
+    def change_unit(self, axe, new_unit):
+        """
+        Change the unit of an axe.
+
+        Parameters
+        ----------
+        axe : string
+            'y' for changing the profile y axis unit
+            'x' for changing the profile x axis unit
+            'values' or changing values unit
+        new_unit : Unum.unit object or string
+            The new unit.
+        """
+        if isinstance(new_unit, STRINGTYPES):
+            new_unit = make_unit(new_unit)
+        if not isinstance(new_unit, unum.Unum):
+            raise TypeError()
+        if not isinstance(axe, STRINGTYPES):
+            raise TypeError()
+        if axe == 'x':
+            old_unit = self.unit_x
+            Field.change_unit(self, axe, new_unit)
+            self.axe_x /= self.unit_x/old_unit
+        elif axe == 'y':
+            old_unit = self.unit_y
+            Field.change_unit(self, axe, new_unit)
+            self.axe_y /= self.unit_y/old_unit
+        elif axe =='values':
+            old_unit = self.unit_values
+            new_unit = old_unit.asUnit(new_unit)
+            fact = new_unit.asNumber()
+            self.comp_x *= fact
+            self.comp_y *= fact
+            self.unit_values = new_unit/fact
+        else:
+            raise ValueError()
+
     def smooth(self, tos='uniform', size=None, inplace=False, **kw):
         """
         Smooth the vectorfield in place.
@@ -5554,7 +5699,7 @@ class VectorField(Field):
         self.__init__()
 
     ### Displayers ###
-    def _display(self, component=None, kind=None, **plotargs):
+    def _display(self, component=None, kind=None, axis='image', **plotargs):
         if kind is not None:
             if not isinstance(kind, STRINGTYPES):
                 raise TypeError("'kind' must be a string")
@@ -5594,7 +5739,7 @@ class VectorField(Field):
                     displ = plt.quiver(axe_x, axe_y, Vx, Vy, magn, **plotargs)
             else:
                 raise ValueError("Unknown value of 'kind'")
-            plt.axis('image')
+            #plt.axis(axis)
             plt.xlabel("X " + unit_x.strUnit())
             plt.ylabel("Y " + unit_y.strUnit())
         elif component == "x":
@@ -6324,6 +6469,40 @@ class TemporalFields(Fields, Field):
         return magn
 
     ### Modifiers ###
+    def change_unit(self, axe, new_unit):
+        """
+        Change the unit of an axe.
+
+        Parameters
+        ----------
+        axe : string
+            'y' for changing the profile y axis unit
+            'x' for changing the profile x axis unit
+            'values' for changing values unit
+            'time' for changing time unit
+        new_unit : Unum.unit object or string
+            The new unit.
+        """
+        if isinstance(new_unit, STRINGTYPES):
+            new_unit = make_unit(new_unit)
+        if not isinstance(new_unit, unum.Unum):
+            raise TypeError()
+        if not isinstance(axe, STRINGTYPES):
+            raise TypeError()
+        if axe in ['x', 'y', 'values']:
+            for field in self.fields:
+                field.change_unit(axe, new_unit)
+        elif axe == 'time':
+            old_unit = self.unit_times
+            new_unit = old_unit.asUnit(new_unit)
+            fact = new_unit.asNumber()
+            self.times *= fact
+            self.unit_times = new_unit/fact
+        else:
+            raise ValueError()
+        if axe in ['x', 'y']:
+            Field.change_unit(self, axe, new_unit)
+
     def add_field(self, field, time=0., unit_times=""):
         """
         Add a field to the existing fields.

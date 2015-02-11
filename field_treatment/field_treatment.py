@@ -710,7 +710,6 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
     else:
         return streams
 
-
 def get_tracklines(vf, xy, delta=.25, interp='linear',
                    reverse_direction=False):
     """

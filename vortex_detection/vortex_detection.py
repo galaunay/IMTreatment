@@ -743,6 +743,41 @@ class CritPoints(object):
         # trajectories are obsolete
         self.current_epsilon = None
 
+    def change_unit(self, axe, new_unit):
+        """
+        Change the unit of an axe.
+
+        Parameters
+        ----------
+        axe : string
+            'y' for changing the y axis unit
+            'x' for changing the x axis unit
+            'time' for changing the time unit
+        new_unit : Unum.unit object or string
+            The new unit.
+        """
+        if isinstance(new_unit, STRINGTYPES):
+            new_unit = make_unit(new_unit)
+        if not isinstance(new_unit, unum.Unum):
+            raise TypeError()
+        if not isinstance(axe, STRINGTYPES):
+            raise TypeError()
+        if axe in ['x', 'y']:
+            for kind in self.iter:
+                for pt in kind:
+                    pt.change_unit(axe, new_unit)
+        elif axe == 'time':
+            for kind in self.iter:
+                for pt in kind:
+                    pt.change_unit('v', new_unit)
+            old_unit = self.unit_time
+            new_unit = old_unit.asUnit(new_unit)
+            fact = new_unit.asNumber()
+            self.times *= fact
+            self.unit_time = new_unit/fact
+        else:
+            raise ValueError()
+
     def trim(self, intervx=None, intervy=None, inplace=False):
         """
         Trim the point field.
@@ -1111,7 +1146,7 @@ class CritPoints(object):
         if field is not None and len(self.sadd[indice].xy) != 0:
             streams = self.sadd[indice]\
                 .get_streamlines_from_orientations(field,
-                    reverse_direction=[True, False])
+                    reverse_direction=[True, False], interp='cubic')
             for stream in streams:
                 stream._display(kind='plot', color=colors[4])
 
@@ -1563,6 +1598,8 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     # checking parameters coherence
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField")
+    if isinstance(unit_time, STRINGTYPES):
+        unit_time = make_unit(unit_time)
     # using VF methods to get cp position
     field = velocityfield_to_vf(vectorfield, time)
     pos, pbis = field.get_cp_position(window_size=window_size)
@@ -1580,7 +1617,7 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     # setting units
     pts.unit_x = vectorfield.unit_x
     pts.unit_y = vectorfield.unit_y
-    pts.unit_v = unit_time
+    pts.unit_time = unit_time
     for pt in pts.iter:
         pt = pt[0]
         pt.unit_x = vectorfield.unit_x
@@ -1616,6 +1653,8 @@ def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     # checking parameters coherence
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField")
+    if isinstance(unit_time, STRINGTYPES):
+        unit_time = make_unit(unit_time)
     # using VF methods to get cp position
     field = velocityfield_to_vf(vectorfield, time)
     pos, pbis = field.get_cp_cell_position(window_size=window_size)
@@ -1633,7 +1672,7 @@ def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     # setting units
     pts.unit_x = vectorfield.unit_x
     pts.unit_y = vectorfield.unit_y
-    pts.unit_v = unit_time
+    pts.unit_time = unit_time
     for pt in pts.iter:
         pt = pt[0]
         pt.unit_x = vectorfield.unit_x
@@ -1675,6 +1714,8 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     """
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'VF' must be a VectorField")
+    if isinstance(unit_time, STRINGTYPES):
+        unit_time = make_unit(unit_time)
     ### Getting pbi cp position and fields around ###
     VF_field = velocityfield_to_vf(vectorfield, time)
     cp_positions, pbis = VF_field.get_cp_cell_position(window_size=window_size)
@@ -1733,8 +1774,7 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         try:
             saddles_ori.append(np.array(_get_saddle_orientations(vectorfield,
                                                                  sad)))
-        except ValueError as error:
-            #print("error : {}".format(error.message))
+        except ValueError:
             saddles_ori.append([[0, 0], [0, 0]])
     tmp_opts = OrientedPoints()
     tmp_opts.import_from_Points(saddles, saddles_ori)
@@ -1791,7 +1831,7 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     # setting units
     pts.unit_x = vectorfield.unit_x
     pts.unit_y = vectorfield.unit_y
-    pts.unit_v = unit_time
+    pts.unit_time = unit_time
     for pt in pts.iter:
         pt = pt[0]
         pt.unit_x = vectorfield.unit_x
