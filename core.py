@@ -5163,6 +5163,15 @@ class VectorField(Field):
         raise Exception("Nope, can't do that")
 
     ### Properties ###
+
+    @property
+    def min(self):
+        return np.min(self.magnitude)
+
+    @property
+    def max(self):
+        return np.max(self.magnitude)
+
     @property
     def magnitude(self):
         """
@@ -7553,154 +7562,230 @@ class TemporalVectorFields(TemporalFields):
             tmp_tvf.fields = fields
             return tmp_tvf
 
-
-class SpatialScalarFields(Fields):
-    pass
-
-
-class SpatialVectorFields(Fields):
+class SpatialFields(Fields):
     """
-    Class representing a set of spatial-evolving velocity fields.
-
-    Principal methods
-    -----------------
-    "add_field" : add a velocity field.
-
-    "remove_field" : remove a field.
-
-    "display" : display the vector field, with these unities.
-
-    "get_bl*" : compute different kind of boundary layer thickness.
     """
 
-    def import_from_svfs(self, svfs):
-        """
-        Import velocity fields from another spatialvelocityfields.
+    ### Operators ###
+    def __init__(self):
+        self.unit_x = make_unit('')
+        self.unit_y = make_unit('')
+        self.unit_values = make_unit('')
 
-        Parameters
-        ----------
-        tvfs : SpatialVelocityFields object
-            Velocity fields to copy.
+    def __neg__(self):
+        tmp_tf = self.copy()
+        for i in np.arange(len(self.fields)):
+            tmp_tf.fields[i] = -tmp_tf.fields[i]
+        return tmp_tf
+
+    def __mul__(self, other):
+        if isinstance(other, (NUMBERTYPES, unum.Unum)):
+            final_vfs = self.__class__()
+            for field in self.fields:
+                final_vfs.add_field(field*other)
+            return final_vfs
+        else:
+            raise TypeError("You can only multiply a temporal velocity field "
+                            "by numbers")
+
+    __rmul__ = __mul__
+
+    def __truediv__(self, other):
+        if isinstance(other, (NUMBERTYPES, unum.Unum)):
+            final_vfs = self.__class__.__init__()
+            for field in self.fields:
+                final_vfs.add_field(field/other)
+            return final_vfs
+        else:
+            raise TypeError("You can only divide a temporal velocity field "
+                            "by numbers")
+
+    __div__ = __truediv__
+
+    def __pow__(self, number):
+        if not isinstance(number, NUMBERTYPES):
+            raise TypeError("You only can use a number for the power "
+                            "on a Vectorfield")
+        final_vfs = self.__class__()
+        for field in self.fields:
+            final_vfs.add_field(np.power(field, number))
+        return final_vfs
+
+    def __iter__(self):
+        for i in np.arange(len(self.fields)):
+            yield self.times[i], self.fields[i]
+
+    @property
+    def mask(self):
+        dim = (len(self.fields), self.shape[0], self.shape[1])
+        mask_f = np.empty(dim, dtype=bool)
+        for i, field in enumerate(self.fields):
+            mask_f[i, :, :] = field.mask[:, :]
+        return mask_f
+
+    @property
+    def mask_as_sf(self):
+        dim = len(self.fields)
+        mask_f = np.empty(dim, dtype=object)
+        for i, field in enumerate(self.fields):
+            mask_f[i] = field.mask_as_sf
+        return mask_f
+
+    @property
+    def unit_x(self):
+        return self.__unit_x
+
+    @unit_x.setter
+    def unit_x(self, unit):
+        self.__unit_x = unit
+        for field in self.fields:
+            field.unit_x = unit
+
+    @property
+    def unit_y(self):
+        return self.__unit_y
+
+    @unit_y.setter
+    def unit_y(self, unit):
+        self.__unit_y = unit
+        for field in self.fields:
+            field.unit_y = unit
+
+    @property
+    def unit_values(self):
+        return self._SpatialFields__unit_values
+
+    @unit_values.setter
+    def unit_values(self, unit):
+        self.__unit_values = unit
+        for field in self.fields:
+            field.unit_values = unit
+
+    @property
+    def x_min(self):
+        return np.min([field.axe_x[0] for field in self.fields])
+
+    @property
+    def x_max(self):
+        return np.max([field.axe_x[-1] for field in self.fields])
+
+    @property
+    def y_min(self):
+        return np.min([field.axe_y[0] for field in self.fields])
+
+    @property
+    def y_max(self):
+        return np.max([field.axe_y[-1] for field in self.fields])
+
+    def add_field(self, field):
         """
-        for componentkey in svfs.__dict__.keys():
-            component = svfs.__dict__[componentkey]
-            if isinstance(component, (VectorField, ScalarField)):
-                self.__dict__[componentkey] \
-                    = component.copy()
-            elif isinstance(component, NUMBERTYPES):
-                self.__dict__[componentkey] \
-                    = component*1
-            elif isinstance(component, STRINGTYPES):
-                self.__dict__[componentkey] \
-                    = component
-            elif isinstance(component, unum.Unum):
-                self.__dict__[componentkey] \
-                    = component.copy()
+        """
+        # check
+        if isinstance(self, SpatialScalarFields):
+            if not isinstance(field, ScalaraField):
+                raise TypeError()
+        elif isinstance(self, SpatialVectorFields):
+            if not isinstance(field, VectorField):
+                raise TypeError()
+        # first field
+        if len(self.fields) == 0:
+            self.unit_x = field.unit_x
+            self.unit_y = field.unit_y
+            self.unit_values = field.unit_values
+        else:
+            try:
+                field.change_unit('x', self.unit_x)
+                field.change_unit('y', self.unit_y)
+                field.change_unit('values', self.unit_values)
+            except unum.IncompatibleUnitsError:
+                raise ValueError("Inconsistent unit system")
+        # add field
+        Fields.add_field(self, field)
+
+    def _display(self, compo=None, **plotargs):
+        """
+        """
+        # getting data
+        if isinstance(self, SpatialVectorFields):
+            if compo == 'V' or compo is None:
+                comp = self.fields
             else:
-                raise TypeError("Unknown attribute type in VelocityFields "
-                                "object (" + str(componentkey) + " : "
-                                + str(type(component)) + ")."
-                                " You must implemente it.")
+                try:
+                    comp = self.__getattribute__("{}_as_sf".format(compo))
+                except AttributeError:
+                    raise ValueError()
+        elif isinstance(self, SpatialScalarFields):
+            if compo is None:
+                compo = "values"
+            try:
+                comp = self.__getattribute__("{}_as_sf".format(compo))
+            except AttributeError:
+                raise ValueError()
+        else:
+            raise TypeError()
+        # getting max and min
+
+        v_min = np.min([field.min for field in comp])
+        v_max = np.max([field.max for field in comp])
+        if 'vmin' in plotargs.keys():
+            v_min = plotargs.pop('vmin')
+        if 'vmax' in plotargs.keys():
+            v_max = plotargs.pop('vmax')
+        norm = plt.Normalize(v_min, v_max)
+        if 'norm' not in plotargs.keys():
+            plotargs['norm'] = norm
+        # setting default kind of display
+        if 'kind' not in plotargs.keys():
+            plotargs['kind'] = None
+        if plotargs['kind'] == 'stream':
+            if 'density' not in plotargs.keys():
+                plotargs['density'] = 1.
+            plotargs['density'] = plotargs['density']/(len(self.fields))**.5
+        # display
+        for field in comp:
+            field._display(**plotargs)
+
+    def display(self, compo=None, **plotargs):
+        self._display(compo=compo, **plotargs)
+        plt.axis('image')
+        cb = plt.colorbar()
+        cb.set_label(self.unit_values.strUnit())
+        plt.tight_layout()
 
     def copy(self):
-        """
-        Return a copy of the velocityfields
-        """
-        tmp_svfs = SpatialVectorFields()
-        tmp_svfs.import_from_svfs(self)
-        return tmp_svfs
+        return copy.deepcopy(self)
 
-    def get_bl(self, componentname, direction, value, rel=False,
-               kind="default"):
-        """
-        Return a profile on all the velocity fields.
-        """
-        if not isinstance(self.fields[0].get_comp(componentname),
-                          ScalarField):
-            raise ValueError("'componentname' must make reference to a "
-                             "ScalarField")
-        axe = np.array([], dtype=float)
-        bl = np.array([], dtype=float)
-        for field in self.fields:
-            compo = field.get_comp(componentname)
-            tmp_bl = compo.get_bl(direction, value, rel=rel, kind=kind)
-            axe = np.append(axe, tmp_bl.x)
-            bl = np.append(bl, tmp_bl.y)
-        conc = zip(axe, bl)
-        conc = np.array(conc, dtype=[('x', float), ('y', float)])
-        conc = np.sort(conc, axis=0, order='x')
-        axe, blayer = zip(*conc)
-        if direction == 1:
-            unit_x, unit_y = self.get_axe_units()
-        else:
-            unit_y, unit_x = self.get_axe_units()
-        bl_profile = Profile(axe, blayer, unit_x, unit_y, "Boundary Layer")
-        return bl_profile
 
-    def _display(self, componentname="V", scale=1, fieldnumber=None,
-                 **plotargs):
-        """
-        Display all the velocity fields on a single figure.
-        If fieldnumber is precised, only the wanted field is displayed.
-        ----------
-        componentname : string, optional
-            Component to display ('V', 'Vx', Vy' or 'magnitude').
-        scale : number, optional
-            If the display is a quiver, arrows are scaled by this factor.
-        fieldnumber : interger, optional
-            The number of the field to display
-        plotargs : dicte, optional
-            Arguments passed to the function used to display the vector field.
-        """
-        if fieldnumber is None:
-            fieldnumber = np.arange(0, len(self.fields))
-        if isinstance(fieldnumber, int):
-            if fieldnumber > len(self.fields)-1:
-                raise ValueError("Field number {0} do not exist"
-                                 .format(fieldnumber))
-            self.fields[fieldnumber]._display(componentname, scale,
-                                              **plotargs)
-        elif isinstance(fieldnumber, ARRAYTYPES):
-            comp = self.fields[0].get_comp(componentname)
-            if isinstance(comp, ScalarField):
-                try:
-                    plotargs["levels"]
-                except KeyError:
-                    mins = []
-                    maxs = []
-                    for nmb in fieldnumber:
-                        field = self.fields[nmb]
-                        mins.append(field.get_min(componentname))
-                        maxs.append(field.get_max(componentname))
-                    mins.sort()
-                    cmin = mins[0]
-                    maxs.sort()
-                    cmax = maxs[-1]
-                    levels = np.arange(cmin, cmax, (cmax-cmin)/19)
-                    plotargs["levels"] = levels
-            elif isinstance(comp, VectorField):
-                pass
-            self.fields[fieldnumber[0]]._display(componentname, scale,
-                                                 **plotargs)
-            for nmb in fieldnumber[1:]:
-                field = self.fields[nmb]
-                field._display(componentname, scale, **plotargs)
-        else:
-            raise TypeError("'fieldnumber' must be an interger, an array of "
-                            "integers or None")
+class SpatialScalarFields(SpatialFields):
 
-    def display(self, componentname="V", scale=1, fieldnumber=None,
-                **plotargs):
-        """
-        Display the spatial velocity fields.
-        """
-        self._display(componentname, scale, fieldnumber, **plotargs)
-        cbar = plt.colorbar()
-        compo = self.fields[0].get_comp(componentname)
-        if isinstance(compo, ScalarField):
-            unit = compo.unit_values.Getunit()
-        elif isinstance(compo, VectorField):
-            unit = compo.get_unit_values
-        else:
-            unit = compo.get_unit_values()
-        cbar.set_label("{0} {1}".format(componentname, unit))
+    def __init__(self):
+        Fields.__init__(self)
+
+    @property
+    def values_as_sf(self):
+        return self.fields
+
+
+class SpatialVectorFields(SpatialFields):
+    """
+    Class representing a set of spatial-evolving velocity fields.
+    """
+
+    def __init__(self):
+        Fields.__init__(self)
+
+    @property
+    def Vx_as_sf(self):
+        return [field.comp_x_as_sf for field in self.fields]
+
+    @property
+    def Vy_as_sf(self):
+        return [field.comp_y_as_sf for field in self.fields]
+
+    @property
+    def magnitude_as_sf(self):
+        return [field.magnitude_as_sf for field in self.fields]
+
+    @property
+    def theta_as_sf(self):
+        return [field.theta_as_sf for field in self.fields]
