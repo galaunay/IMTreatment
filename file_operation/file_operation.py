@@ -23,6 +23,9 @@ try:
 except:
     import pickle
 import scipy.io as spio
+import scipy.misc as spmisc
+from os import path
+import matplotlib.pyplot as plt
 
 
 ### Parsers ###
@@ -507,6 +510,7 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
         if not isinstance(fieldspath[0], STRINGTYPES):
             raise TypeError("'fieldspath' must be a string or a tuple of"
                             " string")
+        fieldspaths = np.array(fieldspath)
     elif isinstance(fieldspath, STRINGTYPES):
         fieldspaths = [f for f in glob(os.path.join(fieldspath, '*'))
                        if os.path.splitext(f)[-1] in ['.im7', '.IM7']]
@@ -537,12 +541,19 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
         raise ValueError()
     start = fieldnumbers[0]
     end = fieldnumbers[1]
+    t = 0.
     # loop on files
-    unit_times = make_unit('us')
     for path in fieldspaths[start:end:incr]:
+
         tmp_sf, infos = import_from_IM7(path, infos=True)
-        time = float(infos['AcqTimeSeries0'])
-        fields.add_field(tmp_sf, time, unit_times)
+        dt = infos['FrameDt0'].split()
+        unit_time = make_unit(dt[1])
+        dt = float(dt[0])
+        t += dt*incr
+        if kind == 'TSF':
+            fields.add_field(tmp_sf, t, unit_time)
+        else:
+            fields.add_field(tmp_sf)
     return fields
 
 
@@ -573,11 +584,22 @@ def import_from_VC7(filename, infos=False):
     atts = ReadIM.extra.att2dict(vatts)
     vectorGrid = vbuff.vectorGrid
     # Values and Mask
-    Vx = np.transpose(np.array(v_array[1]))
-    Vy = np.transpose(np.array(v_array[2]))
     mask = np.transpose(np.logical_not(np.array(v_mask[0])))
-    mask2 = np.logical_not(np.transpose(np.array(v_array[0])))
-    mask = np.logical_or(mask, mask2)
+    if v_array.shape[0] == 2:
+        Vx = np.transpose(np.array(v_array[0]))
+        Vy = np.transpose(np.array(v_array[1]))
+    elif v_array.shape[0] >= 3:
+        mask2 = np.logical_not(np.transpose(np.array(v_array[0])))
+        Vx = np.transpose(np.array(v_array[1]))
+        Vy = np.transpose(np.array(v_array[2]))
+        mask = np.logical_or(mask, mask2)
+    else:
+        for i in np.arange(v_array.shape[0]):
+            plt.figure()
+            plt.imshow(v_array[i, :, :])
+            plt.colorbar()
+        raise Exception
+    mask = np.logical_or(mask, np.logical_and(Vx==0., Vy==0.))
     scale_i = atts['_SCALE_I']
     scale_i = scale_i.split("\n")
     unit_values = scale_i[1]
@@ -609,7 +631,7 @@ def import_from_VC7(filename, infos=False):
     y_init = float(scale_val[1])
     dy = float(scale_val[0])*vectorGrid
     len_axe_y = Vx.shape[1]
-    if dy < 0:
+    if dy < 0 or scale_y[1] == 'pixel':
         axe_y = y_init + np.arange(len_axe_y - 1, -1, -1)*dy
         Vx = Vx[:, ::-1]
         Vy = -Vy[:, ::-1]
@@ -836,6 +858,142 @@ def davis_to_imt_gui():
     win.destroy()
     # saving datas
     export_to_file(obj, imt_path)
+
+### PICTURES ###
+def import_from_picture(filename, axe_x=None, axe_y=None, unit_x='', unit_y='',
+                        unit_values=''):
+    """
+    Import a scalar field from a picture file.
+
+    Parameters
+    ----------
+    filename : string
+        Path to the picture file.
+    axe_x :
+        .
+    axe_y :
+        .
+    unit_x :
+        .
+    unit_y :
+        .
+    unit_values :
+        .
+
+    Returns
+    -------
+    tmp_sf :
+        .
+    """
+    usable_ext = ['.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG', '.bmp',
+                  '.BMP']
+    if not isinstance(filename, STRINGTYPES):
+        raise TypeError("'filename' must be a string")
+    if not os.path.exists(filename):
+        raise ValueError("I did not find your file, boy")
+    _, ext = os.path.splitext(filename)
+    if not ext in usable_ext:
+        raise ValueError("I need the file to be an supported picture file"
+                         "(not a {} file)".format(ext))
+    # importing from file
+    values = spmisc.imread(filename, flatten=True).transpose()[:, ::-1]
+    # set axis
+    if axe_x is None:
+        axe_x = np.arange(values.shape[0])
+    else:
+        if len(axe_x) != values.shape[0]:
+            raise ValueError()
+    if axe_y is None:
+        axe_y = np.arange(values.shape[1])
+    else:
+        if len(axe_y) != values.shape[1]:
+            raise ValueError()
+    # create SF
+    tmp_sf = ScalarField()
+    tmp_sf.import_from_arrays(axe_x, axe_y, values, unit_x=unit_x,
+                              unit_y=unit_y, unit_values=unit_values)
+    # return
+    return tmp_sf
+
+
+def import_from_pictures(dirname, axe_x=None, axe_y=None, unit_x='', unit_y='',
+                         unit_values='', times=None, unit_times=''):
+    """
+    Import scalar fields from a bunch of picture files.
+
+    Parameters
+    ----------
+    dirname : string
+        Path to the files.
+    axe_x :
+        .
+    axe_y :
+        .
+    unit_x :
+        .
+    unit_y :
+        .
+    unit_values :
+        .
+
+    Returns
+    -------
+    tmp_sf :
+        .
+    """
+    # get paths
+    paths = glob(path.join(dirname))
+    tmp_tsf = TemporalScalarFields()
+    # check times
+    if times is None:
+        times = np.arange(len(paths))
+    elif len(times) != len(paths):
+        raise ValueError()
+    # loop on paths
+    for i, p in enumerate(paths):
+        tmp_sf = import_from_picture(p, axe_x=axe_x, axe_y=axe_y,
+                                     unit_x=unit_x, unit_y=unit_y,
+                                     unit_values=unit_values)
+        tmp_tsf.add_field(tmp_sf, times[i], unit_times=unit_times)
+    # returning
+    return tmp_tsf
+
+def export_to_picture(SF, filename):
+    """
+    Export a scalar field to a picture file.
+
+    Parameters
+    ----------
+    SF :
+        .
+    filename : string
+        Path to the picture file.
+    """
+    values = SF.values[:, ::-1].transpose()
+    spmisc.imsave(filename, values)
+
+def export_to_pictures(SFs, dirname):
+    """
+    Export a scalar fields to a picture file.
+
+    Parameters
+    ----------
+    SF :
+        .
+    filename : string
+        Path to the picture file.
+    """
+    # get
+    values = []
+    if isinstance(SFs, ARRAYTYPES):
+        for i in np.arange(len(SFs)):
+            values.append(SFs[i].values)
+    elif isinstance(SFs, (SpatialScalarFields, TemporalScalarFields)):
+        for i in np.arange(len(SFs.fields)):
+            values.append(SFs.fields[i].values[:, ::-1].transpose())
+    # save
+    for i, val in enumerate(values):
+        spmisc.imsave(path.join(dirname, "{:0>5}.png".format(i)), val)
 
 
 ### ASCII ###
