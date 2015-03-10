@@ -11,6 +11,7 @@ import scipy.optimize as spopt
 import matplotlib as mpl
 from matplotlib import cm
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import Plotlib as pplt
 # import guiqwt.pyplot as plt
 import numpy as np
@@ -2602,10 +2603,12 @@ class Profile(object):
             color_label = ''
         if 'color' in plotargs.keys():
             if isinstance(plotargs['color'], ARRAYTYPES):
-                color = plotargs.pop('color')
-                plot = pplt.colored_plot(x, y, z=color, log=kind,
-                                         color_label=color_label, **plotargs)
-                return plot
+                if len(plotargs['color']) == len(x):
+                    color = plotargs.pop('color')
+                    plot = pplt.colored_plot(x, y, z=color, log=kind,
+                                             color_label=color_label,
+                                             **plotargs)
+                    return plot
         # homogeneous color
         if kind == 'plot':
             plot = plt.plot(x, y, **plotargs)
@@ -5276,8 +5279,8 @@ class VectorField(Field):
         If ind is true, x and y are indices,
         else, x and y are value on axes (interpolated if necessary).
         """
-        return [self.comp_x_as_sf.get_value(x, y, ind=ind, unit=unit),
-                self.comp_y_as_sf.get_value(x, y, ind=ind, unit=unit)]
+        return np.array([self.comp_x_as_sf.get_value(x, y, ind=ind, unit=unit),
+                         self.comp_y_as_sf.get_value(x, y, ind=ind, unit=unit)])
 
     def get_profile(self, component, direction, position, ind=False):
         """
@@ -5843,6 +5846,7 @@ class VectorField(Field):
             plt.title("Magnitude")
         else:
             raise ValueError("Unknown 'component' value")
+        plt.axis('image')
         return displ
 
 
@@ -7571,6 +7575,7 @@ class SpatialFields(Fields):
         self.unit_x = make_unit('')
         self.unit_y = make_unit('')
         self.unit_values = make_unit('')
+        self.fields_type = None
 
     def __neg__(self):
         tmp_tf = self.copy()
@@ -7702,6 +7707,140 @@ class SpatialFields(Fields):
         # add field
         Fields.add_field(self, field)
 
+    def get_value(self, x, y, unit=False, error=True):
+        """
+        Return the field component(s) on the point (x, y).
+
+        Parameters
+        ----------
+        x, y : number
+            Point coordinates
+        unit : boolean, optional
+            If 'True', component(s) is(are) returned with its unit.
+        error : boolean, optional
+            If 'True', raise an error if the asked point is outside the fields.
+            If 'False', return 'None'
+        """
+        # get interesting fields
+        inter_ind = []
+        for i, field in enumerate(self.fields):
+            if (x > field.axe_x[0] and x < field.axe_x[-1]
+                    and y > field.axe_y[0] and y < field.axe_y[-1]):
+                inter_ind.append(i)
+        # get values (mean over fields if necessary)
+        if len(inter_ind) == 0:
+            if error:
+                raise ValueError("coordinates outside the fields")
+            else:
+                return None
+        else:
+            values = self.fields[inter_ind[0]].get_value(x, y,
+                                                         ind=False, unit=False)
+            for field in self.fields[inter_ind][1::]:
+                values += field.get_value(x, y, ind=False, unit=False)
+            values /= len(inter_ind)
+            return values
+
+    def get_values_on_grid(self, axe_x, axe_y):
+        """
+        """
+        # check
+        if not isinstance(axe_x, ARRAYTYPES):
+            raise TypeError()
+        if not isinstance(axe_y, ARRAYTYPES):
+            raise TypeError()
+        axe_x = np.array(axe_x)
+        axe_y = np.array(axe_y)
+        if isinstance(self.fields[0], ScalarField):
+            values = np.zeros(shape=(len(axe_x), len(axe_y)), dtype=float)
+            mask = np.zeros(shape=(len(axe_x), len(axe_y)), dtype=bool)
+            for i, x in enumerate(axe_x):
+                for j, y in enumerate(axe_y):
+                    val = self.get_value(x, y, unit=False, error=False)
+                    if val is None:
+                        mask[i, j] = True
+                    else:
+                        values[i, j] = val
+            tmp_f = ScalarField
+            tmp_f.import_from_arrays(axe_x, axe_y, values, mask=mask,
+                                     unit_x=self.unit_x, unit_y=self.unit_y,
+                                     unit_values=self.unit_values)
+        elif isinstance(self.fields[0], VectorField):
+            Vx = np.zeros(shape=(len(axe_x), len(axe_y)), dtype=float)
+            Vy = np.zeros(shape=(len(axe_x), len(axe_y)), dtype=float)
+            mask = np.zeros(shape=(len(axe_x), len(axe_y)), dtype=bool)
+            for i, x in enumerate(axe_x):
+                for j, y in enumerate(axe_y):
+                    val = self.get_value(x, y, unit=False, error=False)
+                    if val is None:
+                        mask[i, j] = True
+                    else:
+                        Vx[i, j] = val[0]
+                        Vy[i, j] = val[1]
+
+            tmp_f = VectorField()
+            tmp_f.import_from_arrays(axe_x, axe_y, Vx, Vy,
+                                     mask=mask,
+                                     unit_x=self.unit_x, unit_y=self.unit_y,
+                                     unit_values=self.unit_values)
+        else:
+            raise Exception()
+        return tmp_f
+
+    def get_profile(self, direction, position, component=None):
+        """
+        """
+        # getting data
+        if isinstance(self, SpatialVectorFields):
+            if component is None:
+                component = 'magnitude'
+            else:
+                try:
+                    comp = self.__getattribute__("{}_as_sf".format(component))
+                except AttributeError:
+                    raise ValueError()
+        elif isinstance(self, SpatialScalarFields):
+            if component is None:
+                component = "values"
+            try:
+                comp = self.__getattribute__("{}_as_sf".format(component))
+            except AttributeError:
+                raise ValueError()
+        # get fields of interest
+        inter_ind = []
+        if direction == 1:
+            for i, field in enumerate(self.fields):
+                if position < field.axe_x[-1] and position > field.axe_x[0]:
+                    inter_ind.append(i)
+        elif direction == 2:
+            for i, field in enumerate(self.fields):
+                if position < field.axe_y[-1] and position > field.axe_y[0]:
+                    inter_ind.append(i)
+        # get profiles
+        if len(inter_ind) == 0:
+            return None
+        elif len(inter_ind) == 1:
+            return comp[inter_ind[0]].get_profile(direction=direction,
+                                                  position=position, ind=False)[0]
+        else:
+            # get profiles
+            x = np.array([])
+            y = np.array([])
+            for ind in inter_ind:
+                tmp_comp = comp[ind]
+                tmp_prof = tmp_comp.get_profile(direction=direction,
+                                                position=position, ind=False)[0]
+                x = np.concatenate((x, tmp_prof.x))
+                y = np.concatenate((y, tmp_prof.y))
+            # recreate profile object
+            ind_sort = np.argsort(x)
+            x = x[ind_sort]
+            y = y[ind_sort]
+            fin_prof = Profile(x, y, mask=False, unit_x=tmp_prof.unit_x,
+                               unit_y = tmp_prof.unit_y)
+
+            return fin_prof
+
     def _display(self, compo=None, **plotargs):
         """
         """
@@ -7760,6 +7899,7 @@ class SpatialScalarFields(SpatialFields):
 
     def __init__(self):
         Fields.__init__(self)
+        self.fields_type = ScalarField
 
     @property
     def values_as_sf(self):
@@ -7773,6 +7913,7 @@ class SpatialVectorFields(SpatialFields):
 
     def __init__(self):
         Fields.__init__(self)
+        self.fields_type = VectorField
 
     @property
     def Vx_as_sf(self):
