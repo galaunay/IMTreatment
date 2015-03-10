@@ -547,7 +547,8 @@ class ModalFields(Field):
         plt.tight_layout()
 
 
-def modal_decomposition(TF, kind='pod', wanted_modes='all'):
+def modal_decomposition(TF, kind='pod', wanted_modes='all',
+                        max_vecs_per_node=1000, verbose=True):
     """
     Compute POD modes of the given fields using the snapshot method.
 
@@ -561,6 +562,11 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
         If 'all', extract all modes,
         If a number, extract first modes,
         If an array, extract the associated modes.
+    max_vecs_per_node : integer, optional
+        Number of fields that can be charged in memory.
+        (More is faster but can lead to MemoryError)
+    verbose : boolean, optional
+        If 'True', display information.
 
     Retuns
     ------
@@ -631,7 +637,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
     pulsation = None
     if kind == 'pod':
         my_decomp = modred.PODHandles(np.vdot, max_vecs_per_node=1000,
-                                      verbosity=0)
+                                      verbosity=verbose)
         eigvect, eigvals = my_decomp.compute_decomp(snaps)
         wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
         eigvect = np.array(eigvect)
@@ -640,7 +646,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
                           unit_x=unit_times, unit_y='')
     elif kind == 'bpod':
         my_decomp = modred.BPODHandles(np.vdot, max_vecs_per_node=1000,
-                                       verbosity=0)
+                                       verbosity=verbose)
         eigvect, eigvals, eigvect_l = my_decomp.compute_decomp(snaps, snaps)
         wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
         eigvect = np.array(eigvect)
@@ -649,7 +655,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all'):
                           unit_x=unit_times, unit_y='')
     elif kind == 'dmd':
         my_decomp = modred.DMDHandles(np.vdot, max_vecs_per_node=1000,
-                                      verbosity=0)
+                                      verbosity=verbose)
         ritz_vals, mode_norms, build_coeffs = my_decomp.compute_decomp(snaps)
         del snaps
         wanted_modes = wanted_modes[wanted_modes < len(ritz_vals)]
