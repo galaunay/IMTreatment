@@ -557,7 +557,7 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
     return fields
 
 
-def import_from_VC7(filename, infos=False):
+def import_from_VC7(filename, infos=False, add_fields=False):
     """
     Import a vector field or a velocity field from a .VC7 file
 
@@ -567,6 +567,9 @@ def import_from_VC7(filename, infos=False):
         Path to the file to import.
     infos : boolean, optional
         If 'True', also return a dictionary with informations on the im7
+    add_fields : boolean, optional
+        If 'True', also return a tuple containing additional fields
+        contained in the vc7 field (peak ratio, correlation value, ...)
     """
     if not isinstance(filename, STRINGTYPES):
         raise TypeError("'filename' must be a string")
@@ -593,13 +596,13 @@ def import_from_VC7(filename, infos=False):
         Vx = np.transpose(np.array(v_array[1]))
         Vy = np.transpose(np.array(v_array[2]))
         mask = np.logical_or(mask, mask2)
-    else:
-        for i in np.arange(v_array.shape[0]):
-            plt.figure()
-            plt.imshow(v_array[i, :, :])
-            plt.colorbar()
-        raise Exception
     mask = np.logical_or(mask, np.logical_and(Vx==0., Vy==0.))
+    # additional fields if necessary
+    if add_fields and v_array.shape[0] > 3:
+        suppl_fields = []
+        for i in np.arange(4, v_array.shape[0]):
+            suppl_fields.append(np.transpose(np.array(v_array[i])))
+    # Get and apply scale on values
     scale_i = atts['_SCALE_I']
     scale_i = scale_i.split("\n")
     unit_values = scale_i[1]
@@ -608,7 +611,7 @@ def import_from_VC7(filename, infos=False):
     Vx += float(scale_val[1])
     Vy *= float(scale_val[0])
     Vy += float(scale_val[1])
-    # X
+    # Get and apply scale on X
     scale_x = atts['_SCALE_X']
     scale_x = scale_x.split("\n")
     unit_x = scale_x[1]
@@ -621,9 +624,12 @@ def import_from_VC7(filename, infos=False):
         Vx = -Vx[::-1, :]
         Vy = Vy[::-1, :]
         mask = mask[::-1, :]
+        if add_fields:
+            for i in np.arange(len(suppl_fields)):
+                suppl_fields[i] = suppl_fields[i][::-1, :]
     else:
         axe_x = x_init + np.arange(len_axe_x)*dx
-    # Y
+    # Get and apply scale on Y
     scale_y = atts['_SCALE_Y']
     scale_y = scale_y.split("\n")
     unit_y = scale_y[1]
@@ -636,6 +642,9 @@ def import_from_VC7(filename, infos=False):
         Vx = Vx[:, ::-1]
         Vy = -Vy[:, ::-1]
         mask = mask[:, ::-1]
+        if add_fields:
+            for i in np.arange(len(suppl_fields)):
+                suppl_fields[i] = suppl_fields[i][:, ::-1]
     else:
         axe_y = y_init + np.arange(len_axe_y)*dy
     # deleting buffers
@@ -647,13 +656,24 @@ def import_from_VC7(filename, infos=False):
     tmpvf = VectorField()
     tmpvf.import_from_arrays(axe_x, axe_y, Vx, Vy, mask=mask, unit_x=unit_x,
                              unit_y=unit_y, unit_values=unit_values)
+    res = ()
+    res += (tmpvf,)
     if infos:
-        return tmpvf, atts
-    else:
-        return tmpvf
+        res += (atts,)
+    if add_fields:
+        add_fields = []
+        for i in np.arange(len(suppl_fields)):
+            tmp_field = ScalarField()
+            tmp_field.import_from_arrays(axe_x, axe_y, suppl_fields[i],
+                                         unit_x=unit_x, unit_y=unit_y,
+                                         unit_values='')
+            add_fields.append(tmp_field)
+        res += (add_fields,)
+    return res
 
 
-def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1):
+def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
+                     add_fields=False):
     """
     Import velocity fields from .VC7 files.
     'fieldspath' should be a tuple of path to vc7 files.
@@ -670,6 +690,9 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1):
     incr : integer
         Incrementation between fields to take. Default is 1, meaning all
         fields are taken.
+    add_fields : boolean, optional
+        If 'True', also return a tuple containing additional fields
+        contained in the vc7 field (peak ratio, correlation value, ...)
     """
     if isinstance(fieldspath, ARRAYTYPES):
         if not isinstance(fieldspath[0], STRINGTYPES):
@@ -707,15 +730,31 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1):
     start = fieldnumbers[0]
     end = fieldnumbers[1]
     t = 0.
-    for path in fieldspath[start:end:incr]:
-        tmp_vf, infos = import_from_VC7(path, infos=True)
-        dt = infos['FrameDt0'].split()
-        unit_time = make_unit(dt[1])
-        dt = float(dt[0])
-        t += dt*incr
-        fields.add_field(tmp_vf, t, unit_time)
-
-    return fields
+    if add_fields:
+        tmp_vf, add_fields = import_from_VC7(fieldspath[0], add_fields=True)
+        suppl_fields = [TemporalScalarFields() for field in add_fields]
+    for p in fieldspath[start:end:incr]:
+        if add_fields:
+            tmp_vf, infos, add_fields = import_from_VC7(p, infos=True,
+                                                        add_fields=True)
+            dt = infos['FrameDt0'].split()
+            unit_time = make_unit(dt[1])
+            dt = float(dt[0])
+            t += dt*incr
+            fields.add_field(tmp_vf, t, unit_time)
+            for i, f in enumerate(add_fields):
+                suppl_fields[i].add_field(f, t, unit_time)
+        else:
+            tmp_vf, infos = import_from_VC7(p, infos=True)
+            dt = infos['FrameDt0'].split()
+            unit_time = make_unit(dt[1])
+            dt = float(dt[0])
+            t += dt*incr
+            fields.add_field(tmp_vf, t, unit_time)
+    if add_fields:
+        return fields, suppl_fields
+    else:
+        return fields
 
 
 def IM7_to_imt(im7_path, imt_path, kind='SF', compressed=True, **kwargs):

@@ -2641,10 +2641,6 @@ class Profile(object):
         fig : Plot reference
             Reference to the displayed plot.
         """
-        try:
-            plotargs["label"]
-        except KeyError:
-            plotargs["label"] = self.name
         plot = self._display(kind, reverse, **plotargs)
         plt.title(self.name)
         if not reverse:
@@ -3571,7 +3567,7 @@ class ScalarField(Field):
                 ind_x = inds_x[0]
                 ind_y = inds_y[0]
                 a, b = np.meshgrid(self.axe_x[ind_x:ind_x + 2],
-                                   self.axe_y[ind_y:ind_y + 2])
+                                   self.axe_y[ind_y:ind_y + 2], indexing='ij')
                 values = self.values[ind_x:ind_x + 2, ind_y:ind_y + 2]
                 a = a.flatten()
                 b = b.flatten()
@@ -7687,7 +7683,7 @@ class SpatialFields(Fields):
         """
         # check
         if isinstance(self, SpatialScalarFields):
-            if not isinstance(field, ScalaraField):
+            if not isinstance(field, ScalarField):
                 raise TypeError()
         elif isinstance(self, SpatialVectorFields):
             if not isinstance(field, VectorField):
@@ -7697,6 +7693,7 @@ class SpatialFields(Fields):
             self.unit_x = field.unit_x
             self.unit_y = field.unit_y
             self.unit_values = field.unit_values
+        # other ones
         else:
             try:
                 field.change_unit('x', self.unit_x)
@@ -7704,6 +7701,8 @@ class SpatialFields(Fields):
                 field.change_unit('values', self.unit_values)
             except unum.IncompatibleUnitsError:
                 raise ValueError("Inconsistent unit system")
+        # crop fields
+        field.crop_masked_border()
         # add field
         Fields.add_field(self, field)
 
@@ -7733,16 +7732,26 @@ class SpatialFields(Fields):
                 raise ValueError("coordinates outside the fields")
             else:
                 return None
+        elif len(inter_ind) == 1:
+            values = self.fields[inter_ind[0]].get_value(x, y,
+                                                         ind=False, unit=False)
         else:
             values = self.fields[inter_ind[0]].get_value(x, y,
                                                          ind=False, unit=False)
             for field in self.fields[inter_ind][1::]:
                 values += field.get_value(x, y, ind=False, unit=False)
             values /= len(inter_ind)
-            return values
+        return values
 
     def get_values_on_grid(self, axe_x, axe_y):
         """
+        Return a all the fields in a single evenly-spaced grid.
+        (Use interpolation to get the data on the grid points)
+
+        Parameters
+        ----------
+        axe_x, axe_y : arrays of ndim 1
+            Representing the grid axis.
         """
         # check
         if not isinstance(axe_x, ARRAYTYPES):
