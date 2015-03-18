@@ -309,13 +309,19 @@ class Points(object):
             elif len(another.xy) == 0:
                 return self.copy()
             # checking unit systems
-            try:
-                self.unit_x + another.unit_x
-                self.unit_y + another.unit_y
-                if self.v is not None and another.v is not None:
-                    self.unit_v + another.unit_v
-            except unum.IncompatibleUnitsError:
-                raise ValueError("Units system are not the same")
+            if len(self.xy) != 0:
+                try:
+                    self.unit_x + another.unit_x
+                    self.unit_y + another.unit_y
+                    if self.v is not None and another.v is not None:
+                        self.unit_v + another.unit_v
+                except unum.IncompatibleUnitsError:
+                    raise ValueError("Units system are not the same")
+            else:
+                self.unit_x = another.unit_x
+                self.unit_y = another.unit_y
+                if another.v is not None:
+                    self.unit_v = another.unit_v
             # compacting coordinates
             if another.xy.shape == (0,):
                 new_xy = self.xy
@@ -333,18 +339,13 @@ class Points(object):
                 new_xy = np.append(self.xy, xy, axis=0)
             # testing v presence
             v_presence = True
-            if self.v is None:
+            if self.v is None and another.v is None:
                 if len(self.xy) != 0:
                     v_presence = False
+            elif self.v is not None and another.v is not None:
+                    v_presence = True
             else:
-                if len(self.xy) != len(self.v):
-                    v_presence = False
-            if another.v is None:
-                if len(another.xy) != 0:
-                    v_presence = False
-            else:
-                if len(another.xy) != len(another.v):
-                    v_presence = False
+                raise Exception()
             # compacting points and returning
             if v_presence:
                 if self.v is None and another.v is None:
@@ -601,13 +602,18 @@ class Points(object):
             raise TypeError()
         if res_x < 2 or res_y < 2:
             raise ValueError()
+        # check potential singular covariance matrix situations
+        if (np.all(self.xy[:, 0] == self.xy[0, 0])
+                or np.all(self.xy[:, 1] == self.xy[0, 1])):
+            return None
         # get kernel using scipy
         if isinstance(bw_method, NUMBERTYPES):
             if width_x > width_y:
                 bw_method /= width_y
             else:
                 bw_method /= width_x
-        kernel = stats.gaussian_kde(self.xy.transpose(), bw_method=bw_method)
+        kernel = stats.gaussian_kde(self.xy.transpose(),
+                                    bw_method=bw_method)
         # little adaptation to avoi streched density map
 
         if width_x > width_y:
@@ -643,6 +649,8 @@ class Points(object):
         else:
             raise ValueError()
         # return
+        if np.all(np.isnan(values)) or np.all(values == np.inf) :
+            return None
         if raw:
             return values
         else:
@@ -989,6 +997,7 @@ class Points(object):
         v : number, optional
             Value of the point (needed if other points have values).
         """
+        # check parameters
         if not isinstance(pt, ARRAYTYPES):
             raise TypeError()
         pt = np.array(pt, subok=True)
@@ -999,6 +1008,7 @@ class Points(object):
         if v is not None:
             if not isinstance(v, NUMBERTYPES):
                 raise TypeError()
+        # store new data
         self.xy = np.append(self.xy, [pt], axis=0)
         if ((self.v.shape[0] != 0 and v is not None)
                 or (len(self.xy) == 1 and v is not None)):
@@ -1248,6 +1258,7 @@ class OrientedPoints(Points):
                              .format(orientations.ndim))
         if not orientations.shape[0:3:2] != [len(xy), 2]:
             raise ShapeError()
+        # initialize data
         Points.__init__(self, xy=xy, v=v, unit_x=unit_x, unit_y=unit_y,
                         unit_v=unit_v, name=name)
         self.orientations = orientations
@@ -1259,7 +1270,12 @@ class OrientedPoints(Points):
     def __add__(self, obj):
         if isinstance(obj, Points):
             tmp_pts = Points.__add__(self, obj)
-            tmp_ori = np.append(self.orientations, obj.orientations, axis=0)
+            if len(self.xy) == 0:
+                tmp_ori = obj.orientations
+            elif len(obj.xy) == 0:
+                tmp_ori = self.orientations
+            else:
+                tmp_ori = np.append(self.orientations, obj.orientations, axis=0)
             tmp_opts = OrientedPoints()
             tmp_opts.import_from_Points(tmp_pts, tmp_ori)
             return tmp_opts
@@ -3495,6 +3511,7 @@ class ScalarField(Field):
         self.axe_y = axe_y
         self.values = values
         if mask is not None:
+            mask = np.logical_or(mask, np.isnan(self.values))
             self.mask = mask
         self.unit_x = unit_x
         self.unit_y = unit_y
@@ -7853,6 +7870,9 @@ class SpatialFields(Fields):
     def _display(self, compo=None, **plotargs):
         """
         """
+        # check params
+        if len(self.fields) == 0:
+            raise Exception()
         # getting data
         if isinstance(self, SpatialVectorFields):
             if compo == 'V' or compo is None:
@@ -7872,7 +7892,6 @@ class SpatialFields(Fields):
         else:
             raise TypeError()
         # getting max and min
-
         v_min = np.min([field.min for field in comp])
         v_max = np.max([field.max for field in comp])
         if 'vmin' in plotargs.keys():
@@ -7892,6 +7911,8 @@ class SpatialFields(Fields):
         # display
         for field in comp:
             field._display(**plotargs)
+        plt.xlim(self.x_min, self.x_max)
+        plt.ylim(self.y_min, self.y_max)
 
     def display(self, compo=None, **plotargs):
         self._display(compo=compo, **plotargs)

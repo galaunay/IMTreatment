@@ -656,6 +656,8 @@ def import_from_VC7(filename, infos=False, add_fields=False):
     tmpvf = VectorField()
     tmpvf.import_from_arrays(axe_x, axe_y, Vx, Vy, mask=mask, unit_x=unit_x,
                              unit_y=unit_y, unit_values=unit_values)
+    if not infos and not add_fields:
+        return tmpvf
     res = ()
     res += (tmpvf,)
     if infos:

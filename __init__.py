@@ -41,7 +41,8 @@ It is strongly recommended not to use "import *" on this package.
 from .core import make_unit,\
     Profile, Points, OrientedPoints,\
     ScalarField, VectorField, Fields, TemporalFields,\
-    TemporalScalarFields, TemporalVectorFields, SpatialVectorFields
+    TemporalScalarFields, TemporalVectorFields, SpatialVectorFields,\
+    SpatialScalarFields
 __all__ = ["ScalarField", "VectorField",
            "Fields", "TemporalFields", "TemporalScalarFields",
            "TemporalVectorFields", "Points", "OrientedPoints", "Profile",
