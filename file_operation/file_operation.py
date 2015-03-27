@@ -9,10 +9,6 @@ import os
 import pdb
 import gzip
 from glob import glob
-try:
-    import ReadIM
-except:
-    pass
 from ..core import Points, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
     TemporalVectorFields, SpatialVectorFields, TemporalScalarFields,\
@@ -404,6 +400,35 @@ def __export_vf_to_vtk(obj, filepath, axis=None):
 
 
 ### DAVIS ###
+def _get_imx_buffers(filename):
+    """
+    Return the buffers stored in the given file.
+    """
+    import platform
+    syst = platform.system()
+    if syst == 'Linux':
+        import libim7
+        vbuff, atts = libim7.readim7(filename)
+        vatts = atts.as_dict()
+        vectorGrid = vbuff.vectorGrid
+        arrays = np.array(vbuff.blocks.transpose((0, 2, 1)))
+        fmt = vbuff.header.buffer_format
+        libim7.del_buffer(vbuff)
+        libim7.del_attributelist(atts)
+        return fmt, vectorGrid, arrays, vatts
+    elif syst == 'Windows':
+        import ReadIM
+        vbuff, vatts = ReadIM.extra.get_Buffer_andAttributeList(filename)
+        arrays, vbuff2 = ReadIM.extra.buffer_as_array(vbuff)
+        arrays = np.array(arrays.transpose((0, 2, 1)))
+        atts = ReadIM.extra.att2dict(vatts)
+        vectorGrid = vbuff.vectorGrid
+        ReadIM.DestroyBuffer(vbuff)
+        ReadIM.DestroyBuffer(vbuff2)
+        return fmt, vectorGrid, arrays, vatts
+    else:
+        raise Exception()
+
 def import_from_IM7(filename, infos=False):
     """
     Import a scalar field from a .IM7 file.
@@ -426,15 +451,14 @@ def import_from_IM7(filename, infos=False):
         raise ValueError("I need the file to be an IM7 file (not a {} file)"
                          .format(ext))
     # Importing from buffer
-    vbuff, vatts = ReadIM.extra.get_Buffer_andAttributeList(filename)
-    v_array, vbuff2 = ReadIM.extra.buffer_as_array(vbuff)
-    v_mask, vbuff3 = ReadIM.extra.buffer_mask_as_array(vbuff)
-    if v_mask is None:
-        v_mask = np.ones(v_array.shape, dtype=bool)
-    atts = ReadIM.extra.att2dict(vatts)
+    fmt, vectorGrid, v_array, atts = _get_imx_buffers(filename)
+    if v_array.shape[0] == 2:
+        mask = v_array[0]
+        values = v_array[1]
+    elif v_array.shape[0] == 1:
+        values = v_array[0]
+        mask = np.zeros(values.shape, dtype=bool)
     # Values and Mask
-    values = np.transpose(np.array(v_array[0]))
-    mask = np.transpose(np.logical_not(np.array(v_mask[0])))
     scale_i = atts['_SCALE_I']
     scale_i = scale_i.split("\n")
     scale_val = scale_i[0].split(' ')
@@ -469,11 +493,6 @@ def import_from_IM7(filename, infos=False):
         mask = mask[:, ::-1]
     else:
         axe_y = y_init + np.arange(len_axe_y)*dy
-    # deleting buffers
-    ReadIM.DestroyBuffer(vbuff)
-    ReadIM.DestroyBuffer(vbuff2)
-    ReadIM.DestroyBuffer(vbuff3)
-    del vbuff, vbuff2, vbuff3, vatts
     # returning
     tmpsf = ScalarField()
     tmpsf.import_from_arrays(axe_x=axe_x, axe_y=axe_y, values=values,
@@ -543,10 +562,12 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
     end = fieldnumbers[1]
     t = 0.
     # loop on files
-    for path in fieldspaths[start:end:incr]:
-
-        tmp_sf, infos = import_from_IM7(path, infos=True)
-        dt = infos['FrameDt0'].split()
+    for p in fieldspaths[start:end:incr]:
+        tmp_sf, infos = import_from_IM7(p, infos=True)
+        try:
+            dt = infos['FrameDt0'].split()
+        except KeyError:
+            dt = [1., ""]
         unit_time = make_unit(dt[1])
         dt = float(dt[0])
         t += dt*incr
@@ -571,6 +592,7 @@ def import_from_VC7(filename, infos=False, add_fields=False):
         If 'True', also return a tuple containing additional fields
         contained in the vc7 field (peak ratio, correlation value, ...)
     """
+    # check parameters
     if not isinstance(filename, STRINGTYPES):
         raise TypeError("'filename' must be a string")
     if isinstance(filename, unicode):
@@ -581,24 +603,19 @@ def import_from_VC7(filename, infos=False, add_fields=False):
     if not (ext == ".vc7" or ext == ".VC7"):
         raise ValueError("'filename' must be a vc7 file")
     # Importing from buffer
-    vbuff, vatts = ReadIM.extra.get_Buffer_andAttributeList(filename)
-    v_array, vbuff2 = ReadIM.extra.buffer_as_array(vbuff)
-    v_mask, vbuff3 = ReadIM.extra.buffer_mask_as_array(vbuff)
-    atts = ReadIM.extra.att2dict(vatts)
-    vectorGrid = vbuff.vectorGrid
+    fmt, vectorGrid, v_array, atts = _get_imx_buffers(filename)
     # Values and Mask
-    mask = np.transpose(np.logical_not(np.array(v_mask[0])))
-    if v_array.shape[0] == 2:
-        Vx = np.transpose(np.array(v_array[0]))
-        Vy = np.transpose(np.array(v_array[1]))
-    elif v_array.shape[0] >= 3:
-        mask2 = np.logical_not(np.transpose(np.array(v_array[0])))
-        Vx = np.transpose(np.array(v_array[1]))
-        Vy = np.transpose(np.array(v_array[2]))
-        mask = np.logical_or(mask, mask2)
-    mask = np.logical_or(mask, np.logical_and(Vx==0., Vy==0.))
+    if fmt == 2:
+        Vx = v_array[0]
+        Vy = v_array[1]
+        mask = np.zeros(Vx.shape, dtype=bool)
+    elif fmt == 3 or fmt == 1:
+        mask = np.logical_not(v_array[0])
+        Vx = v_array[1]
+        Vy = v_array[2]
+    mask = np.logical_or(mask, np.logical_and(Vx == 0., Vy == 0.))
     # additional fields if necessary
-    if add_fields and v_array.shape[0] > 3:
+    if add_fields and fmt in [1, 3]:
         suppl_fields = []
         for i in np.arange(4, v_array.shape[0]):
             suppl_fields.append(np.transpose(np.array(v_array[i])))
@@ -647,11 +664,6 @@ def import_from_VC7(filename, infos=False, add_fields=False):
                 suppl_fields[i] = suppl_fields[i][:, ::-1]
     else:
         axe_y = y_init + np.arange(len_axe_y)*dy
-    # deleting buffers
-    ReadIM.DestroyBuffer(vbuff)
-    ReadIM.DestroyBuffer(vbuff2)
-    ReadIM.DestroyBuffer(vbuff3)
-    del vbuff, vbuff2, vbuff3, vatts
     # returning
     tmpvf = VectorField()
     tmpvf.import_from_arrays(axe_x, axe_y, Vx, Vy, mask=mask, unit_x=unit_x,
@@ -672,7 +684,6 @@ def import_from_VC7(filename, infos=False, add_fields=False):
             add_fields.append(tmp_field)
         res += (add_fields,)
     return res
-
 
 def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
                      add_fields=False):
@@ -701,8 +712,8 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
             raise TypeError("'fieldspath' must be a string or a tuple of"
                             " string")
     elif isinstance(fieldspath, STRINGTYPES):
-        pattern = os.path.join(fieldspath, '*.VC7')
-        fieldspath = glob(pattern)
+        fieldspath = [f for f in glob(os.path.join(fieldspath, '*'))
+                      if os.path.splitext(f)[-1] in ['.vc7', '.VC7']]
         if len(fieldspath) == 0:
             raise ValueError()
     else:
@@ -735,7 +746,7 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
     if add_fields:
         tmp_vf, add_fields = import_from_VC7(fieldspath[0], add_fields=True)
         suppl_fields = [TemporalScalarFields() for field in add_fields]
-    for p in fieldspath[start:end:incr]:
+    for i, p in enumerate(fieldspath[start:end:incr]):
         if add_fields:
             tmp_vf, infos, add_fields = import_from_VC7(p, infos=True,
                                                         add_fields=True)

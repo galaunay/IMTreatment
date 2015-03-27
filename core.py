@@ -2909,6 +2909,66 @@ class Field(object):
         return np.array(inds, subok=True)
 
     ### Modifiers ###
+    def rotate(self, angle, inplace=False):
+        """
+        Rotate the field.
+        
+        Parameters
+        ----------
+        angle : integer
+            Angle in degrees (positive for trigonometric direction).
+            In order to preserve the orthogonal grid, only multiples of
+            90° are accepted (can be negative multiples).
+        inplace : boolean, optional
+            If 'True', Field is rotated in place, else, the function return a
+            rotated field.
+            
+        Returns
+        -------
+        rotated_field : Field object, optional
+            Rotated field.
+        """
+        # check params
+        if not isinstance(angle, NUMBERTYPES):
+            raise TypeError()
+        if angle%90 != 0:
+            raise ValueError()
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        # get dat
+        if inplace:
+            tmp_field = self
+        else:
+            tmp_field = self.copy()
+        # normalize angle
+        angle = angle%360
+        # rotate
+        if angle == 0:
+            pass
+        elif angle == 90:
+            tmp_field.__axe_x, tmp_field.__axe_y \
+                = tmp_field.axe_y[::-1], tmp_field.axe_x
+            tmp_field.__unit_x, tmp_field.__unit_y \
+                = tmp_field.unit_y, tmp_field.unit_x
+        elif angle == 180:
+            tmp_field.__axe_x, tmp_field.__axe_y \
+                = tmp_field.axe_x[::-1], tmp_field.axe_y[::-1]
+        elif angle == 270:
+            tmp_field.__axe_x, tmp_field.__axe_y \
+                = tmp_field.axe_y, tmp_field.axe_x[::-1]
+            tmp_field.__unit_x, tmp_field.__unit_y \
+                = tmp_field.unit_y, tmp_field.unit_x
+        else:
+            raise Exception()
+        # correction non-crescent axis
+        if tmp_field.axe_x[-1] < tmp_field.axe_x[0]:
+            tmp_field.__axe_x = -tmp_field.axe_x
+        if tmp_field.axe_y[-1] < tmp_field.axe_y[0]:
+            tmp_field.__axe_y = -tmp_field.axe_y
+        # returning
+        if not inplace:
+            return tmp_field            
+        
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an Field.
@@ -4118,6 +4178,49 @@ class ScalarField(Field):
         return Points(pts, v, self.unit_x, self.unit_y, self.unit_values)
 
     ### Modifiers ###
+    def rotate(self, angle, inplace=False):
+        """
+        Rotate the scalar field.
+        
+        Parameters
+        ----------
+        angle : integer
+            Angle in degrees (positive for trigonometric direction).
+            In order to preserve the orthogonal grid, only multiples of
+            90° are accepted (can be negative multiples).
+        inplace : boolean, optional
+            If 'True', scalar field is rotated in place, else, the function
+            return a rotated field.
+            
+        Returns
+        -------
+        rotated_field : ScalarField object, optional
+            Rotated scalar field.
+        """
+        # check params
+        if not isinstance(angle, NUMBERTYPES):
+            raise TypeError()
+        if angle%90 != 0:
+            raise ValueError()
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        # get data
+        if inplace:
+            tmp_field = self
+        else:
+            tmp_field = self.copy()
+        # normalize angle
+        angle = angle%360
+        # rotate the parent
+        Field.rotate(tmp_field, angle, inplace=True)
+        # rotate
+        nmb_rot90 = int(angle/90)
+        tmp_field.__values = np.rot90(tmp_field.values, nmb_rot90)
+        tmp_field.__mask = np.rot90(tmp_field.mask, nmb_rot90)
+        # returning
+        if not inplace:
+            return tmp_field
+            
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.
@@ -5341,7 +5444,56 @@ class VectorField(Field):
         return copy.deepcopy(self)
 
     ### Modifiers ###
-
+    def rotate(self, angle, inplace=False):
+        """
+        Rotate the vector field.
+        
+        Parameters
+        ----------
+        angle : integer
+            Angle in degrees (positive for trigonometric direction).
+            In order to preserve the orthogonal grid, only multiples of
+            90° are accepted (can be negative multiples).
+        inplace : boolean, optional
+            If 'True', vector field is rotated in place, else, the function
+            return a rotated field.
+            
+        Returns
+        -------
+        rotated_field : VectorField object, optional
+            Rotated vector field.
+        """
+        # check params
+        if not isinstance(angle, NUMBERTYPES):
+            raise TypeError()
+        if angle%90 != 0:
+            raise ValueError()
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        # get data
+        if inplace:
+            tmp_field = self
+        else:
+            tmp_field = self.copy()
+        # normalize angle
+        angle = angle%360
+        # rotate the parent
+        Field.rotate(tmp_field, angle, inplace=True)
+        # rotate
+        nmb_rot90 = int(angle/90)
+        comp_x = np.rot90(tmp_field.comp_x, nmb_rot90)
+        comp_y = np.rot90(tmp_field.comp_y, nmb_rot90)
+        mask = np.rot90(tmp_field.mask, nmb_rot90)
+        comp_x2 = np.cos(angle/180.*np.pi)*comp_x - np.sin(angle/180.*np.pi)*comp_y
+        comp_y2 = np.cos(angle/180.*np.pi)*comp_y + np.sin(angle/180.*np.pi)*comp_x
+        tmp_field.__comp_x, tmp_field.__comp_y = comp_x, comp_y        
+        tmp_field.__comp_x = comp_x2
+        tmp_field.__comp_y = comp_y2
+        tmp_field.__mask = mask
+        # returning
+        if not inplace:
+            return tmp_field
+            
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.
@@ -5892,6 +6044,48 @@ class Fields(object):
         return copy.deepcopy(self)
 
     ### Modifiers ###
+    def rotate(self, angle, inplace=False):
+        """
+        Rotate the fields.
+        
+        Parameters
+        ----------
+        angle : integer
+            Angle in degrees (positive for trigonometric direction).
+            In order to preserve the orthogonal grid, only multiples of
+            90° are accepted (can be negative multiples).
+        inplace : boolean, optional
+            If 'True', fields is rotated in place, else, the function
+            return rotated fields.
+            
+        Returns
+        -------
+        rotated_field : TemporalFields or child object, optional
+            Rotated fields.
+        """
+        # check params
+        if not isinstance(angle, NUMBERTYPES):
+            raise TypeError()
+        if angle%90 != 0:
+            raise ValueError()
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        # get data
+        if inplace:
+            tmp_field = self
+        else:
+            tmp_field = self.copy()
+        # normalize angle
+        angle = angle%360
+        # rotate the parent
+        Field.rotate(tmp_field, angle, inplace=True)
+        # rotate fields
+        for i in np.arange(len(tmp_field.fields)):
+            tmp_field.fields[i].rotate(angle=angle, inplace=True)
+        # returning
+        if not inplace:
+            return tmp_field
+            
     def add_field(self, field):
         """
         Add a field to the existing fields.
@@ -6018,7 +6212,7 @@ class TemporalFields(Fields, Field):
                 vfs.add_field(self.fields[i]/other.fields[i])
             return vfs
         elif isinstance(other, (NUMBERTYPES, unum.Unum)):
-            final_vfs = self.__class__.__init__()
+            final_vfs = self.__class__()
             for field in self.fields:
                 final_vfs.add_field(field/other)
             return final_vfs
@@ -6494,7 +6688,7 @@ class TemporalFields(Fields, Field):
         magn = magn/real_nmb_fields
         return magn
 
-    ### Modifiers ###
+    ### Modifiers ###            
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.
@@ -7815,6 +8009,22 @@ class SpatialFields(Fields):
 
     def get_profile(self, direction, position, component=None):
         """
+        Return a profile of the current fields.
+        
+        Parameters
+        ----------
+        direction : integer
+            Direction along which we choose a position (1 for x and 2 for y)
+        position : float, interval of float
+            Position, interval in which we want a profile
+            
+        component : string
+            Component wanted for the profile.
+
+        Returns
+        -------
+        profile : Profile object
+            Wanted profile
         """
         # getting data
         if isinstance(self, SpatialVectorFields):
@@ -7836,11 +8046,11 @@ class SpatialFields(Fields):
         inter_ind = []
         if direction == 1:
             for i, field in enumerate(self.fields):
-                if position < field.axe_x[-1] and position > field.axe_x[0]:
+                if np.any(position < field.axe_x[-1]) and np.any(position > field.axe_x[0]):
                     inter_ind.append(i)
         elif direction == 2:
             for i, field in enumerate(self.fields):
-                if position < field.axe_y[-1] and position > field.axe_y[0]:
+                if np.any(position < field.axe_y[-1]) and np.any(position > field.axe_y[0]):
                     inter_ind.append(i)
         # get profiles
         if len(inter_ind) == 0:
