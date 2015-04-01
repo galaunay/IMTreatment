@@ -1037,8 +1037,10 @@ class Points(object):
         else:
             raise TypeError("'ind' must be an integer or an array of integer")
         tmp_v = self.v.copy()
+        if len(self.v) == len(self.xy):
+            self.v = np.delete(tmp_v, ind, axis=0)
         self.xy = np.delete(self.xy, ind, axis=0)
-        self.v = np.delete(tmp_v, ind, axis=0)
+        
 
     def change_unit(self, axe, new_unit):
         """
@@ -5333,9 +5335,11 @@ class VectorField(Field):
         # get data
         comp_x, comp_y = self.comp_x, self.comp_y
         not_mask = np.logical_not(self.mask)
+        
         theta = np.zeros(self.shape)
         # getting angle
         norm = self.magnitude
+        not_mask = np.logical_and(not_mask, norm != 0)
         theta[not_mask] = comp_x[not_mask]/norm[not_mask]
         theta[not_mask] = np.arccos(theta[not_mask])
         theta[comp_y < 0] = 2*np.pi - theta[comp_y < 0]
@@ -5885,10 +5889,10 @@ class VectorField(Field):
             Vx = np.transpose(self.comp_x)
             Vy = np.transpose(self.comp_y)
             mask = np.transpose(self.mask)
-            Vx = np.ma.masked_array(Vx, mask)
-            Vy = np.ma.masked_array(Vy, mask)
+            Vx[mask] = np.inf
+            Vy[mask] = np.inf
             magn = np.transpose(self.magnitude)
-            magn = np.ma.masked_array(magn, mask)
+            magn[mask] = 0
             unit_x, unit_y = self.unit_x, self.unit_y
             if kind == 'stream':
                 if not 'color' in plotargs.keys():

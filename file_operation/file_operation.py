@@ -531,8 +531,11 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
                             " string")
         fieldspaths = np.array(fieldspath)
     elif isinstance(fieldspath, STRINGTYPES):
-        fieldspaths = [f for f in glob(os.path.join(fieldspath, '*'))
-                       if os.path.splitext(f)[-1] in ['.im7', '.IM7']]
+        fieldspath = np.array([f for f in glob(os.path.join(fieldspath, '*'))
+                               if os.path.splitext(f)[-1] in ['.im7', '.IM7']])
+        filenames = [os.path.basename(p) for p in fieldspath]
+        ind_sort = np.argsort(filenames)
+        fieldspath = fieldspath[ind_sort]
         if len(fieldspaths) == 0:
             raise ValueError()
     else:
@@ -611,6 +614,8 @@ def import_from_VC7(filename, infos=False, add_fields=False):
         mask = np.zeros(Vx.shape, dtype=bool)
     elif fmt == 3 or fmt == 1:
         mask = np.logical_not(v_array[0])
+        mask2 = np.logical_not(v_array[9])
+        mask = np.logical_or(mask, mask2)
         Vx = v_array[1]
         Vy = v_array[2]
     mask = np.logical_or(mask, np.logical_and(Vx == 0., Vy == 0.))
@@ -712,8 +717,11 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
             raise TypeError("'fieldspath' must be a string or a tuple of"
                             " string")
     elif isinstance(fieldspath, STRINGTYPES):
-        fieldspath = [f for f in glob(os.path.join(fieldspath, '*'))
-                      if os.path.splitext(f)[-1] in ['.vc7', '.VC7']]
+        fieldspath = np.array([f for f in glob(os.path.join(fieldspath, '*'))
+                               if os.path.splitext(f)[-1] in ['.vc7', '.VC7']])
+        filenames = [os.path.basename(p) for p in fieldspath]
+        ind_sort = np.argsort(filenames)
+        fieldspath = fieldspath[ind_sort]
         if len(fieldspath) == 0:
             raise ValueError()
     else:
