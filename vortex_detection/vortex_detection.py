@@ -370,8 +370,6 @@ class CritPoints(object):
         self.node_i = np.array([])
         self.node_o = np.array([])
         self.sadd = np.array([])
-        self.pbi_m = np.array([])
-        self.pbi_p = np.array([])
         self.times = np.array([])
         self.unit_time = unit_time
         self.unit_x = make_unit('')
@@ -396,8 +394,6 @@ class CritPoints(object):
             tmp_CP.node_i = np.append(self.node_i, obj.node_i)
             tmp_CP.node_o = np.append(self.node_o, obj.node_o)
             tmp_CP.sadd = np.append(self.sadd, obj.sadd)
-            tmp_CP.pbi_m = np.append(self.pbi_m, obj.pbi_m)
-            tmp_CP.pbi_p = np.append(self.pbi_p, obj.pbi_p)
             tmp_CP.times = np.append(self.times, obj.times)
             tmp_CP._sort_by_time()
             # test if there is double
@@ -425,8 +421,7 @@ class CritPoints(object):
     ### Properties ###
     @property
     def iter(self):
-        return [self.foc, self.foc_c, self.node_i, self.node_o, self.sadd,
-                self.pbi_m, self.pbi_p]
+        return [self.foc, self.foc_c, self.node_i, self.node_o, self.sadd]
 
     @property
     def iter_traj(self):
@@ -561,20 +556,19 @@ class CritPoints(object):
 
     ### Modifiers ###
     def add_point(self, foc=Points(), foc_c=Points(), node_i=Points(),
-                  node_o=Points(), sadd=Points(), pbi_m=Points(),
-                  pbi_p=Points(), time=Points()):
+                  node_o=Points(), sadd=Points(), time=Points()):
         """
         Add a new point to the CritPoints object.
 
         Parameters
         ----------
-        foc, foc_c, node_i, node_o, sadd, pbi_m, pbi_p : Points objects
+        foc, foc_c, node_i, node_o, sadd : Points objects
             Representing the critical points at this time.
         time : number
             Time.
         """
         # check parameters
-        for pt in [foc, foc_c, node_i, node_o, sadd, pbi_m, pbi_p]:
+        for pt in [foc, foc_c, node_i, node_o, sadd]:
             if not isinstance(pt, Points):
                 raise TypeError()
             pt.v = np.array([])
@@ -584,20 +578,23 @@ class CritPoints(object):
             raise ValueError()
         # first point
         if len(self.times) == 0:
-            if foc is not None:
-                self.unit_x = foc.unit_x
-                self.unit_y = foc.unit_y
-            elif pbi_m is not None:
-                self.unit_x = pbi_m.unit_x
-                self.unit_y = pbi_m.unit_y
+            for pt in [foc, foc_c, node_i, node_o, sadd]:
+                if pt is not None:
+                    self.unit_x = foc.unit_x
+                    self.unit_y = foc.unit_y
+                    break
+        else:
+            for pt in [foc, foc_c, node_i, node_o, sadd]:
+                if pt.unit_x != self.unit_x:
+                    raise ValueError()
+                if pt.unit_y != self.unit_y:
+                    raise ValueError()
         # other ones
         self.foc = np.append(self.foc, foc)
         self.foc_c = np.append(self.foc_c, foc_c)
         self.node_i = np.append(self.node_i, node_i)
         self.node_o = np.append(self.node_o, node_o)
         self.sadd = np.append(self.sadd, sadd)
-        self.pbi_m = np.append(self.pbi_m, pbi_m)
-        self.pbi_p = np.append(self.pbi_p, pbi_p)
         self.times = np.append(self.times, time)
         self._sort_by_time()
         # trajectories are obsolete
@@ -753,7 +750,8 @@ class CritPoints(object):
         # loop on each point type
         for i, traj_type in enumerate(self.iter_traj):
             # concatenate
-            tot = Points()
+            tot = Points(unit_x=self.unit_x, unit_y=self.unit_y,
+                         unit_v=self.unit_time)
             for traj in traj_type:
                 tot += traj
             # replace exising points
@@ -1451,7 +1449,15 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                     elif position < intervy[1]:
                         ind = tmp_vf.get_indice_on_axe(2, position)[1]
                         intervy[1] = axe_y[ind + 1]
+            for pts in res.iter:
+                for p in pts:
+                    if p.unit_x != make_unit('mm'):
+                        pdb.set_trace()
             res.trim(intervx=intervx, intervy=intervy, inplace=True)
+            for pts in res.iter:
+                for p in pts:
+                    if p.unit_x != make_unit('mm'):
+                        pdb.set_trace()
     # if obj is vector fields
     elif isinstance(obj, TemporalVectorFields):
         res = CritPoints(unit_time=obj.unit_times)
@@ -1500,14 +1506,25 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     # using VF methods to get cp position and types
     field = velocityfield_to_vf(vectorfield, time)
     pos, cp_types = field.get_cp_position()
-    sadd = Points()
-    foc = Points()
-    foc_c = Points()
-    node_i = Points()
-    node_o = Points()
+    sadd = OrientedPoints(unit_x=vectorfield.unit_x,
+                          unit_y=vectorfield.unit_y)
+    foc = Points(unit_x=vectorfield.unit_x,
+                 unit_y=vectorfield.unit_y,
+                 unit_v=unit_time)
+    foc_c = Points(unit_x=vectorfield.unit_x,
+                   unit_y=vectorfield.unit_y,
+                   unit_v=unit_time)
+    node_i = Points(unit_x=vectorfield.unit_x,
+                    unit_y=vectorfield.unit_y,
+                    unit_v=unit_time)
+    node_o = Points(unit_x=vectorfield.unit_x,
+                    unit_y=vectorfield.unit_y,
+                    unit_v=unit_time)
     for i, t in enumerate(cp_types):
         if t == 0:
-            sadd.add(pos[i])
+            pos = pos[i]
+            ori = np.array(_get_saddle_orientations(vectorfield, pos))
+            sadd.add(pos[i], orientations=ori)
         elif t == 1:
             foc_c.add(pos[i])
         elif t == 2:
@@ -1518,26 +1535,10 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
             node_i.add(pos[i])
         else:
             raise Exception()
-    # compute sadd points orientations
-    sadd_ori = []
-    for sad in sadd.xy:
-        sadd_ori.append(np.array(_get_saddle_orientations(vectorfield,
-                                                          sad)))
-    tmp_opts = OrientedPoints()
-    tmp_opts.import_from_Points(sadd, sadd_ori)
-    sadd = tmp_opts
+    # returning
     pts = CritPoints(unit_time=unit_time)
     pts.add_point(foc=foc, foc_c=foc_c, node_i=node_i, node_o=node_o,
                   sadd=sadd, time=time)
-    # setting units
-    pts.unit_x = vectorfield.unit_x
-    pts.unit_y = vectorfield.unit_y
-    pts.unit_time = unit_time
-    for pt in pts.iter:
-        pt = pt[0]
-        pt.unit_x = vectorfield.unit_x
-        pt.unit_y = vectorfield.unit_y
-        pt.unit_v = unit_time
     return pts
 
 
@@ -1573,14 +1574,26 @@ def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     # using VF methods to get cp position and types
     field = velocityfield_to_vf(vectorfield, time)
     pos, cp_types = field.get_cp_cell_position()
-    sadd = Points()
-    foc = Points()
-    foc_c = Points()
-    node_i = Points()
-    node_o = Points()
+    sadd = OrientedPoints(unit_x=vectorfield.unit_x,
+                          unit_y=vectorfield.unit_y,
+                          unit_v=unit_time)
+    foc = Points(unit_x=vectorfield.unit_x,
+                 unit_y=vectorfield.unit_y,
+                 unit_v=unit_time)
+    foc_c = Points(unit_x=vectorfield.unit_x,
+                   unit_y=vectorfield.unit_y,
+                   unit_v=unit_time)
+    node_i = Points(unit_x=vectorfield.unit_x,
+                    unit_y=vectorfield.unit_y,
+                    unit_v=unit_time)
+    node_o = Points(unit_x=vectorfield.unit_x,
+                    unit_y=vectorfield.unit_y,
+                    unit_v=unit_time)
     for i, t in enumerate(cp_types):
         if t == 0:
-            sadd.add(pos[i])
+            pos = pos[i]
+            ori = np.array(_get_saddle_orientations(vectorfield, pos))
+            sadd.add(pos[i], orientations=ori)
         elif t == 1:
             foc_c.add(pos[i])
         elif t == 2:
@@ -1591,26 +1604,10 @@ def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
             node_i.add(pos[i])
         else:
             raise Exception()
-    # compute sadd points orientations
-    sadd_ori = []
-    for sad in sadd.xy:
-        sadd_ori.append(np.array(_get_saddle_orientations(vectorfield,
-                                                          sad)))
-    tmp_opts = OrientedPoints()
-    tmp_opts.import_from_Points(sadd, sadd_ori)
-    sadd = tmp_opts
+    # returning
     pts = CritPoints(unit_time=unit_time)
     pts.add_point(foc=foc, foc_c=foc_c, node_i=node_i, node_o=node_o,
                   sadd=sadd, time=time)
-    # setting units
-    pts.unit_x = vectorfield.unit_x
-    pts.unit_y = vectorfield.unit_y
-    pts.unit_time = unit_time
-    for pt in pts.iter:
-        pt = pt[0]
-        pt.unit_x = vectorfield.unit_x
-        pt.unit_y = vectorfield.unit_y
-        pt.unit_v = unit_time
     return pts
 
 
@@ -1659,7 +1656,6 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     for i, cp_pos in enumerate(cp_positions):
         tmp_vf = VF_field.get_field_around_pt(cp_pos, window_size + 1)
         tmp_vf = tmp_vf.export_to_velocityfield()
-        print(tmp_vf.shape)
         # treating small fields
         axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
         if len(axe_x) < window_size or len(axe_y) < window_size or np.any(tmp_vf.mask):
@@ -1668,7 +1664,6 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
             tmp_vf.PBI = int(cp_types[i] != 0)
             tmp_vf.assoc_ind = i
             VF_tupl.append(tmp_vf)
-    print(len(VF_tupl))
     ### Sorting by critical points type ###
     VF_focus = []
     VF_nodes = []
@@ -1740,11 +1735,21 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                         cp_positions[VF.assoc_ind] = pts.xy[0]
                         cp_types[VF.assoc_ind] = 0
     ### creating the CritPoints object for returning
-    focus = Points()
-    focus_c = Points()
-    nodes_i = Points()
-    nodes_o = Points()
-    sadd = OrientedPoints()
+    focus = Points(unit_x=vectorfield.unit_x,
+                   unit_y=vectorfield.unit_y,
+                   unit_v=unit_time)
+    focus_c = Points(unit_x=vectorfield.unit_x,
+                     unit_y=vectorfield.unit_y,
+                     unit_v=unit_time)
+    nodes_i = Points(unit_x=vectorfield.unit_x,
+                     unit_y=vectorfield.unit_y,
+                     unit_v=unit_time)
+    nodes_o = Points(unit_x=vectorfield.unit_x,
+                     unit_y=vectorfield.unit_y,
+                     unit_v=unit_time)
+    sadd = OrientedPoints(unit_x=vectorfield.unit_x,
+                          unit_y=vectorfield.unit_y,
+                          unit_v=unit_time)
     for i, t in enumerate(cp_types):
         if t == 0:
             pos = cp_positions[i]
@@ -1762,15 +1767,6 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
             raise Exception()
     pts = CritPoints(unit_time=unit_time)
     pts.add_point(focus, focus_c, nodes_i, nodes_o, sadd, time=time)
-    # setting units
-    pts.unit_x = vectorfield.unit_x
-    pts.unit_y = vectorfield.unit_y
-    pts.unit_time = unit_time
-    for pt in pts.iter:
-        pt = pt[0]
-        pt.unit_x = vectorfield.unit_x
-        pt.unit_y = vectorfield.unit_y
-        pt.unit_v = unit_time
     return pts
 
 
@@ -1905,7 +1901,7 @@ def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1.):
     Vx_dx, Vx_dy = np.gradient(Vx.transpose(), dx, dy)
     Vy_dx, Vy_dy = np.gradient(Vy.transpose(), dx, dy)
     axe_x = np.arange(0, Vx.shape[0]*dx, dx)
-    axe_y = np.arange(0, Vx.shape[1]*dx, dy)
+    axe_y = np.arange(0, Vx.shape[1]*dy, dy)
     # get interpolated gradient at the point
     Vx_dx2 = RectBivariateSpline(axe_x, axe_y, Vx_dx, kx=k, ky=k, s=0)
     Vx_dx2 = Vx_dx2(np.mean(axe_x), np.mean(axe_y))[0][0]

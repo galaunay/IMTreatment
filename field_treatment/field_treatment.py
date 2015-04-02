@@ -333,7 +333,6 @@ def reconstruct_from_gradients(field_dx, field_dy, field2_dx=None,
                 u = u.reshape(du_dx.shape)
                 du2_dx, du2_dy = np.gradient(u, dx, dy)
                 res = np.abs(du_dx - du2_dx) + np.abs(du_dy - du2_dy)
-                print(np.sum(res))
                 return res.flatten()
             u, mess = leastsq(min_funct, u.flatten(),
                               args=(du_dx, du_dy, dx, dy),

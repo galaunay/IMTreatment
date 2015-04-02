@@ -5889,9 +5889,10 @@ class VectorField(Field):
                 raise TypeError("'kind' must be a string")
         axe_x, axe_y = self.axe_x, self.axe_y
         if component is None or component == 'V':
-            Vx = np.transpose(self.comp_x)
-            Vy = np.transpose(self.comp_y)
+            Vx = np.transpose(self.comp_x).copy()
+            Vy = np.transpose(self.comp_y).copy()
             mask = np.transpose(self.mask)
+
             Vx[mask] = np.inf
             Vy[mask] = np.inf
             magn = np.transpose(self.magnitude)
