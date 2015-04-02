@@ -66,7 +66,7 @@ class VF(object):
         tmp_vf.import_from_arrays(self.axe_x, self.axe_y, vx, vy, mask)
         return tmp_vf
 
-    def get_cp_cell_position(self, window_size=2):
+    def get_cp_cell_position(self, window_size=1):
         """
         Return critical points cell positions and their associated PBI.
         (PBI : Poincarre_Bendixson indice)
@@ -78,7 +78,7 @@ class VF(object):
         window_size : integer, optional
             Minimal window size for PBI detection.
             Smaller window size allow detection where points are dense.
-            Default is finnest possible (1).
+            Default is smallest possible (1).
 
         Returns
         -------
@@ -89,17 +89,30 @@ class VF(object):
         """
         if not isinstance(window_size, int):
             raise TypeError()
-        if window_size < 1:
-            raise ValueError()
         delta_x = self.axe_x[1] - self.axe_x[0]
         delta_y = self.axe_y[1] - self.axe_y[0]
-        positions = []
+        if window_size == 1:
+            pool = []
+            for i in np.arange(self.shape[0] - 2):
+                for j in np.arange(self.shape[1] - 2):
+                    tmp_vx = self.vx[i:i + 2, j:j + 2]
+                    tmp_vy = self.vy[i:i + 2, j:j + 2]
+                    tmp_mask = self.mask[i:i + 2, j:j + 2]
+                    tmp_theta = self.theta[i:i + 2, j:j + 2]
+                    tmp_axe_x = self.axe_x[j:j + 2]
+                    tmp_axe_y = self.axe_y[i:i + 2]
+                    tmp_vf = VF(vx=tmp_vx, vy=tmp_vy, axe_x=tmp_axe_x,
+                                axe_y=tmp_axe_y, mask=tmp_mask,
+                                theta=tmp_theta, time=self.time)
+                    pool.append(tmp_vf)
+        else:
+            grid_x = np.append(np.arange(0, self.shape[0] - window_size + 2,
+                                         window_size - 1), self.shape[0])
+            grid_y = np.append(np.arange(0, self.shape[1] - window_size + 2,
+                                         window_size - 1), self.shape[1])
+            pool = self._split_the_field(grid_x, grid_y)
         pbis = []
-        grid_x = np.append(np.arange(0, self.shape[0] - window_size + 1,
-                                     window_size - 1), self.shape[0])
-        grid_y = np.append(np.arange(0, self.shape[1] - window_size + 1,
-                                     window_size - 1), self.shape[1])
-        pool = self._split_the_field(grid_x, grid_y)
+        positions = []
         # loop on the pool (funny no ?)
         while True:
             # if the pool is empty we have finish !
@@ -114,19 +127,28 @@ class VF(object):
             # if there is only one critical point and the field is as
             # small as possible, we store the cp position, the end !
             elif nmb_struct == (1, 1):
-                cp_pos = tmp_vf._get_poi_position()
+                if window_size == 1:
+                    cp_pos = [0, 0]
+                else:
+                    cp_pos = tmp_vf._get_poi_position()
                 positions.append((tmp_vf.axe_x[cp_pos[0]] + delta_x/2.,
                                   tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
                 pbis.append(tmp_vf.pbi_x[-1])
                 pool = np.delete(pool, 0)
             # if the cp density is too high, bu the pbi is valid
             elif tmp_vf.pbi_x[-1] in [-1, 1]:
+                print('\n consistsant')
+                print(tmp_vf.pbi_x)
+                print(tmp_vf.pbi_y)
                 cp_pos = [np.mean(tmp_vf.axe_x), np.mean(tmp_vf.axe_y)]
                 positions.append(cp_pos)
                 pbis.append(tmp_vf.pbi_x[-1])
                 pool = np.delete(pool, 0)
             # if the cp density is too high and the pbi is invalid
             else:
+                print('\n delete')
+                print(tmp_vf.pbi_x)
+                print(tmp_vf.pbi_y)
                 pool = np.delete(pool, 0)
 
         # removing doublons
@@ -138,7 +160,7 @@ class VF(object):
         # returning
         return positions, pbis
 
-    def get_cp_position(self, window_size=2):
+    def get_cp_position(self, window_size=1):
         """
         Return critical points positions and their associated PBI using
         bilinear interpolation.
@@ -1627,7 +1649,7 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
 
 
 def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
-                           window_size=4):
+                           window_size=1):
     """
     For a VectorField object, return the critical points positions and their
     PBI (Poincarre Bendixson indice)
@@ -1643,7 +1665,7 @@ def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     window_size : integer, optional
         Minimal window size for PBI detection.
         Smaller window size allow detection where points are dense.
-        Default is 4 (smallest is 2).
+        Default is smallest (1).
 
     Returns
     -------
