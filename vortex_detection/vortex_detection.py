@@ -10,7 +10,7 @@ For performance
 import pdb
 from ..core import Points, OrientedPoints, Profile, ScalarField, VectorField,\
     make_unit, ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
-    TemporalVectorFields, ShapeError
+    TemporalVectorFields
 from ..field_treatment import get_streamlines, get_gradients
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,7 +23,7 @@ import scipy.ndimage.measurements as msr
 import unum
 import copy
 import sympy
-import unum
+
 
 def velocityfield_to_vf(vectorfield, time):
     """
@@ -66,56 +66,52 @@ class VF(object):
         tmp_vf.import_from_arrays(self.axe_x, self.axe_y, vx, vy, mask)
         return tmp_vf
 
-    def get_cp_cell_position(self, window_size=1):
+    def get_cp_cell_position(self):
         """
         Return critical points cell positions and their associated PBI.
         (PBI : Poincarre_Bendixson indice)
         Positions are returned in axis unities (axe_x and axe_y) at the center
         of a cell.
 
-        Parameters
-        ----------
-        window_size : integer, optional
-            Minimal window size for PBI detection.
-            Smaller window size allow detection where points are dense.
-            Default is smallest possible (1).
-
         Returns
         -------
         pos : 2xN array
             position (x, y) of the detected critical points.
-        pbis : 1xN array
-            PBI (1 indicate a node, -1 a saddle point)
+        type : 1xN array
+            type of CP :
+
+            ====   ===============
+            ind    CP type
+            ====   ===============
+            0      saddle point
+            1      unstable focus
+            2      stable focus
+            3      unstable node
+            4      stable node
+            ====   ===============
         """
-        if not isinstance(window_size, int):
-            raise TypeError()
+        # get axe data
         delta_x = self.axe_x[1] - self.axe_x[0]
         delta_y = self.axe_y[1] - self.axe_y[0]
-        if window_size == 1:
-            pool = []
-            for i in np.arange(self.shape[0] - 2):
-                for j in np.arange(self.shape[1] - 2):
-                    tmp_vx = self.vx[i:i + 2, j:j + 2]
-                    tmp_vy = self.vy[i:i + 2, j:j + 2]
-                    tmp_mask = self.mask[i:i + 2, j:j + 2]
-                    tmp_theta = self.theta[i:i + 2, j:j + 2]
-                    tmp_axe_x = self.axe_x[j:j + 2]
-                    tmp_axe_y = self.axe_y[i:i + 2]
-                    tmp_vf = VF(vx=tmp_vx, vy=tmp_vy, axe_x=tmp_axe_x,
-                                axe_y=tmp_axe_y, mask=tmp_mask,
-                                theta=tmp_theta, time=self.time)
-                    pool.append(tmp_vf)
-        else:
-            grid_x = np.append(np.arange(0, self.shape[0] - window_size + 2,
-                                         window_size - 1), self.shape[0])
-            grid_y = np.append(np.arange(0, self.shape[1] - window_size + 2,
-                                         window_size - 1), self.shape[1])
-            pool = self._split_the_field(grid_x, grid_y)
-        pbis = []
+        # get pool of VF
+        pool = []
+        for i in np.arange(self.shape[0] - 2):
+            for j in np.arange(self.shape[1] - 2):
+                tmp_vx = self.vx[i:i + 2, j:j + 2]
+                tmp_vy = self.vy[i:i + 2, j:j + 2]
+                tmp_mask = self.mask[i:i + 2, j:j + 2]
+                tmp_theta = self.theta[i:i + 2, j:j + 2]
+                tmp_axe_x = self.axe_x[j:j + 2]
+                tmp_axe_y = self.axe_y[i:i + 2]
+                tmp_vf = VF(vx=tmp_vx, vy=tmp_vy, axe_x=tmp_axe_x,
+                            axe_y=tmp_axe_y, mask=tmp_mask,
+                            theta=tmp_theta, time=self.time)
+                pool.append(tmp_vf)
+        # Look the PBI of each field of the pool
         positions = []
-        # loop on the pool (funny no ?)
+        cp_types = []
         while True:
-            # if the pool is empty we have finish !
+            # if the pool is empty we have finished !
             if len(pool) == 0:
                 break
             # get a field
@@ -124,55 +120,39 @@ class VF(object):
             # check if there is something in it
             if nmb_struct == (0, 0):
                 pool = np.delete(pool, 0)
-            # if there is only one critical point and the field is as
-            # small as possible, we store the cp position, the end !
-            elif nmb_struct == (1, 1):
-                if window_size == 1:
-                    cp_pos = [0, 0]
-                else:
-                    cp_pos = tmp_vf._get_poi_position()
-                positions.append((tmp_vf.axe_x[cp_pos[0]] + delta_x/2.,
-                                  tmp_vf.axe_y[cp_pos[1]] + delta_y/2.))
-                pbis.append(tmp_vf.pbi_x[-1])
-                pool = np.delete(pool, 0)
-            # if the cp density is too high, bu the pbi is valid
-            elif tmp_vf.pbi_x[-1] in [-1, 1]:
-                print('\n consistsant')
-                print(tmp_vf.pbi_x)
-                print(tmp_vf.pbi_y)
-                cp_pos = [np.mean(tmp_vf.axe_x), np.mean(tmp_vf.axe_y)]
-                positions.append(cp_pos)
-                pbis.append(tmp_vf.pbi_x[-1])
-                pool = np.delete(pool, 0)
-            # if the cp density is too high and the pbi is invalid
             else:
-                print('\n delete')
-                print(tmp_vf.pbi_x)
-                print(tmp_vf.pbi_y)
+                positions.append((tmp_vf.axe_x[0] + delta_x/2.,
+                                  tmp_vf.axe_y[0] + delta_y/2.))
+                pbi = tmp_vf.pbi_x[1]
+                # getting CP type
+                if pbi == -1:
+                    cp_types.append(0)
+                else:
+                    jac = _get_jacobian_matrix(tmp_vf.vx, tmp_vf.vy)
+                    eigvals, eigvects = np.linalg.eig(jac)
+                    tau = np.real(eigvals[0])
+                    mu = np.sum(np.abs(np.imag(eigvals)))
+                    if mu != 0:
+                        if jac[1, 0] < 0:
+                            cp_types.append(1)
+                        else:
+                            cp_types.append(2)
+                    elif tau >= 0 and mu == 0:
+                        cp_types.append(3)
+                    elif tau < 0 and mu == 0:
+                        cp_types.append(4)
+                    else:
+                        raise Exception()
                 pool = np.delete(pool, 0)
-
-        # removing doublons
-        positions = np.array(positions)
-        pbis = np.array(pbis)
-        ind_pos = _argunique(positions)
-        positions = positions[ind_pos]
-        pbis = pbis[ind_pos]
         # returning
-        return positions, pbis
+        return np.array(positions), np.array(cp_types)
 
-    def get_cp_position(self, window_size=1):
+    def get_cp_position(self):
         """
         Return critical points positions and their associated PBI using
         bilinear interpolation.
         (PBI : Poincarre_Bendixson indice)
         Positions are returned in axis unities (axe_x and axe_y).
-
-        Parameters
-        ----------
-        window_size : integer, optional
-            Minimal window size for PBI detection.
-            Smaller window size allow detection where points are dense.
-            Default is finnest possible (1).
 
         Returns
         -------
@@ -190,7 +170,7 @@ class VF(object):
         pp. 377–396, Dec. 2010.
         """
         # get the cell position
-        positions, pbis = self.get_cp_cell_position(window_size=window_size)
+        positions, cp_types = self.get_cp_cell_position()
         axe_x = self.axe_x
         axe_y = self.axe_y
         dx = axe_x[1] - axe_x[0]
@@ -271,7 +251,7 @@ class VF(object):
                 new_positions[i] = np.array([tmp_sol[0] + axe_x[ind_x],
                                              tmp_sol[1] + axe_y[ind_y]])
         # returning
-        return new_positions, pbis
+        return new_positions, cp_types
 
     def get_pbi(self, direction):
         """
@@ -347,99 +327,6 @@ class VF(object):
         grid_y = [0, np.round(len_y/2.), len_y]
         return grid_x, grid_y
 
-    def _find_cut_positions(self):
-        """
-        Return the position along x and y where the field has to be cut to
-        isolate critical points.
-        Return '(None, None)' if there is no possible cut position.
-        """
-        raise Exception("WARNING : may be inusable with actual "
-                        "'_split_the_field'")
-        self._calc_pbi()
-        # Getting point of interest position
-        poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
-        poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
-        ind_x = np.where(poi_x != 0)[0]
-        ind_y = np.where(poi_y != 0)[0]
-        # If there is only one or none distinct structure
-        if ind_x.shape[0] <= 1 and ind_y.shape[0] <= 1:
-            return None, None
-        # finding all possible cutting positions
-        dist_x = np.abs(ind_x[1::] - ind_x[0:-1])
-        dist_y = np.abs(ind_y[1::] - ind_y[0:-1])
-        cut_pos_x = ind_x[0:-1] + np.ceil(dist_x/2)
-        cut_pos_y = ind_y[0:-1] + np.ceil(dist_y/2)
-        # eliminating cutting creating too small fields
-        cut_pos_x = cut_pos_x[dist_x > self._min_win_size]
-        cut_pos_y = cut_pos_y[dist_y > self._min_win_size]
-        # adding trimming and the border (allow to get good result even if we
-        # have to cut on a critical point line or column.
-        if len(ind_x) == 0:
-            trim_x_1 = []
-        elif ind_x[0] > self._min_win_size:
-            trim_x_1 = [ind_x[0] - self._min_win_size + 1]
-        else:
-            trim_x_1 = []
-        if len(ind_x) == 0:
-            trim_x_2 = []
-        elif len(self.pbi_x) - ind_x[-1] > self._min_win_size:
-            trim_x_2 = [ind_x[-1] + self._min_win_size - 1]
-        else:
-            trim_x_2 = []
-        if len(ind_y) == 0:
-            trim_y_1 = []
-        elif ind_y[0] > self._min_win_size:
-            trim_y_1 = [ind_y[0] - self._min_win_size + 1]
-        else:
-            trim_y_1 = []
-        if len(ind_y) == 0:
-            trim_y_2 = []
-        elif len(self.pbi_y) - ind_y[-1] > self._min_win_size:
-            trim_y_2 = [ind_y[-1] + self._min_win_size - 1]
-        else:
-            trim_y_2 = []
-        # adding borders
-        grid_x = np.concatenate(([0], trim_x_1, cut_pos_x + 1, trim_x_2,
-                                 [len(self.pbi_x)]))
-        grid_y = np.concatenate(([0], trim_y_1, cut_pos_y + 1, trim_y_2,
-                                 [len(self.pbi_y)]))
-        if len(grid_x) == 2 and len(grid_y) == 2:
-            return None, None
-        return grid_x, grid_y
-
-    def _split_the_field(self, grid_x, grid_y):
-        """
-        Return a set of fields, resulting of cutting the field at the
-        positions given by grid_x and grid_y.
-        Resulting fields are a little bigger than if we do a basic cutting,
-        in order to not lose cp.
-        """
-        fields = []
-        for i in np.arange(len(grid_x) - 1):
-            if i == 0:
-                slic_x = slice(grid_x[i], grid_x[i + 1] + 2)
-#            elif i == len(grid_x) - 2:
-#                if grid_x[i] != grid_x[i + 1]:
-#                    slic_x = slice(grid_x[i], grid_x[i + 1] + 2)
-            else:
-                slic_x = slice(grid_x[i], grid_x[i + 1] + 2)
-            for j in np.arange(len(grid_y) - 1):
-                if j == 0:
-                    slic_y = slice(grid_y[j], grid_y[j + 1] + 2)
-                else:
-                    slic_y = slice(grid_y[j], grid_y[j + 1] + 2)
-                vx_tmp = self.vx[slic_x, slic_y]
-                vy_tmp = self.vy[slic_x, slic_y]
-                mask_tmp = self.mask[slic_x, slic_y]
-                theta_tmp = self.theta[slic_x, slic_y]
-                time_tmp = self.time
-                axe_x_tmp = self.axe_x[slic_y]
-                axe_y_tmp = self.axe_y[slic_x]
-                vf_tmp = VF(vx_tmp, vy_tmp, axe_x_tmp, axe_y_tmp,
-                            mask_tmp, theta_tmp, time_tmp)
-                fields.append(vf_tmp)
-        return fields
-
     def _calc_pbi(self):
         """
         Compute the pbi along the two axis (if not already computed,
@@ -451,22 +338,6 @@ class VF(object):
         except AttributeError:
             self.pbi_x = self.get_pbi(direction=1)
             self.pbi_y = self.get_pbi(direction=2)
-
-    def _get_poi_position(self):
-        """
-        On a field with only one structure detected by PBI, return the
-        position of this structure (position is given in indice).
-        """
-        self._calc_pbi()
-        poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
-        poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
-        ind_x = np.where(poi_x != 0)[0]
-        ind_y = np.where(poi_y != 0)[0]
-        if len(ind_x) > 1 or len(ind_y) > 1:
-            raise StandardError()
-        if len(ind_x) == 0 and len(ind_y) == 0:
-            raise StandardError("empty field")
-        return ind_x[0], ind_y[0]
 
     def _check_struct_number(self):
         """
@@ -1168,7 +1039,7 @@ class CritPoints(object):
         if field is not None and len(self.sadd[indice].xy) != 0:
             streams = self.sadd[indice]\
                 .get_streamlines_from_orientations(field,
-                    reverse_direction=[True, False], interp='cubic')
+                reverse_direction=[True, False], interp='cubic')
             for stream in streams:
                 stream._display(kind='plot', color=colors[4])
 
@@ -1512,7 +1383,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     window_size = int(window_size)
     if not isinstance(kind, STRINGTYPES):
         raise TypeError()
-    if not kind in ['pbi', 'pbi_crit', 'pbi_cell']:
+    if kind not in ['pbi', 'pbi_crit', 'pbi_cell']:
         raise ValueError()
     if mirroring is not None:
         if not isinstance(mirroring, ARRAYTYPES):
@@ -1524,7 +1395,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
             raise ValueError()
     if not isinstance(mirror_interp, STRINGTYPES):
         raise TypeError()
-    if not mirror_interp in ['linear', 'value', 'nearest', 'cubic']:
+    if mirror_interp not in ['linear', 'value', 'nearest', 'cubic']:
         raise ValueError()
     if not isinstance(smoothing_size, NUMBERTYPES):
         raise TypeError()
@@ -1568,14 +1439,18 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
             for direction, position in mirroring:
                 if direction == 1:
                     if position < x_median and position > intervx[0]:
-                        intervx[0] = axe_x[tmp_vf.get_indice_on_axe(1, position)[0] - 1]
+                        ind = tmp_vf.get_indice_on_axe(1, position)[0]
+                        intervx[0] = axe_x[ind - 1]
                     elif position < intervx[1]:
-                        intervx[1] = axe_x[tmp_vf.get_indice_on_axe(1, position)[1] + 1]
+                        ind = tmp_vf.get_indice_on_axe(1, position)[1]
+                        intervx[1] = axe_x[ind + 1]
                 else:
                     if position < y_median and position > intervy[0]:
-                        intervy[0] = axe_y[tmp_vf.get_indice_on_axe(2, position)[0] - 1]
+                        ind = tmp_vf.get_indice_on_axe(2, position)[0]
+                        intervy[0] = axe_y[ind - 1]
                     elif position < intervy[1]:
-                        intervy[1] = axe_y[tmp_vf.get_indice_on_axe(2, position)[1] + 1]
+                        ind = tmp_vf.get_indice_on_axe(2, position)[1]
+                        intervy[1] = axe_y[ind + 1]
             res.trim(intervx=intervx, intervy=intervy, inplace=True)
     # if obj is vector fields
     elif isinstance(obj, TemporalVectorFields):
@@ -1622,20 +1497,38 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         raise TypeError("'vectorfield' must be a VectorField")
     if isinstance(unit_time, STRINGTYPES):
         unit_time = make_unit(unit_time)
-    # using VF methods to get cp position
+    # using VF methods to get cp position and types
     field = velocityfield_to_vf(vectorfield, time)
-    pos, pbis = field.get_cp_position(window_size=window_size)
-    pbi_m = Points()
-    pbi_p = Points()
-    for i, pbi in enumerate(pbis):
-        if pbi == -1:
-            pbi_m.add(pos[i])
-        elif pbi == 1:
-            pbi_p.add(pos[i])
+    pos, cp_types = field.get_cp_position()
+    sadd = Points()
+    foc = Points()
+    foc_c = Points()
+    node_i = Points()
+    node_o = Points()
+    for i, t in enumerate(cp_types):
+        if t == 0:
+            sadd.add(pos[i])
+        elif t == 1:
+            foc_c.add(pos[i])
+        elif t == 2:
+            foc.add(pos[i])
+        elif t == 3:
+            node_o.add(pos[i])
+        elif t == 4:
+            node_i.add(pos[i])
         else:
             raise Exception()
+    # compute sadd points orientations
+    sadd_ori = []
+    for sad in sadd.xy:
+        sadd_ori.append(np.array(_get_saddle_orientations(vectorfield,
+                                                          sad)))
+    tmp_opts = OrientedPoints()
+    tmp_opts.import_from_Points(sadd, sadd_ori)
+    sadd = tmp_opts
     pts = CritPoints(unit_time=unit_time)
-    pts.add_point(pbi_m=pbi_m, pbi_p=pbi_p, time=time)
+    pts.add_point(foc=foc, foc_c=foc_c, node_i=node_i, node_o=node_o,
+                  sadd=sadd, time=time)
     # setting units
     pts.unit_x = vectorfield.unit_x
     pts.unit_y = vectorfield.unit_y
@@ -1677,20 +1570,38 @@ def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         raise TypeError("'vectorfield' must be a VectorField")
     if isinstance(unit_time, STRINGTYPES):
         unit_time = make_unit(unit_time)
-    # using VF methods to get cp position
+    # using VF methods to get cp position and types
     field = velocityfield_to_vf(vectorfield, time)
-    pos, pbis = field.get_cp_cell_position(window_size=window_size)
-    pbi_m = Points()
-    pbi_p = Points()
-    for i, pbi in enumerate(pbis):
-        if pbi == -1:
-            pbi_m.add(pos[i])
-        elif pbi == 1:
-            pbi_p.add(pos[i])
+    pos, cp_types = field.get_cp_cell_position()
+    sadd = Points()
+    foc = Points()
+    foc_c = Points()
+    node_i = Points()
+    node_o = Points()
+    for i, t in enumerate(cp_types):
+        if t == 0:
+            sadd.add(pos[i])
+        elif t == 1:
+            foc_c.add(pos[i])
+        elif t == 2:
+            foc.add(pos[i])
+        elif t == 3:
+            node_o.add(pos[i])
+        elif t == 4:
+            node_i.add(pos[i])
         else:
             raise Exception()
+    # compute sadd points orientations
+    sadd_ori = []
+    for sad in sadd.xy:
+        sadd_ori.append(np.array(_get_saddle_orientations(vectorfield,
+                                                          sad)))
+    tmp_opts = OrientedPoints()
+    tmp_opts.import_from_Points(sadd, sadd_ori)
+    sadd = tmp_opts
     pts = CritPoints(unit_time=unit_time)
-    pts.add_point(pbi_m=pbi_m, pbi_p=pbi_p, time=time)
+    pts.add_point(foc=foc, foc_c=foc_c, node_i=node_i, node_o=node_o,
+                  sadd=sadd, time=time)
     # setting units
     pts.unit_x = vectorfield.unit_x
     pts.unit_y = vectorfield.unit_y
@@ -1740,25 +1651,24 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         unit_time = make_unit(unit_time)
     ### Getting pbi cp position and fields around ###
     VF_field = velocityfield_to_vf(vectorfield, time)
-    cp_positions, pbis = VF_field.get_cp_cell_position(window_size=window_size)
+    cp_positions, cp_types = VF_field.get_cp_cell_position()
+    radius = window_size/4.
     # creating velocityfields around critical points
     # and transforming into VectorField objects
     VF_tupl = []
-    pbi_m = Points()
-    pbi_p = Points()
     for i, cp_pos in enumerate(cp_positions):
-        tmp_vf = VF_field.get_field_around_pt(cp_pos, 5)
+        tmp_vf = VF_field.get_field_around_pt(cp_pos, window_size + 1)
         tmp_vf = tmp_vf.export_to_velocityfield()
+        print(tmp_vf.shape)
         # treating small fields
         axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
-        if len(axe_x) < 6 or len(axe_y) < 6 or np.any(tmp_vf.mask):
-            if pbis[i] == -1:
-                pbi_m += Points([cp_pos])
-            elif pbis[i] == 1:
-                pbi_p += Points([cp_pos])
+        if len(axe_x) < window_size or len(axe_y) < window_size or np.any(tmp_vf.mask):
+            pass
         else:
-            tmp_vf.PBI = pbis[i]
+            tmp_vf.PBI = int(cp_types[i] != 0)
+            tmp_vf.assoc_ind = i
             VF_tupl.append(tmp_vf)
+    print(len(VF_tupl))
     ### Sorting by critical points type ###
     VF_focus = []
     VF_nodes = []
@@ -1767,8 +1677,8 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         # node or focus
         if VF.PBI == 1:
             # checking if node or focus
-            VF.gamma1 = get_gamma(VF, radius=1.9, ind=True)
-            VF.kappa1 = get_kappa(VF, radius=1.9, ind=True)
+            VF.gamma1 = get_gamma(VF, radius=radius, ind=True)
+            VF.kappa1 = get_kappa(VF, radius=radius, ind=True)
             max_gam = np.max([abs(VF.gamma1.max),
                              abs(VF.gamma1.min)])
             max_kap = np.max([abs(VF.kappa1.max),
@@ -1780,31 +1690,7 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         # saddle point
         elif VF.PBI == -1:
             VF_saddle.append(VF)
-    ### Computing saddle points positions and direction###
-    saddles = Points()
-    if len(VF_saddle) != 0:
-        for VF in VF_saddle:
-            tmp_iot = get_iota(VF, radius=1.9, ind=True)
-            pts = _min_detection(np.max(tmp_iot.values) - tmp_iot)
-            if pts is not None:
-                if pts.xy[0][0] is not None and len(pts) == 1:
-                    pts.unit_v = saddles.unit_v
-                    saddles += pts
-    # compute directions
-    saddles_ori = []
-    for sad in saddles.xy:
-        try:
-            saddles_ori.append(np.array(_get_saddle_orientations(vectorfield,
-                                                                 sad)))
-        except ValueError:
-            saddles_ori.append([[0, 0], [0, 0]])
-    tmp_opts = OrientedPoints()
-    tmp_opts.import_from_Points(saddles, saddles_ori)
-    saddles = tmp_opts
-
     ### Computing focus positions (rotatives and contrarotatives) ###
-    focus = Points()
-    focus_c = Points()
     if len(VF_focus) != 0:
         for VF in VF_focus:
             tmp_gam = VF.gamma1
@@ -1815,18 +1701,16 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                 pts = _min_detection(-1.*tmp_gam)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.unit_v = focus.unit_v
-                        focus += pts
+                        cp_positions[VF.assoc_ind] = pts.xy[0]
+                        cp_types[VF.assoc_ind] = 2
             # contrarotative vortex
             else:
                 pts = _min_detection(tmp_gam)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.unit_v = focus_c.unit_v
-                        focus_c += pts
+                        cp_positions[VF.assoc_ind] = pts.xy[0]
+                        cp_types[VF.assoc_ind] = 1
     ### Computing nodes points positions (in or out) ###
-    nodes_i = Points()
-    nodes_o = Points()
     if len(VF_nodes) != 0:
         for VF in VF_nodes:
             tmp_kap = VF.kappa1
@@ -1837,19 +1721,47 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                 pts = _min_detection(-1.*tmp_kap)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.unit_v = nodes_o.unit_v
-                        nodes_o += pts
+                        cp_positions[VF.assoc_ind] = pts.xy[0]
+                        cp_types[VF.assoc_ind] = 3
             # in nodes
             else:
                 pts = _min_detection(tmp_kap)
                 if pts is not None:
                     if pts.xy[0][0] is not None and len(pts) == 1:
-                        pts.unit_v = nodes_i.unit_v
-                        nodes_i += pts
+                        cp_positions[VF.assoc_ind] = pts.xy[0]
+                        cp_types[VF.assoc_ind] = 4
+    ### Computing saddle points positions and direction ###
+    if len(VF_saddle) != 0:
+        for VF in VF_saddle:
+            tmp_iot = get_iota(VF, radius=radius, ind=True)
+            pts = _min_detection(np.max(tmp_iot.values) - tmp_iot)
+            if pts is not None:
+                if pts.xy[0][0] is not None and len(pts) == 1:
+                        cp_positions[VF.assoc_ind] = pts.xy[0]
+                        cp_types[VF.assoc_ind] = 0
     ### creating the CritPoints object for returning
+    focus = Points()
+    focus_c = Points()
+    nodes_i = Points()
+    nodes_o = Points()
+    sadd = OrientedPoints()
+    for i, t in enumerate(cp_types):
+        if t == 0:
+            pos = cp_positions[i]
+            ori = np.array(_get_saddle_orientations(vectorfield, pos))
+            sadd.add(pos, ori)
+        elif t == 1:
+            focus_c.add(cp_positions[i])
+        elif t == 2:
+            focus.add(cp_positions[i])
+        elif t == 3:
+            nodes_o.add(cp_positions[i])
+        elif t == 4:
+            nodes_i.add(cp_positions[i])
+        else:
+            raise Exception()
     pts = CritPoints(unit_time=unit_time)
-    pts.add_point(focus, focus_c, nodes_i, nodes_o, saddles,
-                  pbi_m, pbi_p, time=time)
+    pts.add_point(focus, focus_c, nodes_i, nodes_o, sadd, time=time)
     # setting units
     pts.unit_x = vectorfield.unit_x
     pts.unit_y = vectorfield.unit_y
@@ -1960,21 +1872,8 @@ def _get_saddle_orientations(vectorfield, pt):
     inds_X_2, inds_Y_2 = np.meshgrid(inds_x_2, inds_y_2)
     local_Vx = Vx[inds_X_2, inds_Y_2]
     local_Vy = Vy[inds_X_2, inds_Y_2]
-    Vx_dx, Vx_dy = np.gradient(local_Vx.transpose(), dx, dy)
-    Vy_dx, Vy_dy = np.gradient(local_Vy.transpose(), dx, dy)
-    # get interpolated gradient at the point
-    axe_x2 = axe_x[inds_x_2]
-    axe_y2 = axe_y[inds_y_2]
-    Vx_dx2 = RectBivariateSpline(axe_x2, axe_y2, Vx_dx, kx=2, ky=2, s=0)
-    Vx_dx2 = Vx_dx2(pt[0], pt[1])[0][0]
-    Vx_dy2 = RectBivariateSpline(axe_x2, axe_y2, Vx_dy, kx=2, ky=2, s=0)
-    Vx_dy2 = Vx_dy2(pt[0], pt[1])[0][0]
-    Vy_dx2 = RectBivariateSpline(axe_x2, axe_y2, Vy_dx, kx=2, ky=2, s=0)
-    Vy_dx2 = Vy_dx2(pt[0], pt[1])[0][0]
-    Vy_dy2 = RectBivariateSpline(axe_x2, axe_y2, Vy_dy, kx=2, ky=2, s=0)
-    Vy_dy2 = Vy_dy2(pt[0], pt[1])[0][0]
     # get jacobian eignevalues
-    jac = np.array([[Vx_dx2, Vx_dy2], [Vy_dx2, Vy_dy2]], subok=True)
+    jac = _get_jacobian_matrix(local_Vx, local_Vy, dx, dy)
     eigvals, eigvects = np.linalg.eig(jac)
     if eigvals[0] < eigvals[1]:
         orient1 = eigvects[:, 0]
@@ -1983,6 +1882,42 @@ def _get_saddle_orientations(vectorfield, pt):
         orient1 = eigvects[:, 1]
         orient2 = eigvects[:, 0]
     return np.real(orient1), np.real(orient2)
+
+
+def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1.):
+    """
+    Return the jacobian matrix at the center of 4 points.
+    """
+    # check params
+    if not isinstance(Vx, ARRAYTYPES):
+        raise TypeError()
+    if not isinstance(Vy, ARRAYTYPES):
+        raise TypeError()
+    Vx = np.array(Vx)
+    Vy = np.array(Vy)
+    if not Vx.shape == Vy.shape:
+        raise ValueError()
+    if Vx.shape[0] == 2 or Vx.shape[1] == 2:
+        k = 1
+    else:
+        k = 2
+    # compute gradients
+    Vx_dx, Vx_dy = np.gradient(Vx.transpose(), dx, dy)
+    Vy_dx, Vy_dy = np.gradient(Vy.transpose(), dx, dy)
+    axe_x = np.arange(0, Vx.shape[0]*dx, dx)
+    axe_y = np.arange(0, Vx.shape[1]*dx, dy)
+    # get interpolated gradient at the point
+    Vx_dx2 = RectBivariateSpline(axe_x, axe_y, Vx_dx, kx=k, ky=k, s=0)
+    Vx_dx2 = Vx_dx2(np.mean(axe_x), np.mean(axe_y))[0][0]
+    Vx_dy2 = RectBivariateSpline(axe_x, axe_y, Vx_dy, kx=k, ky=k, s=0)
+    Vx_dy2 = Vx_dy2(np.mean(axe_x), np.mean(axe_y))[0][0]
+    Vy_dx2 = RectBivariateSpline(axe_x, axe_y, Vy_dx, kx=k, ky=k, s=0)
+    Vy_dx2 = Vy_dx2(np.mean(axe_x), np.mean(axe_y))[0][0]
+    Vy_dy2 = RectBivariateSpline(axe_x, axe_y, Vy_dy, kx=k, ky=k, s=0)
+    Vy_dy2 = Vy_dy2(np.mean(axe_x), np.mean(axe_y))[0][0]
+    # get jacobian eignevalues
+    jac = np.array([[Vx_dx2, Vx_dy2], [Vy_dx2, Vy_dy2]], subok=True)
+    return jac
 
 
 ### Separation point ###

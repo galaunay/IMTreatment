@@ -1040,7 +1040,7 @@ class Points(object):
         if len(self.v) == len(self.xy):
             self.v = np.delete(tmp_v, ind, axis=0)
         self.xy = np.delete(self.xy, ind, axis=0)
-        
+
 
     def change_unit(self, axe, new_unit):
         """
@@ -1427,8 +1427,11 @@ class OrientedPoints(Points):
             Value of the point (needed if other points have values).
         """
         Points.add(self, pt, v)
-        self.orientations = np.append(self.orientations, [orientations],
-                                      axis=0)
+        if len(self.orientations) == 0:
+            self.orientations = np.array([orientations])
+        else:
+            self.orientations = np.append(self.orientations, [orientations],
+                                          axis=0)
 
     def remove(self, ind):
         """
@@ -2879,7 +2882,7 @@ class Field(object):
             radius = radius/delta
             center_x = self.get_indice_on_axe(1, center[0], kind='decimal')
             center_y = self.get_indice_on_axe(2, center[1], kind='decimal')
-            center = [center_x, center_y]
+            center = np.array([center_x, center_y])
         # pre-computing somme properties
         radius2 = radius**2
         radius_int = radius/np.sqrt(2)
@@ -2914,7 +2917,7 @@ class Field(object):
     def rotate(self, angle, inplace=False):
         """
         Rotate the field.
-        
+
         Parameters
         ----------
         angle : integer
@@ -2924,7 +2927,7 @@ class Field(object):
         inplace : boolean, optional
             If 'True', Field is rotated in place, else, the function return a
             rotated field.
-            
+
         Returns
         -------
         rotated_field : Field object, optional
@@ -2969,8 +2972,8 @@ class Field(object):
             tmp_field.__axe_y = -tmp_field.axe_y
         # returning
         if not inplace:
-            return tmp_field            
-        
+            return tmp_field
+
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an Field.
@@ -4183,7 +4186,7 @@ class ScalarField(Field):
     def rotate(self, angle, inplace=False):
         """
         Rotate the scalar field.
-        
+
         Parameters
         ----------
         angle : integer
@@ -4193,7 +4196,7 @@ class ScalarField(Field):
         inplace : boolean, optional
             If 'True', scalar field is rotated in place, else, the function
             return a rotated field.
-            
+
         Returns
         -------
         rotated_field : ScalarField object, optional
@@ -4222,7 +4225,7 @@ class ScalarField(Field):
         # returning
         if not inplace:
             return tmp_field
-            
+
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.
@@ -5335,7 +5338,7 @@ class VectorField(Field):
         # get data
         comp_x, comp_y = self.comp_x, self.comp_y
         not_mask = np.logical_not(self.mask)
-        
+
         theta = np.zeros(self.shape)
         # getting angle
         norm = self.magnitude
@@ -5451,7 +5454,7 @@ class VectorField(Field):
     def rotate(self, angle, inplace=False):
         """
         Rotate the vector field.
-        
+
         Parameters
         ----------
         angle : integer
@@ -5461,7 +5464,7 @@ class VectorField(Field):
         inplace : boolean, optional
             If 'True', vector field is rotated in place, else, the function
             return a rotated field.
-            
+
         Returns
         -------
         rotated_field : VectorField object, optional
@@ -5490,14 +5493,14 @@ class VectorField(Field):
         mask = np.rot90(tmp_field.mask, nmb_rot90)
         comp_x2 = np.cos(angle/180.*np.pi)*comp_x - np.sin(angle/180.*np.pi)*comp_y
         comp_y2 = np.cos(angle/180.*np.pi)*comp_y + np.sin(angle/180.*np.pi)*comp_x
-        tmp_field.__comp_x, tmp_field.__comp_y = comp_x, comp_y        
+        tmp_field.__comp_x, tmp_field.__comp_y = comp_x, comp_y
         tmp_field.__comp_x = comp_x2
         tmp_field.__comp_y = comp_y2
         tmp_field.__mask = mask
         # returning
         if not inplace:
             return tmp_field
-            
+
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.
@@ -6051,7 +6054,7 @@ class Fields(object):
     def rotate(self, angle, inplace=False):
         """
         Rotate the fields.
-        
+
         Parameters
         ----------
         angle : integer
@@ -6061,7 +6064,7 @@ class Fields(object):
         inplace : boolean, optional
             If 'True', fields is rotated in place, else, the function
             return rotated fields.
-            
+
         Returns
         -------
         rotated_field : TemporalFields or child object, optional
@@ -6089,7 +6092,7 @@ class Fields(object):
         # returning
         if not inplace:
             return tmp_field
-            
+
     def add_field(self, field):
         """
         Add a field to the existing fields.
@@ -6692,7 +6695,7 @@ class TemporalFields(Fields, Field):
         magn = magn/real_nmb_fields
         return magn
 
-    ### Modifiers ###            
+    ### Modifiers ###
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.
@@ -8014,14 +8017,14 @@ class SpatialFields(Fields):
     def get_profile(self, direction, position, component=None):
         """
         Return a profile of the current fields.
-        
+
         Parameters
         ----------
         direction : integer
             Direction along which we choose a position (1 for x and 2 for y)
         position : float, interval of float
             Position, interval in which we want a profile
-            
+
         component : string
             Component wanted for the profile.
 
