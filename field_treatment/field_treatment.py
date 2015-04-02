@@ -653,7 +653,7 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
                                                  kx=3, ky=3)
     # Calcul des streamlines
     streams = []
-    longmax = (len(axe_x)+len(axe_y))/delta
+    longmax = int(np.round((len(axe_x) + len(axe_y))/delta))
     for coord in xy:
         # getting coordinates
         x = coord[0]
