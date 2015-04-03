@@ -366,10 +366,15 @@ class CritPoints(object):
     def __init__(self,  unit_time='s'):
         # check parameters
         self.foc = np.array([])
+        self.foc_traj = None
         self.foc_c = np.array([])
+        self.foc_c_traj = None
         self.node_i = np.array([])
+        self.node_i_traj = None
         self.node_o = np.array([])
+        self.node_o_traj = None
         self.sadd = np.array([])
+        self.sadd_traj = None
         self.times = np.array([])
         self.unit_time = unit_time
         self.unit_x = make_unit('')
@@ -407,6 +412,46 @@ class CritPoints(object):
 
     ### Attributes ###
     @property
+    def unit_x(self):
+        return self.__unit_x
+
+    @unit_x.setter
+    def unit_x(self, new_unit_x):
+        if isinstance(new_unit_x, STRINGTYPES):
+            new_unit_x = make_unit(new_unit_x)
+        if not isinstance(new_unit_x, unum.Unum):
+            raise TypeError()
+        self.__unit_x = new_unit_x
+        for kind in self.iter:
+            for i in np.arange(len(kind)):
+                kind[i].unit_x = new_unit_x
+        for kind in self.iter_traj:
+            if kind is None:
+                continue
+            for i in np.arange(len(kind)):
+                kind[i].unit_x = new_unit_x
+
+    @property
+    def unit_y(self):
+        return self.__unit_y
+
+    @unit_y.setter
+    def unit_y(self, new_unit_y):
+        if isinstance(new_unit_y, STRINGTYPES):
+            new_unit_y = make_unit(new_unit_y)
+        if not isinstance(new_unit_y, unum.Unum):
+            raise TypeError()
+        self.__unit_y = new_unit_y
+        for kind in self.iter:
+            for i in np.arange(len(kind)):
+                kind[i].unit_y = new_unit_y
+        for kind in self.iter_traj:
+            if kind is None:
+                continue
+            for i in np.arange(len(kind)):
+                kind[i].unit_y = new_unit_y
+
+    @property
     def unit_time(self):
         return self.__unit_time
 
@@ -417,6 +462,14 @@ class CritPoints(object):
         if not isinstance(new_unit_time, unum.Unum):
             raise TypeError()
         self.__unit_time = new_unit_time
+        for kind in self.iter:
+            for i in np.arange(len(kind)):
+                kind[i].unit_v = new_unit_time
+        for kind in self.iter_traj:
+            if kind is None:
+                continue
+            for i in np.arange(len(kind)):
+                kind[i].unit_v = new_unit_time
 
     ### Properties ###
     @property
@@ -555,8 +608,8 @@ class CritPoints(object):
         return dens
 
     ### Modifiers ###
-    def add_point(self, foc=Points(), foc_c=Points(), node_i=Points(),
-                  node_o=Points(), sadd=Points(), time=Points()):
+    def add_point(self, foc=None, foc_c=None, node_i=None,
+                  node_o=None, sadd=None, time=None):
         """
         Add a new point to the CritPoints object.
 
@@ -568,33 +621,39 @@ class CritPoints(object):
             Time.
         """
         # check parameters
-        for pt in [foc, foc_c, node_i, node_o, sadd]:
-            if not isinstance(pt, Points):
-                raise TypeError()
-            pt.v = np.array([])
+        diff_pts = [foc, foc_c, node_i, node_o, sadd]
+        for pt in diff_pts:
+            if pt is not None:
+                if not isinstance(pt, Points):
+                    raise TypeError()
         if not isinstance(time, NUMBERTYPES):
             raise ValueError()
         if np.any(self.times == time):
             raise ValueError()
         # first point
         if len(self.times) == 0:
-            for pt in [foc, foc_c, node_i, node_o, sadd]:
+            for pt in diff_pts:
                 if pt is not None:
                     self.unit_x = foc.unit_x
                     self.unit_y = foc.unit_y
                     break
-        else:
-            for pt in [foc, foc_c, node_i, node_o, sadd]:
-                if pt.unit_x != self.unit_x:
-                    raise ValueError()
-                if pt.unit_y != self.unit_y:
-                    raise ValueError()
-        # other ones
-        self.foc = np.append(self.foc, foc)
-        self.foc_c = np.append(self.foc_c, foc_c)
-        self.node_i = np.append(self.node_i, node_i)
-        self.node_o = np.append(self.node_o, node_o)
-        self.sadd = np.append(self.sadd, sadd)
+        # set default values
+        for i, pt in enumerate(diff_pts):
+            if pt is None:
+                diff_pts[i] = Points(unit_x=self.unit_x, unit_y=self.unit_y,
+                                     unit_v=self.unit_time)
+        # check units
+        for pt in diff_pts:
+            if pt.unit_x != self.unit_x:
+                raise ValueError()
+            if pt.unit_y != self.unit_y:
+                raise ValueError()
+        # store data
+        self.foc = np.append(self.foc, diff_pts[0].copy())
+        self.foc_c = np.append(self.foc_c, diff_pts[1].copy())
+        self.node_i = np.append(self.node_i, diff_pts[2].copy())
+        self.node_o = np.append(self.node_o, diff_pts[3].copy())
+        self.sadd = np.append(self.sadd, diff_pts[4].copy())
         self.times = np.append(self.times, time)
         self._sort_by_time()
         # trajectories are obsolete
@@ -667,6 +726,41 @@ class CritPoints(object):
             self.unit_time = new_unit/fact
         else:
             raise ValueError()
+
+    def scale(self, scalex=1., scaley=1., inplace=False):
+        """
+        Change the scale of the axis.
+
+        Parameters
+        ----------
+        scalex, scaley : numbers
+            scales alogn x and y
+        inplace : boolean, optional
+            If 'True', scaling is done in place, else, a new instance is
+            returned.
+        """
+        # check params
+        if not isinstance(scalex, NUMBERTYPES):
+            raise TypeError()
+        if not isinstance(scaley, NUMBERTYPES):
+            raise TypeError()
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        if inplace:
+            tmp_cp = self
+        else:
+            tmp_cp = self.copy()
+        # loop to scale pts
+        for pt_type in tmp_cp.iter:
+            for i, pts in enumerate(pt_type):
+                pt_type[i].scale(scalex=scalex, scaley=scaley, inplace=True)
+        # loop to scale traj (if necessary)
+        for traj in tmp_cp.iter_traj:
+            for i, pts in enumerate(traj):
+                traj[i].scale(scalex=scalex, scaley=scaley, inplace=True)
+        # returning
+        if not inplace:
+            return tmp_cp
 
     def trim(self, intervx=None, intervy=None, inplace=False):
         """
@@ -1041,7 +1135,7 @@ class CritPoints(object):
             for stream in streams:
                 stream._display(kind='plot', color=colors[4])
 
-    def display_traj(self, kind='default', reverse=False, **kw):
+    def display_traj(self, kind='default', reverse=None, **kw):
         """
         Display the stored trajectories.
 
@@ -1052,7 +1146,7 @@ class CritPoints(object):
             If 'x', x position of cp are plotted against time.
             If 'y', y position of cp are plotted against time.
         reverse : boolean, optional
-            If 'True', reverse the axis
+            If 'True', reverse the axis.
         kw : dict, optional
             Arguments passed to plot.
         """
@@ -1060,6 +1154,11 @@ class CritPoints(object):
         if self.current_epsilon is None:
             raise StandardError("you must compute trajectories before "
                                 "displaying them")
+        if reverse is None:
+            if kind == 'x':
+                reverse = False
+            elif kind == 'y':
+                reverse = True
         # display
         if 'color' in kw.keys():
             colors = [kw.pop('color')]*len(self.colors)
@@ -1334,7 +1433,7 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
 
 def get_critical_points(obj, time=0, unit_time='', window_size=4,
                         kind='pbi', mirroring=None, mirror_interp='linear',
-                        smoothing_size=0):
+                        smoothing_size=0, verbose=False):
     """
     For a VectorField of a TemporalVectorField object, return the critical
     points positions and informations on their type.
@@ -1369,6 +1468,8 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     smoothing_size : number, optional
         If specified, a gaussian smoothing of the wanted size is used before
         detecting the CP.
+    verbose : boolean, optional
+        If 'True', display message on CP detection advancement.
 
     """
     # check parameters
@@ -1460,6 +1561,10 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                         pdb.set_trace()
     # if obj is vector fields
     elif isinstance(obj, TemporalVectorFields):
+        if verbose:
+            print("\n+++ Begin CP detection on {:.0f} fields"
+                  .format(len(obj.fields)))
+            df = int(np.round(len(obj.fields)/20.))
         res = CritPoints(unit_time=obj.unit_times)
         res.unit_x = obj.unit_x
         res.unit_y = obj.unit_y
@@ -1469,6 +1574,10 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                                        unit_time=obj.unit_times,
                                        window_size=window_size,
                                        kind=kind, mirroring=mirroring)
+            if verbose and i % df == 0:
+                print("+++    {:>3.0f} %    ({}/{} champs)"
+                      .format(np.round(i*1./len(obj.fields)*100),
+                              i, len(obj.fields)))
     else:
         raise TypeError()
     return res
@@ -1522,9 +1631,9 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                     unit_v=unit_time)
     for i, t in enumerate(cp_types):
         if t == 0:
-            pos = pos[i]
-            ori = np.array(_get_saddle_orientations(vectorfield, pos))
-            sadd.add(pos[i], orientations=ori)
+            tmp_pos = pos[i]
+            ori = np.array(_get_saddle_orientations(vectorfield, tmp_pos))
+            sadd.add(tmp_pos, orientations=ori)
         elif t == 1:
             foc_c.add(pos[i])
         elif t == 2:
@@ -1658,7 +1767,8 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         tmp_vf = tmp_vf.export_to_velocityfield()
         # treating small fields
         axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
-        if len(axe_x) < window_size or len(axe_y) < window_size or np.any(tmp_vf.mask):
+        if (len(axe_x) <= window_size + 1 or len(axe_y) <= window_size + 1
+                or np.any(tmp_vf.mask)):
             pass
         else:
             tmp_vf.PBI = int(cp_types[i] != 0)
@@ -1862,8 +1972,7 @@ def _get_saddle_orientations(vectorfield, pt):
     # check if surrounding gradients are available
     if (np.any(inds_x_2 > len(axe_x) - 1) or np.any(inds_x_2 < 0) or
             np.any(inds_y_2 > len(axe_y) - 1) or np.any(inds_y_2 < 0)):
-        raise ValueError("Point is too close to the border, can't compute "
-                         "Jacobian")
+        return [[0, 0], [0, 0]]
     # get surounding gradients
     inds_X_2, inds_Y_2 = np.meshgrid(inds_x_2, inds_y_2)
     local_Vx = Vx[inds_X_2, inds_Y_2]

@@ -1010,13 +1010,10 @@ class Points(object):
                 raise TypeError()
         # store new data
         self.xy = np.append(self.xy, [pt], axis=0)
-        if ((self.v.shape[0] != 0 and v is not None)
-                or (len(self.xy) == 1 and v is not None)):
+        if v is None and self.v.shape[0] != 0:
+            raise ValueError('You should specify an associated value : v')
+        if v is not None:
             self.v = np.append(self.v, v)
-        elif self.v.shape[0] == 0 or v is None:
-            pass
-        else:
-            raise ValueError()
 
     def remove(self, ind):
         """
@@ -1037,10 +1034,9 @@ class Points(object):
         else:
             raise TypeError("'ind' must be an integer or an array of integer")
         tmp_v = self.v.copy()
-        if len(self.v) == len(self.xy):
-            self.v = np.delete(tmp_v, ind, axis=0)
         self.xy = np.delete(self.xy, ind, axis=0)
-
+        if len(self.v) == len(self.xy) + 1:
+            self.v = np.delete(tmp_v, ind, axis=0)
 
     def change_unit(self, axe, new_unit):
         """
@@ -1113,6 +1109,35 @@ class Points(object):
             tmp_pts.v = tmp_pts.v[~mask]
         return tmp_pts
 
+    def scale(self, scalex=1., scaley=1., inplace=False):
+        """
+        Change the scale of the axis.
+
+        Parameters
+        ----------
+        scalex, scaley : numbers
+            scales alogn x and y
+        inplace : boolean, optional
+            If 'True', scaling is done in place, else, a new instance is
+            returned.
+        """
+        # check params
+        if not isinstance(scalex, NUMBERTYPES):
+            raise TypeError()
+        if not isinstance(scaley, NUMBERTYPES):
+            raise TypeError()
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        if inplace:
+            tmp_pt = self
+        else:
+            tmp_pt = self.copy()
+        # loop
+        tmp_pt.xy *= np.array([scalex, scaley])
+        # returning
+        if not inplace:
+            return tmp_pt
+
     def cut(self, interv_x=None, interv_y=None):
         """
         Return a point cloud where the given area has been removed.
@@ -1168,6 +1193,52 @@ class Points(object):
             pts_tupl.append(Points([self.xy[i]], [self.v[i]], self.unit_x,
                                    self.unit_y, self.unit_v, self.name))
         return pts_tupl
+
+    def sort(self, ref='x', inplace=False):
+        """
+        Sort the points according to the reference.
+
+        Parameters
+        ----------
+        ref : string or array of indice
+            can be 'x', 'y' or 'v' to sort according those values or an
+            array of indice
+        inplace ; boolean
+            If 'True', sort in place, else, return an new sorted instance.
+        """
+        # check parameters
+        if isinstance(ref, STRINGTYPES):
+            if ref not in ['x', 'y', 'v']:
+                raise ValueError
+        elif isinstance(ref, ARRAYTYPES):
+            ref = np.array(ref, dtype=int)
+            if len(ref) != len(self.xy):
+                raise ValueError()
+        else:
+            raise TypeError()
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        # get order
+        if ref == 'x':
+            order = np.argsort(self.xy[:, 0])
+        elif ref == 'y':
+            order = np.argsort(self.xy[:, 1])
+        elif ref == 'v':
+            if len(self.v) == 0:
+                raise ValueError()
+            order = np.argsort(self.v)
+        else:
+            order = ref
+        # reordering
+        if inplace:
+            tmp_pt = self
+        else:
+            tmp_pt = self.copy()
+        tmp_pt.xy = tmp_pt.xy[order]
+        tmp_pt.v = tmp_pt.v[order]
+        # returning
+        if not inplace:
+            return tmp_pt
 
     ### Displayers ###
     def _display(self, kind=None, reverse=False, **plotargs):
@@ -1235,7 +1306,8 @@ class OrientedPoints(Points):
         Representing the coordinates of each point of the set (n points).
     orientations : nxdx2 array
         Representing the orientations of each point in the set
-        (d orientations for each n points).
+        (d orientations for each n points). Can be 'None' if a point have no
+        orientation.
     v : n array, optional
         Representing values attached at each points.
     unit_x : Unit object, optional
@@ -1383,6 +1455,8 @@ class OrientedPoints(Points):
         # for each points and each directions
         for i, pt in enumerate(self.xy):
             for n in np.arange(nmb_dir):
+                if np.all(self.orientations[i, n] == [0, 0]):
+                    continue
                 # get streamlines
                 pt1 = pt - self.orientations[i, n]*coef
                 pt2 = pt + self.orientations[i, n]*coef
@@ -7319,15 +7393,15 @@ class TemporalFields(Fields, Field):
         ttl.set_text(title)
         return displ,
 
-#    def _update_vf(self, num, fig, ax, displ, ttl, comp, compo, plotargs):
-#        plt.sca(ax)
-#        ax.cla()
-#        displ = comp[num]._display(**plotargs)
-#        title = "{}, at t={:.2f} {}"\
-#            .format(compo, float(self.times[num]),
-#                    self.unit_times.strUnit())
-#        ttl.set_text(title)
-#        return ax
+    def _update_vf(self, num, fig, ax, displ, ttl, comp, compo, plotargs):
+        plt.sca(ax)
+        ax.cla()
+        displ = comp[num]._display(**plotargs)
+        title = "{}, at t={:.2f} {}"\
+            .format(compo, float(self.times[num]),
+                    self.unit_times.strUnit())
+        ttl.set_text(title)
+        return displ,
 
 
 class TemporalScalarFields(TemporalFields):
