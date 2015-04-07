@@ -23,6 +23,7 @@ import scipy.ndimage.measurements as msr
 import unum
 import copy
 import sympy
+import time as modtime
 
 
 def velocityfield_to_vf(vectorfield, time):
@@ -110,22 +111,17 @@ class VF(object):
         # Look the PBI of each field of the pool
         positions = []
         cp_types = []
-        while True:
-            # if the pool is empty we have finished !
-            if len(pool) == 0:
-                break
-            # get a field
-            tmp_vf = pool[0]
+        for tmp_vf in pool:
+            # check struct number
             nmb_struct = tmp_vf._check_struct_number()
-            # check if there is something in it
+            # if there is nothing
             if nmb_struct == (0, 0):
-                pool = np.delete(pool, 0)
+                continue
             else:
                 positions.append((tmp_vf.axe_x[0] + delta_x/2.,
                                   tmp_vf.axe_y[0] + delta_y/2.))
-                pbi = tmp_vf.pbi_x[1]
                 # getting CP type
-                if pbi == -1:
+                if tmp_vf.pbi_x[1] == -1:
                     cp_types.append(0)
                 else:
                     jac = _get_jacobian_matrix(tmp_vf.vx, tmp_vf.vy)
@@ -261,7 +257,7 @@ class VF(object):
         if direction == 2:
             theta = np.rot90(theta, 3)
         pbi = np.zeros(theta.shape[1])
-        for i in np.arange(theta.shape[1]):
+        for i in np.arange(1, theta.shape[1]):
             # getting and concatening profiles
             thetas_border = np.concatenate((theta[::-1, 0],
                                             theta[0, 0:i],
@@ -343,14 +339,22 @@ class VF(object):
         """
         Return the possible number of structures in the field along each axis.
         """
-        self._calc_pbi()
-        # finding points of interest (where pbi change)
-        poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
-        poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
-        # computing number of structures
-        num_x = len(poi_x[poi_x != 0])
-        num_y = len(poi_y[poi_y != 0])
-        return num_x, num_y
+        if self.shape == (2, 2):
+            pbi_x = self.get_pbi(1)
+            self.pbi_x = pbi_x
+            self.pbi_y = pbi_x
+            poi_x = pbi_x[1::] - pbi_x[0:-1]
+            num_x = len(poi_x[poi_x != 0])
+            return num_x, num_x
+        else:
+            self._calc_pbi()
+            # finding points of interest (where pbi change)
+            poi_x = self.pbi_x[1::] - self.pbi_x[0:-1]
+            poi_y = self.pbi_y[1::] - self.pbi_y[0:-1]
+            # computing number of structures
+            num_x = len(poi_x[poi_x != 0])
+            num_y = len(poi_y[poi_y != 0])
+            return num_x, num_y
 
 
 class CritPoints(object):
@@ -1121,12 +1125,6 @@ class CritPoints(object):
             colors = [kw.pop('color')]*len(self.colors)
         else:
             colors = self.colors
-        # loop on the points types
-        for i, pt in enumerate(self.iter):
-            if pt[indice] is None:
-                continue
-            pt[indice].display(kind='plot', marker='o', color=colors[i],
-                               linestyle='none', **kw)
         # display the critical lines
         if field is not None and len(self.sadd[indice].xy) != 0:
             streams = self.sadd[indice]\
@@ -1134,6 +1132,13 @@ class CritPoints(object):
                 reverse_direction=[True, False], interp='cubic')
             for stream in streams:
                 stream._display(kind='plot', color=colors[4])
+        # loop on the points types
+        for i, pt in enumerate(self.iter):
+            if pt[indice] is None:
+                continue
+            pt[indice].display(kind='plot', marker='o', color=colors[i],
+                               linestyle='none', **kw)
+
 
     def display_traj(self, kind='default', reverse=None, **kw):
         """
@@ -1550,34 +1555,36 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                     elif position < intervy[1]:
                         ind = tmp_vf.get_indice_on_axe(2, position)[1]
                         intervy[1] = axe_y[ind + 1]
-            for pts in res.iter:
-                for p in pts:
-                    if p.unit_x != make_unit('mm'):
-                        pdb.set_trace()
             res.trim(intervx=intervx, intervy=intervy, inplace=True)
-            for pts in res.iter:
-                for p in pts:
-                    if p.unit_x != make_unit('mm'):
-                        pdb.set_trace()
     # if obj is vector fields
     elif isinstance(obj, TemporalVectorFields):
-        if verbose:
-            print("\n+++ Begin CP detection on {:.0f} fields"
-                  .format(len(obj.fields)))
-            df = int(np.round(len(obj.fields)/20.))
         res = CritPoints(unit_time=obj.unit_times)
         res.unit_x = obj.unit_x
         res.unit_y = obj.unit_y
         res.unit_time = obj.unit_times
+        if verbose:
+            print("\n+++ Begin CP detection on {:.0f} fields"
+                  .format(len(obj.fields)))
+            t0 = modtime.time()
+            df = int(np.round(len(obj.fields)/20.))
+            field_pad = len(str(len(obj.fields)))
         for i, field in enumerate(obj.fields):
             res += get_critical_points(field, time=obj.times[i],
                                        unit_time=obj.unit_times,
                                        window_size=window_size,
                                        kind=kind, mirroring=mirroring)
-            if verbose and i % df == 0:
-                print("+++    {:>3.0f} %    ({}/{} champs)"
+            if verbose and (i % df == 0 or i == len(obj.fields) - 1):
+                ti = modtime.time()
+                if i == 0:
+                    tf = '---'
+                else:
+                    dt = (ti - t0)/i
+                    tf = t0 + dt*(len(obj.fields))
+                    tf = _format_time(tf - t0)
+                ti = _format_time(ti - t0)
+                print("+++    {:>3.0f} %    {:{field_pad}d}/{} fields    {}/{}"
                       .format(np.round(i*1./len(obj.fields)*100),
-                              i, len(obj.fields)))
+                              i, len(obj.fields), ti, tf, field_pad=field_pad))
     else:
         raise TypeError()
     return res
@@ -1700,9 +1707,9 @@ def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                     unit_v=unit_time)
     for i, t in enumerate(cp_types):
         if t == 0:
-            pos = pos[i]
-            ori = np.array(_get_saddle_orientations(vectorfield, pos))
-            sadd.add(pos[i], orientations=ori)
+            tmp_pos = pos[i]
+            ori = np.array(_get_saddle_orientations(vectorfield, tmp_pos))
+            sadd.add(tmp_pos, orientations=ori)
         elif t == 1:
             foc_c.add(pos[i])
         elif t == 2:
@@ -2023,6 +2030,21 @@ def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1.):
     # get jacobian eignevalues
     jac = np.array([[Vx_dx2, Vx_dy2], [Vy_dx2, Vy_dy2]], subok=True)
     return jac
+
+
+def _format_time(second):
+    second = int(second)
+    m, s = divmod(second, 60)
+    h, m = divmod(m, 60)
+    j, h = divmod(h, 24)
+    repr_time = '{:d}s'.format(s)
+    if m != 0:
+        repr_time = '{:d}mn'.format(m) + repr_time
+    if h != 0:
+        repr_time = '{:d}h'.format(h) + repr_time
+    if j != 0:
+        repr_time = '{:d}j'.format(m) + repr_time
+    return repr_time
 
 
 ### Separation point ###
