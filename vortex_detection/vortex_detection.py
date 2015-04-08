@@ -638,8 +638,8 @@ class CritPoints(object):
         if len(self.times) == 0:
             for pt in diff_pts:
                 if pt is not None:
-                    self.unit_x = foc.unit_x
-                    self.unit_y = foc.unit_y
+                    self.unit_x = pt.unit_x
+                    self.unit_y = pt.unit_y
                     break
         # set default values
         for i, pt in enumerate(diff_pts):
@@ -760,6 +760,8 @@ class CritPoints(object):
                 pt_type[i].scale(scalex=scalex, scaley=scaley, inplace=True)
         # loop to scale traj (if necessary)
         for traj in tmp_cp.iter_traj:
+            if traj is None:
+                continue
             for i, pts in enumerate(traj):
                 traj[i].scale(scalex=scalex, scaley=scaley, inplace=True)
         # returning
@@ -1139,8 +1141,7 @@ class CritPoints(object):
             pt[indice].display(kind='plot', marker='o', color=colors[i],
                                linestyle='none', **kw)
 
-
-    def display_traj(self, kind='default', reverse=None, **kw):
+    def display_traj(self, kind='default', reverse=None, filt=None, **kw):
         """
         Display the stored trajectories.
 
@@ -1152,6 +1153,8 @@ class CritPoints(object):
             If 'y', y position of cp are plotted against time.
         reverse : boolean, optional
             If 'True', reverse the axis.
+        filt : array of boolean
+            Filter on CP types.
         kw : dict, optional
             Arguments passed to plot.
         """
@@ -1164,6 +1167,13 @@ class CritPoints(object):
                 reverse = False
             elif kind == 'y':
                 reverse = True
+        if filt is None:
+            filt = np.ones((5,), dtype=bool)
+        if not isinstance(filt, ARRAYTYPES):
+            raise TypeError()
+        filt = np.array(filt)
+        if not filt.dtype == bool:
+            raise TypeError()
         # display
         if 'color' in kw.keys():
             colors = [kw.pop('color')]*len(self.colors)
@@ -1172,7 +1182,7 @@ class CritPoints(object):
         if kind == 'default':
             for i, trajs in enumerate(self.iter_traj):
                 color = colors[i]
-                if trajs is None:
+                if trajs is None or not filt[i]:
                     continue
                 for traj in trajs:
                     traj.display(kind='plot', marker='o', color=color,
@@ -1186,7 +1196,7 @@ class CritPoints(object):
         elif kind == 'x':
             for i, trajs in enumerate(self.iter_traj):
                 color = colors[i]
-                if trajs is None:
+                if trajs is None or not filt[i]:
                     continue
                 for traj in trajs:
                     if reverse:
@@ -1204,7 +1214,7 @@ class CritPoints(object):
         elif kind == 'y':
             for i, trajs in enumerate(self.iter_traj):
                 color = colors[i]
-                if trajs is None:
+                if trajs is None or not filt[i]:
                     continue
                 for traj in trajs:
                     if reverse:
@@ -1459,6 +1469,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         can be : 'pbi_cell' for simple (fast) Poincarre-Bendixson sweep.
         'pbi' for PB sweep and bi-linear interpolation inside cells.
         'pbi_crit' for PB sweep and use of non-local criterions.
+        'gam_vort' for gamma criterion extremum detection (only detect vortex).
     mirroring : array of numbers
         If specified, use mirroring to get the critical points on the
         eventual walls. should be an array of
@@ -1487,7 +1498,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     window_size = int(window_size)
     if not isinstance(kind, STRINGTYPES):
         raise TypeError()
-    if kind not in ['pbi', 'pbi_crit', 'pbi_cell']:
+    if kind not in ['pbi', 'pbi_crit', 'pbi_cell', 'gam_vort']:
         raise ValueError()
     if mirroring is not None:
         if not isinstance(mirroring, ARRAYTYPES):
@@ -1531,6 +1542,10 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         elif kind == 'pbi_crit':
             res = _get_cp_crit_on_VF(tmp_vf, time=time, unit_time=unit_time,
                                      window_size=window_size)
+        elif kind == 'gam_vort':
+            res = _get_gamma2_vortex_center_on_VF(tmp_vf, time=time,
+                                                  unit_time=unit_time,
+                                                  radius=window_size)
         else:
             raise ValueError
         # removing critical points outside of the field
@@ -1884,6 +1899,45 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
             raise Exception()
     pts = CritPoints(unit_time=unit_time)
     pts.add_point(focus, focus_c, nodes_i, nodes_o, sadd, time=time)
+    return pts
+
+
+def _get_gamma2_vortex_center_on_VF(vectorfield, time=0,
+                                    unit_time=make_unit(""),
+                                    radius=4):
+    """
+    For a VectorField object, return the position of the vortex centers.
+    This algorithm use extremum detection on gamma fields.
+
+    Parameters
+    ----------
+    vectorfield : a VectorField object.
+        .
+    time : number, optional
+        Time
+    unit_time : units object, optional
+        Time unit.
+    radius : integer, optional
+        Default is 4.
+
+    Returns
+    -------
+    pts : CritPoints object
+        Containing all critical points
+    """
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'VF' must be a VectorField")
+    if isinstance(unit_time, STRINGTYPES):
+        unit_time = make_unit(unit_time)
+    # get gamma field
+    gamma = get_gamma(vectorfield, radius=radius, ind=True, kind='gamma1')
+    gamma.crop_masked_border(hard=True)
+    # get zones centers
+    centers_c = gamma.get_zones_centers(bornes=[-1., -2/np.pi], rel=False)
+    centers_cv = gamma.get_zones_centers(bornes=[2/np.pi, 1.], rel=False)
+    # return
+    pts = CritPoints(unit_time=unit_time)
+    pts.add_point(foc=centers_cv, foc_c=centers_c, time=time)
     return pts
 
 
@@ -2726,42 +2780,6 @@ def get_iota(vectorfield, mask=None, radius=None, ind=False, raw=False):
     theta_y[filty] = theta2_y[filty]
     iota = np.sqrt(theta_x**2 + theta_y**2)
 
-###### Old way to do it #######
-#    # récupération des dx et dy
-#    dx = np.abs(axe_x[0] - axe_x[2])
-#    dy = np.abs(axe_y[0] - axe_y[2])
-#    # boucle sur les points
-#    grad_theta_m = np.zeros(vectorfield.shape)
-#    maskf = mask.copy()
-#    for inds, _, _ in vectorfield:
-#        ind_x = inds[0]
-#        ind_y = inds[1]
-#        # arrete si on est sur un bords ou sur une valeurs masquée
-#        if (ind_x == 0 or ind_y == 0 or ind_y == len(axe_y)-1
-#                or ind_x == len(axe_x)-1):
-#            maskf[ind_x, ind_y] = True
-#            continue
-#        if np.any(mask[ind_x-1:ind_x+2, ind_y-1:ind_y+2]):
-#            maskf[ind_x, ind_y] = True
-#            continue
-#        # calcul de theta_m autours
-#        theta_m = [[theta[ind_x - 1, ind_y - 1] + 3./4*np.pi,
-#                   theta[ind_x, ind_y - 1] + np.pi/2,
-#                   theta[ind_x + 1, ind_y - 1] + 1./4*np.pi],
-#                  [theta[ind_x - 1, ind_y] + np.pi,
-#                   0.,
-#                   theta[ind_x + 1, ind_y]],
-#                  [theta[ind_x - 1, ind_y + 1] - 3./4*np.pi,
-#                   theta[ind_x, ind_y + 1] - np.pi/2,
-#                   theta[ind_x + 1, ind_y + 1] - np.pi/4]]
-#        theta_m = np.mod(theta_m, np.pi*2)
-#        ### TODO : Warning, ot really the formula from article !!!
-#        sin_theta = np.sin(theta_m)
-#        #cos_theta = np.cos(theta_m)
-#        grad_x = -(sin_theta[2, 1] - sin_theta[0, 1])/dx
-#        grad_y = -(sin_theta[1, 2] - sin_theta[1, 0])/dy
-#        # calcul de gradthetaM
-#        grad_theta_m[ind_x, ind_y] = (grad_x**2 + grad_y**2)**(1./2)
     # getting mask
     maskf = np.logical_or(vectorfield.mask, np.isnan(iota))
     # returning
