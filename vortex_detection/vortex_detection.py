@@ -562,8 +562,7 @@ class CritPoints(object):
         -----------
         kind : string
             Type of critical point for the density map
-            (can be 'foc', 'foc_c', 'sadd', 'node_i', 'node_o', 'pbi_p',
-            'pbi_m')
+            (can be 'foc', 'foc_c', 'sadd', 'node_i', 'node_o')
         bw_method : str, scalar or callable, optional
             The method used to calculate the estimator bandwidth.
             This can be 'scott', 'silverman', a scalar constant or
@@ -579,6 +578,7 @@ class CritPoints(object):
         output_format : string, optional
             'normalized' (default) : give position probability
                                      (integral egal 1).
+            'absolute' : sum of integral over all points density egal 1.
             'ponderated' : give position probability ponderated by the number
                            or points (integral egal number of points).
             'concentration' : give local concentration (in point per surface).
@@ -594,10 +594,6 @@ class CritPoints(object):
             pts = self.node_i
         elif kind == 'node_o':
             pts = self.node_o
-        elif kind == 'pbi_p':
-            pts = self.pbi_p
-        elif kind == 'pbi_m':
-            pts = self.pbi_m
         else:
             raise ValueError()
         # concatenate
@@ -605,9 +601,18 @@ class CritPoints(object):
         for pt in pts:
             tot += pt
         # getting density map
+            absolute = False
+        if output_format == 'absolute':
+            absolute = True
+            output_format = 'normalized'
         dens = tot.get_points_density(bw_method=bw_method,
                                       resolution=resolution,
                                       output_format=output_format, raw=False)
+        if absolute:
+            nmb_pts = np.sum([len(pt.xy) for pt in pts])*1.
+            nmb_tot_pts = np.sum([np.sum([len(pt.xy) for pt in ptsb])
+                                  for ptsb in self.iter])*1.
+            dens *= nmb_pts/nmb_tot_pts
         # returning
         return dens
 
@@ -690,8 +695,6 @@ class CritPoints(object):
         self.node_i = np.delete(self.node_i, indice)
         self.node_o = np.delete(self.node_o, indice)
         self.sadd = np.delete(self.sadd, indice)
-        self.pbi_m = np.delete(self.pbi_m, indice)
-        self.pbi_p = np.delete(self.pbi_p, indice)
         self.times = np.delete(self.times, indice)
         # trajectories are obsolete
         self.current_epsilon = None
@@ -731,14 +734,14 @@ class CritPoints(object):
         else:
             raise ValueError()
 
-    def scale(self, scalex=1., scaley=1., inplace=False):
+    def scale(self, scalex=1., scaley=1., scalev=1., inplace=False):
         """
         Change the scale of the axis.
 
         Parameters
         ----------
-        scalex, scaley : numbers
-            scales alogn x and y
+        scalex, scaley, scalev : numbers
+            scales along x, y and v
         inplace : boolean, optional
             If 'True', scaling is done in place, else, a new instance is
             returned.
@@ -747,6 +750,8 @@ class CritPoints(object):
         if not isinstance(scalex, NUMBERTYPES):
             raise TypeError()
         if not isinstance(scaley, NUMBERTYPES):
+            raise TypeError()
+        if not isinstance(scalev, NUMBERTYPES):
             raise TypeError()
         if not isinstance(inplace, bool):
             raise TypeError()
@@ -757,13 +762,15 @@ class CritPoints(object):
         # loop to scale pts
         for pt_type in tmp_cp.iter:
             for i, pts in enumerate(pt_type):
-                pt_type[i].scale(scalex=scalex, scaley=scaley, inplace=True)
+                pt_type[i].scale(scalex=scalex, scaley=scaley, scalev=scalev,
+                                 inplace=True)
         # loop to scale traj (if necessary)
         for traj in tmp_cp.iter_traj:
             if traj is None:
                 continue
             for i, pts in enumerate(traj):
-                traj[i].scale(scalex=scalex, scaley=scaley, inplace=True)
+                traj[i].scale(scalex=scalex, scaley=scaley, scalev=scalev,
+                              inplace=True)
         # returning
         if not inplace:
             return tmp_cp

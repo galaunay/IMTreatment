@@ -1109,14 +1109,14 @@ class Points(object):
             tmp_pts.v = tmp_pts.v[~mask]
         return tmp_pts
 
-    def scale(self, scalex=1., scaley=1., inplace=False):
+    def scale(self, scalex=1., scaley=1., scalev=1., inplace=False):
         """
         Change the scale of the axis.
 
         Parameters
         ----------
-        scalex, scaley : numbers
-            scales alogn x and y
+        scalex, scaley, scalev : numbers
+            scales along x, y and v
         inplace : boolean, optional
             If 'True', scaling is done in place, else, a new instance is
             returned.
@@ -1126,6 +1126,8 @@ class Points(object):
             raise TypeError()
         if not isinstance(scaley, NUMBERTYPES):
             raise TypeError()
+        if not isinstance(scalev, NUMBERTYPES):
+            raise TypeError()
         if not isinstance(inplace, bool):
             raise TypeError()
         if inplace:
@@ -1133,7 +1135,10 @@ class Points(object):
         else:
             tmp_pt = self.copy()
         # loop
-        tmp_pt.xy *= np.array([scalex, scaley])
+        if scalex != 1. or scaley != 1.:
+            tmp_pt.xy *= np.array([scalex, scaley])
+        if scalev != 1.:
+            tmp_pt.v *= scalev
         # returning
         if not inplace:
             return tmp_pt
