@@ -5887,11 +5887,11 @@ class VectorField(Field):
         interp : string, optional
             If specified, method used to fill the gap near the
             symetry plane by interpoaltion.
-            ‘value’ : fill with the given value,
-            ‘nearest’ : fill with the nearest value,
-            ‘linear’ (default): fill using linear interpolation
+            'value' : fill with the given value,
+            'nearest' : fill with the nearest value,
+            'linear' (default): fill using linear interpolation
             (Delaunay triangulation),
-            ‘cubic’ : fill using cubic interpolation (Delaunay triangulation)
+            'cubic' : fill using cubic interpolation (Delaunay triangulation)
         value : array, optional
             Value at the symetry plane, in case of interpolation
         """

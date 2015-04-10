@@ -112,6 +112,9 @@ class VF(object):
         positions = []
         cp_types = []
         for tmp_vf in pool:
+            # if masked
+            if np.any(tmp_vf.mask):
+                continue
             # check struct number
             nmb_struct = tmp_vf._check_struct_number()
             # if there is nothing
@@ -213,6 +216,10 @@ class VF(object):
             # get data
             Vx_bl = self.vx[ind_y:ind_y + 2, ind_x:ind_x + 2]
             Vy_bl = self.vy[ind_y:ind_y + 2, ind_x:ind_x + 2]
+            mask = self.mask[ind_y:ind_y + 2, ind_x:ind_x + 2]
+            if np.any(mask):
+                new_positions[i] = pos
+                continue
             # solve to get the zero velocity point
             tmp_dic = {Vx_1: Vx_bl[0, 0], Vx_2: Vx_bl[0, 1],
                        Vx_3: Vx_bl[1, 0], Vx_4: Vx_bl[1, 1],
@@ -825,6 +832,53 @@ class CritPoints(object):
         # extend deleting to points
         self._traj_to_pts()
 
+    def topo_simplify(self, dist_min, kind='replacement'):
+        """
+        Simplify the topological points field.
+
+        Parameters
+        ----------
+        dist_min : number
+            Minimal distance between two points in the simplified field.
+        kind : string, optional
+            Algorithm used to simplify the field, can be 'replacement'(default)
+            for iterative replacement with center of mass or 'only_delete' to
+            eliminate only the first order associates.
+
+        Returns
+        -------
+        simpl_CP : CritPoints object
+            Simplified topological points field.
+        """
+        simpl_CP = CritPoints(unit_time=self.unit_time)
+        for i in np.arange(len(self.times)):
+            TP = TopoPoints()
+            TP.import_from_CP(self, i)
+            TP = TP.simplify(dist_min, kind=kind)
+            xy = TP.xy[TP.types == 1]
+            foc = Points(xy=xy, v=[self.times[i]]*len(xy),
+                         unit_x=self.unit_x, unit_y=self.unit_y,
+                         unit_v=self.unit_time)
+            xy = TP.xy[TP.types == 2]
+            foc_c = Points(xy=xy, v=[self.times[i]]*len(xy),
+                           unit_x=self.unit_x, unit_y=self.unit_y,
+                           unit_v=self.unit_time)
+            xy = TP.xy[TP.types == 3]
+            sadd = Points(xy=xy, v=[self.times[i]]*len(xy),
+                          unit_x=self.unit_x, unit_y=self.unit_y,
+                          unit_v=self.unit_time)
+            xy = TP.xy[TP.types == 4]
+            node_i = Points(xy=xy, v=[self.times[i]]*len(xy),
+                            unit_x=self.unit_x, unit_y=self.unit_y,
+                            unit_v=self.unit_time)
+            xy = TP.xy[TP.types == 5]
+            node_o = Points(xy=xy, v=[self.times[i]]*len(xy),
+                            unit_x=self.unit_x, unit_y=self.unit_y,
+                            unit_v=self.unit_time)
+            simpl_CP.add_point(foc=foc, foc_c=foc_c, sadd=sadd, node_i=node_i,
+                               node_o=node_o, time=self.times[i])
+        return simpl_CP
+
 
     ### Private ###
     def _sort_by_time(self):
@@ -1135,7 +1189,8 @@ class CritPoints(object):
         else:
             colors = self.colors
         # display the critical lines
-        if field is not None and len(self.sadd[indice].xy) != 0:
+        if (field is not None and len(self.sadd[indice].xy) != 0
+                and isinstance(self.sadd[indice], OrientedPoints)):
             streams = self.sadd[indice]\
                 .get_streamlines_from_orientations(field,
                 reverse_direction=[True, False], interp='cubic')
@@ -1253,6 +1308,208 @@ class CritPoints(object):
 
     def __update_cp(self, ind):
         self.display(indice=ind)
+
+
+class TopoPoints(object):
+    """
+    Represent a topological points field.
+    (only for topo simplification, in fact, should be merged with CritPoints)
+
+    Parameters
+    ----------
+    xy : Nx2 array of numbers
+        Points positions
+    types : Nx1 array of integers
+        Type code (1:focus, 2:focus_c, 3:saddle, 4:node_i, 5:node_o)
+    """
+    +++ Implement orientation conservation and computation +++s
+    def __init__(self):
+        self.xy = []
+        self.types = []
+        self.pbis = []
+        self.dim = 0
+        self.dist2 = []
+
+    def import_from_arrays(self, xy, types):
+        # check parameters
+        try:
+            xy = np.array(xy, dtype=float)
+            types = np.array(types, dtype=int)
+        except ValueError:
+            raise TypeError()
+        if xy.ndim != 2:
+            raise ValueError()
+        if types.ndim != 1:
+            raise ValueError()
+        if xy.shape[1] != 2:
+            raise ValueError()
+        if not xy.shape[0] != types.shape:
+            raise ValueError()
+        # storing
+        self.xy = xy
+        self.types = types
+        self.pbis = np.zeros(self.types.shape)
+        self.pbis[self.types == 1] = 1
+        self.pbis[self.types == 2] = 1
+        self.pbis[self.types == 3] = -1
+        self.pbis[self.types == 4] = 1
+        self.pbis[self.types == 5] = 1
+        self.dim = self.xy.shape[0]
+        # get dist grid
+        self.dist2 = self._get_dist2()
+
+    def import_from_CP(self, CP_obj, wanted_ind):
+        """
+        Import from a CritPoints object, the critical points from the time
+        associated with the given indice.
+        """
+        # check params
+        if not isinstance(CP_obj, CritPoints):
+            raise TypeError()
+        if not isinstance(wanted_ind, int):
+            raise TypeError()
+        if wanted_ind > len(CP_obj.foc) - 1:
+            raise ValueError()
+        # get data
+        xy = []
+        types = []
+        for i, typ in enumerate([CP_obj.foc, CP_obj.foc_c, CP_obj.sadd,
+                                 CP_obj.node_i, CP_obj.node_o]):
+            for pt in typ[wanted_ind].xy:
+                xy.append(pt)
+                types.append(i + 1)
+        self.import_from_arrays(xy, types)
+
+    def _get_dist2(self):
+        # initialize array
+        dist2 = np.zeros((self.dim, self.dim), dtype=float)
+        dist2.fill(np.inf)
+        # loop on points
+        for i in np.arange(self.dim - 1):
+            for j in np.arange(self.dim)[i + 1::]:
+                dist2[i, j] = np.sum((self.xy[i] - self.xy[j])**2)
+        return dist2
+
+    def simplify(self, dist_min, kind='replacement'):
+        """
+        Simplify the topological points field.
+
+        Parameters
+        ----------
+        dist_min : number
+            Minimal distance between two points in the simplified field.
+        kind : string, optional
+            Algorithm used to simplify the field, can be 'replacement'(default)
+            for iterative replacement with center of mass or 'only_delete' to
+            eliminate only the first order associates.
+
+        Returns
+        -------
+        simpl_TP : TopoPoints object
+            Simplified topological points field.
+        """
+        # check params
+        try:
+            dist_min = float(dist_min)
+        except ValueError:
+            raise TypeError()
+        if kind not in ['replacement', 'only_delete']:
+            raise ValueError()
+        # get dist2
+        dist_min2 = dist_min**2
+        dist2 = self.dist2.copy()
+        xy = self.xy.copy()
+        weight = np.ones(xy.shape, dtype=int)
+        filt = np.ones(self.dim, dtype=bool)
+        types = self.types.copy()
+        types = [[typ] for typ in types]
+        pbis = self.pbis.copy()
+        # simplication loop
+        while True:
+            # get min position
+            amin = np.argmin(dist2)
+            ind_1 = int(amin/self.dim)
+            ind_2 = amin % self.dim
+            # check if we can stop simplification
+            if dist2[ind_1, ind_2] > dist_min2:
+                break
+            # ignore the points and search others
+            if kind == 'only_delete':
+                if pbis[ind_1] + pbis[ind_2] == 0:
+                    filt[ind_1] = False
+                    filt[ind_2] = False
+                    dist2[ind_1, :] = np.inf
+                    dist2[:, ind_1] = np.inf
+                    dist2[ind_2, :] = np.inf
+                    dist2[:, ind_2] = np.inf
+                else:
+                    dist2[ind_1, ind_2] = np.inf
+                    dist2[ind_2, ind_1] = np.inf
+            # add a new point at the center of the two else
+            elif kind == 'replacement':
+                new_coord = ((xy[ind_1]*weight[ind_1]
+                              + xy[ind_2]*weight[ind_2])
+                             / (weight[ind_1] + weight[ind_2]))
+                # remove the pooints
+                filt[ind_1] = False
+                filt[ind_2] = False
+                dist2[ind_1, :] = np.inf
+                dist2[:, ind_1] = np.inf
+                dist2[ind_2, :] = np.inf
+                dist2[:, ind_2] = np.inf
+                # compute new distance
+                new_dists = np.zeros((self.dim), dtype=float)
+                new_dists.fill(np.inf)
+                for i in np.arange(self.dim):
+                    if filt[i]:
+                        new_dists[i] = np.sum((xy[i] - new_coord)**2)
+                # store new distance and other properties
+                filt[ind_1] = True
+                xy[ind_1] = new_coord
+                weight[ind_1] = weight[ind_1] + weight[ind_2]
+                types[ind_1] = types[ind_1] + types[ind_2]
+                pbis[ind_1] = pbis[ind_1] + pbis[ind_2]
+                dist2[ind_1, :] = new_dists
+                dist2[:, ind_1] = new_dists
+        # remove useless lines
+        xy = xy[filt]
+        types = [types[i] for i in np.arange(len(types)) if filt[i]]
+        pbis = pbis[filt]
+        # remove the points if they are equivalent to uniform flow
+        pbi_filt = pbis != 0
+        xy = xy[pbi_filt]
+        types = [types[i] for i in np.arange(len(types)) if pbi_filt[i]]
+        pbis = pbis[pbi_filt]
+        # try to get informations on equivalent points type
+        new_types = []
+        if 'replacement':
+            for i, typ in enumerate(types):
+                if len(typ) == 1:
+                    new_types.append(typ[0])
+                elif pbis[i] not in [-1, 1]:
+                    print("simplification radius too big,"
+                          " equivalent pbi too high")
+                    new_types.append(0)
+                elif pbis[i] == -1:
+                    new_types.append(3)
+                else:
+                    nmb_1 = np.sum(np.array(typ) == 1)
+                    nmb_2 = np.sum(np.array(typ) == 2)
+                    nmb_4 = np.sum(np.array(typ) == 4)
+                    nmb_5 = np.sum(np.array(typ) == 5)
+                    ind_typ = np.argmax([nmb_1, nmb_2, 0, nmb_4, nmb_5])
+                    new_types.append(ind_typ + 1)
+            types = new_types
+        # return
+        new_tp = TopoPoints()
+        new_tp.import_from_arrays(xy, types)
+        return new_tp
+
+    def display(self):
+        plt.figure()
+        plt.scatter(self.xy[:, 0], self.xy[:, 1], c=self.types, vmax=6,
+                    vmin=0, s=50)
+        plt.colorbar()
 
 
 ### Vortex properties ###
