@@ -1322,7 +1322,7 @@ class TopoPoints(object):
     types : Nx1 array of integers
         Type code (1:focus, 2:focus_c, 3:saddle, 4:node_i, 5:node_o)
     """
-    +++ Implement orientation conservation and computation +++s
+    # TODO : +++ Implement orientation conservation and computation +++s
     def __init__(self):
         self.xy = []
         self.types = []
@@ -3056,6 +3056,89 @@ def get_iota(vectorfield, mask=None, radius=None, ind=False, raw=False):
                                    unit_x=unit_x, unit_y=unit_y,
                                    unit_values=make_unit(''))
         return iota_sf
+
+def get_enstrophy(vectorfield, radius=None, ind=False, mask=None,
+                  raw=False):
+    """
+    Return the enstriphy field.
+
+    Parameters
+    ----------
+    vectorfield : VectorField object
+        .
+    radius : number, optionnal
+        The radius used to choose the zone where to integrate
+        enstrophy for each point. If not mentionned, a value is choosen in
+        ordre to have about 8 points in the circle.
+    ind : boolean
+        If 'True', radius is expressed on number of vectors.
+        If 'False' (default), radius is expressed on axis unit.
+    mask : array of boolean, optionnal
+        Has to be an array of the same size of the vector field object,
+        gamma will be compute only where mask is 'False'.
+    raw : boolean, optional
+        If 'False' (default), a ScalarField is returned,
+        if 'True', an array is returned.
+    """
+    ### Checking parameters coherence ###
+    if not isinstance(vectorfield, VectorField):
+        raise TypeError("'vectorfield' must be a VectorField object")
+    if radius is None:
+        radius = 1.9
+        ind = True
+    if not isinstance(radius, NUMBERTYPES):
+        raise TypeError("'radius' must be a number")
+    if not isinstance(ind, bool):
+        raise TypeError("'ind' must be a boolean")
+    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
+    if mask is None:
+        mask = np.zeros(vectorfield.shape)
+    elif not isinstance(mask, ARRAYTYPES):
+        raise TypeError("'mask' must be an array of boolean")
+    else:
+        mask = np.array(mask)
+    # getting data and masks
+    vort2 = get_vorticity(vectorfield, raw=False)**2
+    unit_values = vort2.unit_values*vectorfield.unit_x*vectorfield.unit_y
+    vort2 = vort2.values
+    mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
+        _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
+                                            dev_pass=False)
+    dv = ((vectorfield.axe_x[1] - vectorfield.axe_x[0])
+          * (vectorfield.axe_y[1] - vectorfield.axe_y[0]))
+    ### Loop on points ###
+    enstrophy = np.zeros(vectorfield.shape)
+    for inds, pos, _ in vectorfield:
+        ind_x = inds[0]
+        ind_y = inds[1]
+        # stop if masked or on border or with a masked surrouinding point
+        if mask[ind_x, ind_y] or mask_surr[ind_x, ind_y]\
+                or mask_border[ind_x, ind_y]:
+            continue
+        # getting neighbour points
+        indsaround = motif + inds
+        ### Loop on neighbouring points ###
+        loc_enstrophy = 0.
+        for i, indaround in enumerate(indsaround):
+            loc_enstrophy += vort2[indaround[0], indaround[1]]
+        # storing computed gamma value
+        enstrophy[ind_x, ind_y] = loc_enstrophy*dv
+    ### Applying masks ###
+    mask = np.logical_or(mask, mask_border)
+    mask = np.logical_or(mask, mask_surr)
+    ### Creating gamma ScalarField ###
+    if raw:
+        return np.ma.masked_array(enstrophy, mask)
+    else:
+        enstrophy_sf = ScalarField()
+        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
+        scale = unit_values.asNumber()
+        enstrophy *= scale
+        unit_values /= scale
+        enstrophy_sf.import_from_arrays(axe_x, axe_y, enstrophy, mask,
+                                        unit_x=unit_x, unit_y=unit_y,
+                                        unit_values=unit_values)
+        return enstrophy_sf
 
 
 def _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
