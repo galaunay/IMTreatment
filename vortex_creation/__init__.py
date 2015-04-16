@@ -7,4 +7,6 @@ Created on Sun Feb 23 20:46:48 2014
 @author: muahah
 """
 
-from .vortex_creation import Vortex, BurgerVortex, HillVortex, LambOseenVortex
+from .vortex_creation import Vortex, BurgerVortex, HillVortex, \
+    LambOseenVortex, SolidVortex, FreeVortex, LambChaplyginVortex, \
+    RankineVortex

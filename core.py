@@ -6003,7 +6003,7 @@ class VectorField(Field):
                     displ = plt.quiver(axe_x, axe_y, Vx, Vy, magn, **plotargs)
             else:
                 raise ValueError("Unknown value of 'kind'")
-            #plt.axis(axis)
+            plt.axis(axis)
             plt.xlabel("X " + unit_x.strUnit())
             plt.ylabel("Y " + unit_y.strUnit())
         elif component == "x":
@@ -6098,7 +6098,6 @@ class VectorField(Field):
             plt.title("Magnitude")
         else:
             raise ValueError("Unknown 'component' value")
-        plt.axis('image')
         return displ
 
 

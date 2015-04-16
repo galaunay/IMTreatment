@@ -55,10 +55,44 @@ class Vortex(object):
     def copy(self):
         return copy.deepcopy(self)
 
+class SolidVortex(Vortex):
+    """
+    Representing a solid rotation.
+    """
+    def __init__(self, x0=0., y0=0., omega=1.):
+        """
+        Parameters
+        ----------
+        x0, y0 : numbers, optional
+            Position of the vortex center (default : [0, 0]).
+        omega : number, optional
+            rotation velocity (rad/s)
+        """
+        self.x0 = x0
+        self.y0 = y0
+        self.omega = omega
+
+    def get_vector(self, x, y):
+        """
+        Return the velocity vector at the given point.
+        """
+        # compute r
+        r = self._get_r(self.x0, x, self.y0, y)
+        # compute theta
+        theta = self._get_theta(self.x0, x, self.y0, y)
+        # compute velocity in cylindrical referentiel
+        Vr = 0.
+        Vphi = r*self.omega
+        # get velocity in the cartesian refenrentiel
+        Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
+        # returning
+        return Vx, Vy
 
 class FreeVortex(Vortex):
     """
     Representing a Free (irrotational) Vortex.
+    Due to its definition, the center of the vortex is a singular point
+    (V = inf).
     """
     def __init__(self, x0=0., y0=0., gamma=1.):
         """
@@ -98,6 +132,12 @@ class BurgerVortex(Vortex):
     Representing a Burger Vortex, a stationnary self-similar flow, caused by
     the balance between vorticity creation at the center and vorticity
     diffusion.
+
+    Notes
+    -----
+    Analytical Vortex Solutions to the Navier-Stokes Equation.
+    Thesis for the degree of Doctor of Philosophy, Växjö University,
+    Sweden 2007.
     """
     def __init__(self, x0=0., y0=0., alpha=1e-6, ksi=1., viscosity=1e-6):
         """
@@ -142,7 +182,13 @@ class BurgerVortex(Vortex):
 
 class HillVortex(Vortex):
     """
-    Representing a Hill Vortex, a convected vortex sphere.
+    Representing a Hill Vortex, a convected vortex sphere in a inviscid flow.
+
+    Notes
+    -----
+    Analytical Vortex Solutions to the Navier-Stokes Equation.
+    Thesis for the degree of Doctor of Philosophy, Växjö University,
+    Sweden 2007.
     """
     def __init__(self, x0=0, y0=0, U=1., rv=1.):
         """
@@ -169,8 +215,8 @@ class HillVortex(Vortex):
         # compute theta
         theta = self._get_theta(self.x0, x, self.y0, y)
         # compute velocity in clyndrical referentiel
-        Vr = 0
-        Vphi = -3./4.*self.U*r**2*(1 - r**2/self.rv**2)*np.sin(theta)**2
+        Vr = -3./4.*self.U*r*(1 - r**2/self.rv**2)*2*np.sin(theta)*np.cos(theta)
+        Vphi = 3./2.*self.U*np.sin(theta)**2*r*(1 - 2*r**2/self.rv**2)
         # get velocity in the cartesian refenrentiel
         Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
         # returning
@@ -179,8 +225,14 @@ class HillVortex(Vortex):
 
 class LambOseenVortex(Vortex):
     """
-    Representing a Lamb-Oseen Vortex, a solution to the laminar NS
-    equation.
+    Representing a Lamb-Oseen Vortex, a vortex with decay due to viscosity.
+    (satisfy NS)
+
+    Notes
+    -----
+    Analytical Vortex Solutions to the Navier-Stokes Equation.
+    Thesis for the degree of Doctor of Philosophy, Växjö University,
+    Sweden 2007.
     """
     def __init__(self, x0=0, y0=0, ksi=1., t=1., viscosity=1e-6):
         """
@@ -220,6 +272,131 @@ class LambOseenVortex(Vortex):
         Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
         # returning
         return Vx, Vy
+
+
+class RankineVortex(Vortex):
+    """
+    Representing a Rankine Vortex, with an inner zone or forced vortex, and
+    an outer zone of free vortex.
+
+    Notes
+    -----
+    Giaiotti, DARIO B., et FULVIO Stel. « The Rankine vortex model ».
+    PhD course on Environmental Fluid Mechanics-ICTP/University of Trieste,
+    2006.
+
+    """
+    def __init__(self, x0=0., y0=0., circ=1., rv=1.):
+        """
+        Parameters
+        ----------
+        x0, y0 : numbers, optional
+            Position of the vortex center (default : [0, 0]).
+        rv : number
+            Vortex inner zone radius
+        circ : number
+            Vortex circulation
+        """
+        self.x0 = x0
+        self.y0 = y0
+        self.rv = rv
+        self.circ = circ
+
+    def get_vector(self, x, y):
+        """
+        Return the velocity vector at the given point.
+        """
+        # compute r
+        r = self._get_r(self.x0, x, self.y0, y)
+        # compute theta
+        theta = self._get_theta(self.x0, x, self.y0, y)
+        # compute velocity in clyndrical referentiel
+        Vr = 0.
+        if r <= self.rv:
+            Vphi = self.circ*r/(2*np.pi*self.rv**2)
+        else:
+            Vphi = self.circ/(2*np.pi*r)
+        # get velocity in the cartesian refenrentiel
+        Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
+        # returning
+        return Vx, Vy
+
+
+class LambChaplyginVortex(Vortex):
+    """
+    Representing a Lamb-Chaplygin dipole vortex, with potential flow in the
+    exterior region, and a linear relation between stream function and
+    vorticity in the inner region.
+
+    Notes
+    -----
+    Analytical Vortex Solutions to the Navier-Stokes Equation.
+    Thesis for the degree of Doctor of Philosophy, Växjö University,
+    Sweden 2007.
+    """
+    def __init__(self, x0=0, y0=0, U=1., rv=1., Bessel_root_nmb=1):
+        """
+        Parameters
+        ----------
+        x0, y0 : numbers, optional
+            Position of the vortex center (default : [0, 0]).
+        U : number
+            Convection velocity
+        rv : number
+            Delimitation radius between interior and exterior.s
+        Bessel_root_nmb : integer
+            Bessel root number evaluated to choose the constant k
+
+        """
+        self.x0 = x0
+        self.y0 = y0
+        self.U = U
+        self.rv = rv
+        self.Bessel_root_nmb = Bessel_root_nmb
+
+    def get_vector(self, x, y):
+        """
+        Return the velocity vector at the given point.
+        """
+        from scipy.special import jn, jn_zeros
+        # compute r
+        r = self._get_r(self.x0, x, self.y0, y)
+        # compute theta
+        theta = self._get_theta(self.x0, x, self.y0, y)
+        # compute Bessel root number
+        k = jn_zeros(1, self.Bessel_root_nmb)[-1]/self.rv
+        # compute stream function
+        if r < self.rv:
+            J1_p = (jn(2, k*r) - jn(0, k*r))/(-2)
+            Vr = -2*self.U/(r*k*jn(0, k*self.rv))*jn(1, k*r)*np.cos(theta)
+            Vphi = 2*self.U/(jn(0, k*self.rv))*np.sin(theta)*J1_p
+        else:
+            Vr = -self.U*(r - self.rv**2/r)*np.cos(theta)
+            Vphi = +self.U*(1 + self.rv**2/r**2)*np.sin(theta)
+        # get velocity in the cartesian refenrentiel
+        Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
+        # returning
+        return Vx, Vy
+
+    def J(self, order, x):
+        """
+        Return the value of the Bessel function with the given order ar the
+        given point.
+
+        Parameters
+        ----------
+        order : number
+            Order of the Bessel function
+        x : number
+            Value where we want the Bessel function evaluation.
+
+        Return
+        ------
+        y : number
+            Bessel function value at 'x'
+        """
+        from scipy.special import jn
+        return jn(order, x)
 
 
 class CustomField(object):

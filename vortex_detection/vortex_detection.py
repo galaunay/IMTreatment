@@ -3439,7 +3439,10 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
     norm_rot = 2.*(Exy - Eyx)**2
     norm_shear = (2.*Exx)**2 + (2.*Eyy)**2 + 2.*(Exy + Eyx)**2
     qcrit = .5*(norm_rot - norm_shear)
-    unit_values = vectorfield.unit_values**2
+    unit_values = (vectorfield.unit_values/vectorfield.unit_x)**2
+    scale = unit_values.asNumber()
+    qcrit *= scale
+    unit_values /= scale
     if raw:
         return np.ma.masked_array(qcrit, mask)
     else:
@@ -3485,8 +3488,8 @@ def get_Nk_criterion(vectorfield, mask=None, raw=False):
     # calcul des gradients
     Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
     # calcul de Nk
-    norm_rot = 2.*(Exy - Eyx)**2
-    norm_shear = (2.*Exx)**2 + (2.*Eyy)**2 + 2.*(Exy + Eyx)**2
+    norm_rot = (2.*(Exy - Eyx)**2)**.5
+    norm_shear = ((2.*Exx)**2 + (2.*Eyy)**2 + 2.*(Exy + Eyx)**2)**.5
     Nkcrit = norm_rot/norm_shear
     unit_values = make_unit('')
     if raw:
@@ -3534,7 +3537,6 @@ def get_delta_criterion(vectorfield, mask=None, raw=False):
     Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
     # calcul de Q
     Q = -Exy*Eyx
-    unit_values = vectorfield.unit_values**2
     # calcul de R
     R = np.zeros(Exx.shape)
     for i in np.arange(Exx.shape[0]):
@@ -3543,7 +3545,10 @@ def get_delta_criterion(vectorfield, mask=None, raw=False):
                                      [Eyx[i, j], Eyy[i, j]]])
     # calcul de Delta
     delta = (Q/3.)**3 + (R/2.)**2
-    unit_values = unit_values**3
+    unit_values = ((vectorfield.unit_values/vectorfield.unit_x)**2)**3
+    scale = unit_values.asNumber()
+    delta *= scale
+    unit_values /= scale
     if raw:
         return np.ma.masked_array(delta, mask)
     else:
