@@ -2175,6 +2175,70 @@ class Profile(object):
                             unit_y=unit_y)
         return magn_prof
 
+    def get_wavelet_transform(self, widths=None, fill='linear', raw=False):
+        """
+        Return the wavelet transformation of the profile.
+
+        Parameters
+        ----------
+        widths : array of number, optional
+            Widths of the wavelet to use (by default use 100 homogeneously
+            distributed wavelets)
+        fill : string or float
+            Specifies the way to treat missing values.
+            A value for value filling.
+            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
+            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
+            interpolation of first, second or third order) for interpolation.
+        raw : bool
+            if 'True', return an array, else (default), return a ScalarField
+            object.
+
+        Warning
+        -------
+        Only work with uniformely spaced data.
+
+        """
+        #check
+        dx = self.x[1] - self.x[0]
+        if widths is None:
+            widths = np.linspace(0, len(self.y) - 1, 101)[1::]
+        else:
+            if not isinstance(widths, ARRAYTYPES):
+                raise TypeError()
+            widths = np.array(widths)
+            if widths.ndim != 1:
+                raise ValueError()
+            widths = widths/dx
+        if np.any((self.x[1::] - self.x[0:-1]) - dx > 1e-6):
+            raise ValueError()
+        tmp_prof = self.copy()
+        # fill if asked (and if necessary)
+        if isinstance(fill, NUMBERTYPES):
+            tmp_prof.fill(kind='value', fill_value=fill, inplace=True)
+        elif isinstance(fill, STRINGTYPES):
+            tmp_prof.fill(kind=fill, inplace=True)
+        else:
+            raise Exception()
+        values = tmp_prof.y - np.mean(tmp_prof.y)
+        # compute wavelet
+        from scipy.signal import cwt, ricker
+        wav = cwt(values, ricker, widths)
+        # return
+        if raw:
+            return wav
+        else:
+            SF = ScalarField()
+            new_y = widths*dx
+            mask = np.array([self.mask for i in np.arange(len(widths))])
+            mask = np.transpose(mask)
+            SF.import_from_arrays(self.x, new_y, np.transpose(wav),
+                                  mask=mask,
+                                  unit_x=self.unit_x, unit_y=self.unit_x,
+                                  unit_values=self.unit_y)
+            return SF
+
+
     def get_pdf(self, bw_method='scott', resolution=1000, raw=False):
         """
         Return the probability density function.

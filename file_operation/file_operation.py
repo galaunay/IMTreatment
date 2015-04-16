@@ -1332,3 +1332,16 @@ def import_vfs_from_ascii(filepath, kind='TVF', incr=1, interval=None,
                                  unit_time, **kwargs)
         fields.add_field(tmp_vf)
     return fields
+
+
+def export_to_ascii(filename, VF):
+    """
+    """
+    if not isinstance(VF, VectorField):
+        raise TypeError()
+    f = open(filename, 'w')
+    for i, x in enumerate(VF.axe_x):
+        for j, y in enumerate(VF.axe_y):
+            f.write("{}\t{}\t{}\t{}\n".format(x, y, VF.comp_x[i, j],
+                                            VF.comp_y[i, j]))
+    f.close()
