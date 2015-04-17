@@ -3134,7 +3134,7 @@ def get_enstrophy(vectorfield, radius=None, ind=False, mask=None,
         unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
         scale = unit_values.asNumber()
         enstrophy *= scale
-        unit_values /= scale
+        unit_values = unit_values/scale
         enstrophy_sf.import_from_arrays(axe_x, axe_y, enstrophy, mask,
                                         unit_x=unit_x, unit_y=unit_y,
                                         unit_values=unit_values)
@@ -3370,6 +3370,13 @@ def get_swirling_strength(vf, raw=False):
     raw : boolean, optional
         If 'True', return an arrays,
         if 'False' (default), return a ScalarField object.
+
+    Notes
+    -----
+    Zhou, J., R. J. Adrian, S. Balachandar, et T. M. Kendall.
+    « Mechanisms for generating coherent packets of hairpin vortices in
+    channel flow ». Journal of Fluid Mechanics 387 (mai 1999): 353‑96.
+
     """
     if not isinstance(vf, VectorField):
         raise TypeError()
@@ -3407,6 +3414,64 @@ def get_swirling_strength(vf, raw=False):
                                   unit_values=unit_values)
         return tmp_sf
 
+def get_improved_swirling_strength(vf, raw=False):
+    """
+    Return a scalar field with the improved swirling strength
+
+    Parameters
+    ----------
+    vf : VectorField or Velocityfield
+        Field on which compute shear stress
+    raw : boolean, optional
+        If 'True', return an arrays,
+        if 'False' (default), return a ScalarField object.
+
+    Notes
+    -----
+    Chakraborty, Pinaki, S. Balachandar, et Ronald J. Adrian.
+    « On the Relationships between Local Vortex Identification Schemes ».
+    Journal of Fluid Mechanics 535 (5 juillet 2005): 189‑214.
+
+    """
+    if not isinstance(vf, VectorField):
+        raise TypeError()
+    tmp_vf = vf.copy()
+    tmp_vf.fill()
+    # Getting gradients and axes
+    axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
+    mask = tmp_vf.mask
+    dx = axe_x[1] - axe_x[0]
+    dy = axe_y[1] - axe_y[0]
+    du_dx, du_dy = np.gradient(comp_x, dx, dy)
+    dv_dx, dv_dy = np.gradient(comp_y, dx, dy)
+    # swirling stregnth matrix
+    swst = np.zeros(tmp_vf.shape)
+    # loop on  points
+    for i in np.arange(len(axe_x)):
+        for j in np.arange(len(axe_y)):
+            if not mask[i, j]:
+                lapl = [[du_dx[i, j], du_dy[i, j]],
+                        [dv_dx[i, j], dv_dy[i, j]]]
+                eigvals = np.linalg.eigvals(lapl)
+                lambcr = np.real(eigvals[0])
+                lambci = np.abs(np.imag(eigvals[0]))
+                if lambci == 0:
+                    mask[i, j] = True
+                swst[i, j] = lambcr/lambci
+    mask = np.logical_or(mask, np.isnan(swst))
+    # creating ScalarField object
+    if raw:
+        return swst
+    else:
+        unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
+        # TODO: implémenter unité
+        unit_values = ""
+        tmp_sf = ScalarField()
+        tmp_sf.import_from_arrays(axe_x, axe_y, swst, mask=mask,
+                                  unit_x=unit_x, unit_y=unit_y,
+                                  unit_values=unit_values)
+        return tmp_sf
 
 def get_q_criterion(vectorfield, mask=None, raw=False):
     """
@@ -3442,7 +3507,7 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
     unit_values = (vectorfield.unit_values/vectorfield.unit_x)**2
     scale = unit_values.asNumber()
     qcrit *= scale
-    unit_values /= scale
+    unit_values = unit_values/scale
     if raw:
         return np.ma.masked_array(qcrit, mask)
     else:
@@ -3548,7 +3613,7 @@ def get_delta_criterion(vectorfield, mask=None, raw=False):
     unit_values = ((vectorfield.unit_values/vectorfield.unit_x)**2)**3
     scale = unit_values.asNumber()
     delta *= scale
-    unit_values /= scale
+    unit_values = unit_values/scale
     if raw:
         return np.ma.masked_array(delta, mask)
     else:

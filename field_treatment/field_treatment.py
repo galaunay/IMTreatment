@@ -578,13 +578,14 @@ def get_track_field(vf):
 
 
 ### Stream and track lines
-def get_streamlines(vf, xy, delta=.25, interp='linear',
-                    reverse_direction=False):
+def get_streamlines_fast(vf, xy, delta=.25, interp='linear',
+                        reverse=False):
     """
     Return a tuples of Points object representing the streamline begining
     at the points specified in xy.
-    Warning : fill the field before computing streamlines, can give bad
-    results if the field have a lot of masked values.
+    Is called fast because use simpler integration method than the
+    'get_streamlines()' method and can be tuned with the 'delta' and 'interp'
+    parameters.
 
     Parameters
     ----------
@@ -598,7 +599,7 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
     interp : string, optional
         Used interpolation for streamline computation.
         Can be 'linear'(default) or 'cubic'
-    reverse_direction : boolean, optional
+    reverse : boolean, optional
         If True, the streamline goes upstream.
 
     Returns
@@ -684,7 +685,7 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
                 if any(no < deltaabs2/2):
                     break
             # calcul des dx et dy pour une streamline
-            if reverse_direction:
+            if reverse:
                 norm = -norm
             dx = tmp_vx/norm*deltaabs
             dy = tmp_vy/norm*deltaabs
@@ -709,8 +710,108 @@ def get_streamlines(vf, xy, delta=.25, interp='linear',
     else:
         return streams
 
+
+def get_streamlines(VF, xy, reverse=False):
+    """
+    Return a tuples of Points object representing the streamline begining
+    at the points specified in xy.
+    Used Runge-Kuta integrator is taken from matplotlib.streamplot.
+
+    Parameters
+    ----------
+    vf : VectorField or velocityField object
+        Field on which compute the streamlines
+    xy : tuple
+        Tuple containing each starting point for streamline.
+    reverse : boolean, optional
+        If True, the streamline goes upstream.
+
+    Returns
+    -------
+    streams : tuple of Points object
+        Each Points object represent a streamline
+
+    """
+    # check params
+    if not isinstance(VF, VectorField):
+        raise TypeError()
+    if not isinstance(xy, ARRAYTYPES):
+        raise TypeError("'xy' must be a tuple of arrays")
+    xy = np.array(xy, subok=True, dtype=float)
+    if xy.shape == (2,):
+        xy = [xy]
+    elif len(xy.shape) == 2 and xy.shape[1] == 2:
+        pass
+    else:
+        raise ValueError("'xy' must be a tuple of arrays")
+
+    # redefine _get_integrator
+    def _get_integrator(u, v, dmap, reverse=False):
+        from matplotlib.streamplot import interpgrid, TerminateTrajectory, \
+            _integrate_rk12
+        # rescale velocity onto grid-coordinates for integrations.
+        u, v = dmap.data2grid(u, v)
+
+        # speed (path length) will be in axes-coordinates
+        u_ax = u / dmap.grid.nx
+        v_ax = v / dmap.grid.ny
+        speed = np.ma.sqrt(u_ax ** 2 + v_ax ** 2)
+
+        def forward_time(xi, yi):
+            ds_dt = interpgrid(speed, xi, yi)
+            if ds_dt == 0:
+                raise TerminateTrajectory()
+            dt_ds = 1. / ds_dt
+            ui = interpgrid(u, xi, yi)
+            vi = interpgrid(v, xi, yi)
+            return ui * dt_ds, vi * dt_ds
+
+        def backward_time(xi, yi):
+            dxi, dyi = forward_time(xi, yi)
+            return -dxi, -dyi
+
+        def integrate(x0, y0):
+            if reverse:
+                dmap.start_trajectory(x0, y0)
+                stotal, x_traj, y_traj = _integrate_rk12(x0, y0, dmap,
+                                                         backward_time)
+            else:
+                dmap.start_trajectory(x0, y0)
+                stotal, x_traj, y_traj = _integrate_rk12(x0, y0, dmap,
+                                                         forward_time)
+            return x_traj, y_traj
+        return integrate
+
+    # loop over wanted points
+    streams = []
+    for pt in xy:
+        from matplotlib.streamplot import DomainMap, Grid, StreamMask
+        # get integrator
+        grid = Grid(VF.axe_x, VF.axe_y)
+        mask = StreamMask(density=1.)
+        dmap = DomainMap(grid=grid, mask=mask)
+        integr = _get_integrator(np.transpose(VF.comp_x),
+                                 np.transpose(VF.comp_y), dmap, reverse)
+        # rescale wanted point on grid
+        x = (pt[0] - grid.x_origin)/grid.dx
+        y = (pt[1] - grid.y_origin)/grid.dy
+        # get trajectory
+        traj = integr(x, y)
+        if len(traj[0]) == 0:
+            streams.append(Points(unit_x=VF.unit_x, unit_y=VF.unit_y))
+            continue
+        # rescale trajectory on data
+        tx = np.array(traj[0]) * grid.dx + grid.x_origin
+        ty = np.array(traj[1]) * grid.dy + grid.y_origin
+        # returning
+        stream = Points(zip(tx, ty), v=[], unit_x=VF.unit_x, unit_y=VF.unit_y,
+                        unit_v='')
+        streams.append(stream)
+    return streams
+
+
 def get_tracklines(vf, xy, delta=.25, interp='linear',
-                   reverse_direction=False):
+                   reverse=False):
     """
     Return a tuples of Points object representing the tracklines begining
     at the points specified in xy.
@@ -729,7 +830,7 @@ def get_tracklines(vf, xy, delta=.25, interp='linear',
     interp : string, optional
         Used interpolation for trackline computation.
         Can be 'linear'(default) or 'cubic'
-    reverse_direction : boolean, optional
+    reverse : boolean, optional
         If True, the trackline goes upstream.
 
     Returns
@@ -741,7 +842,7 @@ def get_tracklines(vf, xy, delta=.25, interp='linear',
     # get the track field
     track_field = get_track_field(vf)
     return get_streamlines(track_field, xy, delta=delta, interp=interp,
-                           reverse_direction=reverse_direction)
+                           reverse=reverse)
 
 
 def get_shear_stress(vf, raw=False):

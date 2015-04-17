@@ -3661,7 +3661,7 @@ class ScalarField(Field):
     @unit_values.setter
     def unit_values(self, new_unit_values):
         if isinstance(new_unit_values, unum.Unum):
-            if new_unit_values.asNumber() == 1:
+            if (new_unit_values.asNumber() - 1.) < 1e-10:
                 self.__unit_values = new_unit_values
             else:
                 pdb.set_trace()

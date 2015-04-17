@@ -15,4 +15,4 @@ from .vortex_detection import \
     get_vorticity, get_swirling_strength, get_delta_criterion,\
     get_residual_vorticity, get_stokes_vorticity, get_Nk_criterion,\
     get_shear_vorticity, velocityfield_to_vf, \
-    get_enstrophy
+    get_enstrophy, get_improved_swirling_strength
