@@ -3384,12 +3384,8 @@ def get_swirling_strength(vf, raw=False):
     tmp_vf.fill()
     # Getting gradients and axes
     axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
-    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
     mask = tmp_vf.mask
-    dx = axe_x[1] - axe_x[0]
-    dy = axe_y[1] - axe_y[0]
-    du_dx, du_dy = np.gradient(comp_x, dx, dy)
-    dv_dx, dv_dy = np.gradient(comp_y, dx, dy)
+    du_dx, du_dy, dv_dx, dv_dy = get_gradients(vf, raw=True)
     # swirling stregnth matrix
     swst = np.zeros(tmp_vf.shape)
     # loop on  points
@@ -3413,6 +3409,7 @@ def get_swirling_strength(vf, raw=False):
                                   unit_x=unit_x, unit_y=unit_y,
                                   unit_values=unit_values)
         return tmp_sf
+
 
 def get_improved_swirling_strength(vf, raw=False):
     """
@@ -3501,9 +3498,9 @@ def get_q_criterion(vectorfield, mask=None, raw=False):
     # calcul des gradients
     Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
     # calcul de Qcrit
-    norm_rot = 2.*(Exy - Eyx)**2
-    norm_shear = (2.*Exx)**2 + (2.*Eyy)**2 + 2.*(Exy + Eyx)**2
-    qcrit = .5*(norm_rot - norm_shear)
+    norm_rot2 = 1/2.*(Exy - Eyx)**2
+    norm_shear2 = (Exx**2 + 1./2.*(Exy + Eyx)**2 + Eyy**2)
+    qcrit = .5*(norm_rot2) - norm_shear2
     unit_values = (vectorfield.unit_values/vectorfield.unit_x)**2
     scale = unit_values.asNumber()
     qcrit *= scale
@@ -3553,8 +3550,8 @@ def get_Nk_criterion(vectorfield, mask=None, raw=False):
     # calcul des gradients
     Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
     # calcul de Nk
-    norm_rot = (2.*(Exy - Eyx)**2)**.5
-    norm_shear = ((2.*Exx)**2 + (2.*Eyy)**2 + 2.*(Exy + Eyx)**2)**.5
+    norm_rot = 1./2.**.5*np.abs(Exy - Eyx)
+    norm_shear = (Exx**2 + 1./2.*(Exy + Eyx)**2 + Eyy**2)**.5
     Nkcrit = norm_rot/norm_shear
     unit_values = make_unit('')
     if raw:
@@ -3592,22 +3589,28 @@ def get_delta_criterion(vectorfield, mask=None, raw=False):
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
     if mask is None:
-        mask = np.zeros(vectorfield.shape)
+        mask = np.zeros(vectorfield.shape, dtype=bool)
     elif not isinstance(mask, ARRAYTYPES):
         raise TypeError("'mask' must be an array of boolean")
     else:
-        mask = np.array(mask)
+        mask = np.array(mask, dtype=bool)
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     # calcul des gradients
     Exx, Exy, Eyx, Eyy = get_gradients(vectorfield, raw=True)
     # calcul de Q
-    Q = -Exy*Eyx
+    norm_rot2 = 1/2.*(Exy - Eyx)**2
+    norm_shear2 = (Exx**2 + 1./2.*(Exy + Eyx)**2 + Eyy**2)
+    Q = .5*(norm_rot2) - norm_shear2
     # calcul de R
     R = np.zeros(Exx.shape)
     for i in np.arange(Exx.shape[0]):
         for j in np.arange(Exx.shape[1]):
-            R[i, j] = np.linalg.det([[Exx[i, j], Exy[i, j]],
-                                     [Eyx[i, j], Eyy[i, j]]])
+            Jac = [[Exx[i, j], Exy[i, j]], [Eyx[i, j], Eyy[i, j]]]
+            eigval, eigvect = np.linalg.eig(Jac)
+            if np.all(np.imag(eigval) == 0):
+                mask[i, j] = True
+                continue
+            R[i, j] = -np.linalg.det(Jac)
     # calcul de Delta
     delta = (Q/3.)**3 + (R/2.)**2
     unit_values = ((vectorfield.unit_values/vectorfield.unit_x)**2)**3
@@ -3627,8 +3630,8 @@ def get_delta_criterion(vectorfield, mask=None, raw=False):
 
 def get_lambda2(vectorfield, mask=None, raw=False):
     """
-    Return the lambda2 scalar field. lambda2 criterion is used in
-    vortex analysis.
+    Return the lambda2 scalar field. According to ... vortex are defined by
+    zone of negative values of lambda2.
     The fonction is only usable on orthogonal fields.
 
     Parameters
@@ -3657,23 +3660,23 @@ def get_lambda2(vectorfield, mask=None, raw=False):
     # creating returning matrix
     lambda2 = np.zeros(vectorfield.shape)
     # loop on points
-    for ij, _, _ in vectorfield:
-        i, j = ij
-        # check if masked
-        if mask[i, j]:
-            continue
-        # getting symmetric and antisymetric parts
-        S = 1./2.*np.array([[2*Udx[i, j], Udy[i, j] + Vdx[i, j]],
-                            [Vdx[i, j] + Udy[i, j], 2*Vdy[i, j]]])
-        Omega = 1./2.*np.array([[0, Udy[i, j] - Vdx[i, j]],
-                                [Vdx[i, j] - Udy[i, j], 0]])
-        # getting S^2 + Omega^2
-        M = np.dot(S, S) + np.dot(Omega, Omega)
-        # getting second eigenvalue
-        lambds = linalg.eig(M, left=False, right=False)
-        l2 = np.min(lambds)
-        # storing lambda2
-        lambda2[i, j] = l2.real
+    for i in np.arange(lambda2.shape[0]):
+        for j in np.arange(lambda2.shape[1]):
+            # check if masked
+            if mask[i, j]:
+                continue
+            # getting symmetric and antisymetric parts
+            S = 1./2.*np.array([[2*Udx[i, j], Udy[i, j] + Vdx[i, j]],
+                                [Vdx[i, j] + Udy[i, j], 2*Vdy[i, j]]])
+            Omega = 1./2.*np.array([[0, Udy[i, j] - Vdx[i, j]],
+                                    [Vdx[i, j] - Udy[i, j], 0]])
+            # getting S^2 + Omega^2
+            M = np.dot(S, S) + np.dot(Omega, Omega)
+            # getting second eigenvalue
+            lambds = linalg.eig(M, left=False, right=False)
+            l2 = np.min(np.real(lambds))
+            # storing lambda2
+            lambda2[i, j] = l2
     # returning
     if raw:
         return np.ma.masked_array(l2, mask)

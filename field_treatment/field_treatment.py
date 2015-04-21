@@ -710,104 +710,124 @@ def get_streamlines_fast(vf, xy, delta=.25, interp='linear',
     else:
         return streams
 
-
-def get_streamlines(VF, xy, reverse=False):
+def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.5,
+                     max_steps=500):
     """
-    Return a tuples of Points object representing the streamline begining
-    at the points specified in xy.
-    Used Runge-Kuta integrator is taken from matplotlib.streamplot.
+    Return the lagrangien displacement of a set of particules initialy at the
+    positions xys.
+    Use Runge-Kutta algorithm with Fehlberg adaptative time step (RKF45).
 
     Parameters
     ----------
-    vf : VectorField or velocityField object
+    VF : VectorField or velocityField object
         Field on which compute the streamlines
-    xy : tuple
-        Tuple containing each starting point for streamline.
-    reverse : boolean, optional
-        If True, the streamline goes upstream.
-
-    Returns
-    -------
-    streams : tuple of Points object
-        Each Points object represent a streamline
-
+    xys : 2xN tuple of number
+        Initial points positions
+    rel_err : number
+        relative maximum error for rk4 algorithm
+    dampl : number
+        Between 0 and 1, dampling for rk45 algorithm
+    max_steps : integer
+        Maximum number of steps (default = 100).
     """
-    # check params
+    # check
     if not isinstance(VF, VectorField):
         raise TypeError()
-    if not isinstance(xy, ARRAYTYPES):
-        raise TypeError("'xy' must be a tuple of arrays")
-    xy = np.array(xy, subok=True, dtype=float)
-    if xy.shape == (2,):
-        xy = [xy]
-    elif len(xy.shape) == 2 and xy.shape[1] == 2:
-        pass
+    if not isinstance(xys, ARRAYTYPES):
+        raise TypeError()
+    xys = np.array(xys)
+    if xys.shape == (2,):
+        xys = np.array([xys], subok=True, dtype=float)
+    if xys.ndim != 2:
+        raise ValueError
+    if not isinstance(reverse, bool):
+        raise TypeError()
+    if not isinstance(rel_err, NUMBERTYPES):
+        raise TypeError()
+    if rel_err <= 0:
+        raise ValueError()
+    if not isinstance(dampl, NUMBERTYPES):
+        raise TypeError()
+    if dampl < 0 or dampl > 1:
+        raise ValueError()
+    if not isinstance(max_steps, NUMBERTYPES):
+        raise TypeError()
+    max_steps = int(max_steps)
+    # get data
+    from scipy.interpolate import RectBivariateSpline
+    axe_x, axe_y = VF.axe_x, VF.axe_y
+    dx = axe_x[1] - axe_x[0]
+    Vx_tor = RectBivariateSpline(axe_x, axe_y, VF.comp_x,
+                                 kx=1, ky=1)
+    Vy_tor = RectBivariateSpline(axe_x, axe_y, VF.comp_y,
+                                 kx=1, ky=1)
+    # velocity function
+    if reverse:
+        def fun(xy):
+            return -np.array([Vx_tor(*xy)[0][0],
+                              Vy_tor(*xy)[0][0]])
     else:
-        raise ValueError("'xy' must be a tuple of arrays")
-
-    # redefine _get_integrator
-    def _get_integrator(u, v, dmap, reverse=False):
-        from matplotlib.streamplot import interpgrid, TerminateTrajectory, \
-            _integrate_rk12
-        # rescale velocity onto grid-coordinates for integrations.
-        u, v = dmap.data2grid(u, v)
-
-        # speed (path length) will be in axes-coordinates
-        u_ax = u / dmap.grid.nx
-        v_ax = v / dmap.grid.ny
-        speed = np.ma.sqrt(u_ax ** 2 + v_ax ** 2)
-
-        def forward_time(xi, yi):
-            ds_dt = interpgrid(speed, xi, yi)
-            if ds_dt == 0:
-                raise TerminateTrajectory()
-            dt_ds = 1. / ds_dt
-            ui = interpgrid(u, xi, yi)
-            vi = interpgrid(v, xi, yi)
-            return ui * dt_ds, vi * dt_ds
-
-        def backward_time(xi, yi):
-            dxi, dyi = forward_time(xi, yi)
-            return -dxi, -dyi
-
-        def integrate(x0, y0):
-            if reverse:
-                dmap.start_trajectory(x0, y0)
-                stotal, x_traj, y_traj = _integrate_rk12(x0, y0, dmap,
-                                                         backward_time)
-            else:
-                dmap.start_trajectory(x0, y0)
-                stotal, x_traj, y_traj = _integrate_rk12(x0, y0, dmap,
-                                                         forward_time)
-            return x_traj, y_traj
-        return integrate
-
-    # loop over wanted points
+        def fun(xy):
+            return np.array([Vx_tor(*xy)[0][0],
+                             Vy_tor(*xy)[0][0]])
+    # rkf45 algo
+    def rkf45(xy_init, t, rk_dt):
+        k1 = fun(xy_init)*rk_dt
+        k2 = fun(xy_init + k1/4.)*rk_dt
+        k3 = fun(xy_init + 3./32.*k1 + 9./32.*k2)*rk_dt
+        k4 = fun(xy_init + 1932./2197.*k1 - 7200./2197.*k2
+                 + 7296./2197.*k3)*rk_dt
+        k5 = fun(xy_init + 439./216.*k1 - 8*k2 + 3680./513.*k3
+                 - 845./4104.*k4)*rk_dt
+        k6 = fun(xy_init - 8./27.*k1 + 2.*k2 - 3544./2565.*k3
+                 + 1859./4104.*k4 - 11./40.*k5)*rk_dt
+        new_xy = (xy_init + 25./216.*k1 + 1408./2565.*k3
+                  + 2197./4104.*k4 - 1./5.*k5)
+        best_xy = (xy_init + 16./135.*k1 + 6656./12825.*k3
+                   + 28561./56430.*k4 - 9./50.*k5 + 2./55.*k6)
+        err = (np.linalg.norm(best_xy - new_xy)
+               / np.linalg.norm(new_xy - xy_init))
+        # compute new adaptative rk_dt and return
+        new_rk_dt = ((rel_err*rk_dt)/(2.*err))**.25
+        new_rk_dt = (dampl*rk_dt + (1 - dampl)*new_rk_dt)
+        t += rk_dt
+        return new_xy, t, new_rk_dt
+    # Loop on given points
     streams = []
-    for pt in xy:
-        from matplotlib.streamplot import DomainMap, Grid, StreamMask
-        # get integrator
-        grid = Grid(VF.axe_x, VF.axe_y)
-        mask = StreamMask(density=1.)
-        dmap = DomainMap(grid=grid, mask=mask)
-        integr = _get_integrator(np.transpose(VF.comp_x),
-                                 np.transpose(VF.comp_y), dmap, reverse)
-        # rescale wanted point on grid
-        x = (pt[0] - grid.x_origin)/grid.dx
-        y = (pt[1] - grid.y_origin)/grid.dy
-        # get trajectory
-        traj = integr(x, y)
-        if len(traj[0]) == 0:
-            streams.append(Points(unit_x=VF.unit_x, unit_y=VF.unit_y))
-            continue
-        # rescale trajectory on data
-        tx = np.array(traj[0]) * grid.dx + grid.x_origin
-        ty = np.array(traj[1]) * grid.dy + grid.y_origin
-        # returning
-        stream = Points(zip(tx, ty), v=[], unit_x=VF.unit_x, unit_y=VF.unit_y,
-                        unit_v='')
+    for xy in xys:
+        # initiate rk_dt
+        t = 0.
+        rk_dt = dx/np.linalg.norm(fun(xy))
+        _, _, rk_dt = rkf45(xy, 0, rk_dt)
+        nmb_it = 1
+        # Time loop
+        new_xys = [xy]
+        while True:
+            new_xy = new_xys[-1]
+            # stoping test
+            if new_xy[0] < axe_x[0] or new_xy[0] > axe_x[-1]:
+                new_xys = new_xys[:-1]
+                break
+            if new_xy[1] < axe_y[0] or new_xy[1] > axe_y[-1]:
+                new_xys = new_xys[:-1]
+                break
+            if nmb_it > max_steps:
+                break
+            if nmb_it != 1 \
+                    and np.linalg.norm(new_xys[-1] - new_xys[-2]) < dx/1000.:
+                break
+            # rk adaptative step
+            new_xy, t, rk_dt = rkf45(new_xy, t, rk_dt)
+            new_xys.append(new_xy)
+            nmb_it += 1
+        # storing
+        stream = Points(new_xys, unit_x=VF.unit_x, unit_y=VF.unit_y)
         streams.append(stream)
-    return streams
+    # returning
+    if len(streams) == 1:
+        return streams[0]
+    else:
+        return streams
 
 
 def get_tracklines(vf, xy, delta=.25, interp='linear',
