@@ -20,7 +20,7 @@ class Vortex(object):
         # returning
         vf = VectorField()
         vf.import_from_arrays(axe_x, axe_y, Vx, Vy, mask=False, unit_x=unit_x,
-                              unit_y=unit_y, unit_values=make_unit(''))
+                              unit_y=unit_y, unit_values=make_unit('m/s'))
         return vf
 
     @staticmethod
@@ -101,7 +101,7 @@ class FreeVortex(Vortex):
         x0, y0 : numbers, optional
             Position of the vortex center (default : [0, 0]).
         gamma : number, optional
-            Cirdculation of the free-vortex.
+            Cirdculation of the free-vortex (m^2/s).
         """
         self.x0 = x0
         self.y0 = y0
@@ -190,14 +190,14 @@ class HillVortex(Vortex):
     Thesis for the degree of Doctor of Philosophy, Växjö University,
     Sweden 2007.
     """
-    def __init__(self, x0=0, y0=0, U=1., rv=1.):
+    def __init__(self, x0=0, y0=0, U=1., rv=1., unit_values=''):
         """
         Parameters
         ----------
         x0, y0 : numbers, optional
             Position of the vortex center (default : [0, 0]).
         U : number
-            Convection velocity
+            Convection velocity (m/s)
         rv : number
             Vortex radius
         """
@@ -295,7 +295,9 @@ class RankineVortex(Vortex):
         rv : number
             Vortex inner zone radius
         circ : number
-            Vortex circulation
+            Vortex circulation (m^2/s)
+        unit_values : string
+            Velocity unity
         """
         self.x0 = x0
         self.y0 = y0
@@ -341,9 +343,9 @@ class LambChaplyginVortex(Vortex):
         x0, y0 : numbers, optional
             Position of the vortex center (default : [0, 0]).
         U : number
-            Convection velocity
+            Convection velocity (m/s)
         rv : number
-            Delimitation radius between interior and exterior.s
+            Delimitation radius between interior and exterior (m).
         Bessel_root_nmb : integer
             Bessel root number evaluated to choose the constant k
 

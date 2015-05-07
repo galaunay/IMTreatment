@@ -2175,7 +2175,8 @@ class Profile(object):
                             unit_y=unit_y)
         return magn_prof
 
-    def get_wavelet_transform(self, widths=None, fill='linear', raw=False):
+    def get_wavelet_transform(self, widths=None, fill='linear', raw=False,
+                              verbose=False):
         """
         Return the wavelet transformation of the profile.
 
@@ -2193,6 +2194,8 @@ class Profile(object):
         raw : bool
             if 'True', return an array, else (default), return a ScalarField
             object.
+        verbose : boolean
+            If 'True', display message on the computing advancement.
 
         Warning
         -------

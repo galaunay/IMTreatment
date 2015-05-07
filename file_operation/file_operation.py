@@ -12,7 +12,7 @@ from glob import glob
 from ..core import Points, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
     TemporalVectorFields, SpatialVectorFields, TemporalScalarFields,\
-    SpatialScalarFields
+    SpatialScalarFields, Profile
 import numpy as np
 try:
     import cPickle as pickle
@@ -1057,6 +1057,44 @@ def export_to_pictures(SFs, dirname):
 
 
 ### ASCII ###
+def import_profile_from_ascii(filename, x_col=1, y_col=2,
+                              unit_x=make_unit(""), unit_y=make_unit(""),
+                              **kwargs):
+        """
+        Import a Profile object from an ascii file.
+
+        Parameters
+        ----------
+        x_col, y_col : integer, optional
+            Colonne numbers for the given variables
+            (begining at 1).
+        unit_x, unit_y : Unit objects, optional
+            Unities for the given variables.
+        **kwargs :
+            Possibles additional parameters are the same as those used in the
+            numpy function 'genfromtext()' :
+            'delimiter' to specify the delimiter between colonnes.
+            'skip_header' to specify the number of colonne to skip at file
+                begining
+            ...
+        """
+        # validating parameters
+        if not isinstance(x_col, int) or not isinstance(y_col, int):
+            raise TypeError("'x_col', 'y_col' must be integers")
+        if x_col < 1 or y_col < 1:
+            raise ValueError("Colonne number out of range")
+        # 'names' deletion, if specified (dangereux pour la suite)
+        if 'names' in kwargs:
+            kwargs.pop('names')
+        # extract data from file
+        data = np.genfromtxt(filename, **kwargs)
+        # get axes
+        x = data[:, x_col-1]
+        y = data[:, y_col-1]
+        prof = Profile(x, y, mask=False, unit_x=unit_x, unit_y=unit_y)
+        return prof
+
+
 def import_pts_from_ascii(pts, filename, x_col=1, y_col=2, v_col=None,
                           unit_x=make_unit(""), unit_y=make_unit(""),
                           unit_v=make_unit(""), **kwargs):

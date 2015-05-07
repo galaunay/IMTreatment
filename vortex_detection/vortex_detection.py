@@ -2905,7 +2905,7 @@ def get_NL_residual_vorticity(vectorfield, radius=None, ind=False, mask=None,
     Vy = vectorfield.comp_y
     mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
         _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
-                                            dev_pass)
+                                            dev_pass=False)
     ### Loop on points to get non-local gradients ###
     Exx = np.zeros(vectorfield.shape, dtype=float)
     Exy = np.zeros(vectorfield.shape, dtype=float)
@@ -2925,10 +2925,10 @@ def get_NL_residual_vorticity(vectorfield, radius=None, ind=False, mask=None,
         ind_ys = indsaround[:, 1]
         Vxs = Vx[ind_xs, ind_ys]
         Vys = Vy[ind_xs, ind_ys]
-        Exx[ind_x, ind_y], _ = np.polyfit(ind_xs, Vxs, 1)
-        Exy[ind_x, ind_y], _ = np.polyfit(ind_ys, Vxs, 1)
-        Eyx[ind_x, ind_y], _ = np.polyfit(ind_xs, Vys, 1)
-        Eyy[ind_x, ind_y], _ = np.polyfit(ind_ys, Vys, 1)
+        Exx[ind_x, ind_y], a_xx = np.polyfit(axe_x[ind_xs], Vxs, 1)
+        Exy[ind_x, ind_y], a_xy = np.polyfit(axe_y[ind_ys], Vxs, 1)
+        Eyx[ind_x, ind_y], _ = np.polyfit(axe_x[ind_xs], Vys, 1)
+        Eyy[ind_x, ind_y], _ = np.polyfit(axe_y[ind_ys], Vys, 1)
     # getting principal rate of strain (s)
     s = np.sqrt(4*Exx**2 + (Exy + Eyx)**2)/2.
     # getting the vorticity-tensor component
