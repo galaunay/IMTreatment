@@ -1454,7 +1454,7 @@ class OrientedPoints(Points):
             raise ShapeError()
         # get coef
         coef = np.max([vf.axe_x[1] - vf.axe_x[0],
-                       vf.axe_y[1] - vf.axe_y[0]])*2.
+                       vf.axe_y[1] - vf.axe_y[0]])*.01
         # get streamlines
         streams = []
         # for each points and each directions
@@ -1466,9 +1466,8 @@ class OrientedPoints(Points):
                 pt1 = pt - self.orientations[i, n]*coef
                 pt2 = pt + self.orientations[i, n]*coef
                 reverse = reverse_direction[n]
-                tmp_stream = get_streamlines(vf, [pt1, pt2], delta=delta,
-                                             interp=interp,
-                                             reverse_direction=reverse)
+                tmp_stream = get_streamlines(vf, [pt1, pt2],
+                                             reverse=reverse)
                 # if we are out of field
                 if tmp_stream is None:
                     continue

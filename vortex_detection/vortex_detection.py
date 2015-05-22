@@ -1505,6 +1505,17 @@ class TopoPoints(object):
         new_tp.import_from_arrays(xy, types)
         return new_tp
 
+    def NL_simplifiy(self, window_size):
+        """
+        Simplify the topological field using Non-local criterions.
+
+        Parameters
+        ----------
+        window_size : number
+            Window size used to compute non-local criterions.
+        """
+
+
     def display(self):
         plt.figure()
         plt.scatter(self.xy[:, 0], self.xy[:, 1], c=self.types, vmax=6,

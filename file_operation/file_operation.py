@@ -1261,10 +1261,10 @@ def import_vf_from_ascii(filename, x_col=1, y_col=2, vx_col=3,
     vx = data[:, vx_col-1]
     vy = data[:, vy_col-1]
     # Masking all the initial fields (to handle missing values)
-    vx_org = np.zeros((y_org.shape[0], x_org.shape[0]))
+    vx_org = np.zeros((x_org.shape[0], y_org.shape[0]))
     vx_org_mask = np.ones(vx_org.shape)
     vx_org = np.ma.masked_array(vx_org, vx_org_mask)
-    vy_org = np.zeros((y_org.shape[0], x_org.shape[0]))
+    vy_org = np.zeros((x_org.shape[0], y_org.shape[0]))
     vy_org_mask = np.ones(vy_org.shape)
     vy_org = np.ma.masked_array(vy_org, vy_org_mask)
     #loop on all 'v' values
@@ -1282,15 +1282,16 @@ def import_vf_from_ascii(filename, x_col=1, y_col=2, vx_col=3,
             if y_org[j] == y_tmp:
                 y_ind = j
         #put the value at its place
-        vx_org[y_ind, x_ind] = vx_tmp
-        vy_org[y_ind, x_ind] = vy_tmp
+        vx_org[x_ind, y_ind] = vx_tmp
+        vy_org[x_ind, y_ind] = vy_tmp
     # Treating 'nan' values
     vx_org.mask = np.logical_or(vx_org.mask, np.isnan(vx_org.data))
     vy_org.mask = np.logical_or(vy_org.mask, np.isnan(vy_org.data))
     #store field in attributes
     tmpvf = VectorField()
-    tmpvf.import_from_arrays(x_org, y_org, vx_org, vy_org, unit_x, unit_y,
-                             unit_values)
+    tmpvf.import_from_arrays(x_org, y_org, vx_org, vy_org,  mask=vx_org.mask,
+                             unit_x=unit_x, unit_y=unit_y,
+                             unit_values=unit_values)
     return tmpvf
 
 

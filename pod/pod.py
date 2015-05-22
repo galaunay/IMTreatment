@@ -152,6 +152,29 @@ class ModalFields(Field):
                 tmp_MF.temp_evo[n].smooth(tos=tos, size=size, inplace=True)
             return tmp_MF
 
+    def smooth_spatial_evolutions(self, tos='uniform', size=None,
+                                  inplace=True):
+        """
+        Smooth the spatial evolutions (to do before reconstructing)
+
+        Parameters
+        ----------
+        tos : string, optional
+            Type of smoothing, can be ‘uniform’ (default) or ‘gaussian’
+            (See ndimage module documentation for more details)
+        size : number, optional
+            Size of the smoothing
+            (is radius for ‘uniform’ and sigma for ‘gaussian’).
+            Default is 3 for ‘uniform’ and 1 for ‘gaussian’.
+        """
+        if inplace:
+            for n in np.arange(len(self.modes)):
+                self.modes[n].smooth(tos=tos, size=size, inplace=True)
+        else:
+            tmp_MF = self.copy()
+            for n in np.arange(len(tmp_MF.modes)):
+                tmp_MF.mdes[n].smooth(tos=tos, size=size, inplace=True)
+            return tmp_MF
 
     def reconstruct(self, wanted_modes='all', times=None):
         """
@@ -310,10 +333,23 @@ class ModalFields(Field):
                                 name="")
         return modes_nrj
 
+    def get_critical_kappa(self, N):
+        """
+        Return the critical value of kappa.
+        A mode with a kappa value superior to the critical value have only
+        .3% chance to be a random mode.
+        """
+        a = 9.57253208
+        b = 0.92940704
+        c = 0.98559246
+        kappa_crit = np.exp(a/N**b) - c
+        return kappa_crit
+
     def get_temporal_coherence(self, raw=False):
         """
         Return a profile where each value represent the probability for a mode
-        to be temporaly non-random (values from 0 to 1).
+        to be temporaly non-random (values above 0 have only 5% chance to be
+        associated with random modes).
         Can be used to determine the modes to take to filter the turbulence
         (and so perform a tri-decomposition (mean + coherent + turbulent))
 
@@ -339,29 +375,24 @@ class ModalFields(Field):
         if self._ModalFields__temp_coh is not None:
             var_spec = self._ModalFields__temp_coh
         else:
-            shape = (len(self.times),)
             # computing maximal variance
             max_std_spec = np.zeros(len(self.times))
             max_std_spec[0] = 1
             max_std_spec /= np.trapz(max_std_spec)
             max_std = np.std(max_std_spec)
-            # computing minimum variance
-            min_std = 0
-            for i in np.arange(20):
-                min_prof = Profile(self.times, 2*(0.5 - np.random.rand(*shape)))
-                min_spec = min_prof.get_spectrum(scaling='density')
-                min_spec /= np.trapz(min_spec.y)
-                min_std += np.std(min_spec.y)
-            min_std /= 20
+            # computing critical kappa
+            k_crit = self.get_critical_kappa(len(self.temp_evo[0].x))
             # getting spectrum variance on modes
             var_spec = np.empty((len(self.modes)))
             for n in np.arange(len(self.modes)):
                 prof = self.temp_evo[n]
-                spec = prof.get_spectrum(scaling='density')
+                spec = prof.get_spectrum(scaling='spectrum')**.5
                 spec /= np.trapz(spec.y)
-                var_spec[n] = (np.std(spec.y) - min_std)/max_std
+                var_spec[n] = np.std(spec.y)/max_std
                 if var_spec[n] < 0:
                     var_spec[n] = 0
+            # normalize with critical kappa
+            var_spec = (var_spec - k_crit)/(1 - k_crit)
             # storing on object
             self._ModalFields__temp_coh = var_spec
         # returning
@@ -412,15 +443,8 @@ class ModalFields(Field):
             max_std_spec[center_x, center_y] = 1.
             max_std_spec /= spint.simps(spint.simps(max_std_spec))
             max_std = np.std(max_std_spec)
-            # computing minimal variance (from random field)
-            min_std= 0.
-            for i in np.arange(20):
-                min_field = (0.5 - np.random.rand(*shape))*2.
-                min_spec = np.abs(np.real(np.fft.fft2(min_field)))
-                min_spec = np.fft.fftshift(min_spec)
-                min_spec /= spint.simps(spint.simps(min_spec))
-                min_std += np.std(min_spec)
-            min_std /= 20
+            # computing critical kappa
+            k_crit = self.get_critical_kappa(len(self.axe_x)*len(self.axe_y))
             # computing spectrum variation on each mode
             var_spec = np.empty((len(self.modes)))
             for n in np.arange(len(self.modes)):
@@ -439,11 +463,11 @@ class ModalFields(Field):
                     specy = np.fft.fftshift(specy)
                     specx /= spint.simps(spint.simps(specx))
                     specy /= spint.simps(spint.simps(specy))
-                    var_spec[n] = (np.std(specx) + np.std(specy) - 2*min_std)/(max_std)
-                    if var_spec[n] < 0:
-                        var_spec[n] = 0
+                    var_spec[n] = (np.std(specx) + np.std(specy))/max_std
                 else:
                     raise Exception()
+            # normalize with critical kappa
+            var_spec = (var_spec - k_crit)/(1 - k_crit)
             # storing in object
             self._ModalFields__spat_coh = var_spec
         if raw:
@@ -461,7 +485,8 @@ class ModalFields(Field):
             plt.figure(figsize=figsize)
             plt.subplot(2, 3, 1)
             p_vals = self.get_spatial_coherence()
-            p_vals.display()
+            p_vals.display(color='k')
+            plt.axhline(0, color='k', linestyle=":")
             plt.title('Coherence indicator')
             plt.xlabel('Modes')
             plt.ylabel('Coherence')
@@ -472,31 +497,31 @@ class ModalFields(Field):
             tmp_prof = self.get_modes_energy(cum=True)
             modes_nrj = self.get_modes_energy(raw=True)
             tmp_prof.y /= np.sum(modes_nrj)
-            tmp_prof.display()
+            tmp_prof.display(color='k')
             plt.title('Cumulative modes energy')
             plt.ylim(ymin=0, ymax=1)
             plt.subplot(2, 3, 5)
-            self.temp_evo[0].display()
+            self.temp_evo[0].display(color='k')
             plt.title("Temporal evolution of mode 1")
             plt.subplot(2, 3, 3)
             self.modes[1].display()
             plt.title("Mode 2")
             plt.subplot(2, 3, 6)
-            self.temp_evo[1].display()
+            self.temp_evo[1].display(color='k')
             plt.title("Temporal evolution of mode 2")
         elif self.decomp_type == 'dmd':
             self.pulsation.change_unit('y', 'rad/s')
             self.growth_rate.change_unit('y', '1/s')
             plt.figure(figsize=figsize)
             plt.subplot(2, 3, 1)
-            plt.plot(np.real(self.ritz_vals.y), np.imag(self.ritz_vals.y), 'o')
+            plt.plot(np.real(self.ritz_vals.y), np.imag(self.ritz_vals.y), 'ko')
             plt.title("Ritz eigenvalues in the complexe plane")
             plt.xlabel("Real part of Ritz eigenvalue")
             plt.ylabel("Imaginary part of Ritz eigenvalue")
             plt.xlim(-1, 1)
             plt.ylim(-1, 1)
             plt.subplot(2, 3, 2)
-            plt.plot(self.pulsation.y, self.growth_rate.y, 'o')
+            plt.plot(self.pulsation.y, self.growth_rate.y, 'ko')
             plt.title("Growth rate spectrum")
             plt.xlabel("Pulsation [rad/s]")
             plt.ylabel("Growth rate [1/s]")
@@ -527,7 +552,7 @@ class ModalFields(Field):
             plt.subplot(2, 3, 4)
             tmp_prof = self.get_modes_energy()
             tmp_prof.y /= np.sum(tmp_prof.y)
-            plt.plot(self.pulsation.y, tmp_prof.y, 'o')
+            plt.plot(self.pulsation.y, tmp_prof.y, 'ko')
             plt.title('Modes energy')
             plt.ylabel("Normalized kinetic energy []")
             plt.xlabel("Pulsation [rad/s]")
@@ -639,6 +664,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
         my_decomp = modred.PODHandles(np.vdot, max_vecs_per_node=1000,
                                       verbosity=verbose)
         eigvect, eigvals = my_decomp.compute_decomp(snaps)
+        del snaps
         wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
         eigvect = np.array(eigvect)
         eigvect = eigvect[:, wanted_modes]
@@ -648,6 +674,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
         my_decomp = modred.BPODHandles(np.vdot, max_vecs_per_node=1000,
                                        verbosity=verbose)
         eigvect, eigvals, eigvect_l = my_decomp.compute_decomp(snaps, snaps)
+        del snaps
         wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
         eigvect = np.array(eigvect)
         eigvect = eigvect[:, wanted_modes]
@@ -696,20 +723,16 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
                      for i in np.arange(len(wanted_modes))]
         my_decomp.compute_direct_modes(wanted_modes, modes)
         my_decomp.compute_adjoint_modes(wanted_modes, adj_modes)
-    ### Getting temporal evolution (maybe is there a better way to do that)
-    # TODO : améliorer pob reconstruction
+    ### Getting temporal evolution
+    pdb.set_trace()
     temporal_prof = []
     if kind in ['pod', 'bpod']:
         for n in np.arange(len(modes)):
-            tmp_prof = [np.vdot(modes[n].get()[filts[n]],
-                                snaps[j].get()[filts[n]])
-                        for j in ind_fields]
+            tmp_prof = eigvect[:, n]*eigvals.y[n]**.5
             tmp_prof = Profile(times, tmp_prof, mask=False,
                                unit_x=unit_times,
                                unit_y=unit_values)
             temporal_prof.append(tmp_prof)
-        del filts
-        del snaps
     elif kind == 'dmd':
         for n in np.arange(len(modes)):
             tmp_prof = [ritz_vals.y[n]**(k) for k in ind_fields]

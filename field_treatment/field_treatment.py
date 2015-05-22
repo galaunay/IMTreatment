@@ -740,7 +740,7 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.5,
         xys = np.array([xys], subok=True, dtype=float)
     if xys.ndim != 2:
         raise ValueError
-    if not isinstance(reverse, bool):
+    if not isinstance(reverse, (bool, np.bool, np.bool_)):
         raise TypeError()
     if not isinstance(rel_err, NUMBERTYPES):
         raise TypeError()
@@ -789,12 +789,17 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.5,
                / np.linalg.norm(new_xy - xy_init))
         # compute new adaptative rk_dt and return
         new_rk_dt = ((rel_err*rk_dt)/(2.*err))**.25
-        new_rk_dt = (dampl*rk_dt + (1 - dampl)*new_rk_dt)
+        if new_rk_dt > rk_dt:
+            new_rk_dt = (dampl*rk_dt + (1 - dampl)*new_rk_dt)
         t += rk_dt
         return new_xy, t, new_rk_dt
     # Loop on given points
     streams = []
     for xy in xys:
+        # check for invalid points
+        if (xy[0] < axe_x[0] or xy[0] > axe_x[-1] or xy[1] < axe_y[0]
+                or xy[1] > axe_y[-1]):
+            streams.append(Points())
         # initiate rk_dt
         t = 0.
         rk_dt = dx/np.linalg.norm(fun(xy))

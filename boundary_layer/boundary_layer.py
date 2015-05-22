@@ -66,7 +66,10 @@ class BlasiusBL(object):
         Return the Reynolds number based on the distance from the beginning of
         the plate.
         """
-        return self.Uinf*x/self.nu
+        Re_x = self.Uinf*x/self.nu
+        if Re_x > 2e5:
+            print('Warning : Turbulent BL')
+        return Re_x
 
     def get_thickness(self, x, allTurbulent=False):
         """
