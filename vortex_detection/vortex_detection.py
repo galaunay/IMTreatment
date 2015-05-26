@@ -3510,7 +3510,7 @@ def get_vorticity(vf, raw=False):
         dy = axe_y[1] - axe_y[0]
         _, Exy = np.gradient(comp_x, dx, dy)
         Eyx, _ = np.gradient(comp_y, dx, dy)
-        vort = Eyx - Exy
+        vort = 1./2.*(Eyx - Exy)
         if raw:
             return vort
         else:
