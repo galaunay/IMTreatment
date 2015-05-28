@@ -283,6 +283,8 @@ class Points(object):
         Points builder.
         """
         self.__v = []
+        if len(xy) == 0:
+            xy = np.empty((0, 2), dtype=float)
         self.xy = xy
         self.v = v
         self.unit_v = unit_v
@@ -1454,7 +1456,7 @@ class OrientedPoints(Points):
             raise ShapeError()
         # get coef
         coef = np.max([vf.axe_x[1] - vf.axe_x[0],
-                       vf.axe_y[1] - vf.axe_y[0]])*.01
+                       vf.axe_y[1] - vf.axe_y[0]])
         # get streamlines
         streams = []
         # for each points and each directions
@@ -1616,7 +1618,7 @@ class OrientedPoints(Points):
         Dx = x_range[1] - x_range[0]
         y_range = plt.ylim()
         Dy = y_range[1] - y_range[0]
-        coef = np.min([Dx, Dy])/40.
+        coef = np.min([Dx, Dy])/60.
         for i in np.arange(len(self.xy)):
             loc_oris = self.orientations[i]
             if np.all(loc_oris == [[0, 0], [0, 0]]):
@@ -3142,11 +3144,13 @@ class Field(object):
             new_unit = old_unit.asUnit(new_unit)
             fact = new_unit.asNumber()
             self.unit_x = new_unit/fact
+            self.axe_x *= fact
         elif axe == 'y':
             old_unit = self.unit_y
             new_unit = old_unit.asUnit(new_unit)
             fact = new_unit.asNumber()
             self.unit_y = new_unit/fact
+            self.axe_y *= fact
         else:
             raise ValueError()
 
@@ -3482,7 +3486,7 @@ class ScalarField(Field):
 
     __div__ = __truediv__
 
-    def __rdiv__(self, obj):
+    def __rtruediv__(self, obj):
         if isinstance(obj, NUMBERTYPES):
             tmpsf = self.copy()
             tmpsf.values = obj/tmpsf.values
@@ -4391,13 +4395,9 @@ class ScalarField(Field):
         if not isinstance(axe, STRINGTYPES):
             raise TypeError()
         if axe == 'x':
-            old_unit = self.unit_x
             Field.change_unit(self, axe, new_unit)
-            self.axe_x /= self.unit_x/old_unit
         elif axe == 'y':
-            old_unit = self.unit_y
             Field.change_unit(self, axe, new_unit)
-            self.axe_y /= self.unit_y/old_unit
         elif axe =='values':
             old_unit = self.unit_values
             new_unit = old_unit.asUnit(new_unit)
@@ -5228,8 +5228,12 @@ class VectorField(Field):
             return tmpvf
         elif isinstance(other, unum.Unum):
             tmpvf = self.copy()
-            tmpvf.comp_x /= (other/self.unit_values).asNumber()
-            tmpvf.comp_y /= (other/self.unit_values).asNumber()
+            new_unit = tmpvf.unit_values/other
+            scale = new_unit.asNumber()
+            new_unit /= scale
+            tmpvf.unit_values = new_unit
+            tmpvf.comp_x *= scale
+            tmpvf.comp_y *= scale
             tmpvf.mask = self.mask
             return tmpvf
         elif isinstance(other, NUMBERTYPES):
@@ -5261,8 +5265,12 @@ class VectorField(Field):
             return tmpvf
         elif isinstance(other, unum.Unum):
             tmpvf = self.copy()
-            tmpvf.comp_x *= (other/self.unit_values).asNumber()
-            tmpvf.comp_y *= (other/self.unit_values).asNumber()
+            new_unit = tmpvf.unit_values*other
+            scale = new_unit.asNumber()
+            new_unit /= scale
+            tmpvf.unit_values = new_unit
+            tmpvf.comp_x *= scale
+            tmpvf.comp_y *= scale
             tmpvf.mask = self.mask
             return tmpvf
         elif isinstance(other, NUMBERTYPES):
@@ -5666,13 +5674,9 @@ class VectorField(Field):
         if not isinstance(axe, STRINGTYPES):
             raise TypeError()
         if axe == 'x':
-            old_unit = self.unit_x
             Field.change_unit(self, axe, new_unit)
-            self.axe_x /= self.unit_x/old_unit
         elif axe == 'y':
-            old_unit = self.unit_y
             Field.change_unit(self, axe, new_unit)
-            self.axe_y /= self.unit_y/old_unit
         elif axe =='values':
             old_unit = self.unit_values
             new_unit = old_unit.asUnit(new_unit)

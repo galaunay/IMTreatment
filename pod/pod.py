@@ -333,17 +333,21 @@ class ModalFields(Field):
                                 name="")
         return modes_nrj
 
-    def get_critical_kappa(self, N):
+    def get_critical_kappa(self, Nx, Ny=None):
         """
         Return the critical value of kappa.
         A mode with a kappa value superior to the critical value have only
         .3% chance to be a random mode.
         """
-        a = 9.57253208
-        b = 0.92940704
-        c = 0.98559246
-        kappa_crit = np.exp(a/N**b) - c
-        return kappa_crit
+        if Ny is None:
+            a = 9.57253208
+            b = 0.92940704
+            c = 0.98559246
+            kappa_crit = np.exp(a/Nx**b) - c
+            return kappa_crit
+        else:
+            a, b, c = (22.885989, 1.552608, 1.996703)
+            return np.exp(a/Nx**b) + np.exp(a/Ny**b) - c
 
     def get_temporal_coherence(self, raw=False):
         """
@@ -438,9 +442,22 @@ class ModalFields(Field):
             axe_y = self.modes[0].axe_y
             center_x = np.int(len(axe_x)/2.)
             center_y = np.int(len(axe_y)/2.)
+
+            def get_field_spec_std(data):
+                data -= np.mean(data)
+                spec = np.abs(np.real(np.fft.rfft2(data)))
+                spec = np.fft.fftshift(spec)
+                spec /= spint.simps(spint.simps(spec))
+                return np.std(spec)
+            # computing minimal variance
+            min_std = 0.
+            for i in np.arange(20):
+                min_std_field = np.random.rand(*shape)*2. - 1.
+                min_std += get_field_spec_std(min_std_field)
+            min_std /= 20.
             # computing maximal variance
             max_std_spec = np.zeros(shape)
-            max_std_spec[center_x, center_y] = 1.
+            max_std_spec[center_x:center_x + 2, center_y:center_x + 2] = 1.
             max_std_spec /= spint.simps(spint.simps(max_std_spec))
             max_std = np.std(max_std_spec)
             # computing critical kappa
@@ -450,24 +467,17 @@ class ModalFields(Field):
             for n in np.arange(len(self.modes)):
                 if isinstance(self.modes[n], ScalarField):
                     data = self.modes[n].values
-                    spec = np.abs(np.real(np.fft.rfft2(data)))
-                    spec = np.fft.fftshift(spec)
-                    spec /= spint.simps(spint.simps(spec))
-                    var_spec[n] = np.std(spec)/max_std
+                    var_spec[n] = get_field_spec_std(data)
                 elif isinstance(self.modes[n], VectorField):
                     datax = self.modes[n].comp_x
                     datay = self.modes[n].comp_y
-                    specx = np.abs(np.real(np.fft.fft2(datax)))
-                    specx = np.fft.fftshift(specx)
-                    specy = np.abs(np.real(np.fft.fft2(datay)))
-                    specy = np.fft.fftshift(specy)
-                    specx /= spint.simps(spint.simps(specx))
-                    specy /= spint.simps(spint.simps(specy))
-                    var_spec[n] = (np.std(specx) + np.std(specy))/max_std
+                    stdx = get_field_spec_std(datax)
+                    stdy = get_field_spec_std(datay)
+                    var_spec[n] = (stdx + stdy)/2.
                 else:
                     raise Exception()
-            # normalize with critical kappa
-            var_spec = (var_spec - k_crit)/(1 - k_crit)
+            # normalize with min and max kappa
+            var_spec = (var_spec - min_std)/(max_std - min_std)
             # storing in object
             self._ModalFields__spat_coh = var_spec
         if raw:
@@ -724,7 +734,6 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
         my_decomp.compute_direct_modes(wanted_modes, modes)
         my_decomp.compute_adjoint_modes(wanted_modes, adj_modes)
     ### Getting temporal evolution
-    pdb.set_trace()
     temporal_prof = []
     if kind in ['pod', 'bpod']:
         for n in np.arange(len(modes)):
@@ -735,7 +744,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
             temporal_prof.append(tmp_prof)
     elif kind == 'dmd':
         for n in np.arange(len(modes)):
-            tmp_prof = [ritz_vals.y[n]**(k) for k in ind_fields]
+            tmp_prof = np.real([ritz_vals.y[n]**(k) for k in ind_fields])
             tmp_prof = Profile(times, tmp_prof, mask=False, unit_x=unit_times,
                                unit_y=unit_values)
             temporal_prof.append(tmp_prof)

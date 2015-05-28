@@ -729,8 +729,14 @@ class CritPoints(object):
             for kind in self.iter:
                 for pt in kind:
                     pt.change_unit(axe, new_unit)
+            for kind in self.iter_traj:
+                for pt in kind:
+                    pt.change_unit(axe, new_unit)
         elif axe == 'time':
             for kind in self.iter:
+                for pt in kind:
+                    pt.change_unit('v', new_unit)
+            for kind in self.iter_traj:
                 for pt in kind:
                     pt.change_unit('v', new_unit)
             old_unit = self.unit_time
@@ -1203,13 +1209,13 @@ class CritPoints(object):
             pt[indice].display(kind='plot', marker='o', color=colors[i],
                                linestyle='none', **kw)
 
-    def display_traj(self, kind='default', reverse=None, filt=None, **kw):
+    def display_traj(self, data='default', reverse=None, filt=None, **kw):
         """
         Display the stored trajectories.
 
         Parameters
         ----------
-        kind : string
+        data : string
             If 'default', trajectories are plotted in a 2-dimensional plane.
             If 'x', x position of cp are plotted against time.
             If 'y', y position of cp are plotted against time.
@@ -1225,9 +1231,9 @@ class CritPoints(object):
             raise StandardError("you must compute trajectories before "
                                 "displaying them")
         if reverse is None:
-            if kind == 'x':
+            if data == 'x':
                 reverse = False
-            elif kind == 'y':
+            elif data == 'y':
                 reverse = True
         if filt is None:
             filt = np.ones((5,), dtype=bool)
@@ -1241,31 +1247,35 @@ class CritPoints(object):
             colors = [kw.pop('color')]*len(self.colors)
         else:
             colors = self.colors
-        if kind == 'default':
+        if 'marker' not in kw.keys():
+            kw['marker'] = 'o'
+        if 'linestyle' not in kw.keys():
+            kw['linestyle'] = '-'
+        if data == 'default':
             for i, trajs in enumerate(self.iter_traj):
                 color = colors[i]
                 if trajs is None or not filt[i]:
                     continue
                 for traj in trajs:
-                    traj.display(kind='plot', marker='o', color=color,
-                                 reverse=reverse, **kw)
+                    traj.display(color=color, kind='plot', reverse=reverse,
+                                 **kw)
             if reverse:
                 plt.ylabel('x {}'.format(self.unit_x.strUnit()))
                 plt.xlabel('y {}'.format(self.unit_y.strUnit()))
             else:
                 plt.xlabel('x {}'.format(self.unit_x.strUnit()))
                 plt.ylabel('y {}'.format(self.unit_y.strUnit()))
-        elif kind == 'x':
+        elif data == 'x':
             for i, trajs in enumerate(self.iter_traj):
                 color = colors[i]
                 if trajs is None or not filt[i]:
                     continue
                 for traj in trajs:
                     if reverse:
-                        plt.plot(traj.v[:], traj.xy[:, 0], 'o-', color=color,
+                        plt.plot(traj.v[:], traj.xy[:, 0], color=color,
                                  **kw)
                     else:
-                        plt.plot(traj.xy[:, 0], traj.v[:], 'o-', color=color,
+                        plt.plot(traj.xy[:, 0], traj.v[:], color=color,
                                  **kw)
             if reverse:
                 plt.ylabel('x {}'.format(self.unit_x.strUnit()))
@@ -1273,17 +1283,17 @@ class CritPoints(object):
             else:
                 plt.xlabel('x {}'.format(self.unit_x.strUnit()))
                 plt.ylabel('time {}'.format(self.unit_time.strUnit()))
-        elif kind == 'y':
+        elif data == 'y':
             for i, trajs in enumerate(self.iter_traj):
                 color = colors[i]
                 if trajs is None or not filt[i]:
                     continue
                 for traj in trajs:
                     if reverse:
-                        plt.plot(traj.v[:], traj.xy[:, 1], 'o-', color=color,
+                        plt.plot(traj.v[:], traj.xy[:, 1], color=color,
                                  **kw)
                     else:
-                        plt.plot(traj.xy[:, 1], traj.v[:], 'o-', color=color,
+                        plt.plot(traj.xy[:, 1], traj.v[:], color=color,
                                  **kw)
             if reverse:
                 plt.xlabel('time {}'.format(self.unit_time.strUnit()))

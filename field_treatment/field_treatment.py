@@ -710,8 +710,8 @@ def get_streamlines_fast(vf, xy, delta=.25, interp='linear',
     else:
         return streams
 
-def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.5,
-                     max_steps=500):
+def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.75,
+                     max_steps=5000, resolution=10.):
     """
     Return the lagrangien displacement of a set of particules initialy at the
     positions xys.
@@ -729,6 +729,8 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.5,
         Between 0 and 1, dampling for rk45 algorithm
     max_steps : integer
         Maximum number of steps (default = 100).
+    resolution : number,
+        resolution of the resulting streamline (do not impact accuracy)
     """
     # check
     if not isinstance(VF, VectorField):
@@ -788,10 +790,14 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.5,
         err = (np.linalg.norm(best_xy - new_xy)
                / np.linalg.norm(new_xy - xy_init))
         # compute new adaptative rk_dt and return
-        new_rk_dt = ((rel_err*rk_dt)/(2.*err))**.25
-        if new_rk_dt > rk_dt:
-            new_rk_dt = (dampl*rk_dt + (1 - dampl)*new_rk_dt)
+        if err == 0:
+            new_rk_dt = 2*rk_dt
+        else:
+            new_rk_dt = ((rel_err*rk_dt)/(2.*err))**.25/resolution
+        new_rk_dt = (dampl*rk_dt + (1 - dampl)*new_rk_dt)
         t += rk_dt
+        if new_rk_dt == np.inf:
+            pdb.set_trace()
         return new_xy, t, new_rk_dt
     # Loop on given points
     streams = []

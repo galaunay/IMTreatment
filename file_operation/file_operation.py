@@ -451,7 +451,7 @@ def import_from_IM7(filename, infos=False):
         raise ValueError("I need the file to be an IM7 file (not a {} file)"
                          .format(ext))
     # Importing from buffer
-    fmt, vectorGrid, v_array, atts = _get_imx_buffers(filename)
+    fmt, vectorGrid, v_array, atts =  _get_imx_buffers(filename)
     if v_array.shape[0] == 2:
         mask = v_array[0]
         values = v_array[1]
@@ -598,8 +598,8 @@ def import_from_VC7(filename, infos=False, add_fields=False):
     # check parameters
     if not isinstance(filename, STRINGTYPES):
         raise TypeError("'filename' must be a string")
-    if isinstance(filename, unicode):
-        raise TypeError("Unfortunately, ReadIM don't support unicode paths...")
+#    if isinstance(filename, unicode):
+#        raise TypeError("Unfortunately, ReadIM don't support unicode paths...")
     if not os.path.exists(filename):
         raise ValueError("'filename' must ne an existing file")
     _, ext = os.path.splitext(filename)
@@ -1180,36 +1180,49 @@ def import_sf_from_ascii(filename, x_col=1, y_col=2, vx_col=3,
     data = np.genfromtxt(filename, **kwargs)
     # get axes
     x = data[:, x_col-1]
-    x_org = np.unique(x)
+    x_org = np.sort(np.unique(x))
     y = data[:, y_col-1]
-    y_org = np.unique(y)
+    y_org = np.sort(np.unique(y))
     vx = data[:, vx_col-1]
-    # Masking all the initial fields (to handle missing values)
-    vx_org = np.zeros((y_org.shape[0], x_org.shape[0]))
-    vx_org_mask = np.ones(vx_org.shape)
-    vx_org = np.ma.masked_array(vx_org, vx_org_mask)
-    #loop on all 'v' values
-    for i in np.arange(vx.shape[0]):
-        x_tmp = x[i]
-        y_tmp = y[i]
-        vx_tmp = vx[i]
-        #find x index
-        for j in np.arange(x_org.shape[0]):
-            if x_org[j] == x_tmp:
-                x_ind = j
-        #find y index
-        for j in np.arange(y_org.shape[0]):
-            if y_org[j] == y_tmp:
-                y_ind = j
-        #put the value at its place
-        vx_org[y_ind, x_ind] = vx_tmp
-    # Treating 'nan' values
-    vx_org.mask = np.logical_or(vx_org.mask, np.isnan(vx_org.data))
+
+    # check if structured or not
+    X1 = x.reshape(len(x_org), len(y_org))
+    X2 = x.reshape(len(y_org), len(x_org))
+    if np.allclose(np.mean(X1, axis=1), x_org):
+        vx_org = vx.reshape(len(x_org), len(y_org))
+        mask = np.isnan(vx_org)
+    elif np.allclose(np.mean(X2, axis=0), x_org):
+        vx_org = vx.reshape(len(y_org), len(x_org)).transpose()
+        vx_org = np.fliplr(vx_org)
+        mask = np.isnan(vx_org)
+    else:
+        # Masking all the initial fields (to handle missing values)
+        vx_org = np.zeros((y_org.shape[0], x_org.shape[0]))
+        vx_org_mask = np.ones(vx_org.shape)
+        vx_org = np.ma.masked_array(vx_org, vx_org_mask)
+        #loop on all 'v' values
+        x_ind = 0
+        y_ind = 0
+        for i in np.arange(vx.shape[0]):
+            print(i/float(data.shape[0]))
+            x_tmp = x[i]
+            y_tmp = y[i]
+            vx_tmp = vx[i]
+            #find x index
+            if x_org[x_ind] != x_tmp:
+                x_ind = np.where(x_tmp == x_org)[0][0]
+            #find y index
+            if y_org[y_ind] != y_tmp:
+                y_ind = np.where(y_tmp == y_org)[0][0]
+            #put the value at its place
+            vx_org[y_ind, x_ind] = vx_tmp
+        # Treating 'nan' values
+        mask = np.logical_or(vx_org.mask, np.isnan(vx_org.data))
 
     #store field in attributes
     tmpsf = ScalarField()
-    tmpsf.import_from_arrays(x_org, y_org, vx_org, unit_x, unit_y,
-                             unit_values)
+    tmpsf.import_from_arrays(x_org, y_org, vx_org, mask=mask, unit_x=unit_x,
+                             unit_y=unit_y, unit_values=unit_values)
     return tmpsf
 
 
