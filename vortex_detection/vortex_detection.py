@@ -183,82 +183,9 @@ class VF(object):
         axe_y = self.axe_y
         dx = axe_x[1] - axe_x[0]
         dy = axe_y[1] - axe_y[0]
-        # prepare the analytical solution
-        a1, b1, c1, d1, x, y = sympy.symbols('a1, b1, c1, d1, x, y')
-        def funct(params, x, y, Vx):
-            a1, b1, c1, d1 = tuple(params)
-            return sympy.Eq(a1*x + b1*y + c1*x*y + d1, Vx)
-        def funct1(dx, dy, Vx):
-            return sympy.Eq(d1, Vx)
-        def funct2(dx, dy, Vx):
-            return sympy.Eq(a1*dx + d1, Vx)
-        def funct3(dx, dy, Vx):
-            return sympy.Eq(b1*dy + d1, Vx)
-        def funct4(dx, dy, Vx):
-            return sympy.Eq(a1*dx + b1*dy + c1*dx*dy + d1, Vx)
-        # get the analytical solution for arbitrary Vx and Vy
-        Vx_1, Vx_2, Vx_3, Vx_4 = sympy.symbols('Vx_1, Vx_2, Vx_3, Vx_4')
-        Vy_1, Vy_2, Vy_3, Vy_4 = sympy.symbols('Vy_1, Vy_2, Vy_3, Vy_4')
-        bl11 = funct1(dx, dy, Vx_1)
-        bl12 = funct2(dx, dy, Vx_2)
-        bl13 = funct3(dx, dy, Vx_3)
-        bl14 = funct4(dx, dy, Vx_4)
-        sol1 = sympy.solve([bl11, bl12, bl13, bl14], [a1, b1, c1, d1])
-        params = [sol1[a1], sol1[b1], sol1[c1], sol1[d1]]
-        eq1 = funct(params, x, y, 0.)
-        eq2 = eq1.subs(([Vx_1, Vy_1], [Vx_2, Vy_2], [Vx_3, Vy_3], [Vx_4, Vy_4]))
-        sol = sympy.solve([eq1, eq2], [x, y])
-        sol = np.array(sol)
-        if sol.ndim == 1:
-            sol = np.array([sol])
-        for i in np.arange(sol.shape[0]):
-            for j in np.arange(sol.shape[1]):
-                sol[i][j] = sol[i][j].__repr__()
-#        sol = np.empty((2, 2), dtype=str)
-#        sol[0, 0] = ('1.0*(140.0*Vx_1*Vy_3 - 70.0*Vx_1*Vy_4 - 70.0*Vx_2*Vy_3'
-#                     '- 140.0*Vx_3*Vy_1 + 70.0*Vx_3*Vy_2 + 70.0*Vx_4*Vy_1 '
-#                     '+ 70.0*sqrt(Vx_1**2*Vy_4**2 - 2.0*Vx_1*Vx_2*Vy_3*Vy_4 '
-#                     '- 2.0*Vx_1*Vx_3*Vy_2*Vy_4 - 2.0*Vx_1*Vx_4*Vy_1*Vy_4 '
-#                     '+ 4.0*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 '
-#                     '+ 4.0*Vx_2*Vx_3*Vy_1*Vy_4 - 2.0*Vx_2*Vx_3*Vy_2*Vy_3 '
-#                     '- 2.0*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 '
-#                     '- 2.0*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))'
-#                     '/ (200.0*Vx_1*Vy_3 - 200.0*Vx_1*Vy_4 - 200.0*Vx_2*Vy_3 '
-#                     '+ 200.0*Vx_2*Vy_4 - 200.0*Vx_3*Vy_1 + 200.0*Vx_3*Vy_2'
-#                     '+ 200.0*Vx_4*Vy_1 - 200.0*Vx_4*Vy_2)')
-#        sol[1, 0] = ('1.0*(140.0*Vx_1*Vy_3 - 70.0*Vx_1*Vy_4 - 70.0*Vx_2*Vy_3 '
-#                     '- 140.0*Vx_3*Vy_1 + 70.0*Vx_3*Vy_2 + 70.0*Vx_4*Vy_1 '
-#                     '- 70.0*sqrt(Vx_1**2*Vy_4**2 - 2.0*Vx_1*Vx_2*Vy_3*Vy_4 '
-#                     '- 2.0*Vx_1*Vx_3*Vy_2*Vy_4 - 2.0*Vx_1*Vx_4*Vy_1*Vy_4 '
-#                     '+ 4.0*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 '
-#                     '+ 4.0*Vx_2*Vx_3*Vy_1*Vy_4 - 2.0*Vx_2*Vx_3*Vy_2*Vy_3 '
-#                     '- 2.0*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 '
-#                     '- 2.0*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))'
-#                     '/ (200.0*Vx_1*Vy_3 - 200.0*Vx_1*Vy_4 - 200.0*Vx_2*Vy_3 '
-#                     '+ 200.0*Vx_2*Vy_4 - 200.0*Vx_3*Vy_1 + 200.0*Vx_3*Vy_2 '
-#                     '+ 200.0*Vx_4*Vy_1 - 200.0*Vx_4*Vy_2)')
-#        sol[0, 1] = ('1.0*(140.0*Vx_1*Vy_2 - 70.0*Vx_1*Vy_4 - 140.0*Vx_2*Vy_1 '
-#                     '+ 70.0*Vx_2*Vy_3 - 70.0*Vx_3*Vy_2 + 70.0*Vx_4*Vy_1 '
-#                     '- 70.0*sqrt(Vx_1**2*Vy_4**2 - 2.0*Vx_1*Vx_2*Vy_3*Vy_4 '
-#                     '- 2.0*Vx_1*Vx_3*Vy_2*Vy_4 - 2.0*Vx_1*Vx_4*Vy_1*Vy_4 '
-#                     '+ 4.0*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 '
-#                     '+ 4.0*Vx_2*Vx_3*Vy_1*Vy_4 - 2.0*Vx_2*Vx_3*Vy_2*Vy_3 '
-#                     '- 2.0*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 '
-#                     '- 2.0*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))'
-#                     '/ (200.0*Vx_1*Vy_2 - 200.0*Vx_1*Vy_4 - 200.0*Vx_2*Vy_1'
-#                     ' + 200.0*Vx_2*Vy_3 - 200.0*Vx_3*Vy_2 + 200.0*Vx_3*Vy_4 '
-#                     '+ 200.0*Vx_4*Vy_1 - 200.0*Vx_4*Vy_3)')
-#        sol[1, 1] = ('1.0*(140.0*Vx_1*Vy_2 - 70.0*Vx_1*Vy_4 - 140.0*Vx_2*Vy_1 '
-#                     '+ 70.0*Vx_2*Vy_3 - 70.0*Vx_3*Vy_2 + 70.0*Vx_4*Vy_1 '
-#                     '+ 70.0*sqrt(Vx_1**2*Vy_4**2 - 2.0*Vx_1*Vx_2*Vy_3*Vy_4 '
-#                     '- 2.0*Vx_1*Vx_3*Vy_2*Vy_4 - 2.0*Vx_1*Vx_4*Vy_1*Vy_4'
-#                     ' + 4.0*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 '
-#                     '+ 4.0*Vx_2*Vx_3*Vy_1*Vy_4 - 2.0*Vx_2*Vx_3*Vy_2*Vy_3 '
-#                     '- 2.0*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 '
-#                     '- 2.0*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))'
-#                     '/ (200.0*Vx_1*Vy_2 - 200.0*Vx_1*Vy_4 - 200.0*Vx_2*Vy_1 '
-#                     '+ 200.0*Vx_2*Vy_3 - 200.0*Vx_3*Vy_2 + 200.0*Vx_3*Vy_4 '
-#                     '+ 200.0*Vx_4*Vy_1 - 200.0*Vx_4*Vy_3)')
+        # import linear interpolation levelset solutions (computed with sympy)
+        from levelset_data import get_sol
+        sol = get_sol()
         # for each position
         new_positions = np.zeros(positions.shape)
         for i, pos in enumerate(positions):
@@ -293,9 +220,6 @@ class VF(object):
                     y_sols[j] = y_sols[j].as_real_imag()[0]
                 if (x_sols[j] < 0 or x_sols[j] > dx
                         or y_sols[j] < 0 or y_sols[j] > dy):
-                    print('outside')
-                    print(positions[i])
-                    print(x_sols[j], y_sols[j])
                     continue
                 tmp_sol.append([x_sols[j], y_sols[j]])
             # if no more points
@@ -315,7 +239,6 @@ class VF(object):
                 new_positions[i] = np.array([tmp_sol[0] + axe_x[ind_x],
                                              tmp_sol[1] + axe_y[ind_y]])
         # returning
-        print(new_positions)
         return new_positions, cp_types
 
     def get_pbi(self, direction):
