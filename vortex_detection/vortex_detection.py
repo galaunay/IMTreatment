@@ -181,8 +181,9 @@ class VF(object):
         positions, cp_types = self.get_cp_cell_position()
         axe_x = self.axe_x
         axe_y = self.axe_y
-        dx = axe_x[1] - axe_x[0]
-        dy = axe_y[1] - axe_y[0]
+        real_dx = axe_x[1] - axe_x[0]
+        real_dy = axe_y[1] - axe_y[0]
+
         # import linear interpolation levelset solutions (computed with sympy)
         from levelset_data import get_sol
         sol = get_sol()
@@ -206,6 +207,7 @@ class VF(object):
                        'Vx_3': Vx_bl[1, 0], 'Vx_4': Vx_bl[1, 1],
                        'Vy_1': Vy_bl[0, 0], 'Vy_2': Vy_bl[0, 1],
                        'Vy_3': Vy_bl[1, 0], 'Vy_4': Vy_bl[1, 1],
+                       'dx': real_dx, 'dy': real_dy,
                        'sqrt': lambda x: x**.5}
             x_sols = [eval(sol[j][0], {"__builtins__": {}}, tmp_dic)
                       for j in np.arange(len(sol))]
@@ -218,8 +220,8 @@ class VF(object):
                     x_sols[j] = x_sols[j].as_real_imag()[0]
                 if np.iscomplex(y_sols[j]):
                     y_sols[j] = y_sols[j].as_real_imag()[0]
-                if (x_sols[j] < 0 or x_sols[j] > dx
-                        or y_sols[j] < 0 or y_sols[j] > dy):
+                if (x_sols[j] < 0 or x_sols[j] > real_dx
+                        or y_sols[j] < 0 or y_sols[j] > real_dy):
                     continue
                 tmp_sol.append([x_sols[j], y_sols[j]])
             # if no more points
