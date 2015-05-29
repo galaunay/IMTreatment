@@ -457,7 +457,7 @@ class ModalFields(Field):
             min_std /= 20.
             # computing maximal variance
             max_std_spec = np.zeros(shape)
-            max_std_spec[center_x:center_x + 2, center_y:center_x + 2] = 1.
+            max_std_spec[center_x:center_x + 2, center_y:center_y + 2] = 1.
             max_std_spec /= spint.simps(spint.simps(max_std_spec))
             max_std = np.std(max_std_spec)
             # computing critical kappa

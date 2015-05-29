@@ -2103,7 +2103,8 @@ class Profile(object):
             raise TypeError()
 
     def get_spectrum(self, wanted_x=None, welch_seglen=None,
-                     scaling='base', fill='linear', mask_error=True):
+                     scaling='base', fill='linear', mask_error=True,
+                     detrend='constant'):
         """
         Return a Profile object, with the frequential spectrum of 'component',
         on the point 'pt'.
@@ -2130,12 +2131,17 @@ class Profile(object):
         mask_error : boolean
             If 'False', instead of raising an error when masked value appear on
             time profile, '(None, None)' is returned.
+        detrend : string, optional
+            Method used to detrend the profile. Can be 'none',
+            'constant' (default) or 'linear'.
 
         Returns
         -------
         magn_prof : Profile object
             Magnitude spectrum.
         """
+        from scipy.signal import periodogram, welch
+        from scipy.signal import detrend as spdetrend
         tmp_prof = self.copy()
         # fill if asked (and if necessary)
         if isinstance(fill, NUMBERTYPES):
@@ -2146,15 +2152,24 @@ class Profile(object):
             raise Exception()
         values = tmp_prof.y - np.mean(tmp_prof.y)
         time = tmp_prof.x
+        # detrend
+        if detrend == 'constant':
+            values = spdetrend(values, type='constant')
+        elif detrend == 'linear':
+            values = spdetrend(values, type='linear')
+        elif detrend == 'none':
+            pass
+        else:
+            raise ValueError()
         # getting spectrum
-        from scipy.signal import periodogram, welch
+
         fs = 1/(time[1] - time[0])
         if welch_seglen is None or welch_seglen >= len(time):
             if scaling == 'base':
-                frq, magn = periodogram(values, fs, scaling='spectrum')
+                frq, magn = periodogram(values, fs, scaling='spectrum', detrend='linear')
                 magn = np.sqrt(magn)
             else:
-                frq, magn = periodogram(values, fs, scaling=scaling)
+                frq, magn = periodogram(values, fs, scaling=scaling, detrend='linear')
         else:
             if scaling == 'base':
                 frq, magn = welch(values, fs, scaling='spectrum',
@@ -6677,7 +6692,8 @@ class TemporalFields(Fields, Field):
 
     def get_temporal_spectrum(self, component, pt, ind=False,
                               wanted_times=None, welch_seglen=None,
-                              scaling='base', fill='linear', mask_error=True):
+                              scaling='base', fill='linear', mask_error=True,
+                              detrend='constant'):
         """
         Return a Profile object, with the temporal spectrum of 'component',
         on the point 'pt'.
@@ -6710,6 +6726,9 @@ class TemporalFields(Fields, Field):
         mask_error : boolean
             If 'False', instead of raising an error when masked value appear on
             time profile, '(None, None)' is returned.
+        detrend : string, optional
+            Method used to detrend the profile. Can be 'none',
+            'constant' (default) or 'linear'.
 
         Returns
         -------
@@ -6737,12 +6756,14 @@ class TemporalFields(Fields, Field):
                                           wanted_times=wanted_times)
         magn_prof = time_prof.get_spectrum(welch_seglen=welch_seglen,
                                            scaling=scaling, fill=fill,
-                                           mask_error=mask_error)
+                                           mask_error=mask_error,
+                                           detrend=detrend)
         return magn_prof
 
     def get_temporal_spectrum_over_area(self, component, intervalx, intervaly,
                                         ind=False, welch_seglen=None,
-                                        scaling='base', fill='linear'):
+                                        scaling='base', fill='linear',
+                                        detrend='constant'):
         """
         Return a Profile object, contening a mean spectrum of the given
         component, on all the points included in the given intervals.
@@ -6771,6 +6792,9 @@ class TemporalFields(Fields, Field):
             A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
             ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
             interpolation of first, second or third order) for interpolation.
+        detrend : string, optional
+            Method used to detrend the profile. Can be 'none',
+            'constant' (default) or 'linear'.
 
         Returns
         -------
@@ -6831,7 +6855,8 @@ class TemporalFields(Fields, Field):
                 tmp_m = self.get_temporal_spectrum(component, [i, j], ind=True,
                                                    welch_seglen=welch_seglen,
                                                    scaling=scaling,
-                                                   fill=fill, mask_error=True)
+                                                   fill=fill, mask_error=True,
+                                                   detrend=detrend)
                 # check if the position is masked
                 if tmp_m is None:
                     real_nmb_fields -= 1

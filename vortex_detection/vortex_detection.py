@@ -94,55 +94,64 @@ class VF(object):
         # get axe data
         delta_x = self.axe_x[1] - self.axe_x[0]
         delta_y = self.axe_y[1] - self.axe_y[0]
-        # get pool of VF
-        pool = []
+        vx_sup_0 = self.vx > 0
+        vy_sup_0 = self.vy > 0
+        # check if any masks
+        is_masked_values = np.any(self.mask)
+        tmp_mask = [[False, False], [False, False]]
+        # loop on tmp_vf
+        positions = []
+        cp_types = []
         for i in np.arange(self.shape[0] - 2):
             for j in np.arange(self.shape[1] - 2):
+                # skip if masked
+                if is_masked_values:
+                    tmp_mask = self.mask[i:i + 2, j:j + 2]
+                    if np.any(tmp_mask):
+                        continue
+                # check if tmp_vf can have a cp (fast first check)
+                tmp_vx_sup_0 = np.sum(vx_sup_0[i:i + 2, j:j + 2]) in [0, 4]
+                if tmp_vx_sup_0:
+                    continue
+                tmp_vy_sup_0 = np.sum(vy_sup_0[i:i + 2, j:j + 2]) in [0, 4]
+                if tmp_vy_sup_0:
+                    continue
+                # create tmp_vf object
                 tmp_vx = self.vx[i:i + 2, j:j + 2]
                 tmp_vy = self.vy[i:i + 2, j:j + 2]
-                tmp_mask = self.mask[i:i + 2, j:j + 2]
                 tmp_theta = self.theta[i:i + 2, j:j + 2]
                 tmp_axe_x = self.axe_x[j:j + 2]
                 tmp_axe_y = self.axe_y[i:i + 2]
                 tmp_vf = VF(vx=tmp_vx, vy=tmp_vy, axe_x=tmp_axe_x,
                             axe_y=tmp_axe_y, mask=tmp_mask,
                             theta=tmp_theta, time=self.time)
-                pool.append(tmp_vf)
-        # Look the PBI of each field of the pool
-        positions = []
-        cp_types = []
-        for tmp_vf in pool:
-            # if masked
-            if np.any(tmp_vf.mask):
-                continue
-            # check struct number
-            nmb_struct = tmp_vf._check_struct_number()
-            # if there is nothing
-            if nmb_struct == (0, 0):
-                continue
-            else:
-                positions.append((tmp_vf.axe_x[0] + delta_x/2.,
-                                  tmp_vf.axe_y[0] + delta_y/2.))
-                # getting CP type
-                if tmp_vf.pbi_x[1] == -1:
-                    cp_types.append(0)
+                # check struct number
+                nmb_struct = tmp_vf._check_struct_number()
+                # if there is nothing
+                if nmb_struct == (0, 0):
+                    continue
                 else:
-                    jac = _get_jacobian_matrix(tmp_vf.vx, tmp_vf.vy)
-                    eigvals, eigvects = np.linalg.eig(jac)
-                    tau = np.real(eigvals[0])
-                    mu = np.sum(np.abs(np.imag(eigvals)))
-                    if mu != 0:
-                        if jac[1, 0] < 0:
-                            cp_types.append(1)
-                        else:
-                            cp_types.append(2)
-                    elif tau >= 0 and mu == 0:
-                        cp_types.append(3)
-                    elif tau < 0 and mu == 0:
-                        cp_types.append(4)
+                    positions.append((tmp_vf.axe_x[0] + delta_x/2.,
+                                      tmp_vf.axe_y[0] + delta_y/2.))
+                    # getting CP type
+                    if tmp_vf.pbi_x[1] == -1:
+                        cp_types.append(0)
                     else:
-                        raise Exception()
-                pool = np.delete(pool, 0)
+                        jac = _get_jacobian_matrix(tmp_vf.vx, tmp_vf.vy)
+                        eigvals, eigvects = np.linalg.eig(jac)
+                        tau = np.real(eigvals[0])
+                        mu = np.sum(np.abs(np.imag(eigvals)))
+                        if mu != 0:
+                            if jac[1, 0] < 0:
+                                cp_types.append(1)
+                            else:
+                                cp_types.append(2)
+                        elif tau >= 0 and mu == 0:
+                            cp_types.append(3)
+                        elif tau < 0 and mu == 0:
+                            cp_types.append(4)
+                        else:
+                            raise Exception()
         # returning
         return np.array(positions), np.array(cp_types)
 
@@ -197,14 +206,59 @@ class VF(object):
         sol1 = sympy.solve([bl11, bl12, bl13, bl14], [a1, b1, c1, d1])
         params = [sol1[a1], sol1[b1], sol1[c1], sol1[d1]]
         eq1 = funct(params, x, y, 0.)
-        eq2 = eq1.subs(Vx_1, Vy_1)
-        eq2 = eq2.subs(Vx_2, Vy_2)
-        eq2 = eq2.subs(Vx_3, Vy_3)
-        eq2 = eq2.subs(Vx_4, Vy_4)
+        eq2 = eq1.subs(([Vx_1, Vy_1], [Vx_2, Vy_2], [Vx_3, Vy_3], [Vx_4, Vy_4]))
         sol = sympy.solve([eq1, eq2], [x, y])
         sol = np.array(sol)
         if sol.ndim == 1:
             sol = np.array([sol])
+        for i in np.arange(sol.shape[0]):
+            for j in np.arange(sol.shape[1]):
+                sol[i][j] = sol[i][j].__repr__()
+#        sol = np.empty((2, 2), dtype=str)
+#        sol[0, 0] = ('1.0*(140.0*Vx_1*Vy_3 - 70.0*Vx_1*Vy_4 - 70.0*Vx_2*Vy_3'
+#                     '- 140.0*Vx_3*Vy_1 + 70.0*Vx_3*Vy_2 + 70.0*Vx_4*Vy_1 '
+#                     '+ 70.0*sqrt(Vx_1**2*Vy_4**2 - 2.0*Vx_1*Vx_2*Vy_3*Vy_4 '
+#                     '- 2.0*Vx_1*Vx_3*Vy_2*Vy_4 - 2.0*Vx_1*Vx_4*Vy_1*Vy_4 '
+#                     '+ 4.0*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 '
+#                     '+ 4.0*Vx_2*Vx_3*Vy_1*Vy_4 - 2.0*Vx_2*Vx_3*Vy_2*Vy_3 '
+#                     '- 2.0*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 '
+#                     '- 2.0*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))'
+#                     '/ (200.0*Vx_1*Vy_3 - 200.0*Vx_1*Vy_4 - 200.0*Vx_2*Vy_3 '
+#                     '+ 200.0*Vx_2*Vy_4 - 200.0*Vx_3*Vy_1 + 200.0*Vx_3*Vy_2'
+#                     '+ 200.0*Vx_4*Vy_1 - 200.0*Vx_4*Vy_2)')
+#        sol[1, 0] = ('1.0*(140.0*Vx_1*Vy_3 - 70.0*Vx_1*Vy_4 - 70.0*Vx_2*Vy_3 '
+#                     '- 140.0*Vx_3*Vy_1 + 70.0*Vx_3*Vy_2 + 70.0*Vx_4*Vy_1 '
+#                     '- 70.0*sqrt(Vx_1**2*Vy_4**2 - 2.0*Vx_1*Vx_2*Vy_3*Vy_4 '
+#                     '- 2.0*Vx_1*Vx_3*Vy_2*Vy_4 - 2.0*Vx_1*Vx_4*Vy_1*Vy_4 '
+#                     '+ 4.0*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 '
+#                     '+ 4.0*Vx_2*Vx_3*Vy_1*Vy_4 - 2.0*Vx_2*Vx_3*Vy_2*Vy_3 '
+#                     '- 2.0*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 '
+#                     '- 2.0*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))'
+#                     '/ (200.0*Vx_1*Vy_3 - 200.0*Vx_1*Vy_4 - 200.0*Vx_2*Vy_3 '
+#                     '+ 200.0*Vx_2*Vy_4 - 200.0*Vx_3*Vy_1 + 200.0*Vx_3*Vy_2 '
+#                     '+ 200.0*Vx_4*Vy_1 - 200.0*Vx_4*Vy_2)')
+#        sol[0, 1] = ('1.0*(140.0*Vx_1*Vy_2 - 70.0*Vx_1*Vy_4 - 140.0*Vx_2*Vy_1 '
+#                     '+ 70.0*Vx_2*Vy_3 - 70.0*Vx_3*Vy_2 + 70.0*Vx_4*Vy_1 '
+#                     '- 70.0*sqrt(Vx_1**2*Vy_4**2 - 2.0*Vx_1*Vx_2*Vy_3*Vy_4 '
+#                     '- 2.0*Vx_1*Vx_3*Vy_2*Vy_4 - 2.0*Vx_1*Vx_4*Vy_1*Vy_4 '
+#                     '+ 4.0*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 '
+#                     '+ 4.0*Vx_2*Vx_3*Vy_1*Vy_4 - 2.0*Vx_2*Vx_3*Vy_2*Vy_3 '
+#                     '- 2.0*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 '
+#                     '- 2.0*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))'
+#                     '/ (200.0*Vx_1*Vy_2 - 200.0*Vx_1*Vy_4 - 200.0*Vx_2*Vy_1'
+#                     ' + 200.0*Vx_2*Vy_3 - 200.0*Vx_3*Vy_2 + 200.0*Vx_3*Vy_4 '
+#                     '+ 200.0*Vx_4*Vy_1 - 200.0*Vx_4*Vy_3)')
+#        sol[1, 1] = ('1.0*(140.0*Vx_1*Vy_2 - 70.0*Vx_1*Vy_4 - 140.0*Vx_2*Vy_1 '
+#                     '+ 70.0*Vx_2*Vy_3 - 70.0*Vx_3*Vy_2 + 70.0*Vx_4*Vy_1 '
+#                     '+ 70.0*sqrt(Vx_1**2*Vy_4**2 - 2.0*Vx_1*Vx_2*Vy_3*Vy_4 '
+#                     '- 2.0*Vx_1*Vx_3*Vy_2*Vy_4 - 2.0*Vx_1*Vx_4*Vy_1*Vy_4'
+#                     ' + 4.0*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 '
+#                     '+ 4.0*Vx_2*Vx_3*Vy_1*Vy_4 - 2.0*Vx_2*Vx_3*Vy_2*Vy_3 '
+#                     '- 2.0*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 '
+#                     '- 2.0*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))'
+#                     '/ (200.0*Vx_1*Vy_2 - 200.0*Vx_1*Vy_4 - 200.0*Vx_2*Vy_1 '
+#                     '+ 200.0*Vx_2*Vy_3 - 200.0*Vx_3*Vy_2 + 200.0*Vx_3*Vy_4 '
+#                     '+ 200.0*Vx_4*Vy_1 - 200.0*Vx_4*Vy_3)')
         # for each position
         new_positions = np.zeros(positions.shape)
         for i, pos in enumerate(positions):
@@ -221,20 +275,27 @@ class VF(object):
                 new_positions[i] = pos
                 continue
             # solve to get the zero velocity point
-            tmp_dic = {Vx_1: Vx_bl[0, 0], Vx_2: Vx_bl[0, 1],
-                       Vx_3: Vx_bl[1, 0], Vx_4: Vx_bl[1, 1],
-                       Vy_1: Vy_bl[0, 0], Vy_2: Vy_bl[0, 1],
-                       Vy_3: Vy_bl[1, 0], Vy_4: Vy_bl[1, 1]}
-            x_sols = [sol[j][0].subs(tmp_dic) for j in np.arange(len(sol))]
-            y_sols = [sol[j][1].subs(tmp_dic) for j in np.arange(len(sol))]
-
+            tmp_dic = {'Vx_1': Vx_bl[0, 0], 'Vx_2': Vx_bl[0, 1],
+                       'Vx_3': Vx_bl[1, 0], 'Vx_4': Vx_bl[1, 1],
+                       'Vy_1': Vy_bl[0, 0], 'Vy_2': Vy_bl[0, 1],
+                       'Vy_3': Vy_bl[1, 0], 'Vy_4': Vy_bl[1, 1],
+                       'sqrt': lambda x: x**.5}
+            x_sols = [eval(sol[j][0], {"__builtins__": {}}, tmp_dic)
+                      for j in np.arange(len(sol))]
+            y_sols = [eval(sol[j][1], {"__builtins__": {}}, tmp_dic)
+                      for j in np.arange(len(sol))]
             # delete the points outside the cell
             tmp_sol = []
             for j in np.arange(len(x_sols)):
-                x_sols[j] = x_sols[j].as_real_imag()[0]
-                y_sols[j] = y_sols[j].as_real_imag()[0]
+                if np.iscomplex(x_sols[j]):
+                    x_sols[j] = x_sols[j].as_real_imag()[0]
+                if np.iscomplex(y_sols[j]):
+                    y_sols[j] = y_sols[j].as_real_imag()[0]
                 if (x_sols[j] < 0 or x_sols[j] > dx
                         or y_sols[j] < 0 or y_sols[j] > dy):
+                    print('outside')
+                    print(positions[i])
+                    print(x_sols[j], y_sols[j])
                     continue
                 tmp_sol.append([x_sols[j], y_sols[j]])
             # if no more points
@@ -254,6 +315,7 @@ class VF(object):
                 new_positions[i] = np.array([tmp_sol[0] + axe_x[ind_x],
                                              tmp_sol[1] + axe_y[ind_y]])
         # returning
+        print(new_positions)
         return new_positions, cp_types
 
     def get_pbi(self, direction):
