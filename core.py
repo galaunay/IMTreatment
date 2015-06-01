@@ -3765,8 +3765,8 @@ class ScalarField(Field):
             if not isinstance(x, NUMBERTYPES)\
                     or not isinstance(y, NUMBERTYPES):
                 raise TypeError("'x' and 'y' must be numbers")
-            if x > np.max(self.axe_x) or y > np.max(self.axe_y)\
-                    or x < np.min(self.axe_x) or y < np.min(self.axe_y):
+            if x > self.axe_x[-1] or y > self.axe_y[-1]\
+                    or x < self.axe_x[0] or y < self.axe_y[0]:
                 raise ValueError("'x' and 'y' are out of axes")
         if unit:
             unit = self.unit_values
@@ -3781,7 +3781,8 @@ class ScalarField(Field):
             inds_x = self.get_indice_on_axe(1, x)
             inds_y = self.get_indice_on_axe(2, y)
             # if something masked
-            if np.any(self.mask[inds_x, inds_y]):
+            #print(self.mask[inds_x, inds_y])
+            if np.sum(self.mask[inds_x, inds_y]) != 0:
                 res = np.nan
             # if we are on a grid point
             elif inds_x[0] == inds_x[1] and inds_y[0] == inds_y[1]:
@@ -3810,6 +3811,23 @@ class ScalarField(Field):
                 return i_value*unit
             # if we are in the middle of nowhere (linear interpolation)
             else:
+##           Faster but untested !
+#                ind_x = inds_x[0]
+#                ind_y = inds_y[0]
+#                Va = self.values[ind_x, ind_y + 1]
+#                Vb = self.values[ind_x + 1, ind_y + 1]
+#                Vc = self.values[ind_x + 1, ind_y]
+#                Vd = self.values[ind_x, ind_y]
+#                dx = self.axe_x[1] - self.axe_x[0]
+#                dy = self.axe_y[1] - self.axe_y[0]
+#                a = (Vc - Vd)/dx
+#                b = (Va - Vd)/dy
+#                c = (-Va + Vb - Vc + Vd)/(dx*dy)
+#                d = Vd
+#                x0 = self.axe_x[inds_x[0]]
+#                y0 = self.axe_x[inds_y[0]]
+#                i_value = a*(x - x0) + b*(y - y0) + c*(x - x0)*(y - y0) + d
+#                res = i_value*unit
                 ind_x = inds_x[0]
                 ind_y = inds_y[0]
                 a, b = np.meshgrid(self.axe_x[ind_x:ind_x + 2],
@@ -4572,6 +4590,7 @@ class ScalarField(Field):
             tmp_vf = self
         else:
             tmp_vf = self.copy()
+        masked_values = np.any(self.mask)
         # get side to mirror
         if direction == 1:
             axe = axe_x
@@ -4651,8 +4670,9 @@ class ScalarField(Field):
                 if not np.isnan(mir_val):
                     tmp_vf.values[i, j] = mir_val*mir_coef
                     tmp_vf.mask[i, j] = False
-        # interpolating between mirror images id necessary
-        if interp is not None:
+        # interpolating between mirror images if these was initial masked values
+        # (general but slow interpolation)
+        if interp is not None and masked_values and interp != 'linear':
             # getting data
             x, y = tmp_vf.axe_x, tmp_vf.axe_y
             values = tmp_vf.values
@@ -4698,6 +4718,38 @@ class ScalarField(Field):
                     values[new_mask] = nearest(xy[new_mask.flatten()])
             else:
                 raise ValueError("unknown 'tof' value")
+            tmp_vf.values = values
+            tmp_vf.mask = False
+        # interpolating if there was no masked values
+        # (faster linear interpolation than the previous one)
+        elif interp is not None:
+            # getting data
+            new_axe_x, new_axe_y = new_axe_x, new_axe_y
+            values = tmp_vf.values
+            mask = tmp_vf.mask
+            # direction x
+            if side in ['right', 'left']:
+                # get last column
+                ind_last = np.where(mask[:, 0])[0][0]
+                # get number of missing values
+                nmb_masked = np.sum(mask[:, 0])
+                # loop on lines
+                for i in np.arange(len(new_axe_y)):
+                    tmp_val = np.linspace(values[ind_last - 1, i],
+                                          values[ind_last + nmb_masked, i],
+                                          nmb_masked + 2)[1:-1]
+                    values[ind_last:ind_last + nmb_masked, i] = tmp_val
+            else:
+                # get last column
+                ind_last = np.where(mask[0, :])[0][0]
+                # get number of missing values
+                nmb_masked = np.sum(mask[0, :])
+                # loop on lines
+                for i in np.arange(len(new_axe_x)):
+                    tmp_val = np.linspace(values[i, ind_last - 1],
+                                          values[i, ind_last + nmb_masked],
+                                          nmb_masked + 2)[1:-1]
+                    values[i, ind_last:ind_last + nmb_masked] = tmp_val
             tmp_vf.values = values
             tmp_vf.mask = False
         # returning
@@ -5954,7 +6006,7 @@ class VectorField(Field):
             new_field.mask = new_mask
             return new_field
 
-    def mirroring(self, direction, position, inds_to_mirror='all',
+    def mirroring(self, direction, position, inds_to_mirror='all', mir_coef=1.,
                   inplace=False, interp=None, value=[0, 0]):
         """
         Return a field with additional mirrored values.
@@ -5967,6 +6019,8 @@ class VectorField(Field):
             Position of the symetry plane along the given axe
         inds_to_mirror : integer
             Number of vector rows to symetrize (default is all)
+        mir_coef : number, optional
+            Optional coefficient applied only to the mirrored values.
         inplace : boolean, optional
             .
         interp : string, optional
@@ -5990,6 +6044,8 @@ class VectorField(Field):
         else:
             coefx = 1
             coefy = -1
+        coefx *= mir_coef
+        coefy *= mir_coef
         # mirroring on components
         vx.mirroring(direction, position, inds_to_mirror=inds_to_mirror,
                      interp=interp, value=value[0], inplace=True,

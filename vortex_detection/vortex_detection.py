@@ -94,64 +94,71 @@ class VF(object):
         # get axe data
         delta_x = self.axe_x[1] - self.axe_x[0]
         delta_y = self.axe_y[1] - self.axe_y[0]
-        vx_sup_0 = self.vx > 0
-        vy_sup_0 = self.vy > 0
+        vx_sup_0 = np.array(self.vx > 0, dtype=int)
+        vy_sup_0 = np.array(self.vy > 0, dtype=int)
         # check if any masks
-        is_masked_values = np.any(self.mask)
-        tmp_mask = [[False, False], [False, False]]
-        # loop on tmp_vf
+        if np.any(self.mask):
+            mask = self.mask
+            mask = np.logical_or(np.logical_or(mask[0:-1, 0:-1],
+                                               mask[1::, 0:-1]),
+                                 np.logical_or(mask[0:-1, 1::],
+                                               mask[1::, 1::]))
+        else:
+            mask = np.zeros((self.mask.shape[0] - 1, self.mask.shape[1] - 1))
+        # fast first check to see where 0-levelset pass
+        signx = (vx_sup_0[0:-1, 0:-1] + vx_sup_0[1::, 0:-1]
+                 + vx_sup_0[0:-1, 1::] + vx_sup_0[1::, 1::])
+        signy = (vy_sup_0[0:-1, 0:-1] + vy_sup_0[1::, 0:-1]
+                 + vy_sup_0[0:-1, 1::] + vy_sup_0[1::, 1::])
+        lsx = np.logical_and(signx != 0, signx != 4)
+        lsy = np.logical_and(signy != 0, signy != 4)
+        filt_0ls = np.logical_and(lsx, lsy)
+        filt = np.logical_and(np.logical_not(mask), filt_0ls)
+        # loop on filtered cells
         positions = []
         cp_types = []
-        for i in np.arange(self.shape[0] - 2):
-            for j in np.arange(self.shape[1] - 2):
-                # skip if masked
-                if is_masked_values:
-                    tmp_mask = self.mask[i:i + 2, j:j + 2]
-                    if np.any(tmp_mask):
-                        continue
-                # check if tmp_vf can have a cp (fast first check)
-                tmp_vx_sup_0 = np.sum(vx_sup_0[i:i + 2, j:j + 2]) in [0, 4]
-                if tmp_vx_sup_0:
-                    continue
-                tmp_vy_sup_0 = np.sum(vy_sup_0[i:i + 2, j:j + 2]) in [0, 4]
-                if tmp_vy_sup_0:
-                    continue
-                # create tmp_vf object
-                tmp_vx = self.vx[i:i + 2, j:j + 2]
-                tmp_vy = self.vy[i:i + 2, j:j + 2]
-                tmp_theta = self.theta[i:i + 2, j:j + 2]
-                tmp_axe_x = self.axe_x[j:j + 2]
-                tmp_axe_y = self.axe_y[i:i + 2]
-                tmp_vf = VF(vx=tmp_vx, vy=tmp_vy, axe_x=tmp_axe_x,
-                            axe_y=tmp_axe_y, mask=tmp_mask,
-                            theta=tmp_theta, time=self.time)
-                # check struct number
-                nmb_struct = tmp_vf._check_struct_number()
-                # if there is nothing
-                if nmb_struct == (0, 0):
-                    continue
+        I, J = np.meshgrid(np.arange(self.shape[0] - 1),
+                           np.arange(self.shape[1] - 1), indexing='ij')
+        Is, Js = I[filt], J[filt]
+        for n in np.arange(len(Is)):
+            i, j = Is[n], Js[n]
+            # create tmp_vf object
+            tmp_vx = self.vx[i:i + 2, j:j + 2]
+            tmp_vy = self.vy[i:i + 2, j:j + 2]
+            tmp_theta = self.theta[i:i + 2, j:j + 2]
+            tmp_axe_x = self.axe_x[j:j + 2]
+            tmp_axe_y = self.axe_y[i:i + 2]
+            tmp_vf = VF(vx=tmp_vx, vy=tmp_vy, axe_x=tmp_axe_x,
+                        axe_y=tmp_axe_y, mask=[[False, False],
+                                               [False, False]],
+                        theta=tmp_theta, time=self.time)
+            # check struct number
+            nmb_struct = tmp_vf._check_struct_number()
+            # if there is nothing
+            if nmb_struct == (0, 0):
+                continue
+            else:
+                positions.append((tmp_vf.axe_x[0] + delta_x/2.,
+                                  tmp_vf.axe_y[0] + delta_y/2.))
+                # getting CP type
+                if tmp_vf.pbi_x[1] == -1:
+                    cp_types.append(0)
                 else:
-                    positions.append((tmp_vf.axe_x[0] + delta_x/2.,
-                                      tmp_vf.axe_y[0] + delta_y/2.))
-                    # getting CP type
-                    if tmp_vf.pbi_x[1] == -1:
-                        cp_types.append(0)
-                    else:
-                        jac = _get_jacobian_matrix(tmp_vf.vx, tmp_vf.vy)
-                        eigvals, eigvects = np.linalg.eig(jac)
-                        tau = np.real(eigvals[0])
-                        mu = np.sum(np.abs(np.imag(eigvals)))
-                        if mu != 0:
-                            if jac[1, 0] < 0:
-                                cp_types.append(1)
-                            else:
-                                cp_types.append(2)
-                        elif tau >= 0 and mu == 0:
-                            cp_types.append(3)
-                        elif tau < 0 and mu == 0:
-                            cp_types.append(4)
+                    jac = _get_jacobian_matrix(tmp_vf.vx, tmp_vf.vy)
+                    eigvals, eigvects = np.linalg.eig(jac)
+                    tau = np.real(eigvals[0])
+                    mu = np.sum(np.abs(np.imag(eigvals)))
+                    if mu != 0:
+                        if jac[1, 0] < 0:
+                            cp_types.append(1)
                         else:
-                            raise Exception()
+                            cp_types.append(2)
+                    elif tau >= 0 and mu == 0:
+                        cp_types.append(3)
+                    elif tau < 0 and mu == 0:
+                        cp_types.append(4)
+                    else:
+                        raise Exception()
         # returning
         return np.array(positions), np.array(cp_types)
 
@@ -1780,10 +1787,11 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
             raise ValueError()
         if mirroring.shape[1] != 2:
             raise ValueError()
-    if not isinstance(mirror_interp, STRINGTYPES):
-        raise TypeError()
-    if mirror_interp not in ['linear', 'value', 'nearest', 'cubic']:
-        raise ValueError()
+    if mirror_interp is not None:
+        if not isinstance(mirror_interp, STRINGTYPES):
+            raise TypeError()
+        if mirror_interp not in ['linear', 'value', 'nearest', 'cubic']:
+            raise ValueError()
     if not isinstance(smoothing_size, NUMBERTYPES):
         raise TypeError()
     if smoothing_size < 0:
@@ -1794,10 +1802,16 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         if mirroring is not None:
             tmp_vf = obj.copy()
             for direction, position in mirroring:
-                tmp_vf.mirroring(int(direction), position,
-                                 inds_to_mirror=window_size*2,
-                                 inplace=True, interp=mirror_interp,
-                                 value=[0, 0])
+                if kind == 'pbi_crit':
+                    tmp_vf.mirroring(int(direction), position,
+                                     inds_to_mirror=window_size*2,
+                                     inplace=True, interp=mirror_interp,
+                                     value=[0, 0])
+                else:
+                    tmp_vf.mirroring(int(direction), position,
+                                     inds_to_mirror=2,
+                                     inplace=True, interp=mirror_interp,
+                                     value=[0, 0])
         else:
             tmp_vf = obj
         # smoothing if necessary
@@ -1860,18 +1874,19 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                                        unit_time=obj.unit_times,
                                        window_size=window_size,
                                        kind=kind, mirroring=mirroring)
-            if verbose and (i % df == 0 or i == len(obj.fields) - 1):
-                ti = modtime.time()
-                if i == 0:
-                    tf = '---'
-                else:
-                    dt = (ti - t0)/i
-                    tf = t0 + dt*(len(obj.fields))
-                    tf = _format_time(tf - t0)
-                ti = _format_time(ti - t0)
-                print("+++    {:>3.0f} %    {:{field_pad}d}/{} fields    {}/{}"
-                      .format(np.round(i*1./len(obj.fields)*100),
-                              i, len(obj.fields), ti, tf, field_pad=field_pad))
+            if verbose and df != 0 and len(obj.fields) != 1:
+                if i % df == 0 or i == len(obj.fields) - 1:
+                    ti = modtime.time()
+                    if i == 0:
+                        tf = '---'
+                    else:
+                        dt = (ti - t0)/i
+                        tf = t0 + dt*(len(obj.fields))
+                        tf = _format_time(tf - t0)
+                    ti = _format_time(ti - t0)
+                    print("+++    {:>3.0f} %    {:{field_pad}d}/{} fields    {}/{}"
+                          .format(np.round(i*1./len(obj.fields)*100),
+                                  i, len(obj.fields), ti, tf, field_pad=field_pad))
     else:
         raise TypeError()
     return res
