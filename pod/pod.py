@@ -671,7 +671,8 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
     growth_rate = None
     pulsation = None
     if kind == 'pod':
-        my_decomp = modred.PODHandles(np.vdot, max_vecs_per_node=1000,
+        my_decomp = modred.PODHandles(np.vdot,
+                                      max_vecs_per_node=max_vecs_per_node,
                                       verbosity=verbose)
         eigvect, eigvals = my_decomp.compute_decomp(snaps)
         del snaps
@@ -681,7 +682,8 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
         eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
                           unit_x=unit_times, unit_y='')
     elif kind == 'bpod':
-        my_decomp = modred.BPODHandles(np.vdot, max_vecs_per_node=1000,
+        my_decomp = modred.BPODHandles(np.vdot,
+                                       max_vecs_per_node=max_vecs_per_node,
                                        verbosity=verbose)
         eigvect, eigvals, eigvect_l = my_decomp.compute_decomp(snaps, snaps)
         del snaps
@@ -691,7 +693,8 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
         eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
                           unit_x=unit_times, unit_y='')
     elif kind == 'dmd':
-        my_decomp = modred.DMDHandles(np.vdot, max_vecs_per_node=1000,
+        my_decomp = modred.DMDHandles(np.vdot,
+                                      max_vecs_per_node=max_vecs_per_node,
                                       verbosity=verbose)
         ritz_vals, mode_norms, build_coeffs = my_decomp.compute_decomp(snaps)
         del snaps

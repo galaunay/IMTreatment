@@ -1204,7 +1204,6 @@ def import_sf_from_ascii(filename, x_col=1, y_col=2, vx_col=3,
         x_ind = 0
         y_ind = 0
         for i in np.arange(vx.shape[0]):
-            print(i/float(data.shape[0]))
             x_tmp = x[i]
             y_tmp = y[i]
             vx_tmp = vx[i]

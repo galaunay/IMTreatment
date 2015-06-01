@@ -3781,7 +3781,6 @@ class ScalarField(Field):
             inds_x = self.get_indice_on_axe(1, x)
             inds_y = self.get_indice_on_axe(2, y)
             # if something masked
-            #print(self.mask[inds_x, inds_y])
             if np.sum(self.mask[inds_x, inds_y]) != 0:
                 res = np.nan
             # if we are on a grid point

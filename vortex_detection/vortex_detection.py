@@ -1925,7 +1925,8 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     field = velocityfield_to_vf(vectorfield, time)
     pos, cp_types = field.get_cp_position()
     sadd = OrientedPoints(unit_x=vectorfield.unit_x,
-                          unit_y=vectorfield.unit_y)
+                          unit_y=vectorfield.unit_y,
+                          unit_v=unit_time)
     foc = Points(unit_x=vectorfield.unit_x,
                  unit_y=vectorfield.unit_y,
                  unit_v=unit_time)
