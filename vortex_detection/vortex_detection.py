@@ -12,6 +12,7 @@ from ..core import Points, OrientedPoints, Profile, ScalarField, VectorField,\
     make_unit, ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
     TemporalVectorFields
 from ..field_treatment import get_streamlines, get_gradients
+from ..Tools import ProgressCounter
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline
@@ -927,7 +928,7 @@ class CritPoints(object):
     @staticmethod
     def _get_cp_time_evolution(points, times=None, epsilon=None):
         """
-        Compute the temporal evolution of each vortex centers from a set of
+        Compute the temporal evolution of each critical point from a set of
         points at different times. (Points objects must each contain only one
         and point time must be specified in 'v' argument of points).
 
@@ -1151,6 +1152,10 @@ class CritPoints(object):
                     break
                 PF.make_point_useless(i, j)
             points_f.append(line.export_to_Points(PF))
+        # sort by length
+        lens = [len(pts) for pts in points_f]
+        ind_sort = np.argsort(lens)
+        points_f = points_f[ind_sort]
         return points_f
 
     ### Displayers ###
@@ -1605,7 +1610,7 @@ def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
 
 
 def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
-                                     output_center=False):
+                                     output_center=False, verbose=False):
     """
     Return the radius evolution in time for the given vortex center trajectory.
 
@@ -1623,6 +1628,8 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
     output_center : boolean, optional
         If 'True', return a Points object with associated vortex centers,
         computed using center of mass algorythm.
+    verbose : boolean
+        .
 
     Returns :
     ---------
@@ -1632,11 +1639,17 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
         If 'output_center' is 'True', contain the newly computed vortex center.
     """
     radii = np.empty((len(traj.xy),))
+    if verbose:
+        pg = ProgressCounter("Begin vortex radii detection",
+                             "Done", len(traj.xy), 'fields', perc_interv=1)
     # computing with vortex center
     if output_center:
         centers = Points(unit_x=TVFS.unit_x, unit_y=TVFS.unit_y,
                          unit_v=TVFS.unit_times)
+
         for i, pt in enumerate(traj):
+            if verbose:
+                pg.print_progress()
             # getting time and associated velocity field
             time = traj.v[i]
             field = TVFS.fields[TVFS.times == time][0]
@@ -1649,6 +1662,8 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
     # computing without vortex centers
     else:
         for i, _ in enumerate(traj):
+            if verbose:
+                pg.print_progress()
             # getting time and associated velocity field
             time = traj.v[i]
             field = TVFS.fields[TVFS.times == time][0]

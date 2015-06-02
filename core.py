@@ -1247,6 +1247,62 @@ class Points(object):
         if not inplace:
             return tmp_pt
 
+    def smooth(self, tos='uniform', size=None, inplace=False, **kw):
+        """
+        Return a smoothed points field.
+
+        Parameters :
+        ------------
+        tos : string, optional
+            Type of smoothing, can be 'uniform' (default) or 'gaussian'
+            (See ndimage module documentation for more details)
+        size : number, optional
+            Size of the smoothing (is radius for 'uniform' and
+            sigma for 'gaussian').
+            Default is 3 for 'uniform' and 1 for 'gaussian'.
+        inplace : boolean
+            If 'False', return a smoothed points field
+            else, smooth in place.
+        kw : dic
+            Additional parameters for ndimage methods
+            (See ndimage documentation)
+        """
+        if not isinstance(tos, STRINGTYPES):
+            raise TypeError("'tos' must be a string")
+        if size is None and tos == 'uniform':
+            size = 3
+        elif size is None and tos == 'gaussian':
+            size = 1
+        # default smoothing border mode to 'nearest'
+        if not 'mode' in kw.keys():
+            kw.update({'mode': 'nearest'})
+        # getting data
+        if inplace:
+            y = self.xy[:, 1]
+            x = self.xy[:, 0]
+        else:
+            tmp_pts = self.copy()
+            y = self.xy[:, 1]
+            x = self.xy[:, 0]
+        # smoothing
+        if tos == "uniform":
+            x = ndimage.uniform_filter(x, size, **kw)
+            y = ndimage.uniform_filter(y, size, **kw)
+        elif tos == "gaussian":
+            x = ndimage.gaussian_filter(x, size, **kw)
+            y = ndimage.gaussian_filter(y, size, **kw)
+        else:
+            raise ValueError("'tos' must be 'uniform' or 'gaussian'")
+        # storing
+        if inplace:
+            self.xy[:, 0] = x
+            self.xy[:, 1] = y
+        else:
+            tmp_pts.xy[:, 0] = x
+            tmp_pts.xy[:, 1] = y
+            return tmp_pts
+
+
     ### Displayers ###
     def _display(self, kind=None, reverse=False, **plotargs):
         if kind is None:
