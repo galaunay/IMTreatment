@@ -1153,10 +1153,11 @@ class CritPoints(object):
                 PF.make_point_useless(i, j)
             points_f.append(line.export_to_Points(PF))
         # sort by length
+        points_f = np.asarray(points_f)
         lens = [len(pts) for pts in points_f]
         ind_sort = np.argsort(lens)
         points_f = points_f[ind_sort]
-        return points_f
+        return list(points_f)
 
     ### Displayers ###
     def display(self, time=None, indice=None, field=None, **kw):
@@ -1679,6 +1680,105 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
         return radii_prof, centers
     else:
         return radii_prof
+
+
+def get_vortex_intensity(VF, vort_center, crit=None, output_unit=False):
+    """
+    Return the intensity of the given vortex.
+
+    Parameters:
+    -----------
+    VF : vectorfield object
+        Velocity field on which compute gamma2.
+    vort_center : 2x1 array
+        Approximate position of the vortex center.
+    crit : function
+        Function to inegrate on the vortex zone. should take a VectorField as
+        argument and return a ScalarField. Default is 'get_residual_vorticity'.
+    output_unit ; boolean, optional
+        If 'True', return the associated unit.
+
+    Returns :
+    ---------
+    intens : number
+        Intensity of the vortex. If no vortex is found, 0 is returned.
+    """
+    if crit is None:
+        crit = get_residual_vorticity
+    # getting data
+    gamma2 = get_gamma(VF, ind=False, kind='gamma2', raw=True)
+    ind_x = VF.get_indice_on_axe(1, vort_center[0], kind='nearest')
+    ind_y = VF.get_indice_on_axe(2, vort_center[1], kind='nearest')
+    dx = VF.axe_x[1] - VF.axe_x[0]
+    dy = VF.axe_y[1] - VF.axe_y[0]
+    # getting criterion field
+    tmp_cf = crit(VF)
+    # get vortex zone
+    vort = np.abs(gamma2) > 2/np.pi
+    vort, nmb_vort = msr.label(vort)
+    # get wanted zone label
+    lab = vort[ind_x, ind_y]
+    # if we are outside a zone
+    if lab == 0:
+        tmp_int = 0
+    # compute fast and simple integral on the vortex zone
+    else:
+        tmp_int = np.sum(np.abs(tmp_cf.values[vort == lab]))*dx*dy
+    if output_unit:
+        unit_int = tmp_cf.unit_values*tmp_cf.unit_x*tmp_cf.unit_y
+        scale = unit_int.asNumber()
+        unit_int /= scale
+        tmp_int *= scale
+        return tmp_int, unit_int
+    else:
+        return tmp_int
+
+
+def get_vortex_intensity_time_evolution(TVFS, traj, crit=None, verbose=False):
+    """
+    Return the radius evolution in time for the given vortex center trajectory.
+
+    Use the criterion |gamma2| > 2/pi. The returned radius is an average value
+    if the vortex zone is not circular.
+
+    Parameters:
+    -----------
+    TVFS : TemporalField object
+        Velocity field on which compute gamma2.
+    traj : Points object
+        Trajectory of the vortex.
+    crit : function
+        Function to inegrate on the vortex zone. should take a VectorField as
+        argument and return a ScalarField. Default is 'get_residual_vorticity'.
+    verbose : boolean
+        .
+
+    Returns :
+    ---------
+    intensity : Profile object
+        Average intensity of the vortex. If no vortex is found, 0 is returned.
+    """
+    intens = np.empty((len(traj.xy),))
+    if verbose:
+        pg = ProgressCounter("Begin vortex radii detection",
+                             "Done", len(traj.xy), 'fields', perc_interv=1)
+    # loop on traj times
+    for i, _ in enumerate(traj):
+        if verbose:
+            pg.print_progress()
+        # getting time and associated velocity field
+        time = traj.v[i]
+        field = TVFS.fields[TVFS.times == time][0]
+        # getting the wanted point
+        wanted_xy = traj.xy[i, :]
+        tmp_int, unit_int = get_vortex_intensity(field, wanted_xy, crit=crit,
+                                                 output_unit=True)
+        intens[i] = tmp_int
+    # returning
+    mask = intens == 0.
+    radii_prof = Profile(traj.v, intens, mask=mask, unit_x=TVFS.unit_times,
+                         unit_y=unit_int)
+    return radii_prof
 
 
 def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):

@@ -1327,6 +1327,8 @@ class Points(object):
                 plot = plt.scatter(x_values, y_values, **plotargs)
         elif kind == 'plot':
             plot = plt.plot(x_values, y_values, **plotargs)
+        else:
+            raise ValueError()
         return plot
 
     def display(self, kind=None, reverse=False, **plotargs):
