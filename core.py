@@ -2183,8 +2183,8 @@ class Profile(object):
         fill : string or float
             Specifies the way to treat missing values.
             A value for value filling.
-            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
-            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
+            A string ('linear', 'nearest', 'zero', 'slinear', 'quadratic',
+            'cubic' where 'slinear', 'quadratic' and 'cubic' refer to a spline
             interpolation of first, second or third order) for interpolation.
         mask_error : boolean
             If 'False', instead of raising an error when masked value appear on

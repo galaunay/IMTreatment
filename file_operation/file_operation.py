@@ -408,24 +408,25 @@ def _get_imx_buffers(filename):
     syst = platform.system()
     if syst == 'Linux':
         import libim7
-        vbuff, atts = libim7.readim7(filename)
-        vatts = atts.as_dict()
+        vbuff, vatts = libim7.readim7(filename)
+        atts = vatts.as_dict()
         vectorGrid = vbuff.vectorGrid
         arrays = np.array(vbuff.blocks.transpose((0, 2, 1)))
         fmt = vbuff.header.buffer_format
         libim7.del_buffer(vbuff)
-        libim7.del_attributelist(atts)
-        return fmt, vectorGrid, arrays, vatts
+        libim7.del_attributelist(vatts)
+        return fmt, vectorGrid, arrays, atts
     elif syst == 'Windows':
         import ReadIM
         vbuff, vatts = ReadIM.extra.get_Buffer_andAttributeList(filename)
         arrays, vbuff2 = ReadIM.extra.buffer_as_array(vbuff)
         arrays = np.array(arrays.transpose((0, 2, 1)))
         atts = ReadIM.extra.att2dict(vatts)
+        fmt = vbuff.image_sub_type
         vectorGrid = vbuff.vectorGrid
         ReadIM.DestroyBuffer(vbuff)
         ReadIM.DestroyBuffer(vbuff2)
-        return fmt, vectorGrid, arrays, vatts
+        return fmt, vectorGrid, arrays, atts
     else:
         raise Exception()
 

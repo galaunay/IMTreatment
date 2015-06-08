@@ -833,6 +833,25 @@ class CritPoints(object):
         # extend deleting to points
         self._traj_to_pts()
 
+    def smooth_traj(self, tos='uniform', size=None):
+        """
+        Smooth the CP trjaectories.
+
+        Parameters :
+        ------------
+        tos : string, optional
+            Type of smoothing, can be 'uniform' (default) or 'gaussian'
+            (See ndimage module documentation for more details)
+        size : number, optional
+            Size of the smoothing (is radius for 'uniform' and
+            sigma for 'gaussian').
+            Default is 3 for 'uniform' and 1 for 'gaussian'.
+        """
+        # loop on trajectories
+        for typ in self.iter_traj:
+            for traj in typ:
+                traj.smooth(tos=tos, size=size, inplace=True)
+
     def topo_simplify(self, dist_min, kind='replacement'):
         """
         Simplify the topological points field.
@@ -1156,7 +1175,7 @@ class CritPoints(object):
         points_f = np.asarray(points_f)
         lens = [len(pts) for pts in points_f]
         ind_sort = np.argsort(lens)
-        points_f = points_f[ind_sort]
+        points_f = points_f[ind_sort [::-1]]
         return list(points_f)
 
     ### Displayers ###
