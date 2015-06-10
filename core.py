@@ -780,8 +780,7 @@ class Points(object):
         incr : integer, optional
             Increment use to get used points (default is 1).
         smooth : number, optional
-            Size of smoothing (gaussian smoothing) applied on x and y values,
-            before computing velocities.
+            Cut off frequency for the lowpass filter.
 
         Return
         ------
@@ -813,8 +812,10 @@ class Points(object):
             dt = times[1::] - times[:-1]
         # smoothing if necessary
         if smooth is not None:
-            x = ndimage.gaussian_filter(x, smooth, mode='nearest')
-            y = ndimage.gaussian_filter(y, smooth, mode='nearest')
+            tmp_pts = Points(zip(x, y), times)
+            tmp_pts.smooth(tos='lowpass', size=smooth, inplace=True)
+            x = tmp_pts.xy[:, 0]
+            y = tmp_pts.xy[:, 1]
         # getting velocity between points
         Vx = np.array([(x[i + 1] - x[i])/dt[i]
                        for i in np.arange(len(x) - 1)])
@@ -1254,12 +1255,13 @@ class Points(object):
         Parameters :
         ------------
         tos : string, optional
-            Type of smoothing, can be 'uniform' (default) or 'gaussian'
-            (See ndimage module documentation for more details)
+            Type of smoothing, can be 'uniform' (default), 'gaussian'
+            or 'lowpass'.
         size : number, optional
-            Size of the smoothing (is radius for 'uniform' and
-            sigma for 'gaussian').
-            Default is 3 for 'uniform' and 1 for 'gaussian'.
+            radius of the smoothing for 'uniform',
+            radius of the smoothing for 'gaussian',
+            cut off frequency for 'lowpass'
+            Default are 3 for 'uniform',  1 for 'gaussian' and 0.1 for 'lowpass'.
         inplace : boolean
             If 'False', return a smoothed points field
             else, smooth in place.
@@ -1273,33 +1275,54 @@ class Points(object):
             size = 3
         elif size is None and tos == 'gaussian':
             size = 1
+        elif size is None and tos == 'lowpass':
+            size = 0.1
         # default smoothing border mode to 'nearest'
-        if not 'mode' in kw.keys():
+        if tos in ['uniform', 'gaussian'] and 'mode' not in kw.keys():
             kw.update({'mode': 'nearest'})
         # getting data
-        if inplace:
-            y = self.xy[:, 1]
-            x = self.xy[:, 0]
-        else:
+        if not inplace:
             tmp_pts = self.copy()
-            y = self.xy[:, 1]
-            x = self.xy[:, 0]
+        y = self.xy[:, 1]
+        x = self.xy[:, 0]
+        if len(self.v) != 0:
+            v = self.v
         # smoothing
         if tos == "uniform":
             x = ndimage.uniform_filter(x, size, **kw)
             y = ndimage.uniform_filter(y, size, **kw)
+            if len(self.v) != 0:
+                v = ndimage.uniform_filter(v, size, **kw)
         elif tos == "gaussian":
             x = ndimage.gaussian_filter(x, size, **kw)
             y = ndimage.gaussian_filter(y, size, **kw)
+            if len(self.v) != 0:
+                v = ndimage.gaussian_filter(v, size, **kw)
+        elif tos == 'lowpass':
+            from scipy import signal
+            x = self.xy[:, 0]
+            y = self.xy[:, 1]
+            N = 2
+            Wn = size
+            B, A = signal.butter(N, Wn, output='ba')
+            x = signal.filtfilt(B, A, x)
+            y = signal.filtfilt(B, A, y)
+            if len(self.v) != 0:
+                v = signal.filtfilt(B, A, v)
+
         else:
-            raise ValueError("'tos' must be 'uniform' or 'gaussian'")
+            raise ValueError("'tos' must be 'uniform', 'gaussian' or 'lowpass'")
         # storing
         if inplace:
             self.xy[:, 0] = x
             self.xy[:, 1] = y
+            if len(self.v) != 0:
+                self.v = v
         else:
             tmp_pts.xy[:, 0] = x
             tmp_pts.xy[:, 1] = y
+            if len(tmp_pts.v) != 0:
+                tmp_pts.v = v
             return tmp_pts
 
 
@@ -1343,7 +1366,7 @@ class Points(object):
         reverse : boolean, optional
             If 'True', axis are reversed.
         """
-        plot = self._display(kind, **plotargs)
+        plot = self._display(kind, reverse=reverse, **plotargs)
         if len(self.v) != 0 and kind is not 'plot':
             cb = plt.colorbar(plot)
             cb.set_label(self.unit_v.strUnit())
@@ -2431,14 +2454,20 @@ class Profile(object):
         # getting data
         xdata = self.x
         ydata = self.y
+        if p0 is None:
+            nmb_arg = func.func_code.co_argcount
+            p0 = [1]*nmb_arg
+        # minimize function
+        def min_func(args, x, y):
+            return y - func(x, *args)
         # fitting params
-        popt, pcov = spopt.curve_fit(func, xdata, ydata, p0)
+        param, mess = spopt.leastsq(min_func, p0, (xdata, ydata))
         # creating profile
-        fit_prof = Profile(xdata, func(xdata, *popt), unit_x=self.unit_x,
+        fit_prof = Profile(xdata, func(xdata, *param), unit_x=self.unit_x,
                            unit_y=self.unit_y, name=self.name)
         # returning
         if output_param:
-            return fit_prof, popt
+            return fit_prof, param
         else:
             return fit_prof
 
