@@ -710,7 +710,7 @@ def get_streamlines_fast(vf, xy, delta=.25, interp='linear',
     else:
         return streams
 
-def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.75,
+def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
                      max_steps=5000, resolution=10.):
     """
     Return the lagrangien displacement of a set of particules initialy at the
@@ -725,8 +725,6 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.75,
         Initial points positions
     rel_err : number
         relative maximum error for rk4 algorithm
-    dampl : number
-        Between 0 and 1, dampling for rk45 algorithm
     max_steps : integer
         Maximum number of steps (default = 100).
     resolution : number,
@@ -748,10 +746,6 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.75,
         raise TypeError()
     if rel_err <= 0:
         raise ValueError()
-    if not isinstance(dampl, NUMBERTYPES):
-        raise TypeError()
-    if dampl < 0 or dampl > 1:
-        raise ValueError()
     if not isinstance(max_steps, NUMBERTYPES):
         raise TypeError()
     max_steps = int(max_steps)
@@ -759,6 +753,8 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.75,
     from scipy.interpolate import RectBivariateSpline
     axe_x, axe_y = VF.axe_x, VF.axe_y
     dx = axe_x[1] - axe_x[0]
+    dy = axe_y[1] - axe_y[0]
+    dxy = np.mean([dx, dy])
     Vx_tor = RectBivariateSpline(axe_x, axe_y, VF.comp_x,
                                  kx=1, ky=1)
     Vy_tor = RectBivariateSpline(axe_x, axe_y, VF.comp_y,
@@ -787,17 +783,18 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.75,
                   + 2197./4104.*k4 - 1./5.*k5)
         best_xy = (xy_init + 16./135.*k1 + 6656./12825.*k3
                    + 28561./56430.*k4 - 9./50.*k5 + 2./55.*k6)
-        err = (np.linalg.norm(best_xy - new_xy)
-               / np.linalg.norm(new_xy - xy_init))
+        err_num = np.linalg.norm(best_xy - new_xy)
+        err_denom = np.linalg.norm(new_xy - xy_init)
+        if err_denom == 0:
+            err = 0.
+        else:
+            err = err_num/err_denom
         # compute new adaptative rk_dt and return
         if err == 0:
             new_rk_dt = 2*rk_dt
         else:
             new_rk_dt = ((rel_err*rk_dt)/(2.*err))**.25/resolution
-        new_rk_dt = (dampl*rk_dt + (1 - dampl)*new_rk_dt)
         t += rk_dt
-        if new_rk_dt == np.inf:
-            pdb.set_trace()
         return new_xy, t, new_rk_dt
     # Loop on given points
     streams = []
@@ -825,7 +822,7 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3, dampl=.75,
             if nmb_it > max_steps:
                 break
             if nmb_it != 1 \
-                    and np.linalg.norm(new_xys[-1] - new_xys[-2]) < dx/1000.:
+                    and np.linalg.norm(new_xys[-1] - new_xys[-2]) < dxy/1000.:
                 break
             # rk adaptative step
             new_xy, t, rk_dt = rkf45(new_xy, t, rk_dt)
