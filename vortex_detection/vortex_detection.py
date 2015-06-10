@@ -385,7 +385,8 @@ class CritPoints(object):
         self.unit_time = unit_time
         self.unit_x = make_unit('')
         self.unit_y = make_unit('')
-        self.colors = ['r', 'b', 'y', 'm', 'g', 'w', 'k']
+        self.colors = ['r', 'b', 'y', 'm', 'g']
+        self.cp_types = ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']
         self.current_epsilon = None
 
     def __add__(self, obj):
@@ -618,6 +619,31 @@ class CritPoints(object):
         # returning
         return dens
 
+    def display_traj_len_repartition(self):
+        """
+        display profiles with trajectories length repartition
+        (usefull to choose the right epsilon)
+        """
+        # get traj length
+        typ_lens = []
+        for i, typ in enumerate(self.iter_traj):
+            lens = []
+            for traj in typ:
+                lens.append(len(traj.xy))
+            typ_lens.append(lens)
+        # display
+        fig = plt.figure()
+        plt.hist(typ_lens, bins=np.arange(np.min(np.min(typ_lens)) - 0.5,
+                                          np.max(np.max(typ_lens)) + 1.5, 1),
+                 stacked=True, histtype='barstacked',
+                 color=self.colors,
+                 label=self.cp_types)
+        plt.legend()
+        plt.xlabel('Trajectories size')
+        plt.ylabel('Number of trajectories')
+        # returning
+        return fig
+
     ### Modifiers ###
     def add_point(self, foc=None, foc_c=None, node_i=None,
                   node_o=None, sadd=None, time=None):
@@ -725,8 +751,13 @@ class CritPoints(object):
                 for pt in kind:
                     pt.change_unit(axe, new_unit)
             for kind in self.iter_traj:
-                for pt in kind:
-                    pt.change_unit(axe, new_unit)
+                if kind is not None:
+                    for pt in kind:
+                        pt.change_unit(axe, new_unit)
+            if axe == 'x':
+                self.unit_x = new_unit
+            else:
+                self.unit_y = new_unit
         elif axe == 'time':
             for kind in self.iter:
                 for pt in kind:
@@ -1179,7 +1210,7 @@ class CritPoints(object):
         return list(points_f)
 
     ### Displayers ###
-    def display(self, time=None, indice=None, field=None, **kw):
+    def display(self, time=None, indice=None, field=None, cpkw={}, lnkw={}):
         """
         Display some critical points.
 
@@ -1209,8 +1240,8 @@ class CritPoints(object):
             if not isinstance(field, VectorField):
                 raise TypeError()
         # Set the color
-        if 'color' in kw.keys():
-            colors = [kw.pop('color')]*len(self.colors)
+        if 'color' in cpkw.keys():
+            colors = [cpkw.pop('color')]*len(self.colors)
         else:
             colors = self.colors
         # display the critical lines
@@ -1220,13 +1251,13 @@ class CritPoints(object):
                 .get_streamlines_from_orientations(field,
                 reverse_direction=[True, False], interp='cubic')
             for stream in streams:
-                stream._display(kind='plot', color=colors[4])
+                stream._display(kind='plot', color=colors[4], **lnkw)
         # loop on the points types
         for i, pt in enumerate(self.iter):
             if pt[indice] is None:
                 continue
             pt[indice].display(kind='plot', marker='o', color=colors[i],
-                               linestyle='none', **kw)
+                               linestyle='none', **cpkw)
 
     def display_traj(self, data='default', reverse=None, filt=None, **kw):
         """
