@@ -28,8 +28,9 @@ except:
     pass
 
 ARRAYTYPES = (np.ndarray, list, tuple)
-NUMBERTYPES = (int, long, float, complex, np.float, np.float16, np.float32,
-               np.float64, np.int, np.int16, np.int32, np.int64, np.int8)
+INTEGERTYPES = (int, np.int, np.int16, np.int32, np.int64, np.int8)
+NUMBERTYPES = (long, float, complex, np.float, np.float16, np.float32,
+               np.float64) + INTEGERTYPES
 STRINGTYPES = (str, unicode)
 MYTYPES = ('Profile', 'ScalarField', 'VectorField', 'VelocityField',
            'VelocityFields', 'TemporalVelocityFields', 'patialVelocityFields')
@@ -770,7 +771,7 @@ class Points(object):
                                   unit_values=unit_values)
             return sf
 
-    def get_velocity(self, incr=1, smooth=None):
+    def get_velocity(self, incr=1, smooth=None, xaxis='time'):
         """
         Assuming that associated 'v' values are times for each points,
         compute the velocity of the trajectory.
@@ -781,7 +782,9 @@ class Points(object):
             Increment use to get used points (default is 1).
         smooth : number, optional
             Cut off frequency for the lowpass filter.
-
+        xaxis : string, optional
+            Value to put in the profile x axis, can be 'time' (default), 'x'
+            or 'y'.
         Return
         ------
         Vx : Profile object
@@ -794,13 +797,16 @@ class Points(object):
                 raise TypeError()
             if smooth < 0:
                 raise ValueError()
+        if not isinstance(xaxis, STRINGTYPES):
+            raise TypeError()
+        if not xaxis in ['time', 'x', 'y']:
+            raise ValueError()
         # checking 'v' presence
         if len(self.v) == 0:
             raise Exception()
         # sorting points by time
         ind_sort = np.argsort(self.v)
         times = self.v[ind_sort]
-        dt = times[1::] - times[:-1]
         xy = self.xy[ind_sort]
         x = xy[:, 0]
         y = xy[:, 1]
@@ -809,7 +815,9 @@ class Points(object):
             x = x[::incr]
             y = y[::incr]
             times = times[::incr]
-            dt = times[1::] - times[:-1]
+        dx = x[1::] - x[:-1]
+        dy = y[1::] - y[:-1]
+        dt = times[1::] - times[:-1]
         # smoothing if necessary
         if smooth is not None:
             tmp_pts = Points(zip(x, y), times)
@@ -821,18 +829,23 @@ class Points(object):
                        for i in np.arange(len(x) - 1)])
         Vy = np.array([(y[i + 1] - y[i])/dt[i]
                        for i in np.arange(len(y) - 1)])
+        # getting xaxis
+        if xaxis == 'time':
+            x_prof = times[:-1] + dt/2.
+        elif xaxis == 'x':
+            x_prof = x[:-1] + dx/2.
+        elif xaxis == 'y':
+            x_prof = y[:-1] + dy/2.
         # returning profiles
         unit_Vx = self.unit_x/self.unit_v
         Vx *= unit_Vx.asNumber()
         unit_Vx /= unit_Vx.asNumber()
-        time_x = times[:-1] + dt/2.
-        prof_x = Profile(time_x, Vx, mask=False, unit_x=self.unit_v,
+        prof_x = Profile(x_prof, Vx, mask=False, unit_x=self.unit_v,
                          unit_y=unit_Vx)
         unit_Vy = self.unit_y/self.unit_v
         Vy *= unit_Vy.asNumber()
         unit_Vy /= unit_Vy.asNumber()
-        time_y = times[:-1] + dt/2.
-        prof_y = Profile(time_y, Vy, mask=False, unit_x=self.unit_v,
+        prof_y = Profile(x_prof, Vy, mask=False, unit_x=self.unit_v,
                          unit_y=unit_Vy)
         return prof_x, prof_y
 
@@ -1027,7 +1040,7 @@ class Points(object):
         ----------
         ind : integer or array of integer
         """
-        if isinstance(ind, int):
+        if isinstance(ind, INTEGERTYPES):
             ind = [ind]
         elif isinstance(ind, ARRAYTYPES):
             if not np.all([isinstance(val, int) for val in ind]):
@@ -1248,6 +1261,25 @@ class Points(object):
         if not inplace:
             return tmp_pt
 
+    def remove_nans(self, inplace=False):
+        """
+        Remove the points containing nans values.
+        """
+        if inplace:
+            tmp_pts = self
+        else:
+            tmp_pts = self.copy()
+        # get indices to remove
+        inds = np.logical_or(np.isnan(tmp_pts.xy[:, 0]),
+                             np.isnan(tmp_pts.xy[:, 1]))
+        inds = np.logical_or(inds, np.isnan(tmp_pts.v))
+        # remove
+        for ind in np.where(inds)[0][::-1]:
+            tmp_pts.remove(ind)
+        # return
+        if not inplace:
+            return tmp_pts
+
     def smooth(self, tos='uniform', size=None, inplace=False, **kw):
         """
         Return a smoothed points field.
@@ -1350,6 +1382,9 @@ class Points(object):
                 plot = plt.scatter(x_values, y_values, **plotargs)
         elif kind == 'plot':
             plot = plt.plot(x_values, y_values, **plotargs)
+        elif kind == 'colored_plot':
+            from IMTreatment.Tools import colored_plot
+            plot = colored_plot(x_values, y_values, z=self.v, **plotargs)
         else:
             raise ValueError()
         return plot
@@ -1363,6 +1398,7 @@ class Points(object):
         kind : string, optional
             Can be 'plot' (default if points have not values).
             or 'scatter' (default if points have values).
+            or 'colored_plot'.
         reverse : boolean, optional
             If 'True', axis are reversed.
         """
