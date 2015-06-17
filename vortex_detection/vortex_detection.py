@@ -1210,7 +1210,7 @@ class CritPoints(object):
         return list(points_f)
 
     ### Displayers ###
-    def display(self, time=None, indice=None, field=None, cpkw={}, lnkw={}):
+    def display(self, indice=None, time=None, field=None, cpkw={}, lnkw={}):
         """
         Display some critical points.
 
@@ -1617,14 +1617,15 @@ def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
     """
 
     # getting data
-    gamma2 = get_gamma(VF, radius=gamma2_radius, ind=False, kind='gamma2',
-                       raw=True)
+    gamma2 = get_gamma(VF, radius=gamma2_radius, ind=False, kind='gamma2')
+    gamma2 = gamma2.smooth('gaussian').values
+    vort = np.abs(gamma2) > 2/np.pi
     ind_x = VF.get_indice_on_axe(1, vort_center[0], kind='nearest')
     ind_y = VF.get_indice_on_axe(2, vort_center[1], kind='nearest')
     dx = VF.axe_x[1] - VF.axe_x[0]
     dy = VF.axe_y[1] - VF.axe_y[0]
     # find vortex zones and label them
-    vort = np.abs(gamma2) > 2/np.pi
+
     vort, nmb_vort = msr.label(vort)
     # get wanted zone label
     lab = vort[ind_x, ind_y]
@@ -1732,7 +1733,8 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
         return radii_prof
 
 
-def get_vortex_intensity(VF, vort_center, crit=None, output_unit=False):
+def get_vortex_intensity(VF, vort_center, crit=None, output_unit=False,
+                         use_gamma2=True):
     """
     Return the intensity of the given vortex.
 
@@ -1745,6 +1747,10 @@ def get_vortex_intensity(VF, vort_center, crit=None, output_unit=False):
     crit : function
         Function to inegrate on the vortex zone. should take a VectorField as
         argument and return a ScalarField. Default is 'get_residual_vorticity'.
+    use_gamma2 : boolean, optional
+        If 'True' (default), gamma2 is used to get the vortex area, and the
+        criterion is integrated on this area. If 'False', returned intensity is
+        directly the criterion intensity at the wanted point.
     output_unit ; boolean, optional
         If 'True', return the associated unit.
 
@@ -1756,35 +1762,41 @@ def get_vortex_intensity(VF, vort_center, crit=None, output_unit=False):
     if crit is None:
         crit = get_residual_vorticity
     # getting data
-    gamma2 = get_gamma(VF, ind=False, kind='gamma2', raw=True)
+        if use_gamma2:
+            gamma2 = get_gamma(VF, ind=False, kind='gamma2', raw=True)
     ind_x = VF.get_indice_on_axe(1, vort_center[0], kind='nearest')
     ind_y = VF.get_indice_on_axe(2, vort_center[1], kind='nearest')
     dx = VF.axe_x[1] - VF.axe_x[0]
     dy = VF.axe_y[1] - VF.axe_y[0]
     # getting criterion field
     tmp_cf = crit(VF)
-    # get vortex zone
-    vort = np.abs(gamma2) > 2/np.pi
-    vort, nmb_vort = msr.label(vort)
-    # get wanted zone label
-    lab = vort[ind_x, ind_y]
-    # if we are outside a zone
-    if lab == 0:
-        tmp_int = 0
-    # compute fast and simple integral on the vortex zone
+    if use_gamma2:
+        # get vortex zone
+        vort = np.abs(gamma2) > 2/np.pi
+        vort, nmb_vort = msr.label(vort)
+        # get wanted zone label
+        lab = vort[ind_x, ind_y]
+        # if we are outside a zone
+        if lab == 0:
+            tmp_int = 0
+        else:
+            tmp_int = np.sum(np.abs(tmp_cf.values[vort == lab]))*dx*dy
     else:
-        tmp_int = np.sum(np.abs(tmp_cf.values[vort == lab]))*dx*dy
-    if output_unit:
+        tmp_int = tmp_cf.get_value(ind_x, ind_y, ind=True)
+    if output_unit and use_gamma2:
         unit_int = tmp_cf.unit_values*tmp_cf.unit_x*tmp_cf.unit_y
         scale = unit_int.asNumber()
         unit_int /= scale
         tmp_int *= scale
         return tmp_int, unit_int
+    elif output_unit:
+        return tmp_int, tmp_cf.unit_values
     else:
         return tmp_int
 
 
-def get_vortex_intensity_time_evolution(TVFS, traj, crit=None, verbose=False):
+def get_vortex_intensity_time_evolution(TVFS, traj, crit=None,
+                                        use_gamma2=True, verbose=False):
     """
     Return the radius evolution in time for the given vortex center trajectory.
 
@@ -1800,6 +1812,10 @@ def get_vortex_intensity_time_evolution(TVFS, traj, crit=None, verbose=False):
     crit : function
         Function to inegrate on the vortex zone. should take a VectorField as
         argument and return a ScalarField. Default is 'get_residual_vorticity'.
+    use_gamma2 : boolean, optional
+        If 'True' (default), gamma2 is used to get the vortex area, and the
+        criterion is integrated on this area. If 'False', returned intensity is
+        directly the criterion intensity at the wanted point.
     verbose : boolean
         .
 
@@ -1810,7 +1826,7 @@ def get_vortex_intensity_time_evolution(TVFS, traj, crit=None, verbose=False):
     """
     intens = np.empty((len(traj.xy),))
     if verbose:
-        pg = ProgressCounter("Begin vortex radii detection",
+        pg = ProgressCounter("Begin vortex intensity detection",
                              "Done", len(traj.xy), 'fields', perc_interv=1)
     # loop on traj times
     for i, _ in enumerate(traj):
@@ -1822,7 +1838,8 @@ def get_vortex_intensity_time_evolution(TVFS, traj, crit=None, verbose=False):
         # getting the wanted point
         wanted_xy = traj.xy[i, :]
         tmp_int, unit_int = get_vortex_intensity(field, wanted_xy, crit=crit,
-                                                 output_unit=True)
+                                                 output_unit=True,
+                                                 use_gamma2=use_gamma2)
         intens[i] = tmp_int
     # returning
     mask = intens == 0.
@@ -2038,7 +2055,8 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
             res += get_critical_points(field, time=obj.times[i],
                                        unit_time=obj.unit_times,
                                        window_size=window_size,
-                                       kind=kind, mirroring=mirroring)
+                                       kind=kind, mirroring=mirroring,
+                                       smoothing_size=smoothing_size)
             if verbose and df != 0 and len(obj.fields) != 1:
                 if i % df == 0 or i == len(obj.fields) - 1:
                     ti = modtime.time()
@@ -3478,8 +3496,7 @@ def get_iota(vectorfield, mask=None, radius=None, ind=False, raw=False):
     theta_x[filtx] = theta2_x[filtx]
     theta_y = theta1_y.copy()
     theta_y[filty] = theta2_y[filty]
-    iota = np.sqrt(theta_x**2 + theta_y**2)
-
+    iota = 1/2.*np.sqrt(theta_x**2 + theta_y**2)
     # getting mask
     maskf = np.logical_or(vectorfield.mask, np.isnan(iota))
     # returning
