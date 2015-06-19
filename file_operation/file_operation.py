@@ -13,6 +13,7 @@ from ..core import Points, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
     TemporalVectorFields, SpatialVectorFields, TemporalScalarFields,\
     SpatialScalarFields, Profile
+from ..Tools import ProgressCounter
 import numpy as np
 try:
     import cPickle as pickle
@@ -692,7 +693,7 @@ def import_from_VC7(filename, infos=False, add_fields=False):
     return res
 
 def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
-                     add_fields=False):
+                     add_fields=False, verbose=False):
     """
     Import velocity fields from .VC7 files.
     'fieldspath' should be a tuple of path to vc7 files.
@@ -711,7 +712,9 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
         fields are taken.
     add_fields : boolean, optional
         If 'True', also return a tuple containing additional fields
-        contained in the vc7 field (peak ratio, correlation value, ...)
+        contained in the vc7 field (peak ratio, correlation value, ...).
+    Verbose : bool, optional
+        .
     """
     if isinstance(fieldspath, ARRAYTYPES):
         if not isinstance(fieldspath[0], STRINGTYPES):
@@ -748,14 +751,22 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
         fields = SpatialVectorFields()
     else:
         raise ValueError()
-    # loop on files
+    # initialize counter
     start = fieldnumbers[0]
     end = fieldnumbers[1]
+    nmb_files = int((end - start)/incr)
+    pc = ProgressCounter("Begin importation of {} VC7 files"
+                         .format(nmb_files),
+                         "Done", nmb_files, name_things="VC7 files",
+                         perc_interv=10)
+    # loop on files
     t = 0.
     if add_fields:
         tmp_vf, add_fields = import_from_VC7(fieldspath[0], add_fields=True)
         suppl_fields = [TemporalScalarFields() for field in add_fields]
     for i, p in enumerate(fieldspath[start:end:incr]):
+        if verbose:
+            pc.print_progress()
         if add_fields:
             tmp_vf, infos, add_fields = import_from_VC7(p, infos=True,
                                                         add_fields=True)

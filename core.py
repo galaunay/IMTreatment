@@ -11,6 +11,7 @@ import scipy.optimize as spopt
 import matplotlib as mpl
 from matplotlib import cm
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib as mpl
 import Plotlib as pplt
 # import guiqwt.pyplot as plt
@@ -1131,18 +1132,18 @@ class Points(object):
 
         Parameters
         ----------
-        scalex, scaley, scalev : numbers
+        scalex, scaley, scalev : numbers or Unum objects
             scales along x, y and v
         inplace : boolean, optional
             If 'True', scaling is done in place, else, a new instance is
             returned.
         """
         # check params
-        if not isinstance(scalex, NUMBERTYPES):
+        if not isinstance(scalex, NUMBERTYPES + (unum.Unum, )):
             raise TypeError()
-        if not isinstance(scaley, NUMBERTYPES):
+        if not isinstance(scaley, NUMBERTYPES + (unum.Unum, )):
             raise TypeError()
-        if not isinstance(scalev, NUMBERTYPES):
+        if not isinstance(scalev, NUMBERTYPES + (unum.Unum, )):
             raise TypeError()
         if not isinstance(inplace, bool):
             raise TypeError()
@@ -1150,6 +1151,25 @@ class Points(object):
             tmp_pt = self
         else:
             tmp_pt = self.copy()
+        # adapt unit
+        if isinstance(scalex, unum.Unum):
+            new_unit = scalex*tmp_pt.unit_x
+            fact = new_unit.asNumber()
+            new_unit /= fact
+            tmp_pt.unit_x = new_unit
+            scalex = fact
+        if isinstance(scaley, unum.Unum):
+            new_unit = scaley*tmp_pt.unit_y
+            fact = new_unit.asNumber()
+            new_unit /= fact
+            tmp_pt.unit_y = new_unit
+            scaley = fact
+        if isinstance(scalev, unum.Unum):
+            new_unit = scalev*tmp_pt.unit_v
+            fact = new_unit.asNumber()
+            new_unit /= fact
+            tmp_pt.unit_v = new_unit
+            scalev = fact
         # loop
         if scalex != 1. or scaley != 1.:
             tmp_pt.xy *= np.array([scalex, scaley])
@@ -1418,6 +1438,40 @@ class Points(object):
             plt.title(self.name)
         return plot
 
+    def display3D(self, kind='plot', xlabel='', ylabel='', zlabel='',
+                  title='', **plotargs):
+        """
+        Display the points on a 3D graph.
+
+        Parameters
+        ----------
+        kind : string, optional
+            Kind of graph to use, can be 'plot' or 'surf'.
+        xlabel, ylabel, zlabel : string, optional
+            Label fo each axis (respectively 'x', 'y', and 'v')
+        title : strin, optional
+            Title
+        **plotargs :
+            Additional parameters feeded to matplotlib
+        """
+        # create 3D plot
+        ax = plt.gca(projection='3d')
+        # display data
+        if kind == 'plot':
+            ax.plot(self.xy[:, 0], self.xy[:, 1], self.v, **plotargs)
+        elif kind == 'surf':
+            ax.plot_trisurf(self.xy[:, 0], self.xy[:, 1], self.v)
+        else:
+            raise ValueError()
+        # labels
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_zlabel(zlabel)
+        # title
+        ax.set_title(title)
+        #
+        plt.tight_layout()
+        return ax
 
 class OrientedPoints(Points):
     """
@@ -3199,6 +3253,51 @@ class Field(object):
         return np.array(inds, subok=True)
 
     ### Modifiers ###
+    def scale(self, scalex=None, scaley=None, inplace=False):
+        """
+        Scale the Field.
+
+        Parameters
+        ----------
+        scalex, scaley : numbers or Unum objects
+            Scale for the axis
+        inplace : boolean
+            .
+        """
+        if inplace:
+            tmp_f = self
+        else:
+            tmp_f = self.copy()
+        # x
+        if scalex is None:
+            pass
+        elif isinstance(scalex, NUMBERTYPES):
+            tmp_f.axe_x *= scalex
+        elif isinstance(scalex, unum.Unum):
+            new_unit = tmp_f.unit_x * scalex
+            fact = new_unit.asNumber()
+            new_unit /= fact
+            tmp_f.unit_x = new_unit
+            tmp_f.axe_x *= fact
+        else:
+            raise TypeError()
+        # y
+        if scaley is None:
+            pass
+        elif isinstance(scaley, NUMBERTYPES):
+            tmp_f.axe_y *= scaley
+        elif isinstance(scaley, unum.Unum):
+            new_unit = tmp_f.unit_y*scaley
+            fact = new_unit.asNumber()
+            new_unit /= fact
+            tmp_f.unit_y = new_unit
+            tmp_f.axe_y *= fact
+        else:
+            raise TypeError()
+        # returning
+        if not inplace:
+            return tmp_f
+
     def rotate(self, angle, inplace=False):
         """
         Rotate the field.
@@ -4487,6 +4586,40 @@ class ScalarField(Field):
         return Points(pts, v, self.unit_x, self.unit_y, self.unit_values)
 
     ### Modifiers ###
+    def scale(self, scalex=None, scaley=None, scalev=None, inplace=False):
+        """
+        Scale the ScalarField.
+
+        Parameters
+        ----------
+        scalex, scaley, scalev : numbers or Unum objects
+            Scale for the axis and the values
+        inplace : boolean
+            .
+        """
+        if inplace:
+            tmp_f = self
+        else:
+            tmp_f = self.copy()
+        # xy
+        Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True)
+        # v
+        if scalev is None:
+            pass
+        elif isinstance(scalev, NUMBERTYPES):
+            tmp_f.values *= scalev
+        elif isinstance(scalev, unum.Unum):
+            new_unit = tmp_f.unit_values*scalev
+            fact = new_unit.asNumber()
+            new_unit /= fact
+            tmp_f.unit_values = new_unit
+            tmp_f.values *= fact
+        else:
+            raise TypeError()
+        # returning
+        if not inplace:
+            return tmp_f
+
     def rotate(self, angle, inplace=False):
         """
         Rotate the scalar field.
@@ -5793,6 +5926,42 @@ class VectorField(Field):
         return copy.deepcopy(self)
 
     ### Modifiers ###
+    def scale(self, scalex=None, scaley=None, scalev=None, inplace=False):
+        """
+        Scale the VectorField.
+
+        Parameters
+        ----------
+        scalex, scaley, scalev : numbers or Unum objects
+            Scale for the axis and the values.
+        inplace : boolean
+            .
+        """
+        if inplace:
+            tmp_f = self
+        else:
+            tmp_f = self.copy()
+        # xy
+        Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True)
+        # v
+        if scalev is None:
+            pass
+        if isinstance(scalev, NUMBERTYPES):
+            tmp_f.comp_x *= scalev
+            tmp_f.comp_y *= scalev
+        elif isinstance(scalev, unum.Unum):
+            new_unit = tmp_f.unit_values*scalev
+            fact = new_unit.asNumber()
+            new_unit /= fact
+            tmp_f.unit_values = new_unit
+            tmp_f.comp_x *= fact
+            tmp_f.comp_y *= fact
+        else:
+            raise TypeError()
+        # returning
+        if not inplace:
+            return tmp_f
+
     def rotate(self, angle, inplace=False):
         """
         Rotate the vector field.
@@ -6393,6 +6562,29 @@ class Fields(object):
         return copy.deepcopy(self)
 
     ### Modifiers ###
+    def scale(self, scalex=None, scaley=None, scalev=None, inplace=False):
+        """
+        Scale the Fields.
+
+        Parameters
+        ----------
+        scalex, scaley, scalev : numbers or Unum objects
+            Scale for the axis and the values.
+        inplace : boolean
+            .
+        """
+        if inplace:
+            tmp_f = self
+        else:
+            tmp_f = self.copy()
+        # scale the fields
+        for i, _ in enumerate(tmp_f.fields):
+            tmp_f.fields[i].scale(scalex=scalex, scaley=scaley, scalev=scalev,
+                                  inplace=True)
+        # returning
+        if not inplace:
+            return tmp_f
+
     def rotate(self, angle, inplace=False):
         """
         Rotate the fields.
@@ -6448,16 +6640,19 @@ class Fields(object):
             raise TypeError("'vectorfield' must be a VelocityField object")
         self.fields = np.append(self.fields, field.copy())
 
-    def remove_field(self, fieldnumber):
+    def remove_field(self, fieldnumbers):
         """
         Remove a field of the existing fields.
 
         Parameters
         ----------
-        fieldnumber : integer
-            The number of the velocity field to remove.
+        fieldnumber : integer or list of integers
+            Velocity field(s) number(s) to remove.
         """
-        self.fields = np.delete(self.fields, fieldnumber)
+        if isinstance(fieldnumbers, INTEGERTYPES):
+            fieldnumbers = [fieldnumbers]
+        for nmb in fieldnumbers:
+            self.fields = np.delete(self.fields, nmb)
 
     def set_origin(self, x=None, y=None):
         """
@@ -6562,8 +6757,9 @@ class TemporalFields(Fields, Field):
             return vfs
         elif isinstance(other, (NUMBERTYPES, unum.Unum)):
             final_vfs = self.__class__()
-            for field in self.fields:
-                final_vfs.add_field(field/other)
+            for i, field in enumerate(self.fields):
+                final_vfs.add_field(field/other, time=self.times[i],
+                                    unit_times=self.unit_times)
             return final_vfs
         else:
             raise TypeError("You can only divide a temporal velocity field "
@@ -7048,6 +7244,44 @@ class TemporalFields(Fields, Field):
         return magn
 
     ### Modifiers ###
+    def scale(self, scalex=None, scaley=None, scalev=None, scalet=None,
+              inplace=False):
+        """
+        Scale the Fields.
+
+        Parameters
+        ----------
+        scalex, scaley, scalev : numbers or Unum objects
+            Scale for the axis and the values.
+        inplace : boolean
+            .
+        """
+        if inplace:
+            tmp_f = self
+        else:
+            tmp_f = self.copy()
+        # scale the field (automaticly scale the fields axis)
+        Field.scale(tmp_f, scalex=scalex, scaley=scaley,
+                    inplace=True)
+        # scale the values
+        Fields.scale(tmp_f, scalex=1., scaley=1., scalev=scalev, inplace=True)
+        # scale the time
+        if scalet is None:
+            pass
+        elif isinstance(scalet, NUMBERTYPES):
+            tmp_f.times *= scalet
+        elif isinstance(scalet, unum.Unum):
+            new_unit = tmp_f.unit_times*scalet
+            fact = new_unit.asNumber()
+            new_unit /= fact
+            tmp_f.unit_times = new_unit
+            tmp_f.times *= fact
+        else:
+            raise TypeError()
+        # returning
+        if not inplace:
+            return tmp_f
+
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.
@@ -7143,12 +7377,20 @@ class TemporalFields(Fields, Field):
         # sorting the field with time
         self.__sort_field_by_time()
 
-    def remove_field(self, fieldnumber):
+    def remove_field(self, fieldnumbers):
         """
-        Remove the wanted field.
+        Remove a field of the existing fields.
+
+        Parameters
+        ----------
+        fieldnumber : integer or list of integers
+            Velocity field(s) number(s) to remove.
         """
-        self.__times = np.delete(self.times, fieldnumber)
-        Fields.remove_field(self, fieldnumber)
+        if isinstance(fieldnumbers, INTEGERTYPES):
+            fieldnumbers = [fieldnumbers]
+        for nmb in fieldnumbers:
+            self.__times = np.delete(self.times, nmb)
+        Fields.remove_field(self, fieldnumbers)
 
     def reduce_temporal_resolution(self, nmb_in_interval, mean=True,
                                    inplace=False):

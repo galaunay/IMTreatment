@@ -779,18 +779,18 @@ class CritPoints(object):
 
         Parameters
         ----------
-        scalex, scaley, scalev : numbers
+        scalex, scaley, scalev : numbers or Unum objects
             scales along x, y and v
         inplace : boolean, optional
             If 'True', scaling is done in place, else, a new instance is
             returned.
         """
         # check params
-        if not isinstance(scalex, NUMBERTYPES):
+        if not isinstance(scalex, NUMBERTYPES + (unum.Unum, )):
             raise TypeError()
-        if not isinstance(scaley, NUMBERTYPES):
+        if not isinstance(scaley, NUMBERTYPES + (unum.Unum, )):
             raise TypeError()
-        if not isinstance(scalev, NUMBERTYPES):
+        if not isinstance(scalev, NUMBERTYPES + (unum.Unum, )):
             raise TypeError()
         if not isinstance(inplace, bool):
             raise TypeError()
@@ -1353,6 +1353,30 @@ class CritPoints(object):
                 plt.xlabel('y {}'.format(self.unit_y.strUnit()))
         else:
             raise StandardError()
+
+    def display_3D(self, xlabel='', ylabel='', zlabel='', title='',
+                   **plotargs):
+        """
+        """
+        # loop on the points types
+        for i, kind in enumerate(self.iter):
+            for pts in kind:
+                if pts is None:
+                    continue
+                pts.display3D(kind='plot', marker='o', linestyle='none',
+                              color=self.colors[i], **plotargs)
+
+    def display_traj_3D(self, xlabel='', ylabel='', zlabel='', title='',
+                        **plotargs):
+        """
+        """
+        # loop on the points types
+        for i, kind in enumerate(self.iter_traj):
+            for pts in kind:
+                if pts is None:
+                    continue
+                pts.display3D(kind='plot', marker=None, linestyle='-',
+                              color=self.colors[i], **plotargs)
 
     def display_animate(self, TF, **kw):
         """
