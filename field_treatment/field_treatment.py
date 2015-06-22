@@ -711,7 +711,7 @@ def get_streamlines_fast(vf, xy, delta=.25, interp='linear',
         return streams
 
 def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
-                     max_steps=5000, resolution=10.):
+                     max_steps=1000, resolution=0.1):
     """
     Return the lagrangien displacement of a set of particules initialy at the
     positions xys.
@@ -726,13 +726,15 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
     rel_err : number
         relative maximum error for rk4 algorithm
     max_steps : integer
-        Maximum number of steps (default = 100).
+        Maximum number of steps (default = 1000).
     resolution : number,
-        resolution of the resulting streamline (do not impact accuracy)
+        resolution of the resulting streamline (do not impact accuracy).
     """
     # check
     if not isinstance(VF, VectorField):
         raise TypeError()
+    if np.any(VF.mask):
+        raise ValueError("Don't work on masked vector field, sorry...")
     if not isinstance(xys, ARRAYTYPES):
         raise TypeError()
     xys = np.array(xys)
@@ -768,6 +770,18 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
         def fun(xy):
             return np.array([Vx_tor(*xy)[0][0],
                              Vy_tor(*xy)[0][0]])
+    # rkf45 algo for interpolation
+    def rkf45_interp(xy_init, rk_dt):
+        k1 = fun(xy_init)*rk_dt
+        k2 = fun(xy_init + k1/4.)*rk_dt
+        k3 = fun(xy_init + 3./32.*k1 + 9./32.*k2)*rk_dt
+        k4 = fun(xy_init + 1932./2197.*k1 - 7200./2197.*k2
+                 + 7296./2197.*k3)*rk_dt
+        k5 = fun(xy_init + 439./216.*k1 - 8*k2 + 3680./513.*k3
+                 - 845./4104.*k4)*rk_dt
+        new_xy = (xy_init + 25./216.*k1 + 1408./2565.*k3
+                  + 2197./4104.*k4 - 1./5.*k5)
+        return new_xy
     # rkf45 algo
     def rkf45(xy_init, t, rk_dt):
         k1 = fun(xy_init)*rk_dt
@@ -793,7 +807,7 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
         if err == 0:
             new_rk_dt = 2*rk_dt
         else:
-            new_rk_dt = ((rel_err*rk_dt)/(2.*err))**.25/resolution
+            new_rk_dt = ((rel_err*rk_dt)/(2.*err))**.25
         t += rk_dt
         return new_xy, t, new_rk_dt
     # Loop on given points
@@ -813,6 +827,8 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
         while True:
             new_xy = new_xys[-1]
             # stoping test
+            if np.any(np.isnan(new_xy)):
+                break
             if new_xy[0] < axe_x[0] or new_xy[0] > axe_x[-1]:
                 new_xys = new_xys[:-1]
                 break
@@ -821,11 +837,18 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
                 break
             if nmb_it > max_steps:
                 break
-            if nmb_it != 1 \
-                    and np.linalg.norm(new_xys[-1] - new_xys[-2]) < dxy/1000.:
-                break
             # rk adaptative step
-            new_xy, t, rk_dt = rkf45(new_xy, t, rk_dt)
+            new_xy, t, new_rk_dt = rkf45(new_xy, t, rk_dt)
+            # if new_xy too big, use interpolation
+            dist_m1 = np.linalg.norm(new_xy - new_xys[-1])
+            if  dist_m1 > 2*dxy*resolution:
+                xy_init = new_xys[-1]
+                nmb_interp = int(dist_m1/(dxy*resolution))
+                for i in np.arange(0, nmb_interp - 1):
+                    tmp_xy = rkf45_interp(xy_init, rk_dt*(i + 1)/nmb_interp)
+                    new_xys.append(tmp_xy)
+            #
+            rk_dt = new_rk_dt
             new_xys.append(new_xy)
             nmb_it += 1
         # storing

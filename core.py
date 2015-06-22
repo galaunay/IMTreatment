@@ -6499,9 +6499,9 @@ class VectorField(Field):
             if kind == 'quiver' or kind is None:
                 if 'C' in plotargs.keys():
                     C = plotargs.pop('C')
-                    if not (C == 0 or C is None):
-                        cb = plt.colorbar()
-                        cb.set_label("Magnitude " + unit_values.strUnit())
+                else:
+                    cb = plt.colorbar()
+                    cb.set_label("Magnitude " + unit_values.strUnit())
                 legendarrow = round(np.max([Vx.max(), Vy.max()]))
                 plt.quiverkey(displ, 1.075, 1.075, legendarrow,
                               "$" + str(legendarrow)
@@ -7778,9 +7778,10 @@ class TemporalFields(Fields, Field):
                 self.update()
 
             def update(self):
-                self.obj._update_sf(self.ind, self.fig, self.ax,
-                                    self.displ, self.ttl, self.comp,
-                                    self.compo, self.plotargs)
+                self.obj._update_sf(num=self.ind, fig=self.fig, ax=self.ax,
+                                    displ=self.displ, ttl=self.ttl,
+                                    comp=self.comp,
+                                    compo=self.compo, plotargs=self.plotargs)
                 if self.suppl_display is not None:
                     self.suppl_display(self.ind)
                 plt.draw()
@@ -8111,7 +8112,8 @@ class TemporalVectorFields(TemporalFields):
     def magnitude_as_sf(self):
         values = TemporalScalarFields()
         for i, field in enumerate(self.fields):
-            values.add_field(field.magnitude_as_sf)
+            values.add_field(field.magnitude_as_sf, time=self.times[i],
+                             unit_times=self.unit_times)
         return values
 
     @property
@@ -8126,7 +8128,8 @@ class TemporalVectorFields(TemporalFields):
     def theta_as_sf(self):
         values = TemporalScalarFields()
         for i, field in enumerate(self.fields):
-            values.add_field(field.theta_as_sf)
+            values.add_field(field.theta_as_sf, time=self.times[i],
+                             unit_times=self.unit_times)
         return values
 
     @property

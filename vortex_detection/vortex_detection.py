@@ -1247,11 +1247,13 @@ class CritPoints(object):
         # display the critical lines
         if (field is not None and len(self.sadd[indice].xy) != 0
                 and isinstance(self.sadd[indice], OrientedPoints)):
+            if 'color' not in lnkw.keys():
+                lnkw['color'] = colors[3]
             streams = self.sadd[indice]\
                 .get_streamlines_from_orientations(field,
                 reverse_direction=[True, False], interp='cubic')
             for stream in streams:
-                stream._display(kind='plot', color=colors[4], **lnkw)
+                stream._display(kind='plot', **lnkw)
         # loop on the points types
         for i, pt in enumerate(self.iter):
             if pt[indice] is None:
@@ -3165,7 +3167,8 @@ def get_NL_residual_vorticity(vectorfield, radius=None, ind=False, mask=None,
     # getting the vorticity-tensor component
     omega = (Eyx - Exy)/2.
     omega_abs = np.abs(omega)
-    sign_omega = omega/omega_abs
+    sign_omega = np.sign(omega)
+    sign_omega[sign_omega == 0] = 1
     filt = s < omega_abs
     # getting the residual vorticity
     res_vort = np.zeros(vectorfield.shape)
@@ -4181,42 +4184,56 @@ def get_residual_vorticity(vf, raw=False):
         If 'True', return an arrays,
         if 'False' (default), return a ScalarField object.
     """
-    if not isinstance(vf, VectorField):
-        raise TypeError()
-    # getting data
-    tmp_vf = vf.copy()
-    tmp_vf.crop_masked_border()
-    tmp_vf.fill(inplace=True, reduce_tri=True)
-    axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
-    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
-    mask = tmp_vf.mask
-    dx = axe_x[1] - axe_x[0]
-    dy = axe_y[1] - axe_y[0]
-    # getting gradients
-    Exx, Exy = np.gradient(comp_x, dx, dy)
-    Eyx, Eyy = np.gradient(comp_y, dx, dy)
-    # getting principal rate of strain (s)
-    s = np.sqrt(4*Exx**2 + (Exy + Eyx)**2)/2.
-    # getting the vorticity-tensor component
-    omega = (Eyx - Exy)/2.
-    omega_abs = np.abs(omega)
-    sign_omega = omega/omega_abs
-    filt = s < omega_abs
-    # getting the residual vorticity
-    res_vort = np.zeros(tmp_vf.shape)
-    res_vort[filt] = sign_omega[filt]*(omega_abs[filt] - s[filt])
-    if raw:
-        return res_vort
+    if isinstance(vf, VectorField):
+        # getting data
+        tmp_vf = vf.copy()
+        tmp_vf.fill(inplace=True, reduce_tri=True)
+        axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+        comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
+        mask = tmp_vf.mask
+        dx = axe_x[1] - axe_x[0]
+        dy = axe_y[1] - axe_y[0]
+        # getting gradients
+        Exx, Exy = np.gradient(comp_x, dx, dy)
+        Eyx, Eyy = np.gradient(comp_y, dx, dy)
+        # getting principal rate of strain (s)
+        s = np.sqrt(4*Exx**2 + (Exy + Eyx)**2)/2.
+        # getting the vorticity-tensor component
+        omega = (Eyx - Exy)/2.
+        omega_abs = np.abs(omega)
+        sign_omega = np.zeros(omega.shape, dtype=int)
+        sign_omega[omega_abs == 0] = 1.
+        sign_omega[omega_abs != 0] = omega[omega_abs != 0]/omega_abs[omega_abs != 0]
+        filt = s < omega_abs
+        # getting the residual vorticity
+        res_vort = np.zeros(tmp_vf.shape)
+        res_vort[filt] = sign_omega[filt]*(omega_abs[filt] - s[filt])
+        if raw:
+            return res_vort
+        else:
+            unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
+            unit_values = vf.unit_values/vf.unit_x
+            res_vort *= unit_values.asNumber()
+            unit_values /= unit_values.asNumber()
+            vort_sf = ScalarField()
+            vort_sf.import_from_arrays(axe_x, axe_y, res_vort, mask=mask,
+                                       unit_x=unit_x, unit_y=unit_y,
+                                       unit_values=unit_values)
+            return vort_sf
+    elif isinstance(vf, TemporalVectorFields):
+        if raw:
+            tvf = []
+            for field in vf.fields:
+                tvf.append(get_residual_vorticity(field, raw=True))
+        else:
+            tvf = TemporalScalarFields()
+            for i, field in enumerate(vf.fields):
+                tvf.add_field(get_residual_vorticity(field, raw=False),
+                              time=vf.times[i], unit_times=vf.unit_times)
+        # return
+        return tvf
     else:
-        unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
-        unit_values = vf.unit_values/vf.unit_x
-        res_vort *= unit_values.asNumber()
-        unit_values /= unit_values.asNumber()
-        vort_sf = ScalarField()
-        vort_sf.import_from_arrays(axe_x, axe_y, res_vort, mask=mask,
-                                   unit_x=unit_x, unit_y=unit_y,
-                                   unit_values=unit_values)
-        return vort_sf
+        raise TypeError()
 
 
 def get_shear_vorticity(vf, raw=False):
