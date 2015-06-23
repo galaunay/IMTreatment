@@ -6674,6 +6674,38 @@ class Fields(object):
             for field in self.fields:
                 field.set_origin(None, y)
 
+    def smooth(self, tos='uniform', size=None, inplace=False, **kw):
+        """
+        Smooth the fields in place.
+        Warning : fill up the field (should be used carefully with masked field
+        borders)
+
+        Parameters :
+        ------------
+        tos : string, optional
+            Type of smoothing, can be 'uniform' (default) or 'gaussian'
+            (See ndimage module documentation for more details)
+        size : number, optional
+            Size of the smoothing (is radius for 'uniform' and
+            sigma for 'gaussian') in indice number.
+            Default is 3 for 'uniform' and 1 for 'gaussian'.
+        inplace : boolean, optional
+            If True, Field is smoothed in place,
+            else, the smoothed field is returned.
+        kw : dic
+            Additional parameters for ndimage methods
+            (See ndimage documentation)
+        """
+        if inplace:
+            tmp_f = self
+        else:
+            tmp_f = self.copy()
+        # loop on fields
+        for i, _ in enumerate(tmp_f.fields):
+            tmp_f.fields[i].smooth(tos=tos, size=size, inplace=True, **kw)
+        # returning
+        if not inplace:
+            return tmp_f
 
 class TemporalFields(Fields, Field):
     """
@@ -7802,7 +7834,7 @@ class TemporalFields(Fields, Field):
         del callback
         return fig
 
-    def display_animate(self, compo='V', interval=500, fields_inds=None,
+    def display_animate(self, compo=None, interval=500, fields_inds=None,
                         repeat=True,
                         **plotargs):
         """
