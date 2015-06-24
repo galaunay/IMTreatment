@@ -10,6 +10,7 @@ import numpy as np
 import scipy.interpolate as spinterp
 from scipy.optimize import leastsq
 from ..core import Points, ScalarField, VectorField, Profile, \
+    TemporalVectorFields, TemporalScalarFields, \
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 
 ### Gradients based operation
@@ -576,6 +577,22 @@ def get_track_field(vf):
                                    unit_values=vf.unit_values)
     return track_field
 
+def get_divergence(vf):
+    """
+    Return the divergence.
+    """
+    if isinstance(vf, VectorField):
+        dudx, dudy, dvdx, dvdy = get_gradients(vf)
+        return dudx + dvdy
+    elif isinstance(vf, TemporalVectorFields):
+        tmp_vf = TemporalScalarFields()
+        for i, _ in enumerate(vf.fields):
+            tmp_vf.add_field(get_divergence(vf.fields[i]), time=vf.times[i],
+                             unit_times=vf.unit_times)
+        return tmp_vf
+    else:
+        raise TypeError()
+
 
 ### Stream and track lines
 def get_streamlines_fast(vf, xy, delta=.25, interp='linear',
@@ -710,7 +727,7 @@ def get_streamlines_fast(vf, xy, delta=.25, interp='linear',
     else:
         return streams
 
-def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
+def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
                      max_steps=1000, resolution=0.1):
     """
     Return the lagrangien displacement of a set of particules initialy at the
@@ -734,7 +751,9 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
     if not isinstance(VF, VectorField):
         raise TypeError()
     if np.any(VF.mask):
-        raise ValueError("Don't work on masked vector field, sorry...")
+        masked_values = True
+    else:
+        masked_values = False
     if not isinstance(xys, ARRAYTYPES):
         raise TypeError()
     xys = np.array(xys)
@@ -754,12 +773,25 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
     # get data
     from scipy.interpolate import RectBivariateSpline
     axe_x, axe_y = VF.axe_x, VF.axe_y
+    # AD
+    fact_axe = (axe_x[-1] - axe_x[0])/(axe_y[-1] - axe_y[0])
+    xys[:, 0] = (xys[:, 0] - axe_x[0])/(axe_x[-1] - axe_x[0])
+    xys[:, 1] = (xys[:, 1] - axe_y[0])/(axe_y[-1] - axe_y[0])
+    axe_x = (axe_x - axe_x[0])/(axe_x[-1] - axe_x[0])
+    axe_y = (axe_y - axe_y[0])/(axe_y[-1] - axe_y[0])
     dx = axe_x[1] - axe_x[0]
     dy = axe_y[1] - axe_y[0]
     dxy = np.mean([dx, dy])
-    Vx_tor = RectBivariateSpline(axe_x, axe_y, VF.comp_x,
+    ad_vel = np.max(np.abs(VF.magnitude[~VF.mask]))
+    vx = VF.comp_x/ad_vel/fact_axe
+    vy = VF.comp_y/ad_vel
+    mask = VF.mask
+    vx[mask] = 0
+    vy[mask] = 0
+    # get interpolators
+    Vx_tor = RectBivariateSpline(axe_x, axe_y, vx,
                                  kx=1, ky=1)
-    Vy_tor = RectBivariateSpline(axe_x, axe_y, VF.comp_y,
+    Vy_tor = RectBivariateSpline(axe_x, axe_y, vy,
                                  kx=1, ky=1)
     # velocity function
     if reverse:
@@ -826,7 +858,7 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
         new_xys = [xy]
         while True:
             new_xy = new_xys[-1]
-            # stoping test
+            # stopping test
             if np.any(np.isnan(new_xy)):
                 break
             if new_xy[0] < axe_x[0] or new_xy[0] > axe_x[-1]:
@@ -837,6 +869,11 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
                 break
             if nmb_it > max_steps:
                 break
+            if masked_values:
+                ind_x = int(round(new_xy[0]/dx))
+                ind_y = int(round(new_xy[1]/dy))
+                if mask[ind_x, ind_y]:
+                    break
             # rk adaptative step
             new_xy, t, new_rk_dt = rkf45(new_xy, t, rk_dt)
             # if new_xy too big, use interpolation
@@ -851,7 +888,11 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-3,
             rk_dt = new_rk_dt
             new_xys.append(new_xy)
             nmb_it += 1
-        # storing
+        # storing and rescaling
+        if len(new_xys) != 0:
+            new_xys = np.array(new_xys, dtype=float)
+            new_xys[:, 0] = VF.axe_x[0] + new_xys[:, 0]*(VF.axe_x[-1] - VF.axe_x[0])
+            new_xys[:, 1] = VF.axe_y[0] + new_xys[:, 1]*(VF.axe_y[-1] - VF.axe_y[0])
         stream = Points(new_xys, unit_x=VF.unit_x, unit_y=VF.unit_y)
         streams.append(stream)
     # returning

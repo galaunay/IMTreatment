@@ -1248,7 +1248,7 @@ class CritPoints(object):
         if (field is not None and len(self.sadd[indice].xy) != 0
                 and isinstance(self.sadd[indice], OrientedPoints)):
             if 'color' not in lnkw.keys():
-                lnkw['color'] = colors[3]
+                lnkw['color'] = colors[4]
             streams = self.sadd[indice]\
                 .get_streamlines_from_orientations(field,
                 reverse_direction=[True, False], interp='cubic')
@@ -1974,6 +1974,9 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     verbose : boolean, optional
         If 'True', display message on CP detection advancement.
 
+    Notes
+    -----
+    If the fields have masked values, saddle streamlines ar not computed.
     """
     # check parameters
     if not isinstance(time, NUMBERTYPES):
@@ -2124,18 +2127,28 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     -------
     pts : CritPoints object
         Containing all critical points position
+
     """
     # checking parameters coherence
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField")
     if isinstance(unit_time, STRINGTYPES):
         unit_time = make_unit(unit_time)
+    if np.any(vectorfield.mask):
+        sadd_ori = False
+    else:
+        sadd_ori = True
     # using VF methods to get cp position and types
     field = velocityfield_to_vf(vectorfield, time)
     pos, cp_types = field.get_cp_position()
-    sadd = OrientedPoints(unit_x=vectorfield.unit_x,
-                          unit_y=vectorfield.unit_y,
-                          unit_v=unit_time)
+    if sadd_ori:
+        sadd = OrientedPoints(unit_x=vectorfield.unit_x,
+                              unit_y=vectorfield.unit_y,
+                              unit_v=unit_time)
+    else:
+        sadd = Points(unit_x=vectorfield.unit_x,
+                      unit_y=vectorfield.unit_y,
+                      unit_v=unit_time)
     foc = Points(unit_x=vectorfield.unit_x,
                  unit_y=vectorfield.unit_y,
                  unit_v=unit_time)
@@ -2150,9 +2163,12 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                     unit_v=unit_time)
     for i, t in enumerate(cp_types):
         if t == 0:
-            tmp_pos = pos[i]
-            ori = np.array(_get_saddle_orientations(vectorfield, tmp_pos))
-            sadd.add(tmp_pos, orientations=ori)
+            if sadd_ori:
+                tmp_pos = pos[i]
+                ori = np.array(_get_saddle_orientations(vectorfield, tmp_pos))
+                sadd.add(tmp_pos, orientations=ori)
+            else:
+                sadd.add(pos[i])
         elif t == 1:
             foc_c.add(pos[i])
         elif t == 2:
@@ -2199,12 +2215,21 @@ def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         raise TypeError("'vectorfield' must be a VectorField")
     if isinstance(unit_time, STRINGTYPES):
         unit_time = make_unit(unit_time)
+    if np.any(vectorfield.mask):
+        sadd_ori = False
+    else:
+        sadd_ori = True
     # using VF methods to get cp position and types
     field = velocityfield_to_vf(vectorfield, time)
     pos, cp_types = field.get_cp_cell_position()
-    sadd = OrientedPoints(unit_x=vectorfield.unit_x,
-                          unit_y=vectorfield.unit_y,
-                          unit_v=unit_time)
+    if sadd_ori:
+        sadd = OrientedPoints(unit_x=vectorfield.unit_x,
+                              unit_y=vectorfield.unit_y,
+                              unit_v=unit_time)
+    else:
+        sadd = Points(unit_x=vectorfield.unit_x,
+                      unit_y=vectorfield.unit_y,
+                      unit_v=unit_time)
     foc = Points(unit_x=vectorfield.unit_x,
                  unit_y=vectorfield.unit_y,
                  unit_v=unit_time)
@@ -2219,9 +2244,12 @@ def _get_cp_cell_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                     unit_v=unit_time)
     for i, t in enumerate(cp_types):
         if t == 0:
-            tmp_pos = pos[i]
-            ori = np.array(_get_saddle_orientations(vectorfield, tmp_pos))
-            sadd.add(tmp_pos, orientations=ori)
+            if sadd_ori:
+                tmp_pos = pos[i]
+                ori = np.array(_get_saddle_orientations(vectorfield, tmp_pos))
+                sadd.add(tmp_pos, orientations=ori)
+            else:
+                sadd.add(pos[i])
         elif t == 1:
             foc_c.add(pos[i])
         elif t == 2:
@@ -2274,6 +2302,10 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         raise TypeError("'VF' must be a VectorField")
     if isinstance(unit_time, STRINGTYPES):
         unit_time = make_unit(unit_time)
+    if np.any(vectorfield.mask):
+        sadd_ori = False
+    else:
+        sadd_ori = True
     ### Getting pbi cp position and fields around ###
     VF_field = velocityfield_to_vf(vectorfield, time)
     cp_positions, cp_types = VF_field.get_cp_cell_position()
@@ -2376,14 +2408,22 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     nodes_o = Points(unit_x=vectorfield.unit_x,
                      unit_y=vectorfield.unit_y,
                      unit_v=unit_time)
-    sadd = OrientedPoints(unit_x=vectorfield.unit_x,
-                          unit_y=vectorfield.unit_y,
-                          unit_v=unit_time)
+    if sadd_ori:
+        sadd = OrientedPoints(unit_x=vectorfield.unit_x,
+                              unit_y=vectorfield.unit_y,
+                              unit_v=unit_time)
+    else:
+        sadd = Points(unit_x=vectorfield.unit_x,
+                      unit_y=vectorfield.unit_y,
+                      unit_v=unit_time)
     for i, t in enumerate(cp_types):
         if t == 0:
-            pos = cp_positions[i]
-            ori = np.array(_get_saddle_orientations(vectorfield, pos))
-            sadd.add(pos, ori)
+            if sadd_ori:
+                tmp_pos = pos[i]
+                ori = np.array(_get_saddle_orientations(vectorfield, tmp_pos))
+                sadd.add(tmp_pos, orientations=ori)
+            else:
+                sadd.add(pos[i])
         elif t == 1:
             focus_c.add(cp_positions[i])
         elif t == 2:

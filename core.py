@@ -2635,16 +2635,22 @@ class Profile(object):
         self.x = np.concatenate((self.x[0:pos_ind], [x], self.x[pos_ind::]))
         self.y = np.concatenate((self.y[0:pos_ind], [y], self.y[pos_ind::]))
 
-    def crop_masked_border(self):
+    def crop_masked_border(self, inplace=False):
         """
-        Remove the masked values at the border of the profile in place.
+        Remove the masked values at the border of the profile in place or not.
         """
-        mask = self.mask
+        if inplace:
+            tmp_prof = self
+        else:
+            tmp_prof = self.copy()
+        mask = tmp_prof.mask
         inds_not_masked = np.where(mask is False)[0]
         first = inds_not_masked[0]
         last = inds_not_masked[-1] + 1
-        self.trim([first, last], ind=True, inplace=True)
-        return None
+        tmp_prof.trim([first, last], ind=True, inplace=True)
+        # returning
+        if not inplace:
+            return tmp_prof
 
     def trim(self, interval, ind=False, inplace=False):
         """
@@ -2745,7 +2751,7 @@ class Profile(object):
             return self.copy()
         # crop if asked
         if crop:
-            self.crop_masked_border()
+            self.crop_masked_border(hard=False, inplace=True)
         # get mask
         mask = self.mask
         filt = np.logical_not(mask)
@@ -5011,49 +5017,54 @@ class ScalarField(Field):
         if not inplace:
             return tmp_vf
 
-    def crop_masked_border(self, hard=False):
+    def crop_masked_border(self, hard=False, inplace=False):
         """
-        Crop the masked border of the field in place.
+        Crop the masked border of the field in place or not.
 
         Parameters
         ----------
         hard : boolean, optional
             If 'True', partially masked border are cropped as well.
         """
+        #
+        if inplace:
+            tmp_vf = self
+        else:
+            tmp_vf = self.copy()
         # checking masked values presence
-        mask = self.mask
+        mask = tmp_vf.mask
         if not np.any(mask):
             return None
         # hard cropping
         if hard:
             # remove trivial borders
-            self.crop_masked_border()
+            tmp_vf.crop_masked_border(hard=False, inplace=True)
             # until there is no more masked values
-            while np.any(self.mask):
+            while np.any(tmp_vf.mask):
                 # getting number of masked value on each border
-                bd1 = np.sum(self.mask[0, :])
-                bd2 = np.sum(self.mask[-1, :])
-                bd3 = np.sum(self.mask[:, 0])
-                bd4 = np.sum(self.mask[:, -1])
+                bd1 = np.sum(tmp_vf.mask[0, :])
+                bd2 = np.sum(tmp_vf.mask[-1, :])
+                bd3 = np.sum(tmp_vf.mask[:, 0])
+                bd4 = np.sum(tmp_vf.mask[:, -1])
                 # getting more masked border
                 more_masked = np.argmax([bd1, bd2, bd3, bd4])
                 # deleting more masked border
                 if more_masked == 0:
-                    len_x = len(self.axe_x)
-                    self.trim_area(intervalx=[1, len_x], ind=True,
-                                   inplace=True)
+                    len_x = len(tmp_vf.axe_x)
+                    tmp_vf.trim_area(intervalx=[1, len_x], ind=True,
+                                     inplace=True)
                 elif more_masked == 1:
-                    len_x = len(self.axe_x)
-                    self.trim_area(intervalx=[0, len_x - 2], ind=True,
-                                   inplace=True)
+                    len_x = len(tmp_vf.axe_x)
+                    tmp_vf.trim_area(intervalx=[0, len_x - 2], ind=True,
+                                     inplace=True)
                 elif more_masked == 2:
-                    len_y = len(self.axe_y)
-                    self.trim_area(intervaly=[1, len_y], ind=True,
-                                   inplace=True)
+                    len_y = len(tmp_vf.axe_y)
+                    tmp_vf.trim_area(intervaly=[1, len_y], ind=True,
+                                     inplace=True)
                 elif more_masked == 3:
-                    len_y = len(self.axe_y)
-                    self.trim_area(intervaly=[0, len_y - 2], ind=True,
-                                   inplace=True)
+                    len_y = len(tmp_vf.axe_y)
+                    tmp_vf.trim_area(intervaly=[0, len_y - 2], ind=True,
+                                     inplace=True)
         # soft cropping
         else:
             axe_x_m = np.logical_not(np.all(mask, axis=1))
@@ -5062,9 +5073,12 @@ class ScalarField(Field):
             axe_x_max = np.where(axe_x_m)[0][-1]
             axe_y_min = np.where(axe_y_m)[0][0]
             axe_y_max = np.where(axe_y_m)[0][-1]
-            self.trim_area([axe_x_min, axe_x_max],
-                           [axe_y_min, axe_y_max],
-                           ind=True, inplace=True)
+            tmp_vf.trim_area([axe_x_min, axe_x_max],
+                             [axe_y_min, axe_y_max],
+                             ind=True, inplace=True)
+        # returning
+        if not inplace:
+            return tmp_vf
 
     def fill(self, kind='linear', value=0., inplace=False, reduce_tri=True,
              crop=False):
@@ -5099,7 +5113,7 @@ class ScalarField(Field):
         if not isinstance(value, NUMBERTYPES):
             raise TypeError("'value' must be a number")
         if crop:
-            self.crop_masked_border()
+            self.crop_masked_border(hard=False, inplace=True)
         # getting data
         x, y = self.axe_x, self.axe_y
         values = self.values
@@ -5466,13 +5480,17 @@ class VectorField(Field):
             # different shape, partially same axis
             else:
                 # getting shared points
-                new_ind_x = np.array([val in other.axe_x
+                new_ind_x = np.array([np.any(np.abs(val - other.axe_x)
+                                      < np.abs(val)*1e-4)
                                       for val in self.axe_x])
-                new_ind_y = np.array([val in other.axe_y
+                new_ind_y = np.array([np.any(np.abs(val - other.axe_y)
+                                      < np.abs(val)*1e-4)
                                       for val in self.axe_y])
-                new_ind_xo = np.array([val in self.axe_x
+                new_ind_xo = np.array([np.any(np.abs(val - self.axe_x)
+                                       < np.abs(val)*1e-4)
                                        for val in other.axe_x])
-                new_ind_yo = np.array([val in self.axe_y
+                new_ind_yo = np.array([np.any(np.abs(val - self.axe_y)
+                                       < np.abs(val)*1e-4)
                                        for val in other.axe_y])
                 if not np.any(new_ind_x) or not np.any(new_ind_y):
                     raise ValueError("Incompatible shapes")
@@ -6131,7 +6149,7 @@ class VectorField(Field):
         if not value.shape == (2,):
             raise ShapeError()
         if crop:
-            self.crop_masked_border()
+            self.crop_masked_border(hard=False, inplace=True)
         # filling components
         comp_x = self.comp_x_as_sf
         comp_y = self.comp_y_as_sf
@@ -6193,7 +6211,7 @@ class VectorField(Field):
                                          indmin_y:indmax_y + 1]
             return trimfield
 
-    def crop_masked_border(self, hard=False):
+    def crop_masked_border(self, hard=False, inplace=False):
         """
         Crop the masked border of the field in place.
 
@@ -6202,39 +6220,45 @@ class VectorField(Field):
         hard : boolean, optional
             If 'True', partially masked border are cropped as well.
         """
+        #
+        if inplace:
+            tmp_sf = self
+        else:
+            tmp_sf = self.copy()
         # checking masked values presence
-        mask = self.mask
+        mask = tmp_sf.mask
         if not np.any(mask):
             return None
         # hard cropping
         if hard:
             # remove trivial borders
-            self.crop_masked_border()
+            tmp_sf.crop_masked_border(hard=False, inplace=True)
             # until there is no more masked values
-            while np.any(self.mask):
+            while np.any(tmp_sf.mask):
                 # getting number of masked value on each border
-                bd1 = np.sum(self.mask[0, :])
-                bd2 = np.sum(self.mask[-1, :])
-                bd3 = np.sum(self.mask[:, 0])
-                bd4 = np.sum(self.mask[:, -1])
+                bd1 = np.sum(tmp_sf.mask[0, :])
+                bd2 = np.sum(tmp_sf.mask[-1, :])
+                bd3 = np.sum(tmp_sf.mask[:, 0])
+                bd4 = np.sum(tmp_sf.mask[:, -1])
                 # getting more masked border
                 more_masked = np.argmax([bd1, bd2, bd3, bd4])
                 # deleting more masked border
                 if more_masked == 0:
-                    len_x = len(self.axe_x)
-                    self.trim_area(intervalx=[1, len_x], ind=True,
-                                   inplace=True)
+                    len_x = len(tmp_sf.axe_x)
+                    tmp_sf.trim_area(intervalx=[1, len_x], ind=True,
+                                     inplace=True)
                 elif more_masked == 1:
-                    len_x = len(self.axe_x)
-                    self.trim_area(intervalx=[0, len_x - 2], ind=True,
-                                   inplace=True)
+                    len_x = len(tmp_sf.axe_x)
+                    tmp_sf.trim_area(intervalx=[0, len_x - 2], ind=True,
+                                     inplace=True)
                 elif more_masked == 2:
                     len_y = len(self.axe_y)
-                    self.trim_area(intervaly=[1, len_y], ind=True,
-                                   inplace=True)
+                    tmp_sf.trim_area(intervaly=[1, len_y], ind=True,
+                                     inplace=True)
                 elif more_masked == 3:
-                    len_y = len(self.axe_y)
-                    self.trim_area(intervaly=[0, len_y - 2], ind=True, inplace=True)
+                    len_y = len(tmp_sf.axe_y)
+                    tmp_sf.trim_area(intervaly=[0, len_y - 2],
+                                     ind=True, inplace=True)
         # soft cropping
         else:
             axe_x_m = np.logical_not(np.all(mask, axis=1))
@@ -6243,9 +6267,12 @@ class VectorField(Field):
             axe_x_max = np.where(axe_x_m)[0][-1]
             axe_y_min = np.where(axe_y_m)[0][0]
             axe_y_max = np.where(axe_y_m)[0][-1]
-            self.trim_area([axe_x_min, axe_x_max],
-                           [axe_y_min, axe_y_max],
-                           ind=True, inplace=True)
+            tmp_sf.trim_area([axe_x_min, axe_x_max],
+                             [axe_y_min, axe_y_max],
+                             ind=True, inplace=True)
+        # returning
+        if not inplace:
+            return tmp_sf
 
     def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
                inplace=False):
@@ -6290,11 +6317,11 @@ class VectorField(Field):
         if inplace:
             self.comp_x = new_Vx
             self.comp_y = new_Vy
-            self.mask = new_mask
+            self.__mask = new_mask
         else:
             new_field.comp_x = new_Vx
             new_field.comp_y = new_Vy
-            new_field.mask = new_mask
+            new_field.__mask = new_mask
             return new_field
 
     def mirroring(self, direction, position, inds_to_mirror='all', mir_coef=1.,
@@ -7276,6 +7303,39 @@ class TemporalFields(Fields, Field):
         return magn
 
     ### Modifiers ###
+    def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
+               inplace=False):
+        """
+        Add columns or lines of masked values at the fields.
+
+        Parameters
+        ----------
+        nmb_**** : integers
+            Number of lines/columns to add in each direction.
+        inplace : bool
+            If 'False', return a new extended field, if 'True', modify the
+            field inplace.
+        Returns
+        -------
+        Extended_field : TemporalFields object, optional
+            Extended field.
+        """
+        if inplace:
+            tmp_tf = self
+        else:
+            tmp_tf = self.copy()
+        # scale axis
+        Field.extend(tmp_tf, nmb_left=nmb_left, nmb_right=nmb_right,
+                     nmb_up=nmb_up, nmb_down=nmb_down, inplace=True)
+        # scale fields
+        for i, _ in enumerate(tmp_tf.fields):
+            tmp_tf.fields[i].extend(nmb_left=nmb_left, nmb_right=nmb_right,
+                                    nmb_up=nmb_up, nmb_down=nmb_down,
+                                    inplace=True)
+        # return
+        if not inplace:
+            return tmp_tf
+
     def scale(self, scalex=None, scaley=None, scalev=None, scalet=None,
               inplace=False):
         """
@@ -7503,16 +7563,13 @@ class TemporalFields(Fields, Field):
             else:
                 tmp_tf = self.copy()
             # remove trivial borders
-            tmp_tf.crop_masked_border(hard=False)
+            tmp_tf.crop_masked_border(hard=False, inplace=True)
             # until there is no more masked values
-            while True:
+            while np.any(tmp_tf.mask):
                 # getting mask
                 masks = tmp_tf.mask
                 mask = np.sum(masks, axis=0)
                 mask = mask == len(tmp_tf.fields)
-                # leaving if no masked values
-                if not np.any(mask):
-                    break
                 # getting number of masked value on each border
                 bd1 = np.sum(mask[0, :])
                 bd2 = np.sum(mask[-1, :])
@@ -7859,6 +7916,8 @@ class TemporalFields(Fields, Field):
         if isinstance(self, TemporalVectorFields):
             if compo == 'V' or compo is None:
                 comp = self.fields
+            elif compo == 'magnitude':
+                comp = self.magnitude_as_sf
             elif compo == 'x':
                 comp = self.Vx_as_sf
             elif compo == 'y':
@@ -8025,7 +8084,7 @@ class TemporalScalarFields(TemporalFields):
         if kind not in ['value', 'nearest', 'linear', 'cubic']:
             raise ValueError()
         if crop:
-            self.crop_masked_border()
+            self.crop_masked_border(hard=False, inplace=True)
         # temporal interpolation
         if tof == 'temporal':
             # getting datas
@@ -8323,7 +8382,7 @@ class TemporalVectorFields(TemporalFields):
             raise TypeError()
         value = np.array(value)
         if crop:
-            self.crop_masked_border()
+            self.crop_masked_border(hard=False, inplace=True)
         # temporal interpolation
         if tof == 'temporal':
             # getting datas
@@ -8549,7 +8608,7 @@ class SpatialFields(Fields):
             except unum.IncompatibleUnitsError:
                 raise ValueError("Inconsistent unit system")
         # crop fields
-        field.crop_masked_border()
+        field.crop_masked_border(hard=False, inplace=True)
         # add field
         Fields.add_field(self, field)
 
