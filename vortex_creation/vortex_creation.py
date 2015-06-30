@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from ..core import VectorField, make_unit, NUMBERTYPES
+from ..core import VectorField, make_unit, NUMBERTYPES, ARRAYTYPES,\
+    TemporalVectorFields
 import pdb
 import copy
+import matplotlib.pyplot as plt
 
 
 class Vortex(object):
     """
     """
-    def get_vector_field(self, axe_x, axe_y, unit_x, unit_y):
+    def get_vector_field(self, axe_x, axe_y, unit_x='', unit_y=''):
         # preparing
         Vx = np.empty((len(axe_x), len(axe_y)), dtype=float)
         Vy = np.empty(Vx.shape, dtype=float)
@@ -92,7 +94,7 @@ class FreeVortex(Vortex):
     """
     Representing a Free (irrotational) Vortex.
     Due to its definition, the center of the vortex is a singular point
-    (V = inf).
+    (V = inf) set to 0 in this implementation.
     """
     def __init__(self, x0=0., y0=0., gamma=1.):
         """
@@ -459,11 +461,26 @@ class VortexSystem(object):
 
     def __init__(self):
         """
+        Representing a set of vortex.
         """
         self.vortex = []
         self.nmb_vortex = 0
 
+    def copy(self):
+        """
+        Return a copy.
+        """
+        return copy.deepcopy(self)
+
     def add(self, vortex):
+        """
+        Add a vortex, or a custom field to the set.
+
+        Parameters
+        ----------
+        vortex : Vortex or CustomField object
+            vortex or field to add to the set
+        """
         if not isinstance(vortex, (Vortex, CustomField)):
             raise TypeError()
         self.vortex.append(vortex.copy())
@@ -471,26 +488,72 @@ class VortexSystem(object):
 
     def remove(self, ind):
         """
+        Remove a vortex or a custom field from the set.
+
+        Parameters
+        ----------
+        ind : integer
+            Vortex indice to remove.
         """
         self.vortex = self.vortex[0:ind] + self.vortex[ind + 1::]
 
+    def display(self):
+        """
+        Display a representation of the vortex system
+        """
+        for vort in self.vortex:
+            if isinstance(vort, CustomField):
+                continue
+            plt.plot(vort.x0, vort.y0, marker='o', mec='k', mfc='w')
+
     def get_vector(self, x, y):
         """
-        Return the velocity at the given point.
+        Return the resulting velocity vector at the given point.
+
+        Parameters
+        ----------
+        x, y : numbers
+            Position of the wanted vector.
+
+        Returns
+        -------
+        Vx, Vy : numbers
+            Velocity components.
         """
         Vx = 0.
         Vy = 0.
         # add vortex participation
         if not len(self.vortex) == 0:
-            Vx, Vy = self.vortex.get_vector(x, y)
-            for vort in self.vortex[1::]:
-                tmp_Vx, mp_Vy = vort.get_vector_field(x, y)
-                Vx += Vx
-                Vy += Vy
+            for vort in self.vortex:
+                tmp_Vx, tmp_Vy = vort.get_vector(x, y)
+                Vx += tmp_Vx
+                Vy += tmp_Vy
         # returning
         return Vx, Vy
 
     def get_vector_field(self, axe_x, axe_y, unit_x='', unit_y=''):
+        """
+        Return a vector field on the given grid
+
+        Parameters
+        ----------
+        axe_x, axe_y : arrays of crescent numbers
+            x and y axis
+        unit_x, unit_y : string or Unum objects
+            Axis unities
+
+        Returns
+        -------
+        vf :  VectorField object
+            .
+        """
+        # check
+        if not isinstance(axe_x, ARRAYTYPES):
+            raise TypeError()
+        if not isinstance(axe_y, ARRAYTYPES):
+            raise TypeError()
+        axe_x = np.array(axe_x)
+        axe_y = np.array(axe_y)
         # add vortex participation
         if not len(self.vortex) == 0:
             vf = self.vortex[0].get_vector_field(axe_x, axe_y,
@@ -502,3 +565,64 @@ class VortexSystem(object):
             raise Exception('No field defined')
         # returning
         return vf
+
+    def get_evolution(self, dt=1.):
+        """
+        Change the position of the vortex, according to the resulting velocity
+        field and the time step.
+
+        Parameters
+        ----------
+        dt : number
+            time step.
+
+        Returns
+        -------
+        vs : VortexSystem object
+            New vortex system at t+dt
+
+        """
+        # check
+        if not isinstance(dt, NUMBERTYPES):
+            raise TypeError()
+        if dt <= 0:
+            raise ValueError()
+        #
+        new_vs = self.copy()
+        # loop on vortex
+        for i in np.arange(len(self.vortex)):
+            vort = self.vortex[i]
+            if isinstance(vort, CustomField):
+                continue
+            # get velocity on the vortex core
+            Vx, Vy = self.get_vector(vort.x0, vort.y0)
+            # get the vortex core dispacement
+            dx, dy = dt*Vx, dt*Vy
+            # change the vortex position in the new vortex system
+            new_vs.vortex[i].x0 += dx
+            new_vs.vortex[i].y0 += dy
+        # returning
+        return new_vs
+
+    def get_temporal_vector_field(self, dt, axe_x, axe_y, nmb_it, unit_x='',
+                                  unit_y='', unit_time=''):
+        """
+        """
+        # create tvf
+        time = 0.
+        tmp_tvf = TemporalVectorFields()
+        tmp_vf = self.get_vector_field(axe_x, axe_y, unit_x=unit_x,
+                                       unit_y=unit_y)
+        tmp_tvf.add_field(tmp_vf, time=time, unit_times=unit_time)
+        time += dt
+        # make time iterations
+        tmp_vs = self.copy()
+        for i in np.arange(nmb_it):
+            tmp_vs = tmp_vs.get_evolution(dt=dt)
+            tmp_vf = tmp_vs.get_vector_field(axe_x, axe_y, unit_x=unit_x,
+                                       unit_y=unit_y)
+            tmp_tvf.add_field(tmp_vf, time=time, unit_times=unit_time)
+            time += dt
+        # returning
+        return tmp_tvf
+

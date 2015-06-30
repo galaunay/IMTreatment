@@ -798,6 +798,12 @@ class CritPoints(object):
             tmp_cp = self
         else:
             tmp_cp = self.copy()
+        # scale self
+        new_unit = tmp_cp.unit_time*scalev
+        fact = new_unit.asNumber()
+        new_unit /= fact
+        tmp_cp.times *= fact
+        tmp_cp.unit_time = new_unit
         # loop to scale pts
         for pt_type in tmp_cp.iter:
             for i, pts in enumerate(pt_type):
