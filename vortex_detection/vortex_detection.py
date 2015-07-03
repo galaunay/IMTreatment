@@ -206,8 +206,19 @@ class VF(object):
             # get data
             Vx_bl = self.vx[ind_y:ind_y + 2, ind_x:ind_x + 2]
             Vy_bl = self.vy[ind_y:ind_y + 2, ind_x:ind_x + 2]
+            # check if masked values
             mask = self.mask[ind_y:ind_y + 2, ind_x:ind_x + 2]
             if np.any(mask):
+                new_positions[i] = pos
+                continue
+            # check if null values
+            nmb_zeros = np.sum(Vx_bl + Vy_bl == 0)
+            if nmb_zeros == 1:
+                inds = np.where(Vx_bl + Vy_bl == 0)[0]
+                new_positions[i] = np.array([axe_x[ind_x + inds[0]],
+                                             axe_y[ind_y + inds[1]]])
+                continue
+            elif nmb_zeros > 1:
                 new_positions[i] = pos
                 continue
             # solve to get the zero velocity point
@@ -508,8 +519,16 @@ class CritPoints(object):
         # check parameters
         if epsilon is None:
             epsilon = np.inf
-        if not isinstance(epsilon, NUMBERTYPES):
-            raise ValueError()
+        elif isinstance(epsilon, NUMBERTYPES):
+            pass
+        elif isinstance(epsilon, unum.Unum):
+            fact = epsilon/self.unit_x
+            unit_fact = fact.strUnit()
+            if unit_fact != '[]':
+                raise ValueError()
+            epsilon = fact.asNumber()
+        else:
+            raise TypeError()
         self.current_epsilon = epsilon
         # get points together with v as time
         focs = np.array([])
@@ -798,12 +817,22 @@ class CritPoints(object):
             tmp_cp = self
         else:
             tmp_cp = self.copy()
-        # scale self
+        # scale self v
         new_unit = tmp_cp.unit_time*scalev
         fact = new_unit.asNumber()
         new_unit /= fact
         tmp_cp.times *= fact
         tmp_cp.unit_time = new_unit
+        # scale self x
+        new_unit = tmp_cp.unit_x*scalex
+        fact = new_unit.asNumber()
+        new_unit /= fact
+        tmp_cp.unit_x = new_unit
+        # scale self y
+        new_unit = tmp_cp.unit_y*scaley
+        fact = new_unit.asNumber()
+        new_unit /= fact
+        tmp_cp.unit_y = new_unit
         # loop to scale pts
         for pt_type in tmp_cp.iter:
             for i, pts in enumerate(pt_type):
@@ -2013,6 +2042,9 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         raise TypeError()
     if smoothing_size < 0:
         raise ValueError()
+    # check if mask (not fully supported yet)
+    if np.any(obj.mask):
+        raise ValueError("Should not have masked values")
     # if obj is a vector field
     if isinstance(obj, VectorField):
         # mirroring if necessary
@@ -2425,11 +2457,11 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
     for i, t in enumerate(cp_types):
         if t == 0:
             if sadd_ori:
-                tmp_pos = pos[i]
+                tmp_pos = cp_positions[i]
                 ori = np.array(_get_saddle_orientations(vectorfield, tmp_pos))
                 sadd.add(tmp_pos, orientations=ori)
             else:
-                sadd.add(pos[i])
+                sadd.add(cp_positions[i])
         elif t == 1:
             focus_c.add(cp_positions[i])
         elif t == 2:
@@ -2490,7 +2522,7 @@ def _min_detection(SF):
     """
     # interpolation on the field
     if np.any(SF.mask):
-        SF.crop_masked_border()
+        SF.crop_masked_border(inplace=True)
         if np.any(SF.mask):
             raise Exception("should not have masked values")
     axe_x, axe_y = SF.axe_x, SF.axe_y

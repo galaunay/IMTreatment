@@ -533,11 +533,11 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
                             " string")
         fieldspaths = np.array(fieldspath)
     elif isinstance(fieldspath, STRINGTYPES):
-        fieldspath = np.array([f for f in glob(os.path.join(fieldspath, '*'))
+        fieldspaths = np.array([f for f in glob(os.path.join(fieldspath, '*'))
                                if os.path.splitext(f)[-1] in ['.im7', '.IM7']])
-        filenames = [os.path.basename(p) for p in fieldspath]
+        filenames = [os.path.basename(p) for p in fieldspaths]
         ind_sort = np.argsort(filenames)
-        fieldspath = fieldspath[ind_sort]
+        fieldspaths = fieldspaths[ind_sort]
         if len(fieldspaths) == 0:
             raise ValueError()
     else:

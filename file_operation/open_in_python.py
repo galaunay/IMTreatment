@@ -5,8 +5,9 @@ Created on Mon Jun 08 10:00:43 2015
 @author: glaunay
 """
 
-#import matplotlib.pyplot as plt
-#import numpy as np
+import matplotlib.pyplot as plt
+print(plt.__file__)
+import numpy as np
 import IMTreatment.file_operation as imtio
 import sys
 from os import path

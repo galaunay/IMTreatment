@@ -3076,7 +3076,7 @@ class Field(object):
     @unit_x.setter
     def unit_x(self, new_unit_x):
         if isinstance(new_unit_x, unum.Unum):
-            if new_unit_x.asNumber() == 1:
+            if np.isclose(new_unit_x.asNumber(), 1):
                 self.__unit_x = new_unit_x
             else:
                 raise ValueError()
@@ -3096,7 +3096,7 @@ class Field(object):
     @unit_y.setter
     def unit_y(self, new_unit_y):
         if isinstance(new_unit_y, unum.Unum):
-            if new_unit_y.asNumber() == 1:
+            if np.isclose(new_unit_y.asNumber(),  1):
                 self.__unit_y = new_unit_y
             else:
                 raise ValueError()
@@ -4851,7 +4851,7 @@ class ScalarField(Field):
             tmp_vf = self
         else:
             tmp_vf = self.copy()
-        masked_values = np.any(self.mask)
+        tmp_vf.crop_masked_border(inplace=True)
         # get side to mirror
         if direction == 1:
             axe = axe_x
@@ -4894,7 +4894,7 @@ class ScalarField(Field):
                 axe_y = tmp_vf.axe_y
                 border = axe_y[0]
             elif position > y_median:
-                tmp_vf.trim_area(intervaly=[axe_x[0], position],
+                tmp_vf.trim_area(intervaly=[axe_y[0], position],
                                  inplace=True)
                 side = 'up'
                 axe_y = tmp_vf.axe_y
@@ -4910,13 +4910,13 @@ class ScalarField(Field):
             delta_gap = -(position - border)/delta
         else:
             delta_gap = (position - border)/delta
-        inds_to_add = np.floor(inds_to_mirror + 2*delta_gap)
+        inds_to_add = np.ceil(inds_to_mirror + 2*delta_gap) + 2
         # extend the field
         tmp_dic = {'nmb_{}'.format(side): inds_to_add}
         tmp_vf.extend(inplace=True, **tmp_dic)
         new_axe_x = tmp_vf.axe_x
         new_axe_y = tmp_vf.axe_y
-        # filling mirrored with interpolated values
+        # filling mirrored part with interpolated values
         for i, x in enumerate(new_axe_x):
             for j, y in enumerate(new_axe_y):
                 if direction == 1:
@@ -4931,9 +4931,41 @@ class ScalarField(Field):
                 if not np.isnan(mir_val):
                     tmp_vf.values[i, j] = mir_val*mir_coef
                     tmp_vf.mask[i, j] = False
-        # interpolating between mirror images if these was initial masked values
-        # (general but slow interpolation)
-        if interp is not None and masked_values and interp != 'linear':
+        masked_values = np.any(tmp_vf.mask)
+        # interpolating between mirror images
+        if interp == 'linear' and masked_values:
+            # getting data
+            new_axe_x = tmp_vf.axe_x
+            new_axe_y = tmp_vf.axe_y
+            values = tmp_vf.values
+            mask = tmp_vf.mask
+            # direction x
+            if side in ['right', 'left']:
+                # get last column
+                ind_last = np.where(mask[:, 0])[0][0]
+                # get number of missing values
+                nmb_masked = np.sum(mask[:, 0])
+                # loop on lines
+                for i in np.arange(len(new_axe_y)):
+                    tmp_val = np.linspace(values[ind_last - 1, i],
+                                          values[ind_last + nmb_masked, i],
+                                          nmb_masked + 2)[1:-1]
+                    values[ind_last:ind_last + nmb_masked, i] = tmp_val
+            else:
+                # get last column
+                ind_last = np.where(mask[0, :])[0][0]
+                # get number of missing values
+                nmb_masked = np.sum(mask[0, :])
+                # loop on lines
+                for i in np.arange(len(new_axe_x)):
+                    tmp_val = np.linspace(values[i, ind_last - 1],
+                                          values[i, ind_last + nmb_masked],
+                                          nmb_masked + 2)[1:-1]
+                    values[i, ind_last:ind_last + nmb_masked] = tmp_val
+            tmp_vf.values = values
+            tmp_vf.mask = False
+        # slower interplation method
+        elif interp is not None and masked_values:
             # getting data
             x, y = tmp_vf.axe_x, tmp_vf.axe_y
             values = tmp_vf.values
@@ -4979,38 +5011,6 @@ class ScalarField(Field):
                     values[new_mask] = nearest(xy[new_mask.flatten()])
             else:
                 raise ValueError("unknown 'tof' value")
-            tmp_vf.values = values
-            tmp_vf.mask = False
-        # interpolating if there was no masked values
-        # (faster linear interpolation than the previous one)
-        elif interp is not None:
-            # getting data
-            new_axe_x, new_axe_y = new_axe_x, new_axe_y
-            values = tmp_vf.values
-            mask = tmp_vf.mask
-            # direction x
-            if side in ['right', 'left']:
-                # get last column
-                ind_last = np.where(mask[:, 0])[0][0]
-                # get number of missing values
-                nmb_masked = np.sum(mask[:, 0])
-                # loop on lines
-                for i in np.arange(len(new_axe_y)):
-                    tmp_val = np.linspace(values[ind_last - 1, i],
-                                          values[ind_last + nmb_masked, i],
-                                          nmb_masked + 2)[1:-1]
-                    values[ind_last:ind_last + nmb_masked, i] = tmp_val
-            else:
-                # get last column
-                ind_last = np.where(mask[0, :])[0][0]
-                # get number of missing values
-                nmb_masked = np.sum(mask[0, :])
-                # loop on lines
-                for i in np.arange(len(new_axe_x)):
-                    tmp_val = np.linspace(values[i, ind_last - 1],
-                                          values[i, ind_last + nmb_masked],
-                                          nmb_masked + 2)[1:-1]
-                    values[i, ind_last:ind_last + nmb_masked] = tmp_val
             tmp_vf.values = values
             tmp_vf.mask = False
         # returning
@@ -6881,6 +6881,21 @@ class TemporalFields(Fields, Field):
         return mask_f
 
     @property
+    def mask_cum(self):
+        cum_mask = np.sum(self.mask, axis=0)
+        cum_mask = cum_mask == len(self.mask)
+        return cum_mask
+
+    @property
+    def mask_cum_as_sf(self):
+        cum_mask = self.mask_cum
+        tmp_sf = ScalarField()
+        tmp_sf.import_from_arrays(self.axe_x, self.axe_y, cum_mask, mask=None,
+                                  unit_x=self.unit_x, unit_y=self.unit_y,
+                                  unit_values='')
+        return tmp_sf
+
+    @property
     def times(self):
         return self.__times
 
@@ -7549,12 +7564,10 @@ class TemporalFields(Fields, Field):
             If 'True', crop the F in place,
             else, return a cropped TF.
         """
-        # getting big mask (where all the value are masked)
-        masks_temp = self.mask
-        mask_temp = np.sum(masks_temp, axis=0)
-        mask_temp = mask_temp == len(masks_temp)
+        #get cumulated mask
+        mask_cum = self.mask_cum
         # checking masked values presence
-        if not np.any(mask_temp):
+        if not np.any(mask_cum):
             return None
         # hard cropping
         if hard:
@@ -7600,8 +7613,8 @@ class TemporalFields(Fields, Field):
         else:
             # getting positions to remove
             # (column or line with only masked values)
-            axe_y_m = ~np.all(mask_temp, axis=0)
-            axe_x_m = ~np.all(mask_temp, axis=1)
+            axe_y_m = ~np.all(mask_cum, axis=0)
+            axe_x_m = ~np.all(mask_cum, axis=1)
             # skip if nothing to do
             if not np.any(axe_y_m) or not np.any(axe_x_m):
                 return None

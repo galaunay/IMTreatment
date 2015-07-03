@@ -11,6 +11,31 @@ import matplotlib.pyplot as plt
 class Vortex(object):
     """
     """
+
+    def __init__(self, x0, y0):
+        """
+
+        """
+        self.__x0 = x0
+        self.__y0 = y0
+        self.rot_dir = 1
+
+    @property
+    def x0(self):
+        return self.__x0
+
+    @x0.setter
+    def x0(self, new_x0):
+        self.__x0 = new_x0
+
+    @property
+    def y0(self):
+        return self.__y0
+
+    @y0.setter
+    def y0(self, new_y0):
+        self.__y0 = new_y0
+
     def get_vector_field(self, axe_x, axe_y, unit_x='', unit_y=''):
         # preparing
         Vx = np.empty((len(axe_x), len(axe_y)), dtype=float)
@@ -57,6 +82,7 @@ class Vortex(object):
     def copy(self):
         return copy.deepcopy(self)
 
+
 class SolidVortex(Vortex):
     """
     Representing a solid rotation.
@@ -70,9 +96,12 @@ class SolidVortex(Vortex):
         omega : number, optional
             rotation velocity (rad/s)
         """
-        self.x0 = x0
-        self.y0 = y0
-        self.omega = omega
+        super(SolidVortex, self).__init__(x0, y0)
+        if omega < 0:
+            self.rot_dir = -1
+        else:
+            self.rot_dir = 1
+        self.omega = np.abs(omega)
 
     def get_vector(self, x, y):
         """
@@ -84,11 +113,12 @@ class SolidVortex(Vortex):
         theta = self._get_theta(self.x0, x, self.y0, y)
         # compute velocity in cylindrical referentiel
         Vr = 0.
-        Vphi = r*self.omega
+        Vphi = r*self.omega*self.rot_dir
         # get velocity in the cartesian refenrentiel
         Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
         # returning
         return Vx, Vy
+
 
 class FreeVortex(Vortex):
     """
@@ -105,9 +135,12 @@ class FreeVortex(Vortex):
         gamma : number, optional
             Cirdculation of the free-vortex (m^2/s).
         """
-        self.x0 = x0
-        self.y0 = y0
-        self.gamma = gamma
+        super(FreeVortex, self).__init__(x0, y0)
+        if omega < 0:
+            self.rot_dir = -1
+        else:
+            self.rot_dir = 1
+        self.omega = np.abs(omega)
 
     def get_vector(self, x, y):
         """
@@ -122,7 +155,7 @@ class FreeVortex(Vortex):
         if r == 0:
             Vphi = 0
         else:
-            Vphi = self.gamma/(2*np.pi*r)
+            Vphi = self.gamma/(2*np.pi*r)*self.rot_dir
         # get velocity in the cartesian refenrentiel
         Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
         # returning
@@ -155,10 +188,13 @@ class BurgerVortex(Vortex):
         viscosity : number, optional
             Viscosity (default : 1e-6 (water))
         """
-        self.x0 = x0
-        self.y0 = y0
+        super(BurgerVortex, self).__init__(x0, y0)
+        if ksi < 0:
+            self.rot_dir = -1
+        else:
+            self.rot_dir = 1
+        self.ksi = np.abs(ksi)
         self.alpha = alpha
-        self.ksi = ksi
         self.viscosity = viscosity
 
     def get_vector(self, x, y):
@@ -175,7 +211,7 @@ class BurgerVortex(Vortex):
             Vphi = 0
         else:
             Vphi = self.ksi/(2*np.pi*r)\
-                * (1 - np.exp(-self.alpha*r**2/(4.*self.viscosity)))
+                * (1 - np.exp(-self.alpha*r**2/(4.*self.viscosity)))*self.rot_dir
         # get velocity in the cartesian refenrentiel
         Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
         # returning
@@ -192,7 +228,7 @@ class HillVortex(Vortex):
     Thesis for the degree of Doctor of Philosophy, Växjö University,
     Sweden 2007.
     """
-    def __init__(self, x0=0, y0=0, U=1., rv=1., unit_values=''):
+    def __init__(self, x0=0, y0=0, U=1., rv=1., rot_dir=1, unit_values=''):
         """
         Parameters
         ----------
@@ -203,10 +239,10 @@ class HillVortex(Vortex):
         rv : number
             Vortex radius
         """
-        self.x0 = x0
-        self.y0 = y0
+        super(HillVortex, self).__init__(x0, y0)
         self.U = U
         self.rv = rv
+        self.rot_dir = rot_dir
 
     def get_vector(self, x, y):
         """
@@ -218,7 +254,7 @@ class HillVortex(Vortex):
         theta = self._get_theta(self.x0, x, self.y0, y)
         # compute velocity in clyndrical referentiel
         Vr = -3./4.*self.U*r*(1 - r**2/self.rv**2)*2*np.sin(theta)*np.cos(theta)
-        Vphi = 3./2.*self.U*np.sin(theta)**2*r*(1 - 2*r**2/self.rv**2)
+        Vphi = 3./2.*self.U*np.sin(theta)**2*r*(1 - 2*r**2/self.rv**2)*self.rot_dir
         # get velocity in the cartesian refenrentiel
         Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
         # returning
@@ -249,9 +285,12 @@ class LambOseenVortex(Vortex):
         viscosity : number
             Viscosity (default : 1e-6 (water))
         """
-        self.x0 = x0
-        self.y0 = y0
-        self.ksi = ksi
+        super(LambOseenVortex, self).__init__(x0, y0)
+        if ksi < 0:
+            self.rot_dir = -1
+        else:
+            self.rot_dir = 1
+        self.ksi = np.abs(ksi)
         self.t = t
         self.viscosity = viscosity
 
@@ -269,7 +308,7 @@ class LambOseenVortex(Vortex):
             Vphi = 0
         else:
             Vphi = self.ksi/(2*np.pi*r)\
-                * (1 - np.exp(-r**2/(4.*self.viscosity*self.t)))
+                * (1 - np.exp(-r**2/(4.*self.viscosity*self.t)))*self.rot_dir
         # get velocity in the cartesian refenrentiel
         Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
         # returning
@@ -301,10 +340,13 @@ class RankineVortex(Vortex):
         unit_values : string
             Velocity unity
         """
-        self.x0 = x0
-        self.y0 = y0
+        super(RankineVortex, self).__init__(x0, y0)
         self.rv = rv
-        self.circ = circ
+        if circ < 0:
+            self.rot_dir = -1
+        else:
+            self.rot_dir = 1
+        self.circ = np.abs(circ)
 
     def get_vector(self, x, y):
         """
@@ -319,7 +361,7 @@ class RankineVortex(Vortex):
         if r <= self.rv:
             Vphi = self.circ*r/(2*np.pi*self.rv**2)
         else:
-            Vphi = self.circ/(2*np.pi*r)
+            Vphi = self.circ/(2*np.pi*r)*self.rot_dir
         # get velocity in the cartesian refenrentiel
         Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
         # returning
@@ -352,8 +394,7 @@ class LambChaplyginVortex(Vortex):
             Bessel root number evaluated to choose the constant k
 
         """
-        self.x0 = x0
-        self.y0 = y0
+        super(LambChaplyginVortex, self).__init__(x0, y0)
         self.U = U
         self.rv = rv
         self.Bessel_root_nmb = Bessel_root_nmb
@@ -413,7 +454,7 @@ class CustomField(object):
         Representing the field.
         Has to take (x, y) as input and return (Vx, Vy).
     """
-    def __init__(self, funct):
+    def __init__(self, funct, unit_values=''):
         # check params
         try:
             Vx, Vy = funct(1., 1.)
@@ -425,6 +466,7 @@ class CustomField(object):
                 raise TypeError()
         # store
         self.funct = funct
+        self.unit_values = unit_values
 
     def copy(self):
         """
@@ -434,7 +476,6 @@ class CustomField(object):
     def get_vector(self, x, y):
         """
         """
-        print(self.funct(x, y))
         return self.funct(x, y)
 
     def get_vector_field(self, axe_x, axe_y, unit_x='', unit_y=''):
@@ -450,8 +491,51 @@ class CustomField(object):
         # returning
         vf = VectorField()
         vf.import_from_arrays(axe_x, axe_y, Vx, Vy, mask=mask, unit_x=unit_x,
-                              unit_y=unit_y, unit_values=make_unit(''))
+                              unit_y=unit_y, unit_values=self.unit_values)
         return vf
+
+class Wall(object):
+    """
+    Representing a wall
+    """
+    def __init__(self, x=None, y=None):
+        """
+        Representing a wall
+
+        Parameters
+        ----------
+        x, y : numbers
+            Position(s) of the wall along 'x' and 'y'.
+        """
+        # check
+        if x is not None:
+            self.direction = 'x'
+            self.position = x
+            if y is not None:
+                raise ValueError("'x' and 'y' cannot be both defined")
+        elif y is not None:
+            self.direction = 'y'
+            self.position = y
+        else:
+            raise ValueError("'x' or 'y' should be defined")
+
+    def get_symmetry(self, pt):
+        """
+        Give the symmetry of 'pt' according to the wall.
+        """
+        # check
+        if not isinstance(pt, ARRAYTYPES):
+            raise TypeError()
+        pt = np.array(pt)
+        if not pt.shape == (2,):
+            raise ValueError()
+        # get symmetry
+        if self.direction == 'x':
+            new_x = self.position + (self.position - pt[0])
+            return [new_x, pt[1]]
+        else:
+            new_y = self.position + (self.position - pt[1])
+            return [pt[0], new_y]
 
 
 class VortexSystem(object):
@@ -464,7 +548,10 @@ class VortexSystem(object):
         Representing a set of vortex.
         """
         self.vortex = []
+        self.im_vortex = []
         self.nmb_vortex = 0
+        self.walls = []
+        self.custfields = []
 
     def copy(self):
         """
@@ -472,7 +559,7 @@ class VortexSystem(object):
         """
         return copy.deepcopy(self)
 
-    def add(self, vortex):
+    def add_vortex(self, vortex):
         """
         Add a vortex, or a custom field to the set.
 
@@ -485,8 +572,38 @@ class VortexSystem(object):
             raise TypeError()
         self.vortex.append(vortex.copy())
         self.nmb_vortex += 1
+        ### TODO : pas optimal
+        self.refresh_imaginary_vortex()
 
-    def remove(self, ind):
+    def add_wall(self, wall):
+        """
+        Add a wall to the vortex system
+
+        Parameters
+        ----------
+        wall : Wall object
+            Wall to add.
+        """
+        if not isinstance(wall, Wall):
+            raise TypeError()
+        self.walls.append(wall)
+        ### TODO : pas optimal
+        self.refresh_imaginary_vortex()
+
+    def add_custom_field(self, custfield):
+        """
+        Add a custom field to the vortex system
+
+        Parameters
+        ----------
+        custfield : CustomField object
+            Custom field to add.
+        """
+        if not isinstance(custfield, CustomField):
+            raise TypeError()
+        self.custfields.append(custfield)
+
+    def remove_vortex(self, ind):
         """
         Remove a vortex or a custom field from the set.
 
@@ -502,13 +619,18 @@ class VortexSystem(object):
         Display a representation of the vortex system
         """
         for vort in self.vortex:
-            if isinstance(vort, CustomField):
-                continue
             plt.plot(vort.x0, vort.y0, marker='o', mec='k', mfc='w')
+        for wall in self.walls:
+            if wall.direction == 'x':
+                plt.axvline(wall.position, color='k')
+            else:
+                plt.axhline(wall.position, color='k')
+        for ivort in self.im_vortex:
+            plt.plot(ivort.x0, ivort.y0, marker='o', mec='w', mfc='k')
 
     def get_vector(self, x, y):
         """
-        Return the resulting velocity vector at the given point.
+        Return the resulting velocity vector, at the given point.
 
         Parameters
         ----------
@@ -523,13 +645,34 @@ class VortexSystem(object):
         Vx = 0.
         Vy = 0.
         # add vortex participation
-        if not len(self.vortex) == 0:
-            for vort in self.vortex:
-                tmp_Vx, tmp_Vy = vort.get_vector(x, y)
-                Vx += tmp_Vx
-                Vy += tmp_Vy
+        for vort in self.vortex:
+            tmp_Vx, tmp_Vy = vort.get_vector(x, y)
+            Vx += tmp_Vx
+            Vy += tmp_Vy
+        # add imaginary vortex participation
+        for vort in self.im_vortex:
+            tmp_Vx, tmp_Vy = vort.get_vector(x, y)
+            Vx += tmp_Vx
+            Vy += tmp_Vy
+        # add custom fields
+        for cst_field in self.custfields:
+            tmp_Vx, tmp_Vy = cst_field.get_vector(x, y)
+            Vx += tmp_Vx
+            Vy += tmp_Vy
         # returning
         return Vx, Vy
+
+    def refresh_imaginary_vortex(self):
+        """
+        """
+        self.im_vortex = []
+        for wall in self.walls:
+            for vort in self.vortex:
+                im_vort = vort.copy()
+                im_vort.x0, im_vort.y0 = wall.get_symmetry((vort.x0, vort.y0))
+                im_vort.rot_dir *= -1
+                self.im_vortex.append(im_vort)
+
 
     def get_vector_field(self, axe_x, axe_y, unit_x='', unit_y=''):
         """
@@ -554,17 +697,25 @@ class VortexSystem(object):
             raise TypeError()
         axe_x = np.array(axe_x)
         axe_y = np.array(axe_y)
+        vx = np.zeros((len(axe_x), len(axe_y)))
+        vy = vx.copy()
+        VF = VectorField()
+        VF.import_from_arrays(axe_x, axe_y, vx, vy, mask=False, unit_x=unit_x,
+                              unit_y=unit_y, unit_values='m/s')
         # add vortex participation
-        if not len(self.vortex) == 0:
-            vf = self.vortex[0].get_vector_field(axe_x, axe_y,
-                                                 unit_x=unit_x, unit_y=unit_y)
-            for vort in self.vortex[1::]:
-                vf += vort.get_vector_field(axe_x, axe_y,
-                                            unit_x=unit_x, unit_y=unit_y)
-        else:
-            raise Exception('No field defined')
+        for vort in self.vortex:
+            VF += vort.get_vector_field(axe_x, axe_y,
+                                        unit_x=unit_x, unit_y=unit_y)
+        # add imaginary vortex participation
+        for ivort in self.im_vortex:
+            VF += ivort.get_vector_field(axe_x, axe_y,
+                                         unit_x=unit_x, unit_y=unit_y)
+        # add custom fields
+        for cst_field in self.custfields:
+            VF += cst_field.get_vector_field(axe_x, axe_y,
+                                             unit_x=unit_x, unit_y=unit_y)
         # returning
-        return vf
+        return VF
 
     def get_evolution(self, dt=1.):
         """
@@ -587,13 +738,9 @@ class VortexSystem(object):
             raise TypeError()
         if dt <= 0:
             raise ValueError()
-        #
         new_vs = self.copy()
         # loop on vortex
-        for i in np.arange(len(self.vortex)):
-            vort = self.vortex[i]
-            if isinstance(vort, CustomField):
-                continue
+        for i, vort in enumerate(self.vortex):
             # get velocity on the vortex core
             Vx, Vy = self.get_vector(vort.x0, vort.y0)
             # get the vortex core dispacement
@@ -601,6 +748,7 @@ class VortexSystem(object):
             # change the vortex position in the new vortex system
             new_vs.vortex[i].x0 += dx
             new_vs.vortex[i].y0 += dy
+        new_vs.refresh_imaginary_vortex()
         # returning
         return new_vs
 
