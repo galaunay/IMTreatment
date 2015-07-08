@@ -2,11 +2,13 @@
 
 import numpy as np
 from ..core import VectorField, make_unit, NUMBERTYPES, ARRAYTYPES,\
-    TemporalVectorFields
+    TemporalVectorFields, Points
 import pdb
 import copy
 import matplotlib.pyplot as plt
-
+import IMTreatment.boundary_layer as imtbl
+import PotentialFlow as pf
+import scipy.interpolate as spinterp
 
 class Vortex(object):
     """
@@ -71,12 +73,14 @@ class Vortex(object):
 
     @staticmethod
     def _get_r(x0, x, y0, y):
-        return np.sqrt((x - x0)**2 + (y - y0)**2)
+        return ((x - x0)**2 + (y - y0)**2)**.5
 
     @staticmethod
     def _cyl_to_cart(theta, comp_r, comp_phi):
-        comp_x = comp_r*np.cos(theta) - comp_phi*np.sin(theta)
-        comp_y = comp_r*np.sin(theta) + comp_phi*np.cos(theta)
+        c_theta = np.cos(theta)
+        s_theta = np.sin(theta)
+        comp_x = comp_r*c_theta - comp_phi*s_theta
+        comp_y = comp_r*s_theta + comp_phi*c_theta
         return comp_x, comp_y
 
     def copy(self):
@@ -136,11 +140,11 @@ class FreeVortex(Vortex):
             Cirdculation of the free-vortex (m^2/s).
         """
         super(FreeVortex, self).__init__(x0, y0)
-        if omega < 0:
+        if gamma < 0:
             self.rot_dir = -1
         else:
             self.rot_dir = 1
-        self.omega = np.abs(omega)
+        self.gamma = np.abs(gamma)
 
     def get_vector(self, x, y):
         """
@@ -181,7 +185,9 @@ class BurgerVortex(Vortex):
         x0, y0 : numbers, optional
             Position of the vortex center (default : [0, 0]).
         alpha : number, optional
-            Positive constant (default : 1e-6), low value for big vortex.
+            Positive constant (default : 1e-6), determine te size of the
+            vortex. To have a vortex of radius 'R', 'alpha' should be equal to
+            '9.2*viscosity/R**2'.
         ksi : number, optional
             Constant (default : 1.), make the overall velocity augment.
             Can also be used to switch the rotation direction.
@@ -196,6 +202,9 @@ class BurgerVortex(Vortex):
         self.ksi = np.abs(ksi)
         self.alpha = alpha
         self.viscosity = viscosity
+        self.C1 = -self.alpha/(4.*self.viscosity)
+        self.C2 = self.ksi/(2*np.pi)
+        self.C3 = -1/2.*self.alpha
 
     def get_vector(self, x, y):
         """
@@ -206,12 +215,12 @@ class BurgerVortex(Vortex):
         # compute theta
         theta = self._get_theta(self.x0, x, self.y0, y)
         # compute velocity in clyndrical referentiel
-        Vr = -1./.2*self.alpha*r
+        Vr = self.C3*r
         if r == 0:
             Vphi = 0
         else:
-            Vphi = self.ksi/(2*np.pi*r)\
-                * (1 - np.exp(-self.alpha*r**2/(4.*self.viscosity)))*self.rot_dir
+            Vphi = (self.C2/r) \
+                * (1 - np.exp(self.C1*r**2))*self.rot_dir
         # get velocity in the cartesian refenrentiel
         Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
         # returning
@@ -359,7 +368,7 @@ class RankineVortex(Vortex):
         # compute velocity in clyndrical referentiel
         Vr = 0.
         if r <= self.rv:
-            Vphi = self.circ*r/(2*np.pi*self.rv**2)
+            Vphi = self.circ*r/(2*np.pi*self.rv**2)*self.rot_dir
         else:
             Vphi = self.circ/(2*np.pi*r)*self.rot_dir
         # get velocity in the cartesian refenrentiel
@@ -552,6 +561,7 @@ class VortexSystem(object):
         self.nmb_vortex = 0
         self.walls = []
         self.custfields = []
+        self.to_refresh = False
 
     def copy(self):
         """
@@ -572,8 +582,7 @@ class VortexSystem(object):
             raise TypeError()
         self.vortex.append(vortex.copy())
         self.nmb_vortex += 1
-        ### TODO : pas optimal
-        self.refresh_imaginary_vortex()
+        self.to_refresh = True
 
     def add_wall(self, wall):
         """
@@ -587,8 +596,7 @@ class VortexSystem(object):
         if not isinstance(wall, Wall):
             raise TypeError()
         self.walls.append(wall)
-        ### TODO : pas optimal
-        self.refresh_imaginary_vortex()
+        self.to_refresh = True
 
     def add_custom_field(self, custfield):
         """
@@ -613,18 +621,25 @@ class VortexSystem(object):
             Vortex indice to remove.
         """
         self.vortex = self.vortex[0:ind] + self.vortex[ind + 1::]
+        self.to_refresh = True
 
     def display(self):
         """
         Display a representation of the vortex system
         """
+        # refresh if necessary
+        if self.to_refresh:
+            self.refresh_imaginary_vortex()
+        # display vortex
         for vort in self.vortex:
             plt.plot(vort.x0, vort.y0, marker='o', mec='k', mfc='w')
+        # display walls
         for wall in self.walls:
             if wall.direction == 'x':
                 plt.axvline(wall.position, color='k')
             else:
                 plt.axhline(wall.position, color='k')
+        # display imaginary vortex
         for ivort in self.im_vortex:
             plt.plot(ivort.x0, ivort.y0, marker='o', mec='w', mfc='k')
 
@@ -642,6 +657,10 @@ class VortexSystem(object):
         Vx, Vy : numbers
             Velocity components.
         """
+        # refesh if necessary
+        if self.to_refresh:
+            self.refresh_imaginary_vortex()
+        # create vector
         Vx = 0.
         Vy = 0.
         # add vortex participation
@@ -667,12 +686,17 @@ class VortexSystem(object):
         """
         self.im_vortex = []
         for wall in self.walls:
+            for ivort in self.im_vortex[:]:
+                im_vort = ivort.copy()
+                im_vort.x0, im_vort.y0 = wall.get_symmetry((ivort.x0, ivort.y0))
+                im_vort.rot_dir *= -1
+                self.im_vortex.append(im_vort)
             for vort in self.vortex:
                 im_vort = vort.copy()
                 im_vort.x0, im_vort.y0 = wall.get_symmetry((vort.x0, vort.y0))
                 im_vort.rot_dir *= -1
                 self.im_vortex.append(im_vort)
-
+        self.to_refresh = False
 
     def get_vector_field(self, axe_x, axe_y, unit_x='', unit_y=''):
         """
@@ -695,6 +719,10 @@ class VortexSystem(object):
             raise TypeError()
         if not isinstance(axe_y, ARRAYTYPES):
             raise TypeError()
+        # refresh if necessary
+        if self.to_refresh:
+            self.refresh_imaginary_vortex()
+        # get data
         axe_x = np.array(axe_x)
         axe_y = np.array(axe_y)
         vx = np.zeros((len(axe_x), len(axe_y)))
@@ -768,9 +796,77 @@ class VortexSystem(object):
         for i in np.arange(nmb_it):
             tmp_vs = tmp_vs.get_evolution(dt=dt)
             tmp_vf = tmp_vs.get_vector_field(axe_x, axe_y, unit_x=unit_x,
-                                       unit_y=unit_y)
+                                             unit_y=unit_y)
             tmp_tvf.add_field(tmp_vf, time=time, unit_times=unit_time)
             time += dt
         # returning
         return tmp_tvf
+
+    def get_vortex_evolution(self, dt, nmb_it, unit_time=''):
+        """
+        """
+        time = 0.
+        # create storage
+        tmp_pts = []
+        for vort in self.vortex:
+            tmp_pts.append(Points(xy=[[vort.x0, vort.y0]], v=[time],
+                                  unit_v=unit_time))
+        # make time iterations
+        tmp_vs = self.copy()
+        for i in np.arange(nmb_it):
+            tmp_vs = tmp_vs.get_evolution(dt=dt)#
+            # add vortex positions
+            for i, vort in enumerate(tmp_vs.vortex):
+                tmp_pts[i].add([vort.x0, vort.y0], v=time + dt)
+            time += dt
+        # returning
+        return tmp_pts
+
+class HsvSystem(VortexSystem):
+
+    def __init__(self, u_D, D, h, delta, vertical_wall=True):
+        super(HsvSystem, self).__init__()
+        # store data
+        self.u_D = u_D
+        self.D = D
+        self.h = h
+        self.delta = delta
+        # add walls
+        if vertical_wall:
+            self.add_wall(Wall(x=0))
+        self.add_wall(Wall(y=0))
+        # add bg_field
+        bl_funct = self._get_bl_profile(u_D, delta, h)
+        sd_funct = self._get_velocity_slowdown(D)
+
+        def bg_field(x, y):
+            Vx = bl_funct(y)*sd_funct(x)
+            return Vx, 0
+        self.add_custom_field(CustomField(bg_field, unit_values='m/s'))
+        #
+
+    @staticmethod
+    def _get_bl_profile(u_D, delta, h):
+        blas_bl = imtbl.BlasiusBL(u_D, 1e-6, 1000.)
+        x_prof = blas_bl.get_x_from_delta(delta)
+        prof = blas_bl.get_profile(x=x_prof, y=np.linspace(0, h, 100))
+        bl_funct = spinterp.interp1d(prof.x, prof.y, kind='linear', axis=0,
+                                     copy=True, bounds_error=False,
+                                     fill_value=0)
+        return bl_funct
+
+    @staticmethod
+    def _get_velocity_slowdown(D):
+        # create potential flow
+        PS = pf.System(u_inf=1., alpha=0.)
+        PS.add_object(2, [[0, -D/2], [0, D/2], [D, D/2], [D, -D/2]], res=20)
+        PS.objects_2D[0].inverse_normals()
+        Vx, _ = PS.compute_velocity_on_line([-5*D, 0], [0, 0], res=200,
+                                            raw=False, remove_solid=False)
+        Vx.x -= 5*D
+        sd_funct = spinterp.interp1d(Vx.x, Vx.y, kind='linear', axis=0,
+                                     copy=True, bounds_error=False,
+                                     fill_value=0)
+        return sd_funct
+
 

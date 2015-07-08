@@ -1942,11 +1942,14 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
     ind_y = VF.get_indice_on_axe(2, vort_center[1], kind='nearest')
     dx = VF.axe_x[1] - VF.axe_x[0]
     dy = VF.axe_y[1] - VF.axe_y[0]
-    import IMTreatment.field_treatment as imtft
     vort = get_vorticity(VF)
     # find omega > 0.1 zones and label them
     vort_zone = np.abs(vort.values) > epsilon
     vort_zone, nmb_zone = msr.label(vort_zone)
+    plt.figure()
+    plt.imshow(vort_zone)
+    plt.figure()
+    vort.display()
     # get wanted zone label
     lab = vort_zone[ind_x, ind_y]
     # if we are outside a zone
