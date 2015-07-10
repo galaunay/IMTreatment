@@ -9,4 +9,5 @@ Created on Sun Feb 23 20:46:48 2014
 
 from .vortex_creation import Vortex, BurgerVortex, HillVortex, \
     LambOseenVortex, SolidVortex, FreeVortex, LambChaplyginVortex, \
-    RankineVortex, CustomField, VortexSystem, Wall, HsvSystem
+    RankineVortex, CustomField, VortexSystem, Wall, HsvSystem, \
+    PersoVortex, StepSystem
