@@ -728,11 +728,12 @@ def get_streamlines_fast(vf, xy, delta=.25, interp='linear',
         return streams
 
 def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
-                     max_steps=1000, resolution=0.1):
+                     max_steps=1000, resolution=0.25):
     """
     Return the lagrangien displacement of a set of particules initialy at the
     positions xys.
-    Use Runge-Kutta algorithm with Fehlberg adaptative time step (RKF45).
+    Use Fortran integration of the VODE algorithm.
+    (Source: http://www.netlib.org/ode/vode.f)
 
     Parameters
     ----------
@@ -747,7 +748,10 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
     resolution : number,
         resolution of the resulting streamline (do not impact accuracy).
     """
-    # check
+
+    #############
+    ### check ###
+    #############
     if not isinstance(VF, VectorField):
         raise TypeError()
     if np.any(VF.mask):
@@ -770,7 +774,10 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
     if not isinstance(max_steps, NUMBERTYPES):
         raise TypeError()
     max_steps = int(max_steps)
-    # get data
+
+    ################
+    ### get data ###
+    ################
     from scipy.interpolate import RectBivariateSpline
     axe_x, axe_y = VF.axe_x, VF.axe_y
     # AD
@@ -796,98 +803,89 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
     # velocity function
     if reverse:
         def fun(xy):
+            if is_outside(axe_x, axe_y, xy):
+                raise ValueError()
+            if masked_values:
+                ind_x = int(round(xy[0]/dx))
+                ind_y = int(round(xy[1]/dy))
+                if mask[ind_x, ind_y]:
+                    raise ValueError()
             return -np.array([Vx_tor(*xy)[0][0],
                               Vy_tor(*xy)[0][0]])
     else:
         def fun(xy):
+            if is_outside(axe_x, axe_y, xy):
+                raise ValueError()
+            if masked_values:
+                ind_x = int(round(xy[0]/dx))
+                ind_y = int(round(xy[1]/dy))
+                if mask[ind_x, ind_y]:
+                    raise ValueError()
             return np.array([Vx_tor(*xy)[0][0],
                              Vy_tor(*xy)[0][0]])
-    # rkf45 algo for interpolation
-    def rkf45_interp(xy_init, rk_dt):
-        k1 = fun(xy_init)*rk_dt
-        k2 = fun(xy_init + k1/4.)*rk_dt
-        k3 = fun(xy_init + 3./32.*k1 + 9./32.*k2)*rk_dt
-        k4 = fun(xy_init + 1932./2197.*k1 - 7200./2197.*k2
-                 + 7296./2197.*k3)*rk_dt
-        k5 = fun(xy_init + 439./216.*k1 - 8*k2 + 3680./513.*k3
-                 - 845./4104.*k4)*rk_dt
-        new_xy = (xy_init + 25./216.*k1 + 1408./2565.*k3
-                  + 2197./4104.*k4 - 1./5.*k5)
-        return new_xy
-    # rkf45 algo
-    def rkf45(xy_init, t, rk_dt):
-        k1 = fun(xy_init)*rk_dt
-        k2 = fun(xy_init + k1/4.)*rk_dt
-        k3 = fun(xy_init + 3./32.*k1 + 9./32.*k2)*rk_dt
-        k4 = fun(xy_init + 1932./2197.*k1 - 7200./2197.*k2
-                 + 7296./2197.*k3)*rk_dt
-        k5 = fun(xy_init + 439./216.*k1 - 8*k2 + 3680./513.*k3
-                 - 845./4104.*k4)*rk_dt
-        k6 = fun(xy_init - 8./27.*k1 + 2.*k2 - 3544./2565.*k3
-                 + 1859./4104.*k4 - 11./40.*k5)*rk_dt
-        new_xy = (xy_init + 25./216.*k1 + 1408./2565.*k3
-                  + 2197./4104.*k4 - 1./5.*k5)
-        best_xy = (xy_init + 16./135.*k1 + 6656./12825.*k3
-                   + 28561./56430.*k4 - 9./50.*k5 + 2./55.*k6)
-        err_num = np.linalg.norm(best_xy - new_xy)
-        err_denom = np.linalg.norm(new_xy - xy_init)
-        if err_denom == 0:
-            err = 0.
+    if reverse:
+        def fun2(t, xy):
+            return -np.array([Vx_tor(*xy)[0][0],
+                              Vy_tor(*xy)[0][0]])
+    else:
+        def fun2(t, xy):
+            return np.array([Vx_tor(*xy)[0][0],
+                             Vy_tor(*xy)[0][0]])
+
+    ####################
+    ### outside test ###
+    ####################
+    def is_outside(axe_x, axe_y, pt):
+        if pt[0] < axe_x[0]:
+            outside = True
+        elif pt[0] > axe_x[-1]:
+            outside = True
+        elif pt[1] < axe_y[0]:
+            outside = True
+        elif pt[1] > axe_y[-1]:
+            outside = True
         else:
-            err = err_num/err_denom
-        # compute new adaptative rk_dt and return
-        if err == 0:
-            new_rk_dt = 2*rk_dt
-        else:
-            new_rk_dt = ((rel_err*rk_dt)/(2.*err))**.25
-        t += rk_dt
-        return new_xy, t, new_rk_dt
-    # Loop on given points
+            outside = False
+        return outside
+
+    ########################
+    ### Loop on points   ###
+    ########################
     streams = []
     for xy in xys:
         # check for invalid points
-        if (xy[0] < axe_x[0] or xy[0] > axe_x[-1] or xy[1] < axe_y[0]
-                or xy[1] > axe_y[-1]):
+        if not is_outside(axe_x, axe_y, xy):
             streams.append(Points())
-        # initiate rk_dt
-        t = 0.
-        rk_dt = dx/np.linalg.norm(fun(xy))
-        _, _, rk_dt = rkf45(xy, 0, rk_dt)
-        nmb_it = 1
-        # Time loop
+
+        ############################
+        ### solve streamline ODE ###
+        ############################
         new_xys = [xy]
-        while True:
-            new_xy = new_xys[-1]
-            # stopping test
-            if np.any(np.isnan(new_xy)):
+        import scipy.integrate as spinteg
+        import warnings
+        warnings.filterwarnings('error')
+        ODE = spinteg.ode(fun2)
+        ODE.set_integrator('vode')
+        ODE.set_initial_value(xy)
+        res = [xy]
+        nmb_it = 0
+        while ODE.successful():
+            try:
+                rk_dt = dxy/np.linalg.norm(fun(res[-1]))*resolution
+            except ValueError:
                 break
-            if new_xy[0] < axe_x[0] or new_xy[0] > axe_x[-1]:
-                new_xys = new_xys[:-1]
+            try:
+                tmp_xy = ODE.integrate(ODE.t + rk_dt)
+            except UserWarning:
                 break
-            if new_xy[1] < axe_y[0] or new_xy[1] > axe_y[-1]:
-                new_xys = new_xys[:-1]
-                break
+            nmb_it += 1
+            # stopping tests (max iteration)
             if nmb_it > max_steps:
                 break
-            if masked_values:
-                ind_x = int(round(new_xy[0]/dx))
-                ind_y = int(round(new_xy[1]/dy))
-                if mask[ind_x, ind_y]:
-                    break
-            # rk adaptative step
-            new_xy, t, new_rk_dt = rkf45(new_xy, t, rk_dt)
-            # if new_xy too big, use interpolation
-            dist_m1 = np.linalg.norm(new_xy - new_xys[-1])
-            if  dist_m1 > 2*dxy*resolution:
-                xy_init = new_xys[-1]
-                nmb_interp = int(dist_m1/(dxy*resolution))
-                for i in np.arange(0, nmb_interp - 1):
-                    tmp_xy = rkf45_interp(xy_init, rk_dt*(i + 1)/nmb_interp)
-                    new_xys.append(tmp_xy)
-            #
-            rk_dt = new_rk_dt
-            new_xys.append(new_xy)
-            nmb_it += 1
+            # store
+            res.append(tmp_xy)
+        new_xys = res
+        warnings.filterwarnings('once')
         # storing and rescaling
         if len(new_xys) != 0:
             new_xys = np.array(new_xys, dtype=float)
@@ -895,7 +893,10 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
             new_xys[:, 1] = VF.axe_y[0] + new_xys[:, 1]*(VF.axe_y[-1] - VF.axe_y[0])
         stream = Points(new_xys, unit_x=VF.unit_x, unit_y=VF.unit_y)
         streams.append(stream)
-    # returning
+
+    #################
+    ### returning ###
+    #################
     if len(streams) == 1:
         return streams[0]
     else:

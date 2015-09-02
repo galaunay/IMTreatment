@@ -7,6 +7,7 @@ IMTreatment module
 
 import scipy.interpolate as spinterp
 import scipy.ndimage.measurements as msr
+from scipy import ndimage
 import scipy.optimize as spopt
 import matplotlib as mpl
 from matplotlib import cm
@@ -134,15 +135,19 @@ def make_unit(string):
     brackets = ['(', ')', '[', ']']
     symbambig = {"**": "^"}
     operators = ['*', '^', '/']
+    toremove = [' ']
 
     def spliting(string):
         """
         Split the given string to elemental brick.
         """
-        #remplacement symboles ambigues
+        # suppression symboles inutiles
+        for symb in toremove:
+            string = string.replace(symb, '')
+        # remplacement symboles ambigues
         for key in symbambig:
             string = string.replace(key, symbambig[key])
-        #découpage de la chaine de caractère
+        # découpage de la chaine de caractère
         pieces = [string]
         for symb in operators + brackets:
             j = len(pieces)-1
@@ -5173,6 +5178,40 @@ class ScalarField(Field):
                                   unit_values=self.unit_values)
             return sf
 
+    def fill2(self, inplace=False):
+        """
+        Fill the current scalar field using linear solving so that all the
+        missing values are the average of the 8 surrounding values.
+        """
+        # check
+        if inplace:
+            vf = self
+        else:
+            vf = self.copy()
+        if not np.any(self.mask):
+            if inplace:
+                return None
+            else:
+                return vf
+        # get masked zones
+        zone_connection = np.ones((3, 3), dtype=int)
+        zones, nmb_zones = msr.label(self.mask, structure=zone_connection)
+        # loop on zones
+        for ind_zone in range(nmb_zones):
+            # get local zone
+            zone = zones == ind_zone
+            # get surrounding zone (known values)
+            surr_zone = ndimage.binary_dilation(zone, structure=zone_connection)
+            surr_zone = np.logical_xor(surr_zone, zone)
+            #
+        plt.figure()
+        plt.imshow(zone, interpolation='nearest')
+        plt.figure()
+        plt.imshow(surr_zone, interpolation='nearest')
+        plt.colorbar()
+        print(nmb_zones)
+        # TODO : not finisehd
+
     def smooth(self, tos='uniform', size=None, inplace=False, **kw):
         """
         Smooth the scalarfield in place.
@@ -5447,7 +5486,7 @@ class VectorField(Field):
 
     ### Operators ###
     def __init__(self):
-        Field.__init__(self)
+        super(VectorField, self).__init__()
         self.__comp_x = np.array([], dtype=float)
         self.__comp_y = np.array([], dtype=float)
         self.__mask = np.array([], dtype=bool)

@@ -93,6 +93,14 @@ class Vortex(object):
     def copy(self):
         return copy.deepcopy(self)
 
+    def symetrize(self):
+        """
+        Return a symetrized copy of the vortex
+        """
+        tmp_vort = self.copy()
+        tmp_vort.rot_dir *= -1
+        return tmp_vort
+
 
 class SolidVortex(Vortex):
     """
@@ -534,12 +542,11 @@ class PersoVortex(Vortex):
         else:
             Vphi = (self.C2/r) \
                 * (1 - np.exp(self.C1*r**2))*self.rot_dir
-        Vr = Vphi*self.node_ratio
+        Vr = -np.abs(Vphi)*self.node_ratio
         # get velocity in the cartesian refenrentiel
         Vx, Vy = self._cyl_to_cart(theta, Vr, Vphi)
         # returning
         return Vx, Vy
-
 
 class CustomField(object):
     """
@@ -762,20 +769,26 @@ class VortexSystem(object):
             color = colors[ivort.id]
             plt.plot(ivort.x0, ivort.y0, marker='o', mec='w', mfc=color)
 
-    def display_compounded_vector(self, x, y, scale=1.):
+    def display_compounded_vector(self, x, y, scale=1., detailed=False):
         """
         Display the compounded vector in 'x', 'y' position.
         """
         # get data
         colors = [plt.cm.jet(i) for i in np.linspace(0, 1, len(self.vortex))]
-        vects, ids = self.get_compounded_vector(x, y)
+        vort_vects, vort_ids, cf_vects, cf_ids \
+            = self.get_compounded_vector(x, y, detailed=detailed)
         norm = plt.Normalize(0, len(self.vortex))
-        # loop on vectors
-        for i, vect in enumerate(vects):
+        # loop on vortex vectors
+        for i, vect in enumerate(vort_vects):
+            idi = vort_ids[i]
             if i >= len(colors):
                 color = 'k'
             else:
                 color = colors[i]
+            plt.quiver(x, y, *vect, color=color, norm=norm, scale=scale)
+        # loop on custom fields
+        for i, vect in enumerate(cf_vects):
+            color = 'k'
             plt.quiver(x, y, *vect, color=color, norm=norm, scale=scale)
 
     def get_vector(self, x, y, vortex_ids='all', cf_ids='all'):
@@ -834,23 +847,60 @@ class VortexSystem(object):
         # returning
         return Vx, Vy
 
-    def get_compounded_vector(self, x, y):
+    def get_compounded_vector(self, x, y, detailed=False):
         """
         Return a list f vector, for each structure of the system
+
+        Parameters
+        ----------
+        x, y : numbers
+            Wanted vector coordinates
+        detailed : boolean, optional
+            If 'False' (default), vortex contribution and its imaginary vortex
+            contribution are summed up. Else, return one vector for each
+            contribution.
+
+        Returns
+        -------
+        vects : Nx2 array of numbers
+            Vectors associated to vortex contribution
+        vortex_ids : Nx1 array of integer
+            Associated id
+        verts_cf : Mx2 array of numbers
+            Vectors associated to custom fields contribution
+        cf_ids : Mx1 array of integer
+            Associated id
         """
         vects = []
-        vortex_ids = np.arange(self.curr_id)
-        cf_ids = np.arange(self.curr_cf_id)
-        # loop on vortex ids
-        for idi in vortex_ids:
-            vects.append(self.get_vector(x, y, vortex_ids=[idi],
-                                         cf_ids='none'))
-        # loop on cf ids
-        for idi in cf_ids:
-            vects.append(self.get_vector(x, y, vortex_ids='none',
-                                         cf_ids=[idi]))
+        vects_cf = []
+        if detailed:
+            vortex_ids = []
+            cf_ids = []
+            # loop on vortex
+            for vort in self.vortex:
+                vects.append(vort.get_vector(x, y))
+                vortex_ids.append(vort.id)
+            # loop on imaginary vortex
+            for vort in self.im_vortex:
+                vects.append(vort.get_vector(x, y))
+                vortex_ids.append(vort.id)
+            # loop on custom field
+            for cf in self.custfields:
+                vects_cf.append(cf.get_vector(x, y))
+                cf_ids.append(cf.id)
+        else:
+            vortex_ids = np.arange(self.curr_id)
+            cf_ids = np.arange(self.curr_cf_id)
+            # loop on vortex ids
+            for idi in vortex_ids:
+                vects.append(self.get_vector(x, y, vortex_ids=[idi],
+                                             cf_ids='none'))
+            # loop on cf ids
+            for idi in cf_ids:
+                vects_cf.append(self.get_vector(x, y, vortex_ids='none',
+                                                cf_ids=[idi]))
         # return
-        return vects, np.concatenate((vortex_ids, cf_ids))
+        return vects, vortex_ids, vects_cf, cf_ids
 
     def refresh_imaginary_vortex(self):
         """
@@ -858,17 +908,15 @@ class VortexSystem(object):
         self.im_vortex = []
         for wall in self.walls:
             for i, ivort in enumerate(self.im_vortex[:]):
-                im_vort = ivort.copy()
+                im_vort = ivort.symetrize()
                 im_vort.movable = True
                 im_vort.x0, im_vort.y0 = wall.get_symmetry((ivort.x0,
                                                             ivort.y0))
-                im_vort.rot_dir *= -1
                 self.im_vortex.append(im_vort)
             for i, vort in enumerate(self.vortex):
-                im_vort = vort.copy()
+                im_vort = vort.symetrize()
                 im_vort.movable = True
                 im_vort.x0, im_vort.y0 = wall.get_symmetry((vort.x0, vort.y0))
-                im_vort.rot_dir *= -1
                 self.im_vortex.append(im_vort)
         self.to_refresh = False
 
@@ -1095,6 +1143,9 @@ class StepSystem(VortexSystem):
         def bg_field(x, y):
             V = dev_funct(x, y)
             V[0] *= bl_funct(y)
+            bl2 = bl_funct(-x)  # TEMPORARY
+            V[1] *= bl2         # TEMPORARY
+            V[0] *= bl2         # TEMPORARY
             return V
         self.add_custom_field(CustomField(bg_field, unit_values='m/s'))
 

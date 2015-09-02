@@ -7,7 +7,7 @@ Created on Sun Feb 23 18:21:52 2014
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.integrate import odeint
+from scipy.integrate import odeint, ode
 from .. import Profile, make_unit, ScalarField
 import pdb
 
@@ -288,6 +288,224 @@ class BlasiusBL(object):
         if Re_x > 5e5 or allTurbulent:
             xpos = ((delta*self.Uinf**(.2))/(0.3806*self.nu**(.2)))**(1./.8)
         return xpos
+
+
+class FalknerSkanBL(object):
+
+    def __init__(self, nu, m, c0, L):
+        """
+        Represent a Boundary layer with a pressure gradient, according to
+        Falkner-Skan.
+
+        Parameters
+        ----------
+        nu : number
+            Viscosity
+        m, c0 : integer and number
+            Pressure gradient parameters. Such as U_e = c0*x^m.
+        """
+        self.nu = nu
+        self.m = m
+        self.c0 = c0
+        self.L = L
+        self.beta = (2*self.m)/(self.m + 1)
+
+    def get_u_e(self, x):
+        """
+        Return the external velocity at position 'x'.
+        """
+        return self.c0*(x/self.L)**self.m
+
+    def get_mu(self, x, y):
+        """
+        return the \mu parameter at the position '(x, y)'.
+        """
+        return y*(self.c0*(self.m + 1)/(2*self.nu*self.L))**.5*(x/self.L)**((self.m - 1)/2.)
+
+    def get_y(self, x, mu):
+        """
+        Return the 'y' vaue associated with \mu parameter.
+        """
+        return mu*(self.nu*x/self.get_u_e(x))**.5
+        return mu/((self.c0*(self.m + 1)/(2*self.nu*self.L))**.5*(x/self.L)**((self.m - 1)/2.))
+
+
+    def get_f_function(self, relerr=1e-5, max_it=1000, verbose=False):
+        """
+        Return the 'f' function appearing in the Falkner-skan equation, and its
+        derivatives.
+
+        Notes
+        -----
+        * Falkner-Skan equation :
+
+        .. math::
+            f''' + ff'' + \\beta \\left( 1 - f'^2 \\right) = 0
+
+            f(0) = f'(0) = 0 \\: \\text{ and } \\: f'(\\infty) = 1
+
+        * Associated constants :
+
+        .. math::
+            \\beta = \\frac{2m}{m + 1}
+
+            -0.0905 \le m \le 2
+
+        * Remark on numerical resolution :
+
+            The Falkner-Skan equation is a ODE system with BVP
+            (boundary layer problem). Classical ODE algorithm such as
+            Runge-Kutta or Vode cannot take care of the :math:`f'(\\infty)=0`.
+            This ODE system is so solved with a shooting method.
+        """
+        import warnings
+        warnings.filterwarnings('error')
+        # Set mu values
+        mu = np.linspace(0, 10, 100)
+
+        # Implement Falkner-Skan equation
+        def deriv(Y, t):
+            Y_prime = [0, 0, 0]
+            Y_prime[0] = Y[1]
+            Y_prime[1] = Y[2]
+            Y_prime[2] = - (self.m + 1)/2.*Y[0]*Y[2] - self.m*(1. - Y[1]**2)
+            return Y_prime
+
+        def deriv2(t, Y):
+            return deriv(Y, t)
+
+        # Create ODE system for resolution
+        integrator = "lsoda"
+        ode_maxsteps = 10000
+        ODE = ode(deriv2)
+        ODE.set_integrator(integrator, nsteps=ode_maxsteps)
+
+        # Prepare shooting method to solve BVP (boundary value problem)
+        aimed_Y1p = 1.
+        first_Y3_guess = 0.33 + 0.77*np.log(2.207*(self.m + 0.45696))
+        interval_Y3 = [first_Y3_guess - .33, first_Y3_guess+ .33]
+        # first guesses for f'''(0)
+        tmp_Y3s = np.linspace(*interval_Y3, num=100)
+        tmp_Y1ps = []
+        tmp_Y2ps = []
+        for tmpY3 in tmp_Y3s:
+            ODE.set_initial_value([0, 0, tmpY3])
+            try:
+                prof = ODE.integrate(mu[-1])
+            except RuntimeWarning:
+                tmp_Y1ps.append(np.nan)
+                tmp_Y2ps.append(np.nan)
+            else:
+                tmp_Y1ps.append(prof[1])
+                tmp_Y2ps.append(prof[2])
+        tmp_Y1ps = np.array(tmp_Y1ps)
+        tmp_Y2ps = np.array(tmp_Y2ps)[~np.isnan(tmp_Y1ps)]
+        tmp_Y3s = tmp_Y3s[~np.isnan(tmp_Y1ps)]
+        tmp_Y1ps = tmp_Y1ps[~np.isnan(tmp_Y1ps)]
+        # check if we get a cool interval with apropriate derivates
+        resid = tmp_Y1ps - aimed_Y1p
+        ind_min = np.argsort(np.abs(tmp_Y1ps - aimed_Y1p))
+        if np.min(resid)*np.max(resid) < 0:
+            tmp_neg = resid[:-1]*resid[1::]
+            ind1 = np.where(tmp_neg < 0)[0]
+            ind2 = np.where(tmp_Y2ps[:-1]*tmp_Y2ps[1:] < 0)[0]
+            ind = [ind1[i] for i in np.arange(len(ind1)) if ind1[i] == ind2[i]][0]
+            interval_Y1p = [tmp_Y1ps[ind], tmp_Y1ps[ind + 1]]
+            interval_Y3 = [tmp_Y3s[ind], tmp_Y3s[ind + 1]]
+        # check if we get a lesser cool interval
+        elif ind_min[0] in [0, len(tmp_Y1ps) - 1] :
+            raise Exception("Guessing interval for f''(0) need to be enlarged"
+                            "\n tmp_Y1ps={}".format(tmp_Y1ps))
+        else:
+            interval_Y1p = [tmp_Y1ps[ind_min[0]], tmp_Y1ps[ind_min[1]]]
+            interval_Y3 = [tmp_Y3s[ind_min[0]], tmp_Y3s[ind_min[1]]]
+
+        # Shooting method to solve iteratively boundary conditions
+        nmb_it = 0
+        if verbose:
+            print("+++ Shooting method iteration +++")
+        mid_Y3 = 1e30
+        while True:
+            new_mid_Y3 = ((interval_Y3[0]*np.abs(1 - interval_Y1p[1])
+                           + interval_Y3[1]*np.abs(1 - interval_Y1p[0]))
+                          / (np.abs(1 - interval_Y1p[1])
+                             + np.abs(1 - interval_Y1p[0])))
+#            print(interval_Y3)
+#            print(interval_Y1p)
+#            print(new_mid_Y3)
+#            bug
+            if np.abs(new_mid_Y3 - mid_Y3) < 1e-10:
+                if verbose:
+                    print("+++    Can't do better than that (stuck in local minimum ?)")
+                break
+            mid_Y3 = new_mid_Y3
+            if verbose:
+                print("+++    ({})     new tested Y3 = {:.4f}".format(nmb_it, mid_Y3))
+            # compute new Y1p at middle
+            ODE.set_initial_value([0, 0, mid_Y3])
+            prof = ODE.integrate(mu[-1])
+            new_Y1p = prof[1]
+            # replace interval with new values
+            if (interval_Y1p[0] - aimed_Y1p)*(new_Y1p - aimed_Y1p) < 0:
+                interval_Y1p[1] = new_Y1p
+                interval_Y3[1] = mid_Y3
+            else:
+                interval_Y1p[0] = new_Y1p
+                interval_Y3[0] = mid_Y3
+            err = np.abs((new_Y1p - aimed_Y1p)/np.mean([new_Y1p, aimed_Y1p]))
+            if verbose:
+                print("+++             err = {:.4f}".format(err))
+            # stopping test
+            if nmb_it > max_it:
+                if verbose:
+                    print("+++    Maximum number of iteration reached")
+                break
+            if err < relerr:
+                if verbose:
+                    print("+++    Converged in {} iterations !".format(nmb_it))
+                    break
+            # incr
+            nmb_it += 1
+        Y3 = mid_Y3
+
+        # Solve ODE with the new set of boundary conditions : f(0)=f'(0)= 0 and
+        # f''(0) = Y3
+        sol = odeint(deriv, y0=[0, 0, Y3], t=mu)
+
+        # Return
+        return mu, sol
+
+    def get_profile(self, x, relerr=1e-5, max_it=1000, verbose=False):
+        """
+        return the velocity profile at 'x' position.
+        """
+        # solve ODE system using shooting method and Vode
+        mu, sol = self.get_f_function(relerr=relerr, max_it=max_it,
+                                      verbose=verbose)
+        # get y values
+        y = self.get_y(x, mu)
+        dy = y[1] - y[0]
+
+        # check solution
+        dmu = mu[1] - mu[0]
+        F0 = sol[:, 0]
+        F1 = sol[:, 1]
+        F2 = sol[:, 2]
+        F3 = np.gradient(F2, dmu)
+        print("+++ Equation +++")
+        print("+++     should be zero : {:.4f}".format(np.mean(F3 + (self.m + 1)/2*F0*F2 + self.m*(1 - F1**2))))
+        print("+++ Boundary conditions +++")
+        print("+++     f(0)={:.3f} (should be 0)".format(sol[0, 0]))
+        print("+++     f'(0)={:.3f} (should be 0)".format(sol[0, 1]))
+        print("+++     f'(inf)={:.3f} (should be 1)".format(sol[-1, 1]))
+
+        # get velocit from f
+#        phi = (self.get_u_e(x)*self.nu*x)**.5*sol[:, 0]
+#        phi = y*((2*self.nu*self.c0*self.L)/(self.m + 1))*(x/self.L)**((self.m + 1.)/2.)*sol[:, 0]
+#        vx = np.gradient(phi, dy)
+        vx = sol[:, 1]*self.get_u_e(x)
+        #return mu, sol[:, 1]
+        return y, vx
 
 
 class WallLaw(object):
