@@ -499,7 +499,8 @@ def get_Kenwright_field(field, raw=False):
         Vector product with the oher eigen vector
     """
     # get jacobian  eigen properties
-    eigval1, eigval2, eigvect1, eigvect2 = get_jacobian_eigenproperties(field)
+    eigval1, eigval1_im, eigval2, eigval2_im, eigvect1, eigvect2 \
+        = get_jacobian_eigenproperties(field)
     K1 = np.zeros(field.shape)
     K2 = np.zeros(field.shape)
     # making vector product
@@ -953,7 +954,8 @@ def get_shear_stress(vf, raw=False):
     if not isinstance(vf, VectorField):
         raise TypeError()
     tmp_vf = vf.copy()
-    tmp_vf.fill(crop_border=True)
+    tmp_vf.crop_masked_border(inplace=True)
+    tmp_vf.fill()
     # Getting gradients and axes
     axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
     comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y

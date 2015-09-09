@@ -1408,3 +1408,97 @@ def export_to_ascii(filename, VF):
             f.write("{}\t{}\t{}\t{}\n".format(x, y, VF.comp_x[i, j],
                                             VF.comp_y[i, j]))
     f.close()
+
+### VECTRINO ###
+def import_from_VNO(filepath, add_info=True):
+    """
+    Import data from a VNO file. VNO files contains data from an ADV
+    measurement.
+
+    Parameters
+    ----------
+    filepath : string
+        Path to the VNO file
+
+    Returns
+    -------
+    Vx, Vy, Vz, Vz2 : Profile objects
+        Velocity time profile along x, y, z,and z2 axis
+    """
+    # check filepath
+    if not os.path.isfile(filepath):
+        raise ValueError()
+    if add_info not in [True, False]:
+        raise TypeError()
+    # extract data from file
+    data = np.genfromtxt(filepath)
+    # check data shape
+    if data.shape[1] != 20:
+        print(data.shape)
+        raise ValueError()
+    # get profiles
+    time = data[:, 1]
+    Vx = data[:, 4]
+    Vy = data[:, 5]
+    Vz = data[:, 6]
+    Vz2 = data[:, 7]
+    Sx = data[:, 8]
+    Sy = data[:, 9]
+    Sz = data[:, 10]
+    Sz2 = data[:, 11]
+    SNRx = data[:, 12]
+    SNRy = data[:, 13]
+    SNRz = data[:, 14]
+    SNRz2 = data[:, 15]
+    Corrx = data[:, 16]
+    Corry = data[:, 17]
+    Corrz = data[:, 18]
+    Corrz2 = data[:, 19]
+    # print additional informations
+    if add_info:
+        print()
+        print("+++ ADV Measurement informations +++")
+        print("+++ Number of measure points : {}".format(len(time)))
+        print("+++ Mean velocities :")
+        print("+++    Vx  = {}".format(np.mean(Vx)))
+        print("+++    Vy  = {}".format(np.mean(Vy)))
+        print("+++    Vz  = {}".format(np.mean(Vz)))
+        print("+++    Vz2 = {}".format(np.mean(Vz2)))
+        print("+++ Mean velocities std :")
+        print("+++    Vx_var  = {}".format(np.mean(np.abs(Vx - np.mean(Vx)))))
+        print("+++    Vy_var  = {}".format(np.mean(np.abs(Vy - np.mean(Vy)))))
+        print("+++    Vz_var  = {}".format(np.mean(np.abs(Vz - np.mean(Vz)))))
+        print("+++    Vz2_var = {}".format(np.mean(np.abs(Vz2 - np.mean(Vz2)))))
+        print("+++ Mean strength :")
+        print("+++    S_x  = {:.0f}".format(np.mean(Sx)))
+        print("+++    S_y  = {:.0f}".format(np.mean(Sy)))
+        print("+++    S_z  = {:.0f}".format(np.mean(Sz)))
+        print("+++    S_z2 = {:.0f}".format(np.mean(Sz2)))
+        print("+++ Mean SNR :")
+        print("+++    SNR_x  = {:.1f}".format(np.mean(SNRx)))
+        print("+++    SNR_y  = {:.1f}".format(np.mean(SNRy)))
+        print("+++    SNR_z  = {:.1f}".format(np.mean(SNRz)))
+        print("+++    SNR_z2 = {:.1f}".format(np.mean(SNRz2)))
+        print("+++ Mean Correlation :")
+        print("+++    Corr_x  = {:.1f}".format(np.mean(Corrx)))
+        print("+++    Corr_y  = {:.1f}".format(np.mean(Corry)))
+        print("+++    Corr_z  = {:.1f}".format(np.mean(Corrz)))
+        print("+++    Corr_z2 = {:.1f}".format(np.mean(Corrz2)))
+    # print warnings if measure quality is not good enough
+    if np.any(np.array([np.mean(Sx), np.mean(Sy), np.mean(Sz), np.mean(Sz2)])
+              < 100):
+        print("+++ Warning : low signal strength")
+    if np.any(np.array([np.mean(SNRx), np.mean(SNRy), np.mean(SNRz),
+                        np.mean(SNRz2)]) < 13):
+        print("+++ Warning : low SNR ratio")
+    if np.any(np.array([np.mean(Corrx), np.mean(Corry), np.mean(Corrz),
+                        np.mean(Corrz2)]) < 80):
+        print("+++ Warning : low signal correlation")
+    # create profiles
+    Vx_prof = Profile(time, Vx, mask=False, unit_x="s", unit_y="m/s")
+    Vy_prof = Profile(time, Vy, mask=False, unit_x="s", unit_y="m/s")
+    Vz_prof = Profile(time, Vz, mask=False, unit_x="s", unit_y="m/s")
+    Vz2_prof = Profile(time, Vz2, mask=False, unit_x="s", unit_y="m/s")
+    # returning
+    return Vx_prof, Vy_prof, Vz_prof, Vz2_prof
+
