@@ -6003,7 +6003,7 @@ class VectorField(Field):
         # v
         if scalev is None:
             pass
-        if isinstance(scalev, NUMBERTYPES):
+        elif isinstance(scalev, NUMBERTYPES):
             tmp_f.comp_x *= scalev
             tmp_f.comp_y *= scalev
         elif isinstance(scalev, unum.Unum):
@@ -7617,7 +7617,7 @@ class TemporalFields(Fields, Field):
             # remove trivial borders
             tmp_tf.crop_masked_border(hard=False, inplace=True)
             # until there is no more masked values
-            while np.any(tmp_tf.mask):
+            while True:
                 # getting mask
                 masks = tmp_tf.mask
                 mask = np.sum(masks, axis=0)
@@ -7629,6 +7629,9 @@ class TemporalFields(Fields, Field):
                 bd4 = np.sum(mask[:, -1])
                 # getting more masked border
                 more_masked = np.argmax([bd1, bd2, bd3, bd4])
+                # check remaining masked values
+                if [bd1, bd2, bd3, bd4][more_masked] == 0:
+                    break
                 # deleting more masked border
                 if more_masked == 0:
                     len_x = len(tmp_tf.axe_x)

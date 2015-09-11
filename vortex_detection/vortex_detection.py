@@ -25,6 +25,7 @@ import unum
 import copy
 import sympy
 import time as modtime
+import warnings
 
 
 def velocityfield_to_vf(vectorfield, time):
@@ -220,6 +221,12 @@ class VF(object):
                 continue
             elif nmb_zeros > 1:
                 new_positions[i] = pos
+                continue
+            # check if zero values
+            if np.any(Vx_bl == 0) or np.any(Vy_bl == 0):
+                warnings.warn("There is a point with zero velocity, it's"
+                              "a particular case not implemented yet."
+                              "Skipping this cell (there will be missing CP).")
                 continue
             # solve to get the zero velocity point
             tmp_dic = {'Vx_1': Vx_bl[0, 0], 'Vx_2': Vx_bl[0, 1],

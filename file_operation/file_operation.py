@@ -1014,7 +1014,7 @@ def import_from_pictures(dirname, axe_x=None, axe_y=None, unit_x='', unit_y='',
         .
     """
     # get paths
-    paths = glob(path.join(dirname))
+    paths = glob(dirname)
     tmp_tsf = TemporalScalarFields()
     # check times
     if times is None:
