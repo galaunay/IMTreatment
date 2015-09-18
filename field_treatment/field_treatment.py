@@ -729,7 +729,7 @@ def get_streamlines_fast(vf, xy, delta=.25, interp='linear',
         return streams
 
 def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
-                     max_steps=1000, resolution=0.25):
+                     max_steps=1000, resolution=0.25, boundary_tr='stop'):
     """
     Return the lagrangien displacement of a set of particules initialy at the
     positions xys.
@@ -748,6 +748,10 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
         Maximum number of steps (default = 1000).
     resolution : number,
         resolution of the resulting streamline (do not impact accuracy).
+    boundary_tr : string
+        Method to treat the field boundaries. If 'stop', streamlines are
+        stopped when encountering a boundary, If 'hide', streamlines
+        that encounter a boundary are not returned.
     """
 
     #############
@@ -775,6 +779,10 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
     if not isinstance(max_steps, NUMBERTYPES):
         raise TypeError()
     max_steps = int(max_steps)
+    if not isinstance(boundary_tr, STRINGTYPES):
+        raise TypeError()
+    if boundary_tr not in ['stop', 'hide']:
+        raise ValueError()
 
     ################
     ### get data ###
@@ -855,8 +863,8 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
     streams = []
     for xy in xys:
         # check for invalid points
-        if not is_outside(axe_x, axe_y, xy):
-            streams.append(Points())
+        if is_outside(axe_x, axe_y, xy):
+            continue
 
         ############################
         ### solve streamline ODE ###
@@ -873,7 +881,7 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
         while ODE.successful():
             try:
                 rk_dt = dxy/np.linalg.norm(fun(res[-1]))*resolution
-            except ValueError:
+            except (ValueError, RuntimeWarning):
                 break
             try:
                 tmp_xy = ODE.integrate(ODE.t + rk_dt)
@@ -886,7 +894,7 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
             # store
             res.append(tmp_xy)
         new_xys = res
-        warnings.filterwarnings('once')
+#        warnings.filterwarnings('once')
         # storing and rescaling
         if len(new_xys) != 0:
             new_xys = np.array(new_xys, dtype=float)

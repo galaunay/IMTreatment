@@ -393,11 +393,12 @@ class Points(object):
             raise TypeError("'xy' should be an array, not {}"
                             .format(type(values)))
         values = np.array(values, subok=True)
-        if not values.ndim == 2:
-            raise ValueError("ndim of xy is {} and should be 2"
-                             .format(values.ndim))
-        if not values.shape[1] == 2:
-            raise ValueError()
+        if len(values != 0):
+            if not values.ndim == 2:
+                raise ValueError("ndim of xy is {} and should be 2"
+                                 .format(values.ndim))
+            if not values.shape[1] == 2:
+                raise ValueError()
         self.__xy = values
         # XXX: for compatibility purpose, to remove
         try:
@@ -1100,7 +1101,7 @@ class Points(object):
         else:
             raise ValueError()
 
-    def trim(self, interv_x=None, interv_y=None):
+    def trim(self, interv_x=None, interv_y=None, interv_v=None, inplace=True):
         """
         Return a trimmed point cloud.
 
@@ -1110,13 +1111,18 @@ class Points(object):
             Interval on x axis
         interv_y : 2x1 tuple
             Interval on y axis
+        interv_v : 2x1 tuple
+            Interval on v values
 
         Returns
         -------
         tmp_pts : Points object
             Trimmed version of the point cloud.
         """
-        tmp_pts = self.copy()
+        if inplace:
+            tmp_pts = self
+        else:
+            tmp_pts = self.copy()
         mask = np.zeros(len(self.xy))
         if interv_x is not None:
             out_zone = np.logical_or(self.xy[:, 0] < interv_x[0],
@@ -1126,10 +1132,16 @@ class Points(object):
             out_zone = np.logical_or(self.xy[:, 1] < interv_y[0],
                                      self.xy[:, 1] > interv_y[1])
             mask = np.logical_or(mask, out_zone)
+        if interv_v is not None and len(self.v) != 0:
+            out_zone = np.logical_or(self.v < interv_v[0],
+                                     self.v > interv_v[1])
+            mask = np.logical_or(mask, out_zone)
         tmp_pts.xy = tmp_pts.xy[~mask, :]
         if tmp_pts.v is not None:
             tmp_pts.v = tmp_pts.v[~mask]
-        return tmp_pts
+        # returning
+        if not inplace:
+            return tmp_pts
 
     def scale(self, scalex=1., scaley=1., scalev=1., inplace=False):
         """
@@ -2338,7 +2350,6 @@ class Profile(object):
         else:
             raise ValueError()
         # getting spectrum
-
         fs = 1/(time[1] - time[0])
         if welch_seglen is None or welch_seglen >= len(time):
             if scaling == 'base':
@@ -2980,15 +2991,29 @@ class Profile(object):
                                              color_label=color_label,
                                              **plotargs)
                     return plot
-        # homogeneous color
+        # check log error
+        ind_to_del = np.zeros(len(x), dtype=bool)
+        if kind in ['semilogx', 'loglog'] and np.any(x <= 0):
+            ind_to_del = np.logical_or(ind_to_del, x <= 0)
+        elif kind in ['semilogy', 'loglog'] and np.any(y <= 0):
+            ind_to_del = np.logical_or(ind_to_del, y <= 0)
+        ind_to_keep = np.logical_not(ind_to_del)
+        x = x[ind_to_keep]
+        y = y[ind_to_keep]
+        # display normal plot
+        plot = plt.plot(x, y, **plotargs)
+        ax = plt.gca()
         if kind == 'plot':
-            plot = plt.plot(x, y, **plotargs)
+            pass
         elif kind == 'semilogx':
-            plot = plt.semilogx(x, y, **plotargs)
+            ax.set_yscale('linear')
+            ax.set_xscale('log')
         elif kind == 'semilogy':
-            plot = plt.semilogy(x, y, **plotargs)
+            ax.set_yscale('log')
+            ax.set_xscale('linear')
         elif kind == 'loglog':
-            plot = plt.loglog(x, y, **plotargs)
+            ax.set_xscale('log')
+            ax.set_yscale('log')
         else:
             raise ValueError("Unknown plot type : {}.".format(kind))
         return plot
@@ -4194,6 +4219,58 @@ class ScalarField(Field):
             return None
         return Points(coords, unit_x=self.unit_x, unit_y=self.unit_y)
 
+    def get_nearest_extrema(self, pts, extrema='max', ind=False):
+        """
+        For a given set of points, return the positions of the nearest local
+        extrema (minimum or maximum).
+
+        Parameters
+        ----------
+        pts : Nx2 array
+            Set of Points position.
+
+        Returns
+        -------
+        extremum_pos : Nx2 array
+        """
+        # get data
+        tmp_sf = self.copy()
+        tmp_sf.mirroring(direction=1, position=tmp_sf.axe_x[0], inds_to_mirror=1, inplace=True)
+        tmp_sf.mirroring(direction=1, position=tmp_sf.axe_x[-1],
+                         inds_to_mirror=1, inplace=True)
+        tmp_sf.mirroring(direction=2, position=tmp_sf.axe_y[0],
+                         inds_to_mirror=1, inplace=True)
+        tmp_sf.mirroring(direction=2, position=tmp_sf.axe_y[-1],
+                         inds_to_mirror=1, inplace=True)
+        dx = tmp_sf.axe_x[1] - tmp_sf.axe_x[0]
+        dy = tmp_sf.axe_y[1] - tmp_sf.axe_y[0]
+        # get gradient field
+        grad_x, grad_y = np.gradient(tmp_sf.values, dx, dy)
+        vf = VectorField()
+        vf.import_from_arrays(tmp_sf.axe_x, tmp_sf.axe_y, grad_x, grad_y,
+                              unit_x=tmp_sf.unit_x, unit_y=tmp_sf.unit_y,
+                              unit_values=tmp_sf.unit_values)
+        # extract the streamline from the gradient field
+        from field_treatment import get_streamlines
+        if extrema == 'min':
+            reverse = True
+        else:
+            reverse = False
+        sts = get_streamlines(vf, pts, reverse=reverse, resolution=0.1)
+         # get the final converged points
+        extremum_pos = []
+        if isinstance(sts, ARRAYTYPES):
+            for i, st in enumerate(sts):
+                if len(st.xy) == 0:
+                    extremum_pos.append(pts[i])
+                else:
+                    extremum_pos.append(st.xy[-1])
+        else:
+            extremum_pos.append(sts.xy[-1])
+        extremum_pos = np.array(extremum_pos)
+        # returning
+        return extremum_pos
+
     def get_profile(self, direction, position, ind=False):
         """
         Return a profile of the scalar field, at the given position (or at
@@ -4743,7 +4820,7 @@ class ScalarField(Field):
                                          indmin_y:indmax_y + 1]
             return trimfield
 
-    def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
+    def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0, value=None,
                inplace=False, ind=True):
         """
         Add columns or lines of masked values at the scalarfield.
@@ -4752,6 +4829,9 @@ class ScalarField(Field):
         ----------
         nmb_**** : integers
             Number of lines/columns to add in each direction.
+        value : None or number
+            Value used to fill the new columns and lines. If 'value' is not
+            given, new columns and lines are masked.
         inplace : bool
             If 'False', return a new extended field, if 'True', modify the
             field inplace.
@@ -4794,7 +4874,12 @@ class ScalarField(Field):
                                      nmb_down=nmb_down, inplace=False)
             new_shape = new_field.shape
         # extend the value ans mask
-        new_values = np.zeros(new_shape, dtype=float)
+        if value is None:
+            new_values = np.zeros(new_shape, dtype=float)
+            new_mask = np.ones(new_shape, dtype=bool)
+        else:
+            new_values = np.ones(new_shape, dtype=float)*value
+            new_mask = np.zeros(new_shape, dtype=bool)
         if nmb_right == 0:
             slice_x = slice(nmb_left, new_values.shape[0] + 2)
         else:
@@ -4804,7 +4889,6 @@ class ScalarField(Field):
         else:
             slice_y = slice(nmb_down, -nmb_up)
         new_values[slice_x, slice_y] = self.values
-        new_mask = np.ones(new_shape, dtype=bool)
         new_mask[slice_x, slice_y] = self.mask
         # return
         if inplace:
@@ -7772,8 +7856,8 @@ class TemporalFields(Fields, Field):
 
         Parameters
         ----------
-        fieldname : string, optional
-            Fields to display ('fields', 'mean_vf', 'turbulent_vf')
+        component : string, optional
+            component to display
         kind : string, optional
             Kind of display wanted.
         fields_ind : array of indices
@@ -7830,6 +7914,7 @@ class TemporalFields(Fields, Field):
                                                      kind=kind, **plotargs)
                 fig.delaxes(ax)
             plt.tight_layout()
+        return fig
 
     def display(self, compo=None, suppl_display=None, **plotargs):
         """

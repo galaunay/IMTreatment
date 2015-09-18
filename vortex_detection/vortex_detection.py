@@ -225,7 +225,7 @@ class VF(object):
             # check if zero values
             if np.any(Vx_bl == 0) or np.any(Vy_bl == 0):
                 warnings.warn("There is a point with zero velocity, it's"
-                              "a particular case not implemented yet."
+                              "a particular case not implemented yet. "
                               "Skipping this cell (there will be missing CP).")
                 continue
             # solve to get the zero velocity point
@@ -971,6 +971,115 @@ class CritPoints(object):
             simpl_CP.add_point(foc=foc, foc_c=foc_c, sadd=sadd, node_i=node_i,
                                node_o=node_o, time=self.times[i])
         return simpl_CP
+
+    def refine_cp_position(self, cp_type, fields, inplace=True, verbose=True,
+                           extrema='max'):
+        """
+        Refine the position of the critical points by putting them on the
+        given scalar field extrema.
+
+        Parameters
+        ----------
+        cp_type : string in ['foc', 'foc_c', 'sadd', 'node_i', 'node_o']
+            Critical points type to refine.
+        fields : TemporalScalarFields object
+            fields where to search for extrema.
+        extrema : string in ['min', 'max']
+            If 'max', cp are displaced on field maxima, if 'min', cp are
+            displaced on field minima.
+        inplace : boolean
+            .
+        verbose : boolean
+            .
+        """
+        # check
+        if not cp_type in ['foc', 'foc_c', 'sadd', 'node_i', 'node_o']:
+            raise ValueError()
+        if not isinstance(fields, TemporalScalarFields):
+            raise TypeError()
+        if not np.all(self.times == fields.times):
+            raise ValueError()
+        times = self.times
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        # get cp pts
+        if cp_type == 'foc':
+            cp_pts = self.foc
+        elif cp_type == 'foc_c':
+            cp_pts = self.foc_c
+        elif cp_type == 'sadd':
+            cp_pts = self.sadd
+        elif cp_type == 'node_i':
+            cp_pts = self.node_i
+        elif cp_type == 'node_o':
+            cp_pts = self.node_o
+        new_cp_pts = []
+        # Loop on time
+        PG = ProgressCounter("Begin '{}' points refinment".format(cp_type),
+                             "Done", nmb_max=len(cp_pts))
+        for i in np.arange(len(times)):
+            PG.print_progress()
+            # check if there is point to refine
+            if len(cp_pts[i]) == 0:
+                new_cp_pts.append(cp_pts[i].copy())
+                continue
+            # getting pt and field associated with the current time iteration
+            new_pt = cp_pts[i].copy()
+            tmp_field = fields[fields.times == times[i]][0]
+            # getting new cp position
+            new_pt.xy = tmp_field.get_nearest_extrema(cp_pts[i].xy,
+                                                      extrema=extrema)
+            new_cp_pts.append(new_pt)
+        # store new positions
+        if inplace:
+            tmp_traj = self
+        else:
+            tmp_traj = self.copy()
+        if cp_type == 'foc':
+            tmp_traj.foc = new_cp_pts
+        elif cp_type == 'foc_c':
+            tmp_traj.foc_c = new_cp_pts
+        elif cp_type == 'sadd':
+            tmp_traj.sadd = new_cp_pts
+        elif cp_type == 'node_i':
+            tmp_traj.node_i = new_cp_pts
+        elif cp_type == 'node_o':
+            tmp_traj.node_o = new_cp_pts
+        # make trajectories obsolete
+        tmp_traj.current_epsilon = None
+        # return
+        if not inplace:
+            return tmp_traj
+#        foc = cp_traj.foc
+#        foc_c = cp_traj.foc_c
+#        times = cp_traj.times
+#        new_foc = []
+#        new_foc_c = []
+#        print("+ Adjusting the position of the critical points to suit"
+#              "residual vorticity vortex definition")
+#        res_vorts = vod.get_residual_vorticity(fields)
+#        PG1 = imttools.ProgressCounter("Beginning", "end", nmb_max=len(foc)*2)
+#        for i, pts in enumerate(foc_c):
+#            PG1.print_progress()
+#            if len(pts) == 0:
+#                continue
+#            tmp_pts = pts.copy()
+#            res_vort = res_vorts.fields[res_vorts.times == times[i]][0]
+#            tmp_pts.xy = res_vort.get_nearest_extrema(pts.xy, extrema='max')
+#            new_foc_c.append(tmp_pts)
+#        for i, pts in enumerate(foc):
+#            PG1.print_progress()
+#            if len(pts) == 0:
+#                continue
+#            tmp_pts = pts.copy()
+#            res_vort = res_vorts.fields[res_vorts.times == times[i]][0]
+#            tmp_pts.xy = res_vort.get_nearest_extrema(pts.xy, extrema='max')
+#            new_foc.append(tmp_pts)
+#        # store
+#        new_cp_traj = cp_traj.copy()
+#        new_cp_traj.foc = new_foc
+#        new_cp_traj.foc = new_foc_c
+#        new_cp_traj.compute_traj(eps_traj)
 
 
     ### Private ###
