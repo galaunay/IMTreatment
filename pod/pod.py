@@ -128,6 +128,155 @@ class ModalFields(Field):
                                  unit_times=self.unit_times)
             return tmp_tf
 
+    def trim_modes(self, modes_to_keep=None, modes_to_remove=None,
+                   inplace=True):
+        """
+        Remove some modes from the set.
+        
+        Parameters
+        ----------
+        modes_to_keep : array of integers or integer
+            If an integer, the first N modes are kept, if an array of indices,
+            all the associated modes are conserved.
+        modes_to_remove :  array of integers or integer
+            If an integer, the last N modes are removed,
+            if an array of indices, all the associated modes are removed.
+        """
+        # check
+        if modes_to_keep is None and modes_to_remove is None:
+            raise ValueError()
+        if modes_to_keep is not None:
+            if isinstance(modes_to_keep, int):
+                modes_to_keep = np.arange(modes_to_keep)
+            if not isinstance(modes_to_keep, ARRAYTYPES):
+                raise TypeError()
+            modes_to_keep = np.array(modes_to_keep, dtype=int)
+        else:
+            if isinstance(modes_to_remove, int):
+                modes_to_remove = np.arrange(len(self.modes) - modes_to_remove,
+                                             len(self.modes))
+            if not isinstance(modes_to_remove, ARRAYTYPES):
+                raise TypeError()
+            modes_to_remove = np.array(modes_to_remove, dtype=int)           
+            modes_to_keep = np.arrange(len(self.modes))
+            modes_to_keep = np.delete(modes_to_keep, modes_to_remove)
+        # get data
+        if inplace:
+            tmp_pod = self
+        else:
+            tmp_pod = self.copy()
+        # prepare new containers
+        new_modes = []
+        new_temp_evo = []
+        if self.decomp_type == 'pod':
+            new_eigvals = Profile(unit_x=self.eigvals.unit_x, 
+                                  unit_y=self.eigvals.unit_y)
+            new_eigvects = []
+        elif self.decomp_type == "dmd":
+            new_growth_rate = Profile(unit_x=self.eigvals.unit_x, 
+                                      unit_y=self.eigvals.unit_y)
+            new_mode_norms = Profile(unit_x=self.eigvals.unit_x, 
+                                     unit_y=self.eigvals.unit_y)
+            new_pulsation = Profile(unit_x=self.eigvals.unit_x, 
+                                    unit_y=self.eigvals.unit_y)
+            new_ritz_vals = Profile(unit_x=self.eigvals.unit_x, 
+                                    unit_y=self.eigvals.unit_y)
+        else:
+            raise Exception('Not implemented for {}'.format(self.decomp_type))
+        # loop on wanted modes
+        for ind in modes_to_keep:
+            new_modes.append(tmp_pod.modes[ind])
+            new_temp_evo.append(tmp_pod.temp_evo[ind])
+            if self.decomp_type == 'pod':
+                new_eigvals.add_point(tmp_pod.eigvals.x[ind],
+                                      tmp_pod.eigvals.y[ind])
+                tmp_vect = []                     
+                for ind2 in modes_to_keep:
+                    tmp_vect.append(tmp_pod.eigvects[ind, ind2])
+                new_eigvects.append(tmp_vect)
+            if self.decomp_type == "dmd":
+                new_growth_rate.add_point(tmp_pod.growth_rate.x[ind],
+                                      tmp_pod.growth_rate.y[ind])
+                new_mode_norms.add_point(tmp_pod.mode_norms.x[ind],
+                                      tmp_pod.mode_norms.y[ind])
+                new_pulsation.add_point(tmp_pod.pulsation.x[ind],
+                                      tmp_pod.pulsation.y[ind])
+                new_ritz_vals.add_point(tmp_pod.ritz_vals.x[ind],
+                                      tmp_pod.ritz_vals.y[ind])
+        # store
+        tmp_pod.modes_nmb = tmp_pod.modes_nmb[modes_to_keep]
+        tmp_pod.modes = new_modes
+        tmp_pod.temp_evo = new_temp_evo
+        if self.decomp_type == 'pod':
+            tmp_pod.eigvals = new_eigvals
+            tmp_pod.eigvects = np.array(new_eigvects, dtype=float)
+        if self.decomp_type == "dmd":
+            tmp_pod.growth_rate = new_growth_rate
+            tmp_pod.mode_norms = new_mode_norms
+            tmp_pod.pulsation = new_pulsation
+            tmp_pod.ritz_vals = new_ritz_vals
+        # return
+        if not inplace:
+            return tmp_pod
+    
+    def trim_time(self, interval, ind=False, inplace=False):
+        """
+        Remove some part of the temporal evolution
+        (used to shorten the result of 'reconstruct')
+        
+        Parameters
+        ----------
+        interval : 2x1 array of numbers
+            Interval of time to keep.
+        ind : bool
+            If 'True', 'interval' is taken as indice, else, 'interval is take
+            as time values.
+        inplace : bool
+            .
+        """
+        # check
+        if not isinstance(interval, ARRAYTYPES):
+            raise TypeError()
+        if not isinstance(ind, bool):
+            raise TypeError()
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        # get data
+        if inplace:
+            tmp_pod = self
+        else:
+            tmp_pod = self.copy()
+        times = self.times
+        # get time indices
+        if not ind:
+            interval = np.array(interval, dtype=float)
+            if interval[0] <= times[0]:
+                ind_1 = 0
+            elif interval[0] >= times[-1]:
+                raise ValueError()
+            else:
+                ind_1 = np.where(times > interval[0])[0][0]
+            if interval[1] >= times[-1]:
+                ind_2 = len(times)
+            elif interval[1] <= times[0]:
+                raise ValueError()
+            else:
+                ind_2 = np.where(times > interval[1])[0][0]
+            interval = [ind_1, ind_2]
+        interval = np.array(interval, dtype=int)
+        # trim 
+        tmp_pod.times = tmp_pod.times[interval[0]:interval[1]]
+        tmp_pod._ModalFields__temp_coh = None
+        for prof in tmp_pod.temp_evo:
+            prof.trim(interval, ind=True, inplace=True)
+        # return
+        if not inplace:
+            return tmp_pod
+            
+        
+    def trim_space(self):
+        pass
+
     def smooth_temporal_evolutions(self, tos='uniform', size=None,
                                    inplace=True):
         """
@@ -175,6 +324,53 @@ class ModalFields(Field):
             for n in np.arange(len(tmp_MF.modes)):
                 tmp_MF.mdes[n].smooth(tos=tos, size=size, inplace=True)
             return tmp_MF
+
+    def augment_temporal_resolution(self, fact=2, interp='linear',
+                                    inplace=True, verbose=False):
+        """
+        Augment the temporal resolution (to augmente the temporal resolution
+        of the reconstructed fields).
+        
+        Parameters
+        ----------
+        fact : integer
+            Resolution augmentation needed (default is '2', for a result
+            profile with twice more points)
+        interp : string in ['linear', 'nearest', 'slinear', 'quadratic', 'cubic']
+            Specifies the kind of interpolation as a string
+            (Default is 'linear'). slinear', 'quadratic' and 'cubic' refer
+            to a spline interpolation of first, second or third order.
+        inplace : bool
+            .
+        verbose : bool
+            .
+        """
+        # check parameters
+        if not isinstance(fact, int):
+            raise TypeError()
+        if fact <= 0:
+            raise TypeError()
+        if not isinstance(interp, STRINGTYPES):
+            raise TypeError()
+        if not interp in ['linear', 'nearest', 'slinear', 'quadratic', 'cubic']:
+            raise ValueError()
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        # get data
+        if inplace:
+            tmp_pod = self
+        else:
+            tmp_pod = self.copy()
+        # loop on the temporal evolutions
+        for prof in tmp_pod.temp_evo:
+            prof.augment_resolution(fact=fact, interp=interp, inplace=True)
+        # change other little things
+        tmp_pod.times = tmp_pod.temp_evo[0].x
+        tmp_pod._ModalFields__spat_coh = None
+        tmp_pod._ModalFields__temp_coh = None
+        # return
+        if not inplace:
+            return tmp_pod
 
     def reconstruct(self, wanted_modes='all', times=None):
         """

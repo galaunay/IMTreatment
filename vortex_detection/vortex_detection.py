@@ -1386,6 +1386,9 @@ class CritPoints(object):
             raise ValueError()
         if time is not None:
             indice = self._get_indice_from_time(time)
+        elif indice is not None:
+            if not isinstance(indice, int):
+                raise TypeError()
         if field is not None:
             if not isinstance(field, VectorField):
                 raise TypeError()

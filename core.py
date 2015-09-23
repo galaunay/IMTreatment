@@ -545,12 +545,12 @@ class Points(object):
         -----------
         bw_method : str, scalar or callable, optional
             The method used to calculate the estimator bandwidth.
-            This can be ‘scott’, ‘silverman’, a scalar constant or
+            This can be 'scott', 'silverman', a scalar constant or
             a callable. If a scalar, this will be used as std
             (it should aprocimately be the size of the density
             node you want to see).
             If a callable, it should take a gaussian_kde instance as only
-            parameter and return a scalar. If None (default), ‘scott’ is used.
+            parameter and return a scalar. If None (default), 'scott' is used.
             See Notes for more details.
         resolution : integer or 2x1 tuple of integers, optional
             Resolution for the resulting field.
@@ -2409,8 +2409,8 @@ class Profile(object):
         fill : string or float
             Specifies the way to treat missing values.
             A value for value filling.
-            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
-            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
+            A string ('linear', 'nearest', 'zero', 'slinear', 'quadratic,
+            'cubic' where 'slinear', 'quadratic' and 'cubic' refer to a spline
             interpolation of first, second or third order) for interpolation.
         raw : bool
             if 'True', return an array, else (default), return a ScalarField
@@ -2471,10 +2471,10 @@ class Profile(object):
         ----------
         bw_method : str, scalar or callable, optional
             The method used to calculate the estimator bandwidth. This can be
-            ‘scott’, ‘silverman’, a scalar constant or a callable. If a scalar,
+            'scott', 'silverman', a scalar constant or a callable. If a scalar,
             this will be used directly as kde.factor. If a callable, it should
             take a gaussian_kde instance as only parameter and return a scalar.
-            If None (default), ‘scott’ is used.
+            If None (default), 'scott' is used.
             See 'scipy.stats.kde' for more details.
         resolution : integer, optional
             Resolution of the returned pdf.
@@ -2669,6 +2669,25 @@ class Profile(object):
         self.x = np.concatenate((self.x[0:pos_ind], [x], self.x[pos_ind::]))
         self.y = np.concatenate((self.y[0:pos_ind], [y], self.y[pos_ind::]))
 
+    def remove_point(self, ind):
+        """
+        Remove a point from the profile
+        
+        Parameters
+        ----------
+        ind : integer
+            Idice of the point to remove
+        
+        """
+        # check
+        if not isinstance(ind, int):
+            raise TypeError()
+        if not ind >= 0:
+            raise ValueError()
+        # remove the point
+        self.x = np.concatenate((self.x[0:ind], self.x[ind + 1::]))
+        self.y = np.concatenate((self.y[0:ind], self.y[ind + 1::]))
+
     def crop_masked_border(self, inplace=False):
         """
         Remove the masked values at the border of the profile in place or not.
@@ -2678,7 +2697,7 @@ class Profile(object):
         else:
             tmp_prof = self.copy()
         mask = tmp_prof.mask
-        inds_not_masked = np.where(mask is False)[0]
+        inds_not_masked = np.where(np.logical_not(mask))[0]
         first = inds_not_masked[0]
         last = inds_not_masked[-1] + 1
         tmp_prof.trim([first, last], ind=True, inplace=True)
@@ -2703,7 +2722,7 @@ class Profile(object):
         # checking parameters coherence
         if not isinstance(interval, ARRAYTYPES):
             raise TypeError("'interval' must be an array")
-        interval = np.array(interval, dtype=float)
+        interval = np.array(interval)
         if not interval.shape == (2,):
             raise ValueError("'interval' must be an array with only two"
                              "values")
@@ -2736,6 +2755,7 @@ class Profile(object):
             mask_new = self.mask[indices[0]:indices[1]]
         # given position is an indice
         else:
+            interval = np.array(interval, dtype=int)
             if any(interval < 0) or any(interval > len(self.x)):
                 raise ValueError("'interval' indices are out of profile")
             x_new = self.x[interval[0]:interval[1]]
@@ -2761,11 +2781,11 @@ class Profile(object):
         Parameters
         ----------
         kind : string or int, optional
-            Specifies the kind of interpolation as a string ('value', ‘linear’,
-            ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic, ‘cubic’ where ‘slinear’,
-            ‘quadratic’ and ‘cubic’ refer to a spline interpolation of first,
+            Specifies the kind of interpolation as a string ('value', 'linear',
+            'nearest', 'zero', 'slinear', 'quadratic, 'cubic' where 'slinear',
+            'quadratic' and 'cubic' refer to a spline interpolation of first,
             second or third order) or as an integer specifying the order of
-            the spline interpolator to use. Default is ‘linear’.
+            the spline interpolator to use. Default is 'linear'.
         fill_value : number, optional
             For kind = 'value', filling value.
         inplace : boolean, optional
@@ -2821,6 +2841,62 @@ class Profile(object):
                                unit_y=self.unit_y, name=self.name)
             return tmp_prof
 
+    def augment_resolution(self, fact=2, interp='linear', inplace=True):
+        """
+        Augment the temporal resolution of the profile.
+        
+        Parameters
+        ----------
+        fact : integer
+            Resolution augmentation needed (default is '2', for a result
+            profile with twice more points)
+        interp : string in ['linear', 'nearest', slinear', 'quadratic, 'cubic']
+            Specifies the kind of interpolation as a string
+            (Default is 'linear'). slinear', 'quadratic' and 'cubic' refer
+            to a spline interpolation of first, second or third order.
+        inplace bool
+            .
+            
+        Note
+        ----
+        If masked values are present, they are interpolated as well, using the
+        surrounding values.
+        """
+        # check parameters
+        if not isinstance(fact, int):
+            raise TypeError()
+        if fact <= 0:
+            raise TypeError()
+        if not isinstance(interp, STRINGTYPES):
+            raise TypeError()
+        if not interp in ['linear', 'nearest', 'zero', 'slinear', 'quadratic',
+            'cubic']:
+            raise ValueError()
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        # get data
+        if inplace:
+            tmp_prof = self
+        else:
+            tmp_prof = self.copy()
+        tmp_prof.crop_masked_border(inplace=True)
+        filt = np.logical_not(tmp_prof.mask)
+        # interpolate using scipy
+        old_inds = np.arange(0, len(tmp_prof.x)*fact, fact)
+        new_inds = np.arange(len(tmp_prof.x)*fact - 1)
+        interp_x = spinterp.interp1d(old_inds[filt], tmp_prof.x[filt], kind=interp,
+                                     assume_sorted=True)
+        new_x = interp_x(new_inds)
+        interp_y = spinterp.interp1d(old_inds[filt], tmp_prof.y[filt], kind=interp,
+                                     assume_sorted=True)
+        new_y = interp_y(new_inds)
+        # return
+        tmp_prof.x = new_x
+        tmp_prof.y = new_y
+        tmp_prof.mask = np.zeros(len(new_x), dtype=bool)
+        if not inplace:
+            return tmp_prof
+
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.
@@ -2862,11 +2938,11 @@ class Profile(object):
         Parameters
         ----------
         kind_interpolation : string or int, optional
-            Specifies the kind of interpolation as a string ('value', ‘linear’,
-            ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic, ‘cubic’ where ‘slinear’,
-            ‘quadratic’ and ‘cubic’ refer to a spline interpolation of first,
+            Specifies the kind of interpolation as a string ('value', 'linear',
+            'nearest', 'zero', 'slinear', 'quadratic, 'cubic' where 'slinear',
+            'quadratic' and 'cubic' refer to a spline interpolation of first,
             second or third order) or as an integer specifying the order of
-            the spline interpolator to use. Default is ‘linear’.
+            the spline interpolator to use. Default is 'linear'.
         """
         # checking if evenly spaced
         dxs = self.x[1::] - self.x[:-1:]
@@ -4501,7 +4577,7 @@ class ScalarField(Field):
         fill : string or float
             Specifies the way to treat missing values.
             A value for value filling.
-            A string (‘linear’, ‘nearest’ or 'cubic') for interpolation.
+            A string ('linear', 'nearest' or 'cubic') for interpolation.
 
         Returns
         -------
@@ -4939,11 +5015,11 @@ class ScalarField(Field):
         interp : string, optional
             If specified, method used to fill the gap near the
             symetry plane by interpoaltion.
-            ‘value’ : fill with the given value,
-            ‘nearest’ : fill with the nearest value,
-            ‘linear’ (default): fill using linear interpolation
+            'value' : fill with the given value,
+            'nearest' : fill with the nearest value,
+            'linear' (default): fill using linear interpolation
             (Delaunay triangulation),
-            ‘cubic’ : fill using cubic interpolation (Delaunay triangulation)
+            'cubic' : fill using cubic interpolation (Delaunay triangulation)
         value : array, optional
             Value at the symetry plane, in case of interpolation
         """
@@ -7170,7 +7246,7 @@ class TemporalFields(Fields, Field):
         fill : string or float
             Specifies the way to treat missing values.
             A value for value filling.
-            A string (‘linear’, ‘nearest’ or 'cubic') for interpolation.
+            A string ('linear', 'nearest' or 'cubic') for interpolation.
 
         Notes
         -----
@@ -7318,8 +7394,8 @@ class TemporalFields(Fields, Field):
         fill : string or float
             Specifies the way to treat missing values.
             A value for value filling.
-            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
-            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
+            A string ('linear', 'nearest', 'zero', 'slinear', 'quadratic,
+            'cubic' where 'slinear', 'quadratic' and 'cubic' refer to a spline
             interpolation of first, second or third order) for interpolation.
         mask_error : boolean
             If 'False', instead of raising an error when masked value appear on
@@ -7387,8 +7463,8 @@ class TemporalFields(Fields, Field):
         fill : string or float
             Specifies the way to treat missing values.
             A value for value filling.
-            A string (‘linear’, ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic,
-            ‘cubic’ where ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
+            A string ('linear', 'nearest', 'zero', 'slinear', 'quadratic,
+            'cubic' where 'slinear', 'quadratic' and 'cubic' refer to a spline
             interpolation of first, second or third order) for interpolation.
         detrend : string, optional
             Method used to detrend the profile. Can be 'none',
