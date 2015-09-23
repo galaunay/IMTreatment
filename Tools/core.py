@@ -9,6 +9,7 @@ import time as modtime
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import os
 from ..core import ARRAYTYPES, STRINGTYPES, NUMBERTYPES
 from matplotlib.collections import LineCollection
 import scipy.interpolate as spinterp
@@ -105,6 +106,29 @@ class ProgressCounter(object):
         if j != 0:
             repr_time = '{:d}j'.format(m) + repr_time
         return repr_time
+
+
+class RemoveFortranOutput(object):
+    """
+    Context object to remove Fortran output.
+    
+    to be used with 'with' statement.
+    
+    Examples
+    --------
+    >>> with RemoveFortranOutput():
+    >>>     # put some fortran functions here   
+    """
+    def __enter__(self):
+        self.null_fds = [os.open(os.devnull, os.O_RDWR) for x in xrange(2)]
+        self.save = os.dup(1), os.dup(2)
+        os.dup2(self.null_fds[0], 1)
+        os.dup2(self.null_fds[1], 2)
+    def __exit__(self, type, value, traceback):
+        os.dup2(self.save[0], 1)
+        os.dup2(self.save[1], 2)
+        os.close(self.null_fds[0])
+        os.close(self.null_fds[1]) 
 
 
 def make_cmap(colors, position=None, name='my_cmap'):

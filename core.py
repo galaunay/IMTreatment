@@ -15,7 +15,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib as mpl
 import Plotlib as pplt
-# import guiqwt.pyplot as plt
+import warnings
+warnings.filterwarnings('error')
 import numpy as np
 import pdb
 import unum
@@ -400,13 +401,13 @@ class Points(object):
             if not values.shape[1] == 2:
                 raise ValueError()
         self.__xy = values
-        # XXX: for compatibility purpose, to remove
-        try:
-            if len(values) != len(self.__v):
-                self.__v == np.array([])
-        except AttributeError:
-            if len(values) != len(self.__dict__['v']):
-                self.__dict__['v'] == np.array([])
+#        # XXX: for compatibility purpose, to remove
+#        try:
+#            if len(values) != len(self.__v):
+#                self.__v = np.array([])
+#        except AttributeError:
+#            if len(values) != len(self.__dict__['v']):
+#                self.__dict__['v'] == np.array([])
 
     @xy.deleter
     def xy(self):
@@ -1101,17 +1102,17 @@ class Points(object):
         else:
             raise ValueError()
 
-    def trim(self, interv_x=None, interv_y=None, interv_v=None, inplace=True):
+    def trim(self, intervx=None, intervy=None, intervv=None, inplace=True):
         """
         Return a trimmed point cloud.
 
         Parameters
         ----------
-        interv_x : 2x1 tuple
+        intervx : 2x1 tuple
             Interval on x axis
-        interv_y : 2x1 tuple
+        intervy : 2x1 tuple
             Interval on y axis
-        interv_v : 2x1 tuple
+        intervv : 2x1 tuple
             Interval on v values
 
         Returns
@@ -1124,17 +1125,17 @@ class Points(object):
         else:
             tmp_pts = self.copy()
         mask = np.zeros(len(self.xy))
-        if interv_x is not None:
-            out_zone = np.logical_or(self.xy[:, 0] < interv_x[0],
-                                     self.xy[:, 0] > interv_x[1])
+        if intervx is not None:
+            out_zone = np.logical_or(self.xy[:, 0] < intervx[0],
+                                     self.xy[:, 0] > intervx[1])
             mask = np.logical_or(mask, out_zone)
-        if interv_y is not None:
-            out_zone = np.logical_or(self.xy[:, 1] < interv_y[0],
-                                     self.xy[:, 1] > interv_y[1])
+        if intervy is not None:
+            out_zone = np.logical_or(self.xy[:, 1] < intervy[0],
+                                     self.xy[:, 1] > intervy[1])
             mask = np.logical_or(mask, out_zone)
-        if interv_v is not None and len(self.v) != 0:
-            out_zone = np.logical_or(self.v < interv_v[0],
-                                     self.v > interv_v[1])
+        if intervv is not None and len(self.v) != 0:
+            out_zone = np.logical_or(self.v < intervv[0],
+                                     self.v > intervv[1])
             mask = np.logical_or(mask, out_zone)
         tmp_pts.xy = tmp_pts.xy[~mask, :]
         if tmp_pts.v is not None:
@@ -2139,7 +2140,7 @@ class Profile(object):
         """
         return copy.deepcopy(self)
 
-    def get_interpolated_value(self, x=None, y=None):
+    def get_interpolated_value(self, x=None, y=None, ind=False):
         """
         Get the interpolated (or not) value for a given 'x' or 'y' value.
 
@@ -2152,7 +2153,9 @@ class Profile(object):
             Value of x, for which we want the y value.
         y : number, optionnal
             Value of y, for which we want the x value.
-
+        ind : boolean
+            If 'True', 'x' and 'y' are treated as indices, else, they are
+            treated as position alog axis.
         Returns
         -------
         i_values : number or array
@@ -2170,14 +2173,22 @@ class Profile(object):
         if y is not None and x is not None:
             raise ValueError("Maybe you would like to look at the help "
                              "one more time...")
+        if not isinstance(ind, bool):
+            raise TypeError()
         # getting data
         if x is not None:
             value = x
-            values = np.array(self.x)
+            if ind:
+                values = np.arange(len(self.x))
+            else:
+                values = np.array(self.x)
             values2 = np.ma.masked_array(self.y, self.mask)
         else:
             value = y
-            values = np.ma.masked_array(self.y, self.mask)
+            if ind:
+                values = np.arange(self.y)
+            else:
+                values = np.ma.masked_array(self.y, self.mask)
             values2 = np.array(self.x)
         # if the wanted value is already present
         if np.any(value == values):
@@ -2213,13 +2224,20 @@ class Profile(object):
             raise TypeError()
         # search for positions
         filt = np.logical_not(self.mask)
-        y = self.y[filt] - value
-        x = self.x[filt]
+        y = self.y
+        y[self.mask] = 0
+        y = y - value
+        x = self.x
         sign = y > 0
-        chang = np.abs(sign[1::] - sign[0:-1:])
+        chang = np.abs(np.logical_xor(sign[1::], sign[0:-1:]))
+        mask_chang = np.logical_or(self.mask[1::], self.mask[0:-1:])
+        chang[mask_chang] = False
         ind_0 = np.argwhere(chang)
         pos_0 = np.empty((len(ind_0),), dtype=float)
+        masked_indices = np.arange(len(x))[filt]
         for i, ind in enumerate(ind_0):
+            if ind not in masked_indices:
+                continue
             v1 = np.abs(y[ind])
             v2 = np.abs(y[ind + 1])
             x1 = x[ind]
@@ -3745,9 +3763,11 @@ class ScalarField(Field):
                     or self.unit_y != obj.unit_y:
                 raise ValueError("Fields are not consistent")
             tmpsf = self.copy()
-            values = self.values / obj.values
+            filt_nan = obj.values != 0
+            values = np.zeros(shape=self.values.shape)
+            values[filt_nan] = self.values[filt_nan]/obj.values[filt_nan]
             mask = np.logical_or(self.mask, obj.mask)
-            mask = np.logical_or(mask, obj.values == 0.)
+            mask = np.logical_or(mask, np.logical_not(filt_nan))
             unit = self.unit_values / obj.unit_values
             tmpsf.values = values*unit.asNumber()
             tmpsf.mask = mask
@@ -6937,6 +6957,14 @@ class TemporalFields(Fields, Field):
             for i in np.arange(len(self.fields)):
                 vfs.add_field(self.fields[i]/other.fields[i])
             return vfs
+        elif isinstance(other, self.fields[0].__class__):
+            if not np.all(self.axe_x == other.axe_x) \
+                    and np.all(self.axe_y == other.axe_y):
+                raise Exception()
+            vfs = self.__class__()
+            for i in np.arange(len(self.fields)):
+                vfs.add_field(self.fields[i]/other)
+            return vfs
         elif isinstance(other, (NUMBERTYPES, unum.Unum)):
             final_vfs = self.__class__()
             for i, field in enumerate(self.fields):
@@ -6944,8 +6972,7 @@ class TemporalFields(Fields, Field):
                                     unit_times=self.unit_times)
             return final_vfs
         else:
-            raise TypeError("You can only divide a temporal velocity field "
-                            "by numbers")
+            raise TypeError("")
 
     __div__ = __truediv__
 
@@ -8185,6 +8212,55 @@ class TemporalScalarFields(TemporalFields):
         for i, field in enumerate(self.fields):
             values[i, :, :] = field.values[:, :]
         return values
+
+    ### Watchers ###
+    def get_min_field(self, nmb_min=1):
+        """
+        Calculate the minimum scalar field, from all the fields.
+
+        Parameters
+        ----------
+        nmb_min : integer, optional
+            Minimum number of values used to take a minimum value.
+            Else, the value is masked.
+        """
+        if len(self.fields) == 0:
+            raise ValueError("There is no fields in this object")
+        result_f = self.fields[0].copy()
+        mask_cum = np.zeros(self.shape, dtype=int)
+        mask_cum[np.logical_not(self.fields[0].mask)] += 1
+        for field in self.fields[1::]:
+            new_min_mask = np.logical_and(field.values < result_f.values,
+                                          np.logical_not(field.mask))
+            result_f.values[new_min_mask] = field.values[new_min_mask]
+            mask_cum[np.logical_not(field.mask)] += 1
+        mask = mask_cum <= nmb_min
+        result_f.mask = mask
+        return result_f
+        
+    def get_max_field(self, nmb_min=1):
+        """
+        Calculate the maximum scalar field, from all the fields.
+
+        Parameters
+        ----------
+        nmb_min : integer, optional
+            Minimum number of values used to take a maximum value.
+            Else, the value is masked.
+        """
+        if len(self.fields) == 0:
+            raise ValueError("There is no fields in this object")
+        result_f = self.fields[0].copy()
+        mask_cum = np.zeros(self.shape, dtype=int)
+        mask_cum[np.logical_not(self.fields[0].mask)] += 1
+        for field in self.fields[1::]:
+            new_max_mask = np.logical_and(field.values > result_f.values,
+                                          np.logical_not(field.mask))
+            result_f.values[new_max_mask] = field.values[new_max_mask]
+            mask_cum[np.logical_not(field.mask)] += 1
+        mask = mask_cum <= nmb_min
+        result_f.mask = mask
+        return result_f
 
     ### Modifiers ###
     def fill(self, tof='spatial', kind='linear', value=0.,

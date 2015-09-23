@@ -8,10 +8,13 @@ Created on Fri May 16 22:37:21 2014
 import pdb
 import numpy as np
 import scipy.interpolate as spinterp
+import scipy.integrate as spinteg
 from scipy.optimize import leastsq
+import os
 from ..core import Points, ScalarField, VectorField, Profile, \
     TemporalVectorFields, TemporalScalarFields, \
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES
+from ..Tools import RemoveFortranOutput
 
 ### Gradients based operation
 def get_gradients(field, raw=False):
@@ -855,7 +858,8 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
             outside = True
         else:
             outside = False
-        return outside
+        return outside    
+            
 
     ########################
     ### Loop on points   ###
@@ -870,30 +874,28 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
         ### solve streamline ODE ###
         ############################
         new_xys = [xy]
-        import scipy.integrate as spinteg
-        import warnings
-        warnings.filterwarnings('error')
-        ODE = spinteg.ode(fun2)
-        ODE.set_integrator('vode')
-        ODE.set_initial_value(xy)
-        res = [xy]
-        nmb_it = 0
-        while ODE.successful():
-            try:
-                rk_dt = dxy/np.linalg.norm(fun(res[-1]))*resolution
-            except (ValueError, RuntimeWarning):
-                break
-            try:
-                tmp_xy = ODE.integrate(ODE.t + rk_dt)
-            except UserWarning:
-                break
-            nmb_it += 1
-            # stopping tests (max iteration)
-            if nmb_it > max_steps:
-                break
-            # store
-            res.append(tmp_xy)
-        new_xys = res
+        with RemoveFortranOutput():
+            ODE = spinteg.ode(fun2)
+            ODE.set_integrator('vode')
+            ODE.set_initial_value(xy)
+            res = [xy]
+            nmb_it = 0
+            while ODE.successful():
+                try:
+                    rk_dt = dxy/np.linalg.norm(fun(res[-1]))*resolution
+                except (ValueError, RuntimeWarning):
+                    break
+                try:
+                    tmp_xy = ODE.integrate(ODE.t + rk_dt)
+                except UserWarning:
+                    break
+                nmb_it += 1
+                # stopping tests (max iteration)
+                if nmb_it > max_steps:
+                    break
+                # store
+                res.append(tmp_xy)
+            new_xys = res
 #        warnings.filterwarnings('once')
         # storing and rescaling
         if len(new_xys) != 0:

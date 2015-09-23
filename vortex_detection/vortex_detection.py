@@ -19,7 +19,6 @@ from scipy.interpolate import UnivariateSpline, RectBivariateSpline
 from scipy import optimize
 from scipy import linalg
 import warnings
-import sets
 import scipy.ndimage.measurements as msr
 import unum
 import copy
@@ -1187,7 +1186,7 @@ class CritPoints(object):
                     times = []
                     for pt in pts_tupl:
                         times.append(pt.v[0])
-                    times = list(sets.Set(times))
+                    times = list(set(times))
                     times.sort()
                     self.times = times
                 # Sorting points by times
