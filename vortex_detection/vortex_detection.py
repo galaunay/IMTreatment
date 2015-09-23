@@ -282,15 +282,18 @@ class VF(object):
                 pool = Pool()
             else:
                 pool = Pool(thread)
-            new_positions = pool.map(get_cp_position_in_cell, positions)
+            new_positions = pool.map_async(get_cp_position_in_cell, positions)
+            pool.close()
+            pool.join()
         else:           
             new_positions = [get_cp_position_in_cell(pos) for pos in positions]
         new_positions = np.array(new_positions)
         # clean Nan
-        filt = np.logical_not(np.isnan(new_positions))
-        filt1d = np.logical_or(filt[:, 0], filt[:, 1])
-        cp_types = cp_types[filt1d]
-        new_positions = new_positions[filt1d, :]
+        if len(new_positions) > 0:
+            filt = np.logical_not(np.isnan(new_positions))
+            filt1d = np.logical_or(filt[:, 0], filt[:, 1])
+            cp_types = cp_types[filt1d]
+            new_positions = new_positions[filt1d, :]
         # returning
         return new_positions, cp_types
 
@@ -2265,30 +2268,47 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         res.unit_y = obj.unit_y
         res.unit_time = obj.unit_times
         if verbose:
-            print("\n+++ Begin CP detection on {:.0f} fields"
-                  .format(len(obj.fields)))
-            t0 = modtime.time()
-            df = int(np.round(len(obj.fields)/20.))
-            field_pad = len(str(len(obj.fields)))
-        for i, field in enumerate(obj.fields):
-            res += get_critical_points(field, time=obj.times[i],
-                                       unit_time=obj.unit_times,
-                                       window_size=window_size,
-                                       kind=kind, mirroring=mirroring,
-                                       smoothing_size=smoothing_size)
-            if verbose and df != 0 and len(obj.fields) != 1:
-                if i % df == 0 or i == len(obj.fields) - 1:
-                    ti = modtime.time()
-                    if i == 0:
-                        tf = '---'
-                    else:
-                        dt = (ti - t0)/i
-                        tf = t0 + dt*(len(obj.fields))
-                        tf = _format_time(tf - t0)
-                    ti = _format_time(ti - t0)
-                    print("+++    {:>3.0f} %    {:{field_pad}d}/{} fields    {}/{}"
-                          .format(np.round(i*1./len(obj.fields)*100),
-                                  i, len(obj.fields), ti, tf, field_pad=field_pad))
+            PG = ProgressCounter(init_mess="Begin CP detection", end_mess='Done',
+                                 nmb_max=len(obj.fields),
+                                 name_things='fields')
+        # function o ge cp on one field (used for multiprocessing)
+        def get_cp_on_one_field(args):
+            if verbose:
+                PG.print_progress()
+            field, time = args
+            res = get_critical_points(field, time=time,
+                                      unit_time=obj.unit_times,
+                                      window_size=window_size,
+                                      kind=kind, mirroring=mirroring,
+                                      smoothing_size=smoothing_size,
+                                      thread=1)
+            return res
+        # Mapping with multiprocess or not
+        if thread == 1:
+            for i in np.arange(len(obj.fields)):
+#                if verbose:
+#                    PG.print_progress()
+                res += get_cp_on_one_field((obj.fields[i], obj.times[i])) 
+        else:
+            if thread == 'all':
+                pool = Pool()
+            else:
+                pool = Pool(thread)
+            res = pool.map_async(get_cp_on_one_field, zip(obj.fields, obj.times))
+            pool.close()
+            pool.join()   
+            res = res.get()
+        res = np.sum(res)
+                                       
+#        for i, field in enumerate(obj.fields):
+#            if verbose:
+#                PG.print_progress()
+#            res += get_critical_points(field, time=obj.times[i],
+#                                       unit_time=obj.unit_times,
+#                                       window_size=window_size,
+#                                       kind=kind, mirroring=mirroring,
+#                                       smoothing_size=smoothing_size)
+            
     else:
         raise TypeError()
     return res
