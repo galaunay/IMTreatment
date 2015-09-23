@@ -25,6 +25,8 @@ import copy
 import sympy
 import time as modtime
 import warnings
+from multiprocess import Pool
+
 
 
 def velocityfield_to_vf(vectorfield, time):
@@ -163,12 +165,17 @@ class VF(object):
         # returning
         return np.array(positions), np.array(cp_types)
 
-    def get_cp_position(self):
+    def get_cp_position(self, thread=1):
         """
         Return critical points positions and their associated PBI using
         bilinear interpolation.
         (PBI : Poincarre_Bendixson indice)
         Positions are returned in axis unities (axe_x and axe_y).
+
+        Parameters
+        ----------
+        thread : integer or 'all'
+            Number of thread to use (multiprocessing).
 
         Returns
         -------
@@ -268,23 +275,23 @@ class VF(object):
                 res_pos = np.array([tmp_sol[0] + axe_x[ind_x],
                                              tmp_sol[1] + axe_y[ind_y]])
             return res_pos
-        # use multiprocessing to get cp position on cell
-        from multiprocess import Pool
-        pool = Pool()
-        new_positions = pool.map(get_cp_position_in_cell, positions)
-#        new_positions = [get_cp_position_in_cell(pos) for pos in positions]
+            
+        # use multiprocessing to get cp position on cell if asked
+        if thread != 1:
+            if thread == 'all':
+                pool = Pool()
+            else:
+                pool = Pool(thread)
+            new_positions = pool.map(get_cp_position_in_cell, positions)
+        else:           
+            new_positions = [get_cp_position_in_cell(pos) for pos in positions]
         new_positions = np.array(new_positions)
-        print(positions)
-        print(new_positions)
-        print(cp_types)
-        # clean None
+        # clean Nan
         filt = np.logical_not(np.isnan(new_positions))
         filt1d = np.logical_or(filt[:, 0], filt[:, 1])
         cp_types = cp_types[filt1d]
         new_positions = new_positions[filt1d, :]
         # returning
-        print(new_positions)
-        print(cp_types)
         return new_positions, cp_types
 
     def get_pbi(self, direction):
@@ -2110,7 +2117,7 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
 
 def get_critical_points(obj, time=0, unit_time='', window_size=4,
                         kind='pbi', mirroring=None, mirror_interp='linear',
-                        smoothing_size=0, verbose=False):
+                        smoothing_size=0, verbose=False, thread=1):
     """
     For a VectorField of a TemporalVectorField object, return the critical
     points positions and informations on their type.
@@ -2148,7 +2155,9 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         detecting the CP.
     verbose : boolean, optional
         If 'True', display message on CP detection advancement.
-
+    thread : integer or 'all'
+            Number of thread to use (multiprocessing).
+            (Only implemented for 'kind = 'pbi'')
     Notes
     -----
     If the fields have masked values, saddle streamlines ar not computed.
@@ -2181,7 +2190,10 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     if not isinstance(smoothing_size, NUMBERTYPES):
         raise TypeError()
     if smoothing_size < 0:
-        raise ValueError()
+        raise ValueError()        
+    if not isinstance(thread, int):
+        if thread != 'all':
+            raise ValueError()
     # check if mask (not fully supported yet)
     if np.any(obj.mask):
         raise ValueError("Should not have masked values")
@@ -2209,7 +2221,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         # get cp positions
         if kind == 'pbi':
             res = _get_cp_pbi_on_VF(tmp_vf, time=time, unit_time=unit_time,
-                                    window_size=window_size)
+                                    window_size=window_size, thread=thread)
         elif kind == 'pbi_cell':
             res = _get_cp_cell_pbi_on_VF(tmp_vf, time=time,
                                          unit_time=unit_time,
@@ -2283,7 +2295,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
 
 
 def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
-                      window_size=4):
+                      window_size=4, thread=1):
     """
     For a VectorField object, return the critical points positions and their
     PBI (Poincarre Bendixson indice)
@@ -2300,7 +2312,8 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         Minimal window size for PBI detection.
         Smaller window size allow detection where points are dense.
         Default is 4 (smallest is 2).
-
+    thread : integer or 'all'
+            Number of thread to use (multiprocessing).
     Returns
     -------
     pts : CritPoints object
@@ -2318,7 +2331,7 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         sadd_ori = True
     # using VF methods to get cp position and types
     field = velocityfield_to_vf(vectorfield, time)
-    pos, cp_types = field.get_cp_position()
+    pos, cp_types = field.get_cp_position(thread=thread)
     if sadd_ori:
         sadd = OrientedPoints(unit_x=vectorfield.unit_x,
                               unit_y=vectorfield.unit_y,
