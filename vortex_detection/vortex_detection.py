@@ -189,44 +189,46 @@ class VF(object):
         positions, cp_types = self.get_cp_cell_position()
         axe_x = self.axe_x
         axe_y = self.axe_y
+        Vx = self.vx
+        Vy = self.vy
+        mask = self.mask
         real_dx = axe_x[1] - axe_x[0]
         real_dy = axe_y[1] - axe_y[0]
-
         # import linear interpolation levelset solutions (computed with sympy)
         from levelset_data import get_sol
-        sol = get_sol()
-        # for each position
-        new_positions = np.zeros(positions.shape)
-        for i, pos in enumerate(positions):
+        sol = get_sol()           
+        
+        # function to get the position in a cell detected by get_cp_cell_position
+        def get_cp_position_in_cell(pos):
             tmp_x = pos[0]
             tmp_y = pos[1]
             # get the cell indices
             ind_x = np.where(tmp_x < axe_x)[0][0] - 1
             ind_y = np.where(tmp_y < axe_y)[0][0] - 1
             # get data
-            Vx_bl = self.vx[ind_y:ind_y + 2, ind_x:ind_x + 2]
-            Vy_bl = self.vy[ind_y:ind_y + 2, ind_x:ind_x + 2]
+            Vx_bl = Vx[ind_y:ind_y + 2, ind_x:ind_x + 2]
+            Vy_bl = Vy[ind_y:ind_y + 2, ind_x:ind_x + 2]
             # check if masked values
-            mask = self.mask[ind_y:ind_y + 2, ind_x:ind_x + 2]
-            if np.any(mask):
-                new_positions[i] = pos
-                continue
+            mask_bl = mask[ind_y:ind_y + 2, ind_x:ind_x + 2]
+            if np.any(mask_bl):
+                res_pos = pos
+                return pos
             # check if null values
             nmb_zeros = np.sum(Vx_bl + Vy_bl == 0)
             if nmb_zeros == 1:
                 inds = np.where(Vx_bl + Vy_bl == 0)[0]
-                new_positions[i] = np.array([axe_x[ind_x + inds[0]],
+                res_pos = np.array([axe_x[ind_x + inds[0]],
                                              axe_y[ind_y + inds[1]]])
-                continue
+                return res_pos
             elif nmb_zeros > 1:
-                new_positions[i] = pos
-                continue
+                res_pos = pos
+                return res_pos
             # check if zero values
             if np.any(Vx_bl == 0) or np.any(Vy_bl == 0):
                 warnings.warn("There is a point with zero velocity, it's"
                               "a particular case not implemented yet. "
                               "Skipping this cell (there will be missing CP).")
-                continue
+                return np.nan
             # solve to get the zero velocity point
             tmp_dic = {'Vx_1': Vx_bl[0, 0], 'Vx_2': Vx_bl[0, 1],
                        'Vx_3': Vx_bl[1, 0], 'Vx_4': Vx_bl[1, 1],
@@ -251,21 +253,38 @@ class VF(object):
                 tmp_sol.append([x_sols[j], y_sols[j]])
             # if no more points
             if len(tmp_sol) == 0:
-                new_positions[i] = np.array([tmp_x, tmp_y])
+                res_pos = np.array([tmp_x, tmp_y])
             # if multiple points
             elif len(tmp_sol) != 1:
                 tmp_sol = np.array(tmp_sol)
                 if not np.all(tmp_sol[0] == tmp_sol):
                     raise Exception()
                 tmp_sol = tmp_sol[0]
-                new_positions[i] = np.array([tmp_sol[0] + axe_x[ind_x],
+                res_pos = np.array([tmp_sol[0] + axe_x[ind_x],
                                              tmp_sol[1] + axe_y[ind_y]])
             # if one point (ok case)
             else:
                 tmp_sol = tmp_sol[0]
-                new_positions[i] = np.array([tmp_sol[0] + axe_x[ind_x],
+                res_pos = np.array([tmp_sol[0] + axe_x[ind_x],
                                              tmp_sol[1] + axe_y[ind_y]])
+            return res_pos
+        # use multiprocessing to get cp position on cell
+        from multiprocess import Pool
+        pool = Pool()
+        new_positions = pool.map(get_cp_position_in_cell, positions)
+#        new_positions = [get_cp_position_in_cell(pos) for pos in positions]
+        new_positions = np.array(new_positions)
+        print(positions)
+        print(new_positions)
+        print(cp_types)
+        # clean None
+        filt = np.logical_not(np.isnan(new_positions))
+        filt1d = np.logical_or(filt[:, 0], filt[:, 1])
+        cp_types = cp_types[filt1d]
+        new_positions = new_positions[filt1d, :]
         # returning
+        print(new_positions)
+        print(cp_types)
         return new_positions, cp_types
 
     def get_pbi(self, direction):

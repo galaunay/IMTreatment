@@ -2881,7 +2881,7 @@ class Profile(object):
         filt = np.logical_not(tmp_prof.mask)
         # interpolate using scipy
         old_inds = np.arange(0, len(tmp_prof.x)*fact, fact)
-        new_inds = np.arange(len(tmp_prof.x)*fact - 1)
+        new_inds = np.arange(old_inds[-1] + 1)
         interp_x = spinterp.interp1d(old_inds[filt], tmp_prof.x[filt], kind=interp,
                                      assume_sorted=True)
         new_x = interp_x(new_inds)
