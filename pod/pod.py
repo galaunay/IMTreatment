@@ -273,9 +273,39 @@ class ModalFields(Field):
         if not inplace:
             return tmp_pod
             
-        
-    def trim_space(self):
-        pass
+    def trim_space(self, intervalx=None, intervaly=None, ind=False,
+                   inplace=False):
+        """
+        Trim the spatial modes according to the given intervals.
+
+        Parameters
+        ----------
+        intervalx : array, optional
+            interval wanted along x
+        intervaly : array, optional
+            interval wanted along y
+        ind : boolean, optional
+            If 'True', intervals are understood as indices along axis.
+            If 'False' (default), intervals are understood in axis units.
+        inplace : boolean, optional
+            If 'True', the field is trimed in place.
+        """
+        # check not necessary because done in 'VectorField.trim_area()'
+        # get data
+        if inplace:
+            tmp_mf = self
+        else:
+            tmp_mf = self.copy()
+        # trim field
+        tmp_mf.trim_area(intervalx=intervalx, intervaly=intervaly, ind=ind,
+                       inplace=True)
+        # loop on modes
+        for mode in tmp_mf.modes:
+            mode.trim_area(intervalx=intervalx, intervaly=intervaly, 
+                           ind=ind, inplace=True)
+        # return
+        if not inplace:
+            return tmp_mf
 
     def smooth_temporal_evolutions(self, tos='uniform', size=None,
                                    inplace=True):
@@ -656,8 +686,8 @@ class ModalFields(Field):
             max_std_spec[center_x:center_x + 2, center_y:center_y + 2] = 1.
             max_std_spec /= spint.simps(spint.simps(max_std_spec))
             max_std = np.std(max_std_spec)
-            # computing critical kappa
-            k_crit = self.get_critical_kappa(len(self.axe_x)*len(self.axe_y))
+#            # computing critical kappa
+#            k_crit = self.get_critical_kappa(len(self.axe_x)*len(self.axe_y))
             # computing spectrum variation on each mode
             var_spec = np.empty((len(self.modes)))
             for n in np.arange(len(self.modes)):
@@ -833,7 +863,6 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
     ### getting datas
     ind_fields = np.arange(len(TF.fields))
     f_shape = TF.fields[0].shape
-    filts = np.logical_not(TF.mask)
     axe_x, axe_y = TF.axe_x, TF.axe_y
     unit_x, unit_y = TF.unit_x, TF.unit_y
     unit_values = TF.unit_values

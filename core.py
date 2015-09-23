@@ -13,7 +13,6 @@ import matplotlib as mpl
 from matplotlib import cm
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import matplotlib as mpl
 import Plotlib as pplt
 import warnings
 warnings.filterwarnings('error')
@@ -22,7 +21,6 @@ import pdb
 import unum
 import unum.units as units
 import copy
-from scipy import ndimage
 from scipy import stats
 try:
     units.counts = unum.Unum.unit('counts')
@@ -4709,7 +4707,6 @@ class ScalarField(Field):
         unit : Unit object
             The unit of the integrale result.
         """
-        axe_x, axe_y = self.axe_x, self.axe_y
         if intervalx is None:
             intervalx = [-np.inf, np.inf]
         if intervaly is None:
@@ -8380,7 +8377,6 @@ class TemporalScalarFields(TemporalFields):
         # temporal interpolation
         if tof == 'temporal':
             # getting datas
-            axe_x, axe_y = self.axe_x, self.axe_y
             # getting super mask (0 where no value are masked and where all
             # values are masked)
             masks = self.mask
@@ -8677,8 +8673,6 @@ class TemporalVectorFields(TemporalFields):
             self.crop_masked_border(hard=False, inplace=True)
         # temporal interpolation
         if tof == 'temporal':
-            # getting datas
-            axe_x, axe_y = self.axe_x, self.axe_y
             # getting super mask (0 where no value are masked and where all
             # values are masked)
             masks = self.mask
