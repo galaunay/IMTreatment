@@ -14,7 +14,7 @@ import os
 from ..core import Points, ScalarField, VectorField, Profile, \
     TemporalVectorFields, TemporalScalarFields, \
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES
-from ..Tools import RemoveFortranOutput
+from ..tools import RemoveFortranOutput
 
 ### Gradients based operation
 def get_gradients(field, raw=False):

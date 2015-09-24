@@ -13,7 +13,7 @@ from ..core import Points, ScalarField, VectorField, make_unit,\
     ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
     TemporalVectorFields, SpatialVectorFields, TemporalScalarFields,\
     SpatialScalarFields, Profile
-from ..Tools import ProgressCounter
+from ..tools import ProgressCounter
 import numpy as np
 try:
     import cPickle as pickle

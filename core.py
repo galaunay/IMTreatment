@@ -1122,7 +1122,7 @@ class Points(object):
             tmp_pts = self
         else:
             tmp_pts = self.copy()
-        mask = np.zeros(len(self.xy))
+        mask = np.zeros(len(self.xy), dtype=bool)
         if intervx is not None:
             out_zone = np.logical_or(self.xy[:, 0] < intervx[0],
                                      self.xy[:, 0] > intervx[1])

@@ -12,7 +12,7 @@ from ..core import Points, OrientedPoints, Profile, ScalarField, VectorField,\
     make_unit, ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
     TemporalVectorFields
 from ..field_treatment import get_streamlines, get_gradients
-from ..Tools import ProgressCounter
+from ..tools import ProgressCounter
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline
@@ -22,10 +22,8 @@ import warnings
 import scipy.ndimage.measurements as msr
 import unum
 import copy
-import sympy
-import time as modtime
 import warnings
-from multiprocess import Pool
+from multiprocess import Pool, Process, Queue
 
 
 
@@ -44,6 +42,7 @@ def velocityfield_to_vf(vectorfield, time):
     # using VF methods to get cp position
     vf = VF(vx, vy, ind_x, ind_y, mask, theta, time)
     return vf
+    
 
 
 class VF(object):
@@ -541,7 +540,7 @@ class CritPoints(object):
         """
         return copy.deepcopy(self)
 
-    def compute_traj(self, epsilon=None):
+    def compute_traj(self, epsilon=None, close_traj=False):
         """
         Compute cp trajectory from cp positions.
 
@@ -550,6 +549,9 @@ class CritPoints(object):
         epsilon : number, optional
             Maximal distance between two successive points.
             default value is Inf.
+        close_traj : bool
+            If 'True', try to close the trajectories (better to get the
+            cp fusion position)
         """
         # check parameters
         if epsilon is None:
@@ -598,17 +600,30 @@ class CritPoints(object):
             sadds = np.append(sadds, pts.decompose())
         # getting trajectories
         self.foc_traj = self._get_cp_time_evolution(focs, times=self.times,
-                                                    epsilon=epsilon)
+                                                    epsilon=epsilon,
+                                                    close_traj=close_traj)
         self.foc_c_traj = self._get_cp_time_evolution(focs_c, times=self.times,
-                                                      epsilon=epsilon)
+                                                      epsilon=epsilon,
+                                                      close_traj=close_traj)
         self.node_i_traj = self._get_cp_time_evolution(nodes_i,
                                                        times=self.times,
-                                                       epsilon=epsilon)
+                                                       epsilon=epsilon,
+                                                       close_traj=close_traj)
         self.node_o_traj = self._get_cp_time_evolution(nodes_o,
                                                        times=self.times,
-                                                       epsilon=epsilon)
+                                                       epsilon=epsilon,
+                                                       close_traj=close_traj)
         self.sadd_traj = self._get_cp_time_evolution(sadds, times=self.times,
-                                                     epsilon=epsilon)
+                                                     epsilon=epsilon,
+                                                     close_traj=close_traj)
+#        # close the trajectories if asked
+#        if close_traj:
+#            # loop on trajectories
+#            for i, traj_kind in enumerate(self.iter_traj):
+#                for j, traj in enumerate(traj_kind):
+#                    ending_time = traj.v[-1]
+#                    ind_time = np.where(ending_time == self.times)[0][0]
+#                    after_time = self.times[ind_time + 1]
 
     def get_points_density(self, kind, bw_method=None, resolution=100,
                            output_format=None):
@@ -884,7 +899,7 @@ class CritPoints(object):
         if not inplace:
             return tmp_cp
 
-    def trim(self, intervx=None, intervy=None, inplace=False):
+    def trim_space(self, intervx=None, intervy=None, inplace=False):
         """
         Trim the point field.
         """
@@ -902,16 +917,31 @@ class CritPoints(object):
         tmp_cp.current_epsilon = None
         # loop on points
         for kind in tmp_cp.iter:
-            for time in kind:
-                for i in np.arange(len(time.xy) - 1, -1, -1):
-                    xy = time.xy[i]
-                    if xy[0] < intervx[0] or xy[0] > intervx[1]\
-                            or xy[1] < intervy[0] or xy[1] > intervy[1]:
-                        time.remove(i)
+            for pts in kind:
+                pts.trim(intervx=intervx, intervy=intervy, inplace=True)
         # returning
         if not inplace:
             return tmp_cp
 
+    def trim_time(self, intervtime, inplace=False):
+        """
+        Trim the points field
+        """
+        # inplace
+        if inplace:
+            tmp_cp = self
+        else:
+            tmp_cp = self.copy()
+        # trajectories are obsolete
+        tmp_cp.current_epsilon = None
+        # loop on points
+        for kind in tmp_cp.iter:
+            for pts in kind:
+                pts.trim(intervv=intervtime, inplace=True)
+        # returning
+        if not inplace:
+            return tmp_cp        
+        
     def clean_traj(self, min_nmb_in_traj):
         """
         Remove some isolated points.
@@ -1155,7 +1185,8 @@ class CritPoints(object):
                                          unit_v=tot.unit_v)
 
     @staticmethod
-    def _get_cp_time_evolution(points, times=None, epsilon=None):
+    def _get_cp_time_evolution(points, times=None, epsilon=None,
+                               close_traj=False):
         """
         Compute the temporal evolution of each critical point from a set of
         points at different times. (Points objects must each contain only one
@@ -1194,7 +1225,7 @@ class CritPoints(object):
             Class representing an orthogonal set of points, defined by a
             position and a time.
             """
-            def __init__(self, pts_tupl, times):
+            def __init__(self, pts_tupl, times, close_traj=False):
                 if not isinstance(pts_tupl, ARRAYTYPES):
                     raise TypeError("'pts' must be a tuple of Point objects")
                 for pt in pts_tupl:
@@ -1227,6 +1258,9 @@ class CritPoints(object):
                             tmp_points.append(Point(pt.xy[0, 0], pt.xy[0, 1],
                                                     pt.v[0]))
                     self.points.append(tmp_points)
+                self.close_traj = close_traj
+                if close_traj:
+                    self.init_points = copy.deepcopy(self.points)
                 self.unit_x = pts_tupl[0].unit_x
                 self.unit_y = pts_tupl[0].unit_y
                 self.unit_v = pts_tupl[0].unit_v
@@ -1245,15 +1279,19 @@ class CritPoints(object):
                                     .format(type(i), type(j)))
                 self.points[i][j] = None
 
-            def get_points_at_time(self, time):
+            def get_points_at_time(self, time, init=False):
                 """
                 Return all the points for a given time.
+                If 'init' is True, get the points from the initial points field.
                 """
                 try:
                     time = int(time)
                 except ValueError:
                     raise TypeError()
-                return self.points[time]
+                if init:
+                    return self.init_points[time]
+                else:
+                    return self.points[time]
 
         # local class line to store vortex center evolution line
         class Line(object):
@@ -1366,7 +1404,7 @@ class CritPoints(object):
             else:
                 return (pts2.x - pts1.x)**2 + (pts2.y - pts1.y)**2
         # Getting the vortex centers trajectory
-        PF = PointField(points, times)
+        PF = PointField(points, times, close_traj=close_traj)
         if len(PF.points) == 0:
             return []
         points_f = []
@@ -1376,8 +1414,11 @@ class CritPoints(object):
             if start_i is None:
                 break
             for i in np.arange(start_i + 1, PF.time_step):
-                j = line.choose_next_point(PF.get_points_at_time(i))
+                j = line.choose_next_point(PF.get_points_at_time(i, init=False))
                 if j is None:
+                    # add one more point o close the traj
+                    if close_traj:
+                        j = line.choose_next_point(PF.get_points_at_time(i, init=True))
                     break
                 PF.make_point_useless(i, j)
             points_f.append(line.export_to_Points(PF))
@@ -2195,7 +2236,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     if smoothing_size < 0:
         raise ValueError()        
     if not isinstance(thread, int):
-        if thread != 'all':
+        if thread not in  ['all']:
             raise ValueError()
     # check if mask (not fully supported yet)
     if np.any(obj.mask):
@@ -2286,9 +2327,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         # Mapping with multiprocess or not
         if thread == 1:
             for i in np.arange(len(obj.fields)):
-#                if verbose:
-#                    PG.print_progress()
-                res += get_cp_on_one_field((obj.fields[i], obj.times[i])) 
+                res += get_cp_on_one_field((obj.fields[i], obj.times[i]))
         else:
             if thread == 'all':
                 pool = Pool()
@@ -2300,14 +2339,6 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
             res = res.get()
         res = np.sum(res)
                                        
-#        for i, field in enumerate(obj.fields):
-#            if verbose:
-#                PG.print_progress()
-#            res += get_critical_points(field, time=obj.times[i],
-#                                       unit_time=obj.unit_times,
-#                                       window_size=window_size,
-#                                       kind=kind, mirroring=mirroring,
-#                                       smoothing_size=smoothing_size)
             
     else:
         raise TypeError()
