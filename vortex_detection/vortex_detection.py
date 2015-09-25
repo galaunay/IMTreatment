@@ -1482,7 +1482,7 @@ class CritPoints(object):
             if pt[indice] is None:
                 continue
             pt[indice].display(kind='plot', marker='o', color=colors[i],
-                               linestyle='none', **cpkw)
+                               linestyle='none', axe_x='x', axe_y='y', **cpkw)
 
     def display_traj(self, data='default', reverse=None, filt=None, **kw):
         """
@@ -2301,7 +2301,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                     elif position < intervy[1]:
                         ind = tmp_vf.get_indice_on_axe(2, position)[1]
                         intervy[1] = axe_y[ind + 1]
-            res.trim(intervx=intervx, intervy=intervy, inplace=True)
+            res.trim_space(intervx=intervx, intervy=intervy, inplace=True)
     # if obj is vector fields
     elif isinstance(obj, TemporalVectorFields):
         res = CritPoints(unit_time=obj.unit_times)
@@ -2408,17 +2408,17 @@ def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
             if sadd_ori:
                 tmp_pos = pos[i]
                 ori = np.array(_get_saddle_orientations(vectorfield, tmp_pos))
-                sadd.add(tmp_pos, orientations=ori)
+                sadd.add(tmp_pos, orientations=ori, v=time)
             else:
-                sadd.add(pos[i])
+                sadd.add(pos[i], v=time)
         elif t == 1:
-            foc_c.add(pos[i])
+            foc_c.add(pos[i], v=time)
         elif t == 2:
-            foc.add(pos[i])
+            foc.add(pos[i], v=time)
         elif t == 3:
-            node_o.add(pos[i])
+            node_o.add(pos[i], v=time)
         elif t == 4:
-            node_i.add(pos[i])
+            node_i.add(pos[i], v=time)
         else:
             raise Exception()
     # returning

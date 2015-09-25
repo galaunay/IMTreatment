@@ -215,6 +215,8 @@ class ModalFields(Field):
             tmp_pod.mode_norms = new_mode_norms
             tmp_pod.pulsation = new_pulsation
             tmp_pod.ritz_vals = new_ritz_vals
+        tmp_pod._ModalFields__spat_coh = None
+        tmp_pod._ModalFields__temp_coh = None
         # return
         if not inplace:
             return tmp_pod
@@ -273,16 +275,16 @@ class ModalFields(Field):
         if not inplace:
             return tmp_pod
             
-    def trim_space(self, intervalx=None, intervaly=None, ind=False,
+    def trim_space(self, intervx=None, intervy=None, ind=False,
                    inplace=False):
         """
         Trim the spatial modes according to the given intervals.
 
         Parameters
         ----------
-        intervalx : array, optional
+        intervx : array, optional
             interval wanted along x
-        intervaly : array, optional
+        intervy : array, optional
             interval wanted along y
         ind : boolean, optional
             If 'True', intervals are understood as indices along axis.
@@ -296,12 +298,14 @@ class ModalFields(Field):
             tmp_mf = self
         else:
             tmp_mf = self.copy()
-        # trim field
-        tmp_mf.trim_area(intervalx=intervalx, intervaly=intervaly, ind=ind,
+        # trim Field and mean field
+        tmp_mf.trim_area(intervx=intervx, intervy=intervy, ind=ind,
                        inplace=True)
+        tmp_mf.mean_field.trim_area(intervx=intervx, intervy=intervy, ind=ind,
+                                    inplace=True)
         # loop on modes
         for mode in tmp_mf.modes:
-            mode.trim_area(intervalx=intervalx, intervaly=intervaly, 
+            mode.trim_area(intervx=intervx, intervy=intervy, 
                            ind=ind, inplace=True)
         # return
         if not inplace:
@@ -859,6 +863,10 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
         if wanted_modes.min() < 0 or wanted_modes.max() > len(TF.fields):
             raise ValueError()
     else:
+        raise TypeError()
+    try:
+        max_vecs_per_node = int(max_vecs_per_node)
+    except:
         raise TypeError()
     ### getting datas
     ind_fields = np.arange(len(TF.fields))

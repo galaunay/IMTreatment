@@ -1195,15 +1195,15 @@ class Points(object):
         if not inplace:
             return tmp_pt
 
-    def cut(self, interv_x=None, interv_y=None):
+    def cut(self, intervx=None, intervy=None):
         """
         Return a point cloud where the given area has been removed.
 
         Parameters
         ----------
-        interv_x : 2x1 tuple
+        intervx : 2x1 tuple
             Interval on x axis
-        interv_y : 2x1 tuple
+        intervy : 2x1 tuple
             Interval on y axis
 
         Returns
@@ -1213,13 +1213,13 @@ class Points(object):
         """
         tmp_pts = self.copy()
         mask = np.ones(len(self.xy))
-        if interv_x is not None:
-            out_zone = np.logical_and(self.xy[:, 0] > interv_x[0],
-                                      self.xy[:, 0] < interv_x[1])
+        if intervx is not None:
+            out_zone = np.logical_and(self.xy[:, 0] > intervx[0],
+                                      self.xy[:, 0] < intervx[1])
             mask = np.logical_and(mask, out_zone)
-        if interv_y is not None:
-            out_zone = np.logical_and(self.xy[:, 1] > interv_y[0],
-                                      self.xy[:, 1] < interv_y[1])
+        if intervy is not None:
+            out_zone = np.logical_and(self.xy[:, 1] > intervy[0],
+                                      self.xy[:, 1] < intervy[1])
             mask = np.logical_and(mask, out_zone)
         tmp_pts.xy = tmp_pts.xy[~mask, :]
         if len(tmp_pts.v) != 0:
@@ -1395,18 +1395,40 @@ class Points(object):
 
 
     ### Displayers ###
-    def _display(self, kind=None, reverse=False, **plotargs):
+    def _display(self, kind=None, axe_x=None, axe_y=None, axe_color=None,
+                 **plotargs):
         if kind is None:
             if self.v is None:
                 kind = 'plot'
             else:
                 kind = 'scatter'
-        if reverse:
-            x_values = self.xy[:, 1]
-            y_values = self.xy[:, 0]
-        else:
+        # x values
+        if axe_x == 'x' or axe_x is None:
             x_values = self.xy[:, 0]
+        elif axe_x == 'y':
+            x_values = self.xy[:, 1]
+        elif axe_x == 'v':
+            x_values = self.v
+        else:
+            raise ValueError()
+        # y values
+        if axe_y == 'x':
+            y_values = self.xy[:, 0]
+        elif axe_y == 'y' or axe_y is None:
             y_values = self.xy[:, 1]
+        elif axe_y == 'v':
+            y_values = self.v
+        else:
+            raise ValueError()
+        # color values
+        if axe_color == 'x':
+            color_values = self.xy[:, 0]
+        elif axe_color == 'y':
+            color_values = self.xy[:, 1]
+        elif axe_color == 'v' or axe_color is None:
+            color_values = self.v
+        else:
+            raise ValueError()
         if kind == 'scatter':
             if self.v is None:
                 plot = plt.scatter(x_values, y_values, **plotargs)
@@ -1414,18 +1436,19 @@ class Points(object):
                 if not 'cmap' in plotargs:
                     plotargs['cmap'] = plt.cm.jet
                 if not 'c' in plotargs:
-                    plotargs['c'] = self.v
+                    plotargs['c'] = color_values
                 plot = plt.scatter(x_values, y_values, **plotargs)
         elif kind == 'plot':
             plot = plt.plot(x_values, y_values, **plotargs)
         elif kind == 'colored_plot':
             from IMTreatment.Tools import colored_plot
-            plot = colored_plot(x_values, y_values, z=self.v, **plotargs)
+            plot = colored_plot(x_values, y_values, z=color_values, **plotargs)
         else:
             raise ValueError()
         return plot
 
-    def display(self, kind=None, reverse=False, **plotargs):
+    def display(self, kind=None, axe_x=None, axe_y=None, axe_color=None, 
+                **plotargs):
         """
         Display the set of points.
 
@@ -1435,19 +1458,51 @@ class Points(object):
             Can be 'plot' (default if points have not values).
             or 'scatter' (default if points have values).
             or 'colored_plot'.
-        reverse : boolean, optional
-            If 'True', axis are reversed.
+        axe_x, axe_y, axe_color : strings in ['x', 'y', 'v']
+            To determine wich value has to be plotted along which axis, and 
+            whith value is used to color the scattered points.
+            Default plot 'y' to 'x' with colors from 'v'.
         """
-        plot = self._display(kind, reverse=reverse, **plotargs)
+        # default values
+        if axe_x is None:
+            if axe_y != 'x':
+                axe_x = 'x'
+            else:
+                axe_x = 'y'
+        if axe_y is None:
+            if axe_x != 'y':
+                axe_y = 'y'
+            else:
+                axe_y = 'x'
+        if axe_color is None:
+            axes = ['x', 'y', 'v']
+            try:
+                axes.remove(axe_x)
+                axes.remove(axe_y)
+            except ValueError:
+                axes = ['v']
+            axe_color = axes[0]
+
+        # display the values
+        plot = self._display(kind, axe_x=axe_x, axe_y=axe_y,
+                             axe_color=axe_color, **plotargs)
         if len(self.v) != 0 and kind is not 'plot':
             cb = plt.colorbar(plot)
             cb.set_label(self.unit_v.strUnit())
-        if reverse:
-            plt.ylabel('X ' + self.unit_x.strUnit())
+        # x axis label
+        if axe_x == 'x':
+            plt.xlabel('X ' + self.unit_x.strUnit())
+        elif axe_x == 'y':
             plt.xlabel('Y ' + self.unit_y.strUnit())
         else:
-            plt.xlabel('X ' + self.unit_x.strUnit())
+            plt.xlabel('V ' + self.unit_v.strUnit())
+        # y axis label
+        if axe_y == 'x':
+            plt.ylabel('X ' + self.unit_x.strUnit())
+        elif axe_y == 'y':
             plt.ylabel('Y ' + self.unit_y.strUnit())
+        else:
+            plt.ylabel('V ' + self.unit_v.strUnit())
         if self.name is None:
             plt.title('Set of points')
         else:
@@ -1488,6 +1543,45 @@ class Points(object):
         #
         plt.tight_layout()
         return ax
+    
+    ### Exporters ###
+    def export_to_profile(self, axe_x='x', axe_y='y'):
+        """
+        Export the unsorted point object to a sorted Profile object.
+        
+        Parameters 
+        ----------
+        axe_x, axe_y : strings in ['x', 'y', 'v']
+            Which value used to construct the profile
+        """
+        # check 
+        if not axe_x in ['x', 'y', 'v']:
+            raise ValueError()
+        if not axe_y in ['x', 'y', 'v']:
+            raise ValueError()
+        # get data
+        if axe_x == 'x':
+            x = self.xy[:, 0]
+            unit_x = self.unit_x
+        elif axe_x == 'y':
+            x = self.xy[:, 1]
+            unit_x = self.unit_y
+        else:
+            x = self.v
+            unit_x = self.unit_v
+        if axe_y == 'x':
+            y = self.xy[:, 0]
+            unit_y = self.unit_x
+        elif axe_y == 'y':
+            y = self.xy[:, 1]
+            unit_y = self.unit_y
+        else:
+            y = self.v
+            unit_y = self.unit_v
+        # construct profile
+        prof = Profile(x=x, y=y, mask=False, unit_x=unit_x, unit_y=unit_y)
+        return prof
+
 
 class OrientedPoints(Points):
     """
@@ -1712,43 +1806,54 @@ class OrientedPoints(Points):
         Points.remove(self, ind)
         self.orientations = np.delete(self.orientations, ind, axis=0)
 
-    def trim(self, interv_x=None, interv_y=None):
+    def trim(self, intervx=None, intervy=None, inplace=False):
         """
         Return a trimmed point cloud.
 
         Parameters
         ----------
-        interv_x : 2x1 tuple
+        intervx : 2x1 tuple
             Interval on x axis
-        interv_y : 2x1 tuple
+        intervy : 2x1 tuple
             Interval on y axis
+        inplace : bool
+            .
 
         Returns
         -------
         tmp_pts : OrientedPoints object
             Trimmed version of the point cloud.
         """
-        Points.trim(self, interv_x, interv_y)
-        mask = np.zeros(len(self.xy))
-        if interv_x is not None:
-            out_zone = np.logical_or(self.xy[:, 0] < interv_x[0],
-                                     self.xy[:, 0] > interv_x[1])
+        # get data
+        if inplace:
+            tmp_opts = self
+        else:
+            tmp_opts = self.copy()
+        # trim
+        Points.trim(tmp_opts, intervx, intervy)
+        mask = np.zeros(len(tmp_opts.xy))
+        if intervx is not None:
+            out_zone = np.logical_or(tmp_opts.xy[:, 0] < intervx[0],
+                                     tmp_opts.xy[:, 0] > intervx[1])
             mask = np.logical_or(mask, out_zone)
-        if interv_y is not None:
-            out_zone = np.logical_or(self.xy[:, 1] < interv_y[0],
-                                     self.xy[:, 1] > interv_y[1])
+        if intervy is not None:
+            out_zone = np.logical_or(tmp_opts.xy[:, 1] < intervy[0],
+                                     tmp_opts.xy[:, 1] > intervy[1])
             mask = np.logical_or(mask, out_zone)
-        self.orientations = self.orientations[~mask]
+        tmp_opts.orientations = self.orientations[~mask]
+        # return
+        if not inplace:
+            return tmp_opts
 
-    def cut(self, interv_x=None, interv_y=None):
+    def cut(self, intervx=None, intervy=None):
         """
         Return a point cloud where the given area has been removed.
 
         Parameters
         ----------
-        interv_x : 2x1 tuple
+        intervx : 2x1 tuple
             Interval on x axis
-        interv_y : 2x1 tuple
+        intervy : 2x1 tuple
             Interval on y axis
 
         Returns
@@ -1756,15 +1861,15 @@ class OrientedPoints(Points):
         tmp_pts : OrientedPoints object
             Cutted version of the point cloud.
         """
-        Points.cut(self, interv_x, interv_y)
+        Points.cut(self, intervx, intervy)
         mask = np.ones(len(self.xy))
-        if interv_x is not None:
-            out_zone = np.logical_and(self.xy[:, 0] > interv_x[0],
-                                      self.xy[:, 0] < interv_x[1])
+        if intervx is not None:
+            out_zone = np.logical_and(self.xy[:, 0] > intervx[0],
+                                      self.xy[:, 0] < intervx[1])
             mask = np.logical_and(mask, out_zone)
-        if interv_y is not None:
-            out_zone = np.logical_and(self.xy[:, 1] > interv_y[0],
-                                      self.xy[:, 1] < interv_y[1])
+        if intervy is not None:
+            out_zone = np.logical_and(self.xy[:, 1] > intervy[0],
+                                      self.xy[:, 1] < intervy[1])
             mask = np.logical_and(mask, out_zone)
         self.orientations = self.orientations[~mask]
 
@@ -2220,6 +2325,12 @@ class Profile(object):
         # check parameters
         if not isinstance(value, NUMBERTYPES):
             raise TypeError()
+        # if the asked value is present
+        if np.any(self.y == value):
+            ind_0 = np.argwhere(self.y == value)[0]
+            pos_0 = [self.x[ind] for ind in ind_0]
+        else:
+            pos_0 = []
         # search for positions
         filt = np.logical_not(self.mask)
         y = self.y
@@ -2231,7 +2342,6 @@ class Profile(object):
         mask_chang = np.logical_or(self.mask[1::], self.mask[0:-1:])
         chang[mask_chang] = False
         ind_0 = np.argwhere(chang)
-        pos_0 = np.empty((len(ind_0),), dtype=float)
         masked_indices = np.arange(len(x))[filt]
         for i, ind in enumerate(ind_0):
             if ind not in masked_indices:
@@ -2240,7 +2350,7 @@ class Profile(object):
             v2 = np.abs(y[ind + 1])
             x1 = x[ind]
             x2 = x[ind + 1]
-            pos_0[i] = x1 + v1/(v1 + v2)*(x2 - x1)
+            pos_0.append(x1 + v1/(v1 + v2)*(x2 - x1))
         # returning
         return pos_0
 
@@ -3537,16 +3647,16 @@ class Field(object):
                 raise TypeError("'y' must be a number")
             self.axe_y -= y
 
-    def trim_area(self, intervalx=None, intervaly=None, full_output=False,
+    def trim_area(self, intervx=None, intervy=None, full_output=False,
                   ind=False, inplace=False):
         """
         Return a trimed field in respect with given intervals.
 
         Parameters
         ----------
-        intervalx : array, optional
+        intervx : array, optional
             interval wanted along x
-        intervaly : array, optional
+        intervy : array, optional
             interval wanted along y
         full_output : boolean, optional
             If 'True', cutting indices are alson returned
@@ -3558,68 +3668,68 @@ class Field(object):
         """
         # default values
         axe_x, axe_y = self.axe_x, self.axe_y
-        if intervalx is None:
+        if intervx is None:
             if ind:
-                intervalx = [0, len(axe_x)]
+                intervx = [0, len(axe_x)]
             else:
-                intervalx = [axe_x[0], axe_x[-1]]
-        if intervaly is None:
+                intervx = [axe_x[0], axe_x[-1]]
+        if intervy is None:
             if ind:
-                intervaly = [0, len(axe_y)]
+                intervy = [0, len(axe_y)]
             else:
-                intervaly = [axe_y[0], axe_y[-1]]
+                intervy = [axe_y[0], axe_y[-1]]
         # checking parameters
-        if not isinstance(intervalx, ARRAYTYPES):
-            raise TypeError("'intervalx' must be an array of two numbers")
-        intervalx = np.array(intervalx, dtype=float)
-        if intervalx.ndim != 1:
-            raise ValueError("'intervalx' must be an array of two numbers")
-        if intervalx.shape != (2,):
-            raise ValueError("'intervalx' must be an array of two numbers")
-        if intervalx[0] > intervalx[1]:
-            raise ValueError("'intervalx' values must be crescent")
-        if not isinstance(intervaly, ARRAYTYPES):
-            raise TypeError("'intervaly' must be an array of two numbers")
-        intervaly = np.array(intervaly, dtype=float)
-        if intervaly.ndim != 1:
-            raise ValueError("'intervaly' must be an array of two numbers")
-        if intervaly.shape != (2,):
-            raise ValueError("'intervaly' must be an array of two numbers")
-        if intervaly[0] > intervaly[1]:
-            raise ValueError("'intervaly' values must be crescent")
+        if not isinstance(intervx, ARRAYTYPES):
+            raise TypeError("'intervx' must be an array of two numbers")
+        intervx = np.array(intervx, dtype=float)
+        if intervx.ndim != 1:
+            raise ValueError("'intervx' must be an array of two numbers")
+        if intervx.shape != (2,):
+            raise ValueError("'intervx' must be an array of two numbers")
+        if intervx[0] > intervx[1]:
+            raise ValueError("'intervx' values must be crescent")
+        if not isinstance(intervy, ARRAYTYPES):
+            raise TypeError("'intervy' must be an array of two numbers")
+        intervy = np.array(intervy, dtype=float)
+        if intervy.ndim != 1:
+            raise ValueError("'intervy' must be an array of two numbers")
+        if intervy.shape != (2,):
+            raise ValueError("'intervy' must be an array of two numbers")
+        if intervy[0] > intervy[1]:
+            raise ValueError("'intervy' values must be crescent")
         # checking triming windows
         if ind:
-            if intervalx[0] < 0 or intervalx[1] == 0 or \
-                    intervaly[0] < 0 or intervaly[1] == 0:
+            if intervx[0] < 0 or intervx[1] == 0 or \
+                    intervy[0] < 0 or intervy[1] == 0:
                 raise ValueError("Invalid trimming window")
         else:
-            if np.all(intervalx < axe_x[0]) or np.all(intervalx > axe_x[-1])\
-                    or np.all(intervaly < axe_y[0]) \
-                    or np.all(intervaly > axe_y[-1]):
+            if np.all(intervx < axe_x[0]) or np.all(intervx > axe_x[-1])\
+                    or np.all(intervy < axe_y[0]) \
+                    or np.all(intervy > axe_y[-1]):
                 raise ValueError("Invalid trimming window")
         # finding interval indices
         if ind:
-            indmin_x = int(intervalx[0])
-            indmax_x = int(intervalx[1])
-            indmin_y = int(intervaly[0])
-            indmax_y = int(intervaly[1])
+            indmin_x = int(intervx[0])
+            indmax_x = int(intervx[1])
+            indmin_y = int(intervy[0])
+            indmax_y = int(intervy[1])
         else:
-            if intervalx[0] <= axe_x[0]:
+            if intervx[0] <= axe_x[0]:
                 indmin_x = 0
             else:
-                indmin_x = self.get_indice_on_axe(1, intervalx[0])[-1]
-            if intervalx[1] >= axe_x[-1]:
+                indmin_x = self.get_indice_on_axe(1, intervx[0])[-1]
+            if intervx[1] >= axe_x[-1]:
                 indmax_x = len(axe_x) - 1
             else:
-                indmax_x = self.get_indice_on_axe(1, intervalx[1])[0]
-            if intervaly[0] <= axe_y[0]:
+                indmax_x = self.get_indice_on_axe(1, intervx[1])[0]
+            if intervy[0] <= axe_y[0]:
                 indmin_y = 0
             else:
-                indmin_y = self.get_indice_on_axe(2, intervaly[0])[-1]
-            if intervaly[1] >= axe_y[-1]:
+                indmin_y = self.get_indice_on_axe(2, intervy[0])[-1]
+            if intervy[1] >= axe_y[-1]:
                 indmax_y = len(axe_y) - 1
             else:
-                indmax_y = self.get_indice_on_axe(2, intervaly[1])[0]
+                indmax_y = self.get_indice_on_axe(2, intervy[1])[0]
         # trimming the field
         if inplace:
             axe_x = self.axe_x[indmin_x:indmax_x + 1]
@@ -4680,24 +4790,24 @@ class ScalarField(Field):
             unit = self.unit_values*self.unit_x
         return integrale*unit
 
-    def integrate_over_surface(self, intervalx=None, intervaly=None):
+    def integrate_over_surface(self, intervx=None, intervy=None):
         """
         Return the integral on a surface.
         Discretized integral is computed with a very rustic algorithm
         which just sum the value on the surface.
-        if 'intervalx' and 'intervaly' are given, return the integral over the
+        if 'intervx' and 'intervy' are given, return the integral over the
         delimited surface.
         WARNING : Only works (and badly) with regular axes.
 
         Function
         --------
-        integrale, unit = integrate_over_surface(intervalx, intervaly)
+        integrale, unit = integrate_over_surface(intervx, intervy)
 
         Parameters
         ----------
-        intervalx : interval of numbers, optional
+        intervx : interval of numbers, optional
             Interval along x on which we want to compute the integrale.
-        intervaly : interval of numbers, optional
+        intervy : interval of numbers, optional
             Interval along y on which we want to compute the integrale.
 
         Returns
@@ -4707,11 +4817,11 @@ class ScalarField(Field):
         unit : Unit object
             The unit of the integrale result.
         """
-        if intervalx is None:
-            intervalx = [-np.inf, np.inf]
-        if intervaly is None:
-            intervaly = [-np.inf, np.inf]
-        trimfield = self.trim_area(intervalx, intervaly)
+        if intervx is None:
+            intervx = [-np.inf, np.inf]
+        if intervy is None:
+            intervy = [-np.inf, np.inf]
+        trimfield = self.trim_area(intervx, intervy)
         axe2_x, axe2_y = trimfield.axe_x, trimfield.axe_y
         unit_x, unit_y = trimfield.unit_x, trimfield.unit_y
         integral = (trimfield.values.sum()
@@ -4876,16 +4986,16 @@ class ScalarField(Field):
         else:
             raise ValueError()
 
-    def trim_area(self, intervalx=None, intervaly=None, ind=False,
+    def trim_area(self, intervx=None, intervy=None, ind=False,
                   inplace=False):
         """
         Return a trimed  area in respect with given intervals.
 
         Parameters
         ----------
-        intervalx : array, optional
+        intervx : array, optional
             interval wanted along x
-        intervaly : array, optional
+        intervy : array, optional
             interval wanted along y
         ind : boolean, optional
             If 'True', intervals are understood as indices along axis.
@@ -4897,7 +5007,7 @@ class ScalarField(Field):
             values = self.values
             mask = self.mask
             indmin_x, indmax_x, indmin_y, indmax_y = \
-                Field.trim_area(self, intervalx, intervaly, full_output=True,
+                Field.trim_area(self, intervx, intervy, full_output=True,
                                 ind=ind, inplace=True)
             self.__values = values[indmin_x:indmax_x + 1,
                                    indmin_y:indmax_y + 1]
@@ -4905,7 +5015,7 @@ class ScalarField(Field):
                                indmin_y:indmax_y + 1]
         else:
             indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
-                Field.trim_area(self, intervalx, intervaly, full_output=True,
+                Field.trim_area(self, intervx, intervy, full_output=True,
                                 ind=ind)
             trimfield.__values = self.values[indmin_x:indmax_x + 1,
                                              indmin_y:indmax_y + 1]
@@ -5046,13 +5156,13 @@ class ScalarField(Field):
                 border = axe_x[-1]
                 side = 'right'
             elif position < x_median:
-                tmp_vf.trim_area(intervalx=[position, axe_x[-1]],
+                tmp_vf.trim_area(intervx=[position, axe_x[-1]],
                                  inplace=True)
                 side = 'left'
                 axe_x = tmp_vf.axe_x
                 border = axe_x[0]
             elif position > x_median:
-                tmp_vf.trim_area(intervalx=[axe_x[0], position],
+                tmp_vf.trim_area(intervx=[axe_x[0], position],
                                  inplace=True)
                 side = 'right'
                 axe_x = tmp_vf.axe_x
@@ -5070,13 +5180,13 @@ class ScalarField(Field):
                 border = axe_y[-1]
                 side = 'up'
             elif position < y_median:
-                tmp_vf.trim_area(intervaly=[position, axe_y[-1]],
+                tmp_vf.trim_area(intervy=[position, axe_y[-1]],
                                  inplace=True)
                 side = 'down'
                 axe_y = tmp_vf.axe_y
                 border = axe_y[0]
             elif position > y_median:
-                tmp_vf.trim_area(intervaly=[axe_y[0], position],
+                tmp_vf.trim_area(intervy=[axe_y[0], position],
                                  inplace=True)
                 side = 'up'
                 axe_y = tmp_vf.axe_y
@@ -5233,19 +5343,19 @@ class ScalarField(Field):
                 # deleting more masked border
                 if more_masked == 0:
                     len_x = len(tmp_vf.axe_x)
-                    tmp_vf.trim_area(intervalx=[1, len_x], ind=True,
+                    tmp_vf.trim_area(intervx=[1, len_x], ind=True,
                                      inplace=True)
                 elif more_masked == 1:
                     len_x = len(tmp_vf.axe_x)
-                    tmp_vf.trim_area(intervalx=[0, len_x - 2], ind=True,
+                    tmp_vf.trim_area(intervx=[0, len_x - 2], ind=True,
                                      inplace=True)
                 elif more_masked == 2:
                     len_y = len(tmp_vf.axe_y)
-                    tmp_vf.trim_area(intervaly=[1, len_y], ind=True,
+                    tmp_vf.trim_area(intervy=[1, len_y], ind=True,
                                      inplace=True)
                 elif more_masked == 3:
                     len_y = len(tmp_vf.axe_y)
-                    tmp_vf.trim_area(intervaly=[0, len_y - 2], ind=True,
+                    tmp_vf.trim_area(intervy=[0, len_y - 2], ind=True,
                                      inplace=True)
         # soft cropping
         else:
@@ -5490,14 +5600,14 @@ class ScalarField(Field):
             new_values = np.zeros((len(inds_x), len(inds_y)))
             new_mask = np.zeros((len(inds_x), len(inds_y)))
             for i in np.arange(len(inds_x)):
-                interv_x = slice(inds_x[i] - fact/2, inds_x[i] + fact/2)
+                intervx = slice(inds_x[i] - fact/2, inds_x[i] + fact/2)
                 for j in np.arange(len(inds_y)):
-                    interv_y = slice(inds_y[j] - fact/2, inds_y[j] + fact/2)
-                    if np.all(mask[interv_x, interv_y]):
+                    intervy = slice(inds_y[j] - fact/2, inds_y[j] + fact/2)
+                    if np.all(mask[intervx, intervy]):
                         new_mask[i, j] = True
                         new_values[i, j] = 0.
                     else:
-                        new_values[i, j] = np.mean(values[interv_x, interv_y])
+                        new_values[i, j] = np.mean(values[intervx, intervy])
 
         else:
             inds_x = np.arange((fact - 1)/2, len(axe_x) - (fact - 1)/2, fact)
@@ -5505,16 +5615,16 @@ class ScalarField(Field):
             new_values = np.zeros((len(inds_x), len(inds_y)))
             new_mask = np.zeros((len(inds_x), len(inds_y)))
             for i in np.arange(len(inds_x)):
-                interv_x = slice(inds_x[i] - (fact - 1)/2,
+                intervx = slice(inds_x[i] - (fact - 1)/2,
                                  inds_x[i] + (fact - 1)/2 + 1)
                 for j in np.arange(len(inds_y)):
-                    interv_y = slice(inds_y[j] - (fact - 1)/2,
+                    intervy = slice(inds_y[j] - (fact - 1)/2,
                                      inds_y[j] + (fact - 1)/2 + 1)
-                    if np.all(mask[interv_x, interv_y]):
+                    if np.all(mask[intervx, intervy]):
                         new_mask[i, j] = True
                         new_values[i, j] = 0.
                     else:
-                        new_values[i, j] = np.mean(values[interv_x, interv_y])
+                        new_values[i, j] = np.mean(values[intervx, intervy])
         # returning
         if inplace:
             self.__init__()
@@ -6388,16 +6498,16 @@ class VectorField(Field):
                                   unit_values=self.unit_values)
             return vf
 
-    def trim_area(self, intervalx=None, intervaly=None, ind=False,
+    def trim_area(self, intervx=None, intervy=None, ind=False,
                   inplace=False):
         """
         Return a trimed  area in respect with given intervals.
 
         Parameters
         ----------
-        intervalx : array, optional
+        intervx : array, optional
             interval wanted along x
-        intervaly : array, optional
+        intervy : array, optional
             interval wanted along y
         ind : boolean, optional
             If 'True', intervals are understood as indices along axis.
@@ -6407,7 +6517,7 @@ class VectorField(Field):
         """
         if inplace:
             indmin_x, indmax_x, indmin_y, indmax_y = \
-                Field.trim_area(self, intervalx, intervaly, full_output=True,
+                Field.trim_area(self, intervx, intervy, full_output=True,
                                 ind=ind, inplace=True)
             self.__comp_x = self.comp_x[indmin_x:indmax_x + 1,
                                         indmin_y:indmax_y + 1]
@@ -6417,7 +6527,7 @@ class VectorField(Field):
                                     indmin_y:indmax_y + 1]
         else:
             indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
-                Field.trim_area(self, intervalx, intervaly, full_output=True,
+                Field.trim_area(self, intervx, intervy, full_output=True,
                                 ind=ind)
             trimfield.__comp_x = self.comp_x[indmin_x:indmax_x + 1,
                                              indmin_y:indmax_y + 1]
@@ -6461,19 +6571,19 @@ class VectorField(Field):
                 # deleting more masked border
                 if more_masked == 0:
                     len_x = len(tmp_sf.axe_x)
-                    tmp_sf.trim_area(intervalx=[1, len_x], ind=True,
+                    tmp_sf.trim_area(intervx=[1, len_x], ind=True,
                                      inplace=True)
                 elif more_masked == 1:
                     len_x = len(tmp_sf.axe_x)
-                    tmp_sf.trim_area(intervalx=[0, len_x - 2], ind=True,
+                    tmp_sf.trim_area(intervx=[0, len_x - 2], ind=True,
                                      inplace=True)
                 elif more_masked == 2:
                     len_y = len(self.axe_y)
-                    tmp_sf.trim_area(intervaly=[1, len_y], ind=True,
+                    tmp_sf.trim_area(intervy=[1, len_y], ind=True,
                                      inplace=True)
                 elif more_masked == 3:
                     len_y = len(tmp_sf.axe_y)
-                    tmp_sf.trim_area(intervaly=[0, len_y - 2],
+                    tmp_sf.trim_area(intervy=[0, len_y - 2],
                                      ind=True, inplace=True)
         # soft cropping
         else:
@@ -7431,7 +7541,7 @@ class TemporalFields(Fields, Field):
                                            detrend=detrend)
         return magn_prof
 
-    def get_temporal_spectrum_over_area(self, component, intervalx, intervaly,
+    def get_temporal_spectrum_over_area(self, component, intervx, intervy,
                                         ind=False, welch_seglen=None,
                                         scaling='base', fill='linear',
                                         detrend='constant'):
@@ -7443,7 +7553,7 @@ class TemporalFields(Fields, Field):
         ----------
         component : string
             Scalar component ('Vx', 'Vy', 'magnitude', ...).
-        intervalx, intervaly : 2x1 arrays of numbers
+        intervx, intervy : 2x1 arrays of numbers
             Defining the square on which averaging the spectrum.
             (in axes values)
         ind : boolean
@@ -7475,48 +7585,48 @@ class TemporalFields(Fields, Field):
         # checking parameters coherence
         if not isinstance(component, STRINGTYPES):
             raise TypeError("'component' must be a string")
-        if not isinstance(intervalx, ARRAYTYPES):
-            raise TypeError("'intervalx' must be an array")
-        if not isinstance(intervaly, ARRAYTYPES):
-            raise TypeError("'intervaly' must be an array")
-        if not isinstance(intervalx[0], NUMBERTYPES):
-            raise TypeError("'intervalx' must be an array of numbers")
-        if not isinstance(intervaly[0], NUMBERTYPES):
-            raise TypeError("'intervaly' must be an array of numbers")
+        if not isinstance(intervx, ARRAYTYPES):
+            raise TypeError("'intervx' must be an array")
+        if not isinstance(intervy, ARRAYTYPES):
+            raise TypeError("'intervy' must be an array")
+        if not isinstance(intervx[0], NUMBERTYPES):
+            raise TypeError("'intervx' must be an array of numbers")
+        if not isinstance(intervy[0], NUMBERTYPES):
+            raise TypeError("'intervy' must be an array of numbers")
         axe_x, axe_y = self.axe_x, self.axe_y
         # checking interval values and getting bound indices
         if ind:
-            if not isinstance(intervalx[0], int)\
-                    or not isinstance(intervalx[1], int)\
-                    or not isinstance(intervaly[0], int)\
-                    or not isinstance(intervaly[1], int):
-                raise TypeError("'intervalx' and 'intervaly' must be arrays of"
+            if not isinstance(intervx[0], int)\
+                    or not isinstance(intervx[1], int)\
+                    or not isinstance(intervy[0], int)\
+                    or not isinstance(intervy[1], int):
+                raise TypeError("'intervx' and 'intervy' must be arrays of"
                                 " integer if 'ind' is 'True'")
-            if intervalx[0] < 0 or intervaly[0] < 0\
-                    or intervalx[-1] >= len(axe_x)\
-                    or intervaly[-1] >= len(axe_y):
+            if intervx[0] < 0 or intervy[0] < 0\
+                    or intervx[-1] >= len(axe_x)\
+                    or intervy[-1] >= len(axe_y):
                 raise ValueError("intervals are out of bounds")
-            ind_x_min = intervalx[0]
-            ind_x_max = intervalx[1]
-            ind_y_min = intervaly[0]
-            ind_y_max = intervaly[1]
+            ind_x_min = intervx[0]
+            ind_x_max = intervx[1]
+            ind_y_min = intervy[0]
+            ind_y_max = intervy[1]
         else:
             axe_x_min = np.min(axe_x)
             axe_x_max = np.max(axe_x)
             axe_y_min = np.min(axe_y)
             axe_y_max = np.max(axe_y)
-            if np.min(intervalx) < axe_x_min\
-                    or np.max(intervalx) > axe_x_max\
-                    or np.min(intervaly) < axe_y_min\
-                    or np.max(intervaly) > axe_y_max:
+            if np.min(intervx) < axe_x_min\
+                    or np.max(intervx) > axe_x_max\
+                    or np.min(intervy) < axe_y_min\
+                    or np.max(intervy) > axe_y_max:
                 raise ValueError("intervals ({}) are out of bounds ({})"
-                                 .format([intervalx, intervaly],
+                                 .format([intervx, intervy],
                                          [[axe_x_min, axe_x_max],
                                           [axe_y_min, axe_y_max]]))
-            ind_x_min = self.get_indice_on_axe(1, intervalx[0])[-1]
-            ind_x_max = self.get_indice_on_axe(1, intervalx[1])[0]
-            ind_y_min = self.get_indice_on_axe(2, intervaly[0])[-1]
-            ind_y_max = self.get_indice_on_axe(2, intervaly[1])[0]
+            ind_x_min = self.get_indice_on_axe(1, intervx[0])[-1]
+            ind_x_max = self.get_indice_on_axe(1, intervx[1])[0]
+            ind_y_min = self.get_indice_on_axe(2, intervy[0])[-1]
+            ind_y_max = self.get_indice_on_axe(2, intervy[1])[0]
         # Averaging ponctual spectrums
         magn = 0.
         nmb_fields = (ind_x_max - ind_x_min + 1)*(ind_y_max - ind_y_min + 1)
@@ -7819,19 +7929,19 @@ class TemporalFields(Fields, Field):
                 # deleting more masked border
                 if more_masked == 0:
                     len_x = len(tmp_tf.axe_x)
-                    tmp_tf.trim_area(intervalx=[1, len_x], ind=True,
+                    tmp_tf.trim_area(intervx=[1, len_x], ind=True,
                                      inplace=True)
                 elif more_masked == 1:
                     len_x = len(tmp_tf.axe_x)
-                    tmp_tf.trim_area(intervalx=[0, len_x - 2], ind=True,
+                    tmp_tf.trim_area(intervx=[0, len_x - 2], ind=True,
                                      inplace=True)
                 elif more_masked == 2:
                     len_y = len(tmp_tf.axe_y)
-                    tmp_tf.trim_area(intervaly=[1, len_y], ind=True,
+                    tmp_tf.trim_area(intervy=[1, len_y], ind=True,
                                      inplace=True)
                 elif more_masked == 3:
                     len_y = len(tmp_tf.axe_y)
-                    tmp_tf.trim_area(intervaly=[0, len_y - 2], ind=True,
+                    tmp_tf.trim_area(intervy=[0, len_y - 2], ind=True,
                                      inplace=True)
             if not inplace:
                 return tmp_tf
@@ -7861,7 +7971,7 @@ class TemporalFields(Fields, Field):
                                  ind=True, inplace=True)
                 return tmp_tf
 
-    def trim_area(self, intervalx=None, intervaly=None, intervalt=None,
+    def trim_area(self, intervx=None, intervy=None, intervt=None,
                   full_output=False,
                   ind=False, inplace=False):
         """
@@ -7869,11 +7979,11 @@ class TemporalFields(Fields, Field):
 
         Parameters
         ----------
-        intervalx : array, optional
+        intervx : array, optional
             interval wanted along x
-        intervaly : array, optional
+        intervy : array, optional
             interval wanted along y
-        intervalt : array, optional
+        intervt : array, optional
             interval wanted along time
         full_output : boolean, optional
             If 'True', cutting indices are alson returned
@@ -7881,48 +7991,49 @@ class TemporalFields(Fields, Field):
             If 'True', fields are trimed in place.
         """
         # check parameters
-        if intervalt is not None:
-            if not isinstance(intervalt, ARRAYTYPES):
+        if intervt is not None:
+            if not isinstance(intervt, ARRAYTYPES):
                 raise TypeError()
-            intervalt = np.array(intervalt, dtype=float)
-            if intervalt.shape != (2, ):
+            intervt = np.array(intervt, dtype=float)
+            if intervt.shape != (2, ):
                 raise ValueError()
         # get wanted times
-        if intervalt is not None:
+        if intervt is not None:
             if ind:
-                intervalt = np.arange(intervalt[0], intervalt[1] + 1)
+                intervt = np.arange(intervt[0], intervt[1] + 1)
             else:
-                if intervalt[0] < self.times[0]:
+                if intervt[0] < self.times[0]:
                     ind1 = 0
-                elif intervalt[0] > self.times[-1]:
+                elif intervt[0] > self.times[-1]:
                     raise ValueError()
                 else:
-                    ind1 = np.where(intervalt[0] <= self.times)[0][0]
-                if intervalt[1] > self.times[-1]:
+                    ind1 = np.where(intervt[0] <= self.times)[0][0]
+                if intervt[1] > self.times[-1]:
                     ind2 = len(self.times) - 1
-                elif intervalt[1] < self.times[0]:
+                elif intervt[1] < self.times[0]:
                     raise ValueError()
                 else:
-                    ind2 = np.where(intervalt[1] >= self.times)[0][-1]
-                intervalt = [ind1, ind2]
+                    ind2 = np.where(intervt[1] >= self.times)[0][-1]
+                intervt = [ind1, ind2]
         ### trim
         if inplace:
             trimfield = self
         else:
             trimfield = self.copy()
         # temporal
-        if intervalt is not None:
-            trimfield.fields = trimfield.fields[intervalt[0]:intervalt[1] + 1]
-            trimfield.times = trimfield.times[intervalt[0]:intervalt[1] + 1]
+        if intervt is not None:
+            trimfield.fields = trimfield.fields[intervt[0]:intervt[1] + 1]
+            trimfield.times = trimfield.times[intervt[0]:intervt[1] + 1]
         # spatial
-        Field.trim_area(trimfield, intervalx, intervaly, ind=ind,
+        Field.trim_area(trimfield, intervx, intervy, ind=ind,
                         inplace=True)
         for field in trimfield.fields:
-            field.trim_area(intervalx, intervaly, ind=ind,
+            field.trim_area(intervx, intervy, ind=ind,
                             inplace=True)
         # returning
         if not inplace:
             return trimfield
+
 
     def set_origin(self, x=None, y=None):
         """
