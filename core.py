@@ -1806,44 +1806,44 @@ class OrientedPoints(Points):
         Points.remove(self, ind)
         self.orientations = np.delete(self.orientations, ind, axis=0)
 
-    def trim(self, intervx=None, intervy=None, inplace=False):
-        """
-        Return a trimmed point cloud.
-
-        Parameters
-        ----------
-        intervx : 2x1 tuple
-            Interval on x axis
-        intervy : 2x1 tuple
-            Interval on y axis
-        inplace : bool
-            .
-
-        Returns
-        -------
-        tmp_pts : OrientedPoints object
-            Trimmed version of the point cloud.
-        """
-        # get data
-        if inplace:
-            tmp_opts = self
-        else:
-            tmp_opts = self.copy()
-        # trim
-        Points.trim(tmp_opts, intervx, intervy)
-        mask = np.zeros(len(tmp_opts.xy))
-        if intervx is not None:
-            out_zone = np.logical_or(tmp_opts.xy[:, 0] < intervx[0],
-                                     tmp_opts.xy[:, 0] > intervx[1])
-            mask = np.logical_or(mask, out_zone)
-        if intervy is not None:
-            out_zone = np.logical_or(tmp_opts.xy[:, 1] < intervy[0],
-                                     tmp_opts.xy[:, 1] > intervy[1])
-            mask = np.logical_or(mask, out_zone)
-        tmp_opts.orientations = self.orientations[~mask]
-        # return
-        if not inplace:
-            return tmp_opts
+#    def trim(self, intervx=None, intervy=None, inplace=False):
+#        """
+#        Return a trimmed point cloud.
+#
+#        Parameters
+#        ----------
+#        intervx : 2x1 tuple
+#            Interval on x axis
+#        intervy : 2x1 tuple
+#            Interval on y axis
+#        inplace : bool
+#            .
+#
+#        Returns
+#        -------
+#        tmp_pts : OrientedPoints object
+#            Trimmed version of the point cloud.
+#        """
+#        # get data
+#        if inplace:
+#            tmp_opts = self
+#        else:
+#            tmp_opts = self.copy()
+#        # trim
+#        Points.trim(tmp_opts, intervx, intervy)
+#        mask = np.zeros(len(tmp_opts.xy))
+#        if intervx is not None:
+#            out_zone = np.logical_or(tmp_opts.xy[:, 0] < intervx[0],
+#                                     tmp_opts.xy[:, 0] > intervx[1])
+#            mask = np.logical_or(mask, out_zone)
+#        if intervy is not None:
+#            out_zone = np.logical_or(tmp_opts.xy[:, 1] < intervy[0],
+#                                     tmp_opts.xy[:, 1] > intervy[1])
+#            mask = np.logical_or(mask, out_zone)
+#        tmp_opts.orientations = self.orientations[~mask]
+#        # return
+#        if not inplace:
+#            return tmp_opts
 
     def cut(self, intervx=None, intervy=None):
         """
