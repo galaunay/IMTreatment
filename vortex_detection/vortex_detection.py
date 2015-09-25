@@ -923,7 +923,7 @@ class CritPoints(object):
         if not inplace:
             return tmp_cp
 
-    def trim_time(self, intervtime, inplace=False):
+    def trim_time(self, intervtime, ind=False, inplace=False):
         """
         Trim the points field
         """
@@ -934,10 +934,19 @@ class CritPoints(object):
             tmp_cp = self.copy()
         # trajectories are obsolete
         tmp_cp.current_epsilon = None
-        # loop on points
-        for kind in tmp_cp.iter:
-            for pts in kind:
-                pts.trim(intervv=intervtime, inplace=True)
+        # trim the things...
+        if ind:
+            filt = np.zeros(shape=(len(tmp_cp.times)), dtype=bool)
+            filt[intervtime[0]:intervtime[1]] = True
+        else:
+            filt = np.logical_and(tmp_cp.times >= intervtime[0],
+                                  tmp_cp.times <= intervtime[1])
+        tmp_cp.times = tmp_cp.times[filt]
+        tmp_cp.foc = tmp_cp.foc[filt]
+        tmp_cp.foc_c = tmp_cp.foc_c[filt]
+        tmp_cp.sadd = tmp_cp.sadd[filt]
+        tmp_cp.node_i = tmp_cp.node_i[filt]
+        tmp_cp.node_o = tmp_cp.node_o[filt]
         # returning
         if not inplace:
             return tmp_cp        
@@ -1225,7 +1234,7 @@ class CritPoints(object):
             Class representing an orthogonal set of points, defined by a
             position and a time.
             """
-            def __init__(self, pts_tupl, times, close_traj=False):
+            def __init__(self, pts_tupl, epsilon, times):
                 if not isinstance(pts_tupl, ARRAYTYPES):
                     raise TypeError("'pts' must be a tuple of Point objects")
                 for pt in pts_tupl:
@@ -1235,144 +1244,161 @@ class CritPoints(object):
                     if not len(pt) == len(pt.v):
                         raise StandardError("v has not the same dimension as "
                                             "xy")
-                # if some Points objects contains more than one point,
-                # we decompose them
-                for i in np.arange(len(pts_tupl)-1, -1, -1):
-                    if len(pts_tupl[i]) != 1:
-                        pts_tupl[i:i+1] = pts_tupl[i].decompose()
+                ### store the points in a more convenient way
+                uns_xs = []
+                uns_ys = []
+                uns_times = []
+                for pts in pts_tupl:
+                    uns_xs += list(pts.xy[:, 0])
+                    uns_ys += list(pts.xy[:, 1])
+                    uns_times += list(pts.v)
+                # sort them by times
+                self.times = times
+                self.epsilon = epsilon
+                self.epsilon2 = float(epsilon**2)
                 self.points = []
-                # possible times determination
-                if times is None:
-                    times = []
-                    for pt in pts_tupl:
-                        times.append(pt.v[0])
-                    times = list(set(times))
-                    times.sort()
-                    self.times = times
-                # Sorting points by times
-                for time in times:
-                    self.times = times
-                    tmp_points = []
-                    for pt in pts_tupl:
-                        if pt.v[0] == time:
-                            tmp_points.append(Point(pt.xy[0, 0], pt.xy[0, 1],
-                                                    pt.v[0]))
+                for time in self.times:
+                    tmp_points = [Point(uns_xs[i], uns_ys[i], time=time)
+                                  for i in range(len(uns_times))
+                                  if time == uns_times[i]]
                     self.points.append(tmp_points)
-                self.close_traj = close_traj
-                if close_traj:
-                    self.init_points = copy.deepcopy(self.points)
+                    
+                # store in Point objects
+                del uns_xs, uns_ys, uns_times
+                #  get unities
                 self.unit_x = pts_tupl[0].unit_x
                 self.unit_y = pts_tupl[0].unit_y
-                self.unit_v = pts_tupl[0].unit_v
-                self.time_step = np.size(self.points, 0)
+                self.unit_v = pts_tupl[0].unit_v   
+                # prepare some storage for lines
+                self.closed_lines = []
+                self.open_lines = []      
+                self.curr_time = 0                        
 
-            def make_point_useless(self, i, j):
-                """
-                Make a point of the field useless (None).
-                """
-                try:
-                    i = int(i)
-                    j = int(j)
-                except ValueError:
-                    raise TypeError("'i' and 'j' must be integers, not {}"
-                                    " and {}"
-                                    .format(type(i), type(j)))
-                self.points[i][j] = None
-
-            def get_points_at_time(self, time, init=False):
+            def get_points_at_time(self, time):
                 """
                 Return all the points for a given time.
                 If 'init' is True, get the points from the initial points field.
                 """
-                try:
-                    time = int(time)
-                except ValueError:
-                    raise TypeError()
-                if init:
-                    return self.init_points[time]
-                else:
-                    return self.points[time]
+                return self.points[time]
 
+            def get_first_lines(self):
+                """
+                Construct some lines for the first time step
+                """
+                for pt in self.get_points_at_time(0):
+                    self.open_lines.append(Line(pt))
+                    
+            def make_one_step(self):
+                """
+                Use the points from the next step to fill the Lines
+                """
+                # get points to add
+                new_pts = self.get_points_at_time(self.curr_time + 1)
+                # get distances matrix
+                dist2_mat = np.empty(shape=(len(new_pts), len(self.open_lines)))
+                for i in range(len(new_pts)):
+                    pt = new_pts[i]
+                    for j in range(len(self.open_lines)):
+                        last_pt = self.open_lines[j].points[-1]
+                        dist2_mat[i, j] = pt.dist2(last_pt)
+                # track used pt and lines
+                used_lines = np.zeros(len(self.open_lines), dtype=bool)
+                used_pts = np.zeros(len(new_pts), dtype=bool)
+                # check dist2 matrix size
+                if dist2_mat.shape[0] != 0 and dist2_mat.shape[1] != 0:
+                    usable_mat = True
+                else:
+                    usable_mat = False
+                # loop over min values of dist2_mat
+                while usable_mat:
+                    indmin_pt, indmin_line = np.unravel_index(np.argmin(dist2_mat), dist2_mat.shape)
+                    # if dist to big or nothing remaining, we stop
+                    if (dist2_mat[indmin_pt, indmin_line] > epsilon
+                            or dist2_mat[indmin_pt, indmin_line] == np.inf):
+                        break
+                    # append pt to Line
+                    self.open_lines[indmin_line].add_point(new_pts[indmin_pt])
+                    # remove pt and line from dist2_mat
+                    dist2_mat[indmin_pt, :] = np.inf
+                    dist2_mat[:, indmin_line] = np.inf
+                    used_lines[indmin_line] = True
+                    used_pts[indmin_pt] = True
+                # close the lines that have not a new pt
+                for i in range(len(used_lines))[::-1]:
+                    if not used_lines[i]:
+                        self.closed_lines.append(self.open_lines[i])
+                        del self.open_lines[i]
+                # create new line for remaining points
+                new_pts = np.asarray(new_pts)
+                for pt in new_pts[np.logical_not(used_pts)]:
+                    self.open_lines.append(Line(init_pt=pt))
+                # ready for the next step
+                self.curr_time += 1    
+                
+            def make_all_steps(self):
+                """
+                Put all points into the Lines.
+                """
+                # create the first lines
+                self.get_first_lines()
+                # make times steps
+                for i in range(len(self.times) - 2):
+                    self.make_one_step()
+                # close all remaining Lines
+                for line in self.open_lines:
+                    self.closed_lines.append(line)
+                self.open_lines = []
+            
+            def get_trajectories(self):
+                """
+                return the trajectories under the form of sorted Points objects
+                """
+                # compute Lines
+                self.make_all_steps()
+                # export Lines to Points objects
+                pts = []
+                for line in self.closed_lines:
+                    pts.append(line.export_to_Points(unit_x=self.unit_x,
+                                                     unit_y=self.unit_y,
+                                                     unit_v=self.unit_v))
+                # sort trajectories by length
+                if len(pts) > 1:
+                    lengths = [len(pt.xy) for pt in pts]
+                    ind_sort = np.argsort(lengths)[::-1]
+                    pts = np.asarray(pts)
+                    pts = pts[ind_sort]
+                return pts
+            
+            @staticmethod
+            def get_closer_point(pt, pts):
+                """
+                """
+                pts = np.asarray(pts)
+                dist2 = [pt.dist2(opt) for opt in pts]
+                print("")
+                print(pt)
+                print(dist2)
+                ind_min = np.argmin(dist2)
+                return ind_min, dist2[ind_min]
+            
+                
+                
         # local class line to store vortex center evolution line
         class Line(object):
             """
             Class representing a line, defined by a set of ordened points.
             """
 
-            def __init__(self, epsilon):
-                self.points = []
-                self.epsilon = epsilon
+            def __init__(self, init_pt):
+                self.points = [init_pt]
 
             def add_point(self, pts):
                 """
                 Add a new point to the line.
                 """
-                if not isinstance(pts, Point):
-                    raise TypeError("'pts' must be a Point object")
                 self.points.append(pts)
 
-            def remove_point(self, ind):
-                """
-                Remove the designated point of the line.
-                """
-                if not isinstance(ind, int):
-                    raise TypeError("'ind' must be an integer")
-                if ind < 0 or ind > len(self):
-                    raise ValueError("'ind' is out of range")
-                self.points.pop(ind)
-
-            def choose_starting_point(self, PF):
-                """
-                Choose in the given field, a new new starting point for a line.
-                """
-                if not isinstance(PF, PointField):
-                    raise TypeError()
-                start_i = None
-                start_j = None
-                for i in np.arange(PF.time_step):
-                    for j in np.arange(len(PF.points[i])):
-                        if PF.points[i][j] is not None:
-                            start_i = i
-                            start_j = j
-                            break
-                    if start_i is not None:
-                        break
-                if start_i is None:
-                    return None, None
-                self.points.append(PF.points[start_i][start_j])
-                PF.make_point_useless(start_i, start_j)
-                return start_i, start_j
-
-            def choose_next_point(self, ext_pt_tupl):
-                """
-                Get the next point of the line (closest one).
-                """
-                if not isinstance(ext_pt_tupl, ARRAYTYPES):
-                    raise TypeError()
-                if len(ext_pt_tupl) == 0:
-                    return None
-                if ext_pt_tupl[0] is not None:
-                    if not isinstance(ext_pt_tupl[0], Point):
-                        raise TypeError()
-                if len(self.points) == 0:
-                    raise Warning("there is no starting points")
-                # nearest point choice
-                dist = []
-                for ext_pt in ext_pt_tupl:
-                    dist.append(distance(ext_pt, self.points[-1]))
-                ind_min = np.argmin(dist)
-                # if all the points are 'useless', the line should stop
-                if dist[ind_min] == 1e99:
-                    return None
-                # else, we check that the point is not too far (using epsilon)
-                if epsilon is not None:
-                    if dist[ind_min] > self.epsilon**2:
-                        return None
-                # and if not we add the new point
-                self.points.append(ext_pt_tupl[ind_min])
-                return ind_min
-
-            def export_to_Points(self, PF):
+            def export_to_Points(self, unit_x, unit_y, unit_v):
                 """
                 Export the current line to a Points object.
                 """
@@ -1380,54 +1406,35 @@ class CritPoints(object):
                 v = []
                 for pt in self.points:
                     xy.append([pt.x, pt.y])
-                    v.append(pt.v)
-                points = Points(xy, v, PF.unit_x, PF.unit_y, PF.unit_v)
+                    v.append(pt.time)
+                points = Points(xy, v=v, unit_x=unit_x, unit_y=unit_y,
+                                unit_v=unit_v)
                 return points
 
         # local class point to store one point
         class Point(object):
             """
             Class representing a point with a value on it.
-            """
-            def __init__(self, x, y, v):
+            """      
+            def __init__(self, x, y, time):
                 self.x = x
                 self.y = y
-                self.v = v
+                self.time = time
+                
+            def __repr__(self):
+                return "{}, {}".format(self.x, self.y)
+#            def norm2(self):
+#                return self.x**2 + self.y**2
+            
+            def dist2(self, pt):
+                return (self.x - pt.x)**2 + (self.y - pt.y)**2
 
-        # local function distance to compute distance between Point objects
-        def distance(pts1, pts2):
-            """
-            Compute the distance between two points.
-            """
-            if pts2 is None or pts1 is None:
-                return 1e99
-            else:
-                return (pts2.x - pts1.x)**2 + (pts2.y - pts1.y)**2
+            
         # Getting the vortex centers trajectory
-        PF = PointField(points, times, close_traj=close_traj)
-        if len(PF.points) == 0:
-            return []
-        points_f = []
-        while True:
-            line = Line(epsilon)
-            start_i, start_j = line.choose_starting_point(PF)
-            if start_i is None:
-                break
-            for i in np.arange(start_i + 1, PF.time_step):
-                j = line.choose_next_point(PF.get_points_at_time(i, init=False))
-                if j is None:
-                    # add one more point o close the traj
-                    if close_traj:
-                        j = line.choose_next_point(PF.get_points_at_time(i, init=True))
-                    break
-                PF.make_point_useless(i, j)
-            points_f.append(line.export_to_Points(PF))
-        # sort by length
-        points_f = np.asarray(points_f)
-        lens = [len(pts) for pts in points_f]
-        ind_sort = np.argsort(lens)
-        points_f = points_f[ind_sort [::-1]]
-        return list(points_f)
+        PF = PointField(points, epsilon, times)
+        pts = PF.get_trajectories()
+        return pts
+
 
     ### Displayers ###
     def display(self, indice=None, time=None, field=None, cpkw={}, lnkw={}):
