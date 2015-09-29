@@ -4408,12 +4408,12 @@ class ScalarField(Field):
             indx = ind[0]
             indy = ind[1]
             if indx % 1 == 0:
-                x = self.axe_x[indx]
+                x = self.axe_x[int(indx)]
             else:
                 dx = self.axe_x[1] - self.axe_x[0]
                 x = self.axe_x[int(indx)] + dx*(indx % 1)
             if indy % 1 == 0:
-                y = self.axe_y[indy]
+                y = self.axe_y[int(indy)]
             else:
                 dy = self.axe_y[1] - self.axe_y[0]
                 y = self.axe_y[int(indy)] + dy*(indy % 1)

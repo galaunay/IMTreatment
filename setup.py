@@ -12,7 +12,8 @@ submodule_names = ['boundary_layer',
                    'pod',
                    'tools',
                    'vortex_creation',
-                   'vortex_detection'] 
+                   'vortex_detection',
+                   'vortex_criterions'] 
 
 # set extensions
 extensions = [Extension("core", ["core.py"], include_dirs=(".",))]
@@ -29,6 +30,6 @@ setup(
 )
 
 
-# move *.pyd to the good folder
-for name in submodule_names:
-    shutil.move('./{0}.pyd'.format(name), r"./{0}")
+## move *.pyd to the good folder
+#for name in submodule_names:
+#    shutil.move('./{0}.pyd'.format(name), r"./{0}")
