@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import scipy.integrate as spint
 import scipy.interpolate as spinter
 
+
 class ModalFields(Field):
     """
     Class representing the result of a modal decomposition.
@@ -128,7 +129,7 @@ class ModalFields(Field):
                                  unit_times=self.unit_times)
             return tmp_tf
 
-    def trim_modes(self, modes_to_keep=None, modes_to_remove=None,
+    def remove_modes(self, modes_to_keep=None, modes_to_remove=None,
                    inplace=True):
         """
         Remove some modes from the set.
@@ -221,92 +222,123 @@ class ModalFields(Field):
         if not inplace:
             return tmp_pod
     
-    def trim_time(self, interval, ind=False, inplace=False):
-        """
-        Remove some part of the temporal evolution
-        (used to shorten the result of 'reconstruct')
-        
-        Parameters
-        ----------
-        interval : 2x1 array of numbers
-            Interval of time to keep.
-        ind : bool
-            If 'True', 'interval' is taken as indice, else, 'interval is take
-            as time values.
-        inplace : bool
-            .
-        """
-        # check
-        if not isinstance(interval, ARRAYTYPES):
-            raise TypeError()
-        if not isinstance(ind, bool):
-            raise TypeError()
-        if not isinstance(inplace, bool):
-            raise TypeError()
-        # get data
-        if inplace:
-            tmp_pod = self
-        else:
-            tmp_pod = self.copy()
-        times = self.times
-        # get time indices
-        if not ind:
-            interval = np.array(interval, dtype=float)
-            if interval[0] <= times[0]:
-                ind_1 = 0
-            elif interval[0] >= times[-1]:
-                raise ValueError()
-            else:
-                ind_1 = np.where(times > interval[0])[0][0]
-            if interval[1] >= times[-1]:
-                ind_2 = len(times)
-            elif interval[1] <= times[0]:
-                raise ValueError()
-            else:
-                ind_2 = np.where(times > interval[1])[0][0]
-            interval = [ind_1, ind_2]
-        interval = np.array(interval, dtype=int)
-        # trim 
-        tmp_pod.times = tmp_pod.times[interval[0]:interval[1]]
-        tmp_pod._ModalFields__temp_coh = None
-        for prof in tmp_pod.temp_evo:
-            prof.trim(interval, ind=True, inplace=True)
-        # return
-        if not inplace:
-            return tmp_pod
+#    def trim_time(self, interval, ind=False, inplace=False):
+#        """
+#        Remove some part of the temporal evolution
+#        (used to shorten the result of 'reconstruct')
+#        
+#        Parameters
+#        ----------
+#        interval : 2x1 array of numbers
+#            Interval of time to keep.
+#        ind : bool
+#            If 'True', 'interval' is taken as indice, else, 'interval is take
+#            as time values.
+#        inplace : bool
+#            .
+#        """
+#        # check
+#        if not isinstance(interval, ARRAYTYPES):
+#            raise TypeError()
+#        if not isinstance(ind, bool):
+#            raise TypeError()
+#        if not isinstance(inplace, bool):
+#            raise TypeError()
+#        # get data
+#        if inplace:
+#            tmp_pod = self
+#        else:
+#            tmp_pod = self.copy()
+#        times = self.times
+#        # get time indices
+#        if not ind:
+#            interval = np.array(interval, dtype=float)
+#            if interval[0] <= times[0]:
+#                ind_1 = 0
+#            elif interval[0] >= times[-1]:
+#                raise ValueError()
+#            else:
+#                ind_1 = np.where(times > interval[0])[0][0]
+#            if interval[1] >= times[-1]:
+#                ind_2 = len(times)
+#            elif interval[1] <= times[0]:
+#                raise ValueError()
+#            else:
+#                ind_2 = np.where(times > interval[1])[0][0]
+#            interval = [ind_1, ind_2]
+#        interval = np.array(interval, dtype=int)
+#        # trim 
+#        tmp_pod.times = tmp_pod.times[interval[0]:interval[1]]
+#        tmp_pod._ModalFields__temp_coh = None
+#        for prof in tmp_pod.temp_evo:
+#            prof.trim(interval, ind=True, inplace=True)
+#        # return
+#        if not inplace:
+#            return tmp_pod
             
-    def trim_space(self, intervx=None, intervy=None, ind=False,
-                   inplace=False):
+    def crop(self, intervx=None, intervy=None, intervt=None, ind=False,
+                  inplace=False):
         """
-        Trim the spatial modes according to the given intervals.
+        Crop the POD modes and/or temporal evolutions, according to the given
+        intervals.
 
         Parameters
         ----------
-        intervx : array, optional
-            interval wanted along x
-        intervy : array, optional
-            interval wanted along y
+        intervx : 2x1 array of numbers
+            Interval of x to keep.
+        intervy : 2x1 array of numbers
+            Interval of y to keep.
+        intervt : 2x1 array of numbers
+            Interval of time to keep.
         ind : boolean, optional
             If 'True', intervals are understood as indices along axis.
             If 'False' (default), intervals are understood in axis units.
         inplace : boolean, optional
-            If 'True', the field is trimed in place.
+            If 'True', the field is croped in place.
         """
-        # check not necessary because done in 'VectorField.trim_area()'
+        # check not necessary because done in 'VectorField.crop()'
         # get data
         if inplace:
             tmp_mf = self
         else:
             tmp_mf = self.copy()
-        # trim Field and mean field
-        tmp_mf.trim_area(intervx=intervx, intervy=intervy, ind=ind,
-                       inplace=True)
-        tmp_mf.mean_field.trim_area(intervx=intervx, intervy=intervy, ind=ind,
-                                    inplace=True)
-        # loop on modes
-        for mode in tmp_mf.modes:
-            mode.trim_area(intervx=intervx, intervy=intervy, 
-                           ind=ind, inplace=True)
+        # temporal crop (first for efficiency)
+        if intervt is not None:
+            times = self.times
+            # get time indices
+            if not ind:
+                intervt = np.array(intervt, dtype=float)
+                if intervt[0] <= times[0]:
+                    ind_1 = 0
+                elif intervt[0] >= times[-1]:
+                    raise ValueError()
+                else:
+                    ind_1 = np.where(times > intervt[0])[0][0]
+                if intervt[1] >= times[-1]:
+                    ind_2 = len(times)
+                elif intervt[1] <= times[0]:
+                    raise ValueError()
+                else:
+                    ind_2 = np.where(times > intervt[1])[0][0]
+                intervt = [ind_1, ind_2]
+            intervt = np.array(intervt, dtype=int)
+            # crop 
+            tmp_mf.times = tmp_mf.times[intervt[0]:intervt[1]]
+            tmp_mf._ModalFields__temp_coh = None
+            for prof in tmp_mf.temp_evo:
+                prof.crop(intervx=intervt, ind=True, inplace=True)
+        # spatial crop
+        if intervx is not None or intervy is not None:
+            # crop Field and mean field
+            super(ModalFields, tmp_mf).crop(intervx=intervx, intervy=intervy,
+                                            full_output=False, ind=ind,
+                                            inplace=True)
+            tmp_mf.mean_field.crop(intervx=intervx, intervy=intervy, ind=ind,
+                                   inplace=True)
+            # loop on modes
+            for mode in tmp_mf.modes:
+                mode.crop(intervx=intervx, intervy=intervy, 
+                          ind=ind, inplace=True)
         # return
         if not inplace:
             return tmp_mf

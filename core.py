@@ -28,6 +28,7 @@ try:
 except:
     pass
 
+# TODO :  changer ce truc par 'from types improt *' => plus general !
 ARRAYTYPES = (np.ndarray, list, tuple)
 INTEGERTYPES = (int, np.int, np.int16, np.int32, np.int64, np.int8)
 NUMBERTYPES = (long, float, complex, np.float, np.float16, np.float32,
@@ -1100,9 +1101,9 @@ class Points(object):
         else:
             raise ValueError()
 
-    def trim(self, intervx=None, intervy=None, intervv=None, inplace=True):
+    def crop(self, intervx=None, intervy=None, intervv=None, inplace=True):
         """
-        Return a trimmed point cloud.
+        Crop the points cloud.
 
         Parameters
         ----------
@@ -1116,7 +1117,7 @@ class Points(object):
         Returns
         -------
         tmp_pts : Points object
-            Trimmed version of the point cloud.
+            croped version of the point cloud.
         """
         if inplace:
             tmp_pts = self
@@ -1141,6 +1142,37 @@ class Points(object):
         # returning
         if not inplace:
             return tmp_pts
+
+    def cut(self, intervx=None, intervy=None):
+        """
+        Return a point cloud where the given area has been removed.
+
+        Parameters
+        ----------
+        intervx : 2x1 tuple
+            Interval on x axis
+        intervy : 2x1 tuple
+            Interval on y axis
+
+        Returns
+        -------
+        tmp_pts : Points object
+            Cutted version of the point cloud.
+        """
+        tmp_pts = self.copy()
+        mask = np.ones(len(self.xy))
+        if intervx is not None:
+            out_zone = np.logical_and(self.xy[:, 0] > intervx[0],
+                                      self.xy[:, 0] < intervx[1])
+            mask = np.logical_and(mask, out_zone)
+        if intervy is not None:
+            out_zone = np.logical_and(self.xy[:, 1] > intervy[0],
+                                      self.xy[:, 1] < intervy[1])
+            mask = np.logical_and(mask, out_zone)
+        tmp_pts.xy = tmp_pts.xy[~mask, :]
+        if len(tmp_pts.v) != 0:
+            tmp_pts.v = tmp_pts.v[~mask]
+        return tmp_pts
 
     def scale(self, scalex=1., scaley=1., scalev=1., inplace=False):
         """
@@ -1194,37 +1226,6 @@ class Points(object):
         # returning
         if not inplace:
             return tmp_pt
-
-    def cut(self, intervx=None, intervy=None):
-        """
-        Return a point cloud where the given area has been removed.
-
-        Parameters
-        ----------
-        intervx : 2x1 tuple
-            Interval on x axis
-        intervy : 2x1 tuple
-            Interval on y axis
-
-        Returns
-        -------
-        tmp_pts : Points object
-            Cutted version of the point cloud.
-        """
-        tmp_pts = self.copy()
-        mask = np.ones(len(self.xy))
-        if intervx is not None:
-            out_zone = np.logical_and(self.xy[:, 0] > intervx[0],
-                                      self.xy[:, 0] < intervx[1])
-            mask = np.logical_and(mask, out_zone)
-        if intervy is not None:
-            out_zone = np.logical_and(self.xy[:, 1] > intervy[0],
-                                      self.xy[:, 1] < intervy[1])
-            mask = np.logical_and(mask, out_zone)
-        tmp_pts.xy = tmp_pts.xy[~mask, :]
-        if len(tmp_pts.v) != 0:
-            tmp_pts.v = tmp_pts.v[~mask]
-        return tmp_pts
 
     def reverse(self):
         """
@@ -1805,45 +1806,6 @@ class OrientedPoints(Points):
         """
         Points.remove(self, ind)
         self.orientations = np.delete(self.orientations, ind, axis=0)
-
-#    def trim(self, intervx=None, intervy=None, inplace=False):
-#        """
-#        Return a trimmed point cloud.
-#
-#        Parameters
-#        ----------
-#        intervx : 2x1 tuple
-#            Interval on x axis
-#        intervy : 2x1 tuple
-#            Interval on y axis
-#        inplace : bool
-#            .
-#
-#        Returns
-#        -------
-#        tmp_pts : OrientedPoints object
-#            Trimmed version of the point cloud.
-#        """
-#        # get data
-#        if inplace:
-#            tmp_opts = self
-#        else:
-#            tmp_opts = self.copy()
-#        # trim
-#        Points.trim(tmp_opts, intervx, intervy)
-#        mask = np.zeros(len(tmp_opts.xy))
-#        if intervx is not None:
-#            out_zone = np.logical_or(tmp_opts.xy[:, 0] < intervx[0],
-#                                     tmp_opts.xy[:, 0] > intervx[1])
-#            mask = np.logical_or(mask, out_zone)
-#        if intervy is not None:
-#            out_zone = np.logical_or(tmp_opts.xy[:, 1] < intervy[0],
-#                                     tmp_opts.xy[:, 1] > intervy[1])
-#            mask = np.logical_or(mask, out_zone)
-#        tmp_opts.orientations = self.orientations[~mask]
-#        # return
-#        if not inplace:
-#            return tmp_opts
 
     def cut(self, intervx=None, intervy=None):
         """
@@ -2808,53 +2770,53 @@ class Profile(object):
         inds_not_masked = np.where(np.logical_not(mask))[0]
         first = inds_not_masked[0]
         last = inds_not_masked[-1] + 1
-        tmp_prof.trim([first, last], ind=True, inplace=True)
+        tmp_prof.crop([first, last], ind=True, inplace=True)
         # returning
         if not inplace:
             return tmp_prof
 
-    def trim(self, interval, ind=False, inplace=False):
+    def crop(self, intervx, ind=False, inplace=False):
         """
-        Return a trimed copy of the profile along x with respect to 'interval'.
+        Crop the profile along 'x'.
 
         Parameters
         ----------
-        interval : array of two numbers
+        intervx : array of two numbers
             Bound values of x.
         ind : Boolean, optionnal
-            If 'False' (Default), 'interval' are values along x axis,
-            if 'True', 'interval' are indices of values along x.
+            If 'False' (Default), 'intervx' are values along x axis,
+            if 'True', 'intervx' are indices of values along x.
         inplace : boolean, optional
             .
         """
         # checking parameters coherence
-        if not isinstance(interval, ARRAYTYPES):
-            raise TypeError("'interval' must be an array")
-        interval = np.array(interval)
-        if not interval.shape == (2,):
-            raise ValueError("'interval' must be an array with only two"
+        if not isinstance(intervx, ARRAYTYPES):
+            raise TypeError("'intervx' must be an array")
+        intervx = np.array(intervx)
+        if not intervx.shape == (2,):
+            raise ValueError("'intervx' must be an array with only two"
                              "values")
-        if interval[0] >= interval[1]:
-            raise ValueError("'interval' values must be crescent")
+        if intervx[0] >= intervx[1]:
+            raise ValueError("'intervx' values must be crescent")
         # given position is not an indice
         if not ind:
-            if all(interval < np.min(self.x))\
-                    or all(interval > np.max(self.x)):
-                raise ValueError("'interval' values are out of profile")
+            if all(intervx < np.min(self.x))\
+                    or all(intervx > np.max(self.x)):
+                raise ValueError("'intervx' values are out of profile")
             ind1 = 0
             ind2 = -1
             for i in np.arange(len(self.x)-1, 0, -1):
-                if self.x[i] == interval[0]:
+                if self.x[i] == intervx[0]:
                     ind1 = i
-                elif self.x[i] == interval[1]:
+                elif self.x[i] == intervx[1]:
                     ind2 = i + 1
-                elif (self.x[i] > interval[0] and self.x[i-1] < interval[0]) \
-                        or (self.x[i] < interval[0]
-                            and self.x[i-1] > interval[0]):
+                elif (self.x[i] > intervx[0] and self.x[i-1] < intervx[0]) \
+                        or (self.x[i] < intervx[0]
+                            and self.x[i-1] > intervx[0]):
                     ind1 = i + 1
-                elif (self.x[i] > interval[1] and self.x[i-1] < interval[1]) \
-                        or (self.x[i] < interval[1]
-                            and self.x[i-1] > interval[1]):
+                elif (self.x[i] > intervx[1] and self.x[i-1] < intervx[1]) \
+                        or (self.x[i] < intervx[1]
+                            and self.x[i-1] > intervx[1]):
                     ind2 = i
             indices = [ind1, ind2]
             #indices.sort()
@@ -2863,12 +2825,12 @@ class Profile(object):
             mask_new = self.mask[indices[0]:indices[1]]
         # given position is an indice
         else:
-            interval = np.array(interval, dtype=int)
-            if any(interval < 0) or any(interval > len(self.x)):
-                raise ValueError("'interval' indices are out of profile")
-            x_new = self.x[interval[0]:interval[1]]
-            y_new = self.y[interval[0]:interval[1]]
-            mask_new = self.mask[interval[0]:interval[1]]
+            intervx = np.array(intervx, dtype=int)
+            if any(intervx < 0) or any(intervx > len(self.x)):
+                raise ValueError("'intervx' indices are out of profile")
+            x_new = self.x[intervx[0]:intervx[1]]
+            y_new = self.y[intervx[0]:intervx[1]]
+            mask_new = self.mask[intervx[0]:intervx[1]]
         if inplace:
             self.x = x_new
             self.y = y_new
@@ -3647,10 +3609,10 @@ class Field(object):
                 raise TypeError("'y' must be a number")
             self.axe_y -= y
 
-    def trim_area(self, intervx=None, intervy=None, full_output=False,
-                  ind=False, inplace=False):
+    def crop(self, intervx=None, intervy=None, full_output=False,
+             ind=False, inplace=False):
         """
-        Return a trimed field in respect with given intervals.
+       Crop the field in respect with given intervals.
 
         Parameters
         ----------
@@ -3664,7 +3626,7 @@ class Field(object):
             If 'True', intervals are understood as indices along axis.
             If 'False' (default), intervals are understood in axis units.
         inplace : boolean, optional
-            If 'True', the field is trimed in place.
+            If 'True', the field is croped in place.
         """
         # default values
         axe_x, axe_y = self.axe_x, self.axe_y
@@ -3697,16 +3659,16 @@ class Field(object):
             raise ValueError("'intervy' must be an array of two numbers")
         if intervy[0] > intervy[1]:
             raise ValueError("'intervy' values must be crescent")
-        # checking triming windows
+        # checking crooping windows
         if ind:
             if intervx[0] < 0 or intervx[1] == 0 or \
                     intervy[0] < 0 or intervy[1] == 0:
-                raise ValueError("Invalid trimming window")
+                raise ValueError("Invalid cropping window")
         else:
             if np.all(intervx < axe_x[0]) or np.all(intervx > axe_x[-1])\
                     or np.all(intervy < axe_y[0]) \
                     or np.all(intervy > axe_y[-1]):
-                raise ValueError("Invalid trimming window")
+                raise ValueError("Invalid cropping window")
         # finding interval indices
         if ind:
             indmin_x = int(intervx[0])
@@ -3730,7 +3692,7 @@ class Field(object):
                 indmax_y = len(axe_y) - 1
             else:
                 indmax_y = self.get_indice_on_axe(2, intervy[1])[0]
-        # trimming the field
+        # cropping the field
         if inplace:
             axe_x = self.axe_x[indmin_x:indmax_x + 1]
             axe_y = self.axe_y[indmin_y:indmax_y + 1]
@@ -3739,13 +3701,13 @@ class Field(object):
             if full_output:
                 return indmin_x, indmax_x, indmin_y, indmax_y
         else:
-            trimfield = self.copy()
-            trimfield.__axe_x = self.axe_x[indmin_x:indmax_x + 1]
-            trimfield.__axe_y = self.axe_y[indmin_y:indmax_y + 1]
+            cropfield = self.copy()
+            cropfield.__axe_x = self.axe_x[indmin_x:indmax_x + 1]
+            cropfield.__axe_y = self.axe_y[indmin_y:indmax_y + 1]
             if full_output:
-                return indmin_x, indmax_x, indmin_y, indmax_y, trimfield
+                return indmin_x, indmax_x, indmin_y, indmax_y, cropfield
             else:
-                return trimfield
+                return cropfield
 
 
     def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
@@ -4730,7 +4692,7 @@ class ScalarField(Field):
         else:
             value = 0.
         # getting data
-        tmp_SF = self.trim_area(intervx, intervy)
+        tmp_SF = self.crop(intervx=intervx, intervy=intervy, inplace=False)
         tmp_SF.fill(kind=fill, value=value, inplace=True, reduce_tri=True)
         # getting spectrum
         if direction == 'x':
@@ -4821,15 +4783,15 @@ class ScalarField(Field):
             intervx = [-np.inf, np.inf]
         if intervy is None:
             intervy = [-np.inf, np.inf]
-        trimfield = self.trim_area(intervx, intervy)
-        axe2_x, axe2_y = trimfield.axe_x, trimfield.axe_y
-        unit_x, unit_y = trimfield.unit_x, trimfield.unit_y
-        integral = (trimfield.values.sum()
+        cropfield = self.crop(intervx=intervx, intervy=intervy, inplace=False)
+        axe2_x, axe2_y = cropfield.axe_x, cropfield.axe_y
+        unit_x, unit_y = cropfield.unit_x, cropfield.unit_y
+        integral = (cropfield.values.sum()
                     * np.abs(axe2_x[-1] - axe2_x[0])
                     * np.abs(axe2_y[-1] - axe2_y[0])
                     / len(axe2_x)
                     / len(axe2_y))
-        unit = trimfield.unit_values*unit_x*unit_y
+        unit = cropfield.unit_values*unit_x*unit_y
         return integral*unit
 
     def copy(self):
@@ -4986,10 +4948,10 @@ class ScalarField(Field):
         else:
             raise ValueError()
 
-    def trim_area(self, intervx=None, intervy=None, ind=False,
-                  inplace=False):
+    def crop(self, intervx=None, intervy=None, ind=False,
+             inplace=False):
         """
-        Return a trimed  area in respect with given intervals.
+        Crop the area in respect with given intervals.
 
         Parameters
         ----------
@@ -5001,27 +4963,27 @@ class ScalarField(Field):
             If 'True', intervals are understood as indices along axis.
             If 'False' (default), intervals are understood in axis units.
         inplace : boolean, optional
-            If 'True', the field is trimed in place.
+            If 'True', the field is croped in place.
         """
         if inplace:
             values = self.values
             mask = self.mask
             indmin_x, indmax_x, indmin_y, indmax_y = \
-                Field.trim_area(self, intervx, intervy, full_output=True,
-                                ind=ind, inplace=True)
+                Field.crop(self, intervx, intervy, full_output=True,
+                           ind=ind, inplace=True)
             self.__values = values[indmin_x:indmax_x + 1,
                                    indmin_y:indmax_y + 1]
             self.__mask = mask[indmin_x:indmax_x + 1,
                                indmin_y:indmax_y + 1]
         else:
-            indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
-                Field.trim_area(self, intervx, intervy, full_output=True,
-                                ind=ind)
-            trimfield.__values = self.values[indmin_x:indmax_x + 1,
+            indmin_x, indmax_x, indmin_y, indmax_y, cropfield = \
+                Field.crop(self, intervx=intervx, intervy=intervy, 
+                           full_output=True, ind=ind, inplace=False)
+            cropfield.__values = self.values[indmin_x:indmax_x + 1,
                                              indmin_y:indmax_y + 1]
-            trimfield.__mask = self.mask[indmin_x:indmax_x + 1,
+            cropfield.__mask = self.mask[indmin_x:indmax_x + 1,
                                          indmin_y:indmax_y + 1]
-            return trimfield
+            return cropfield
 
     def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0, value=None,
                inplace=False, ind=True):
@@ -5156,14 +5118,14 @@ class ScalarField(Field):
                 border = axe_x[-1]
                 side = 'right'
             elif position < x_median:
-                tmp_vf.trim_area(intervx=[position, axe_x[-1]],
-                                 inplace=True)
+                tmp_vf.crop(intervx=[position, axe_x[-1]], ind=False,
+                            inplace=True)
                 side = 'left'
                 axe_x = tmp_vf.axe_x
                 border = axe_x[0]
             elif position > x_median:
-                tmp_vf.trim_area(intervx=[axe_x[0], position],
-                                 inplace=True)
+                tmp_vf.crop(intervx=[axe_x[0], position], ind=False,
+                            inplace=True)
                 side = 'right'
                 axe_x = tmp_vf.axe_x
                 border = axe_x[-1]
@@ -5180,14 +5142,14 @@ class ScalarField(Field):
                 border = axe_y[-1]
                 side = 'up'
             elif position < y_median:
-                tmp_vf.trim_area(intervy=[position, axe_y[-1]],
-                                 inplace=True)
+                tmp_vf.crop(intervy=[position, axe_y[-1]], ind=False,
+                            inplace=True)
                 side = 'down'
                 axe_y = tmp_vf.axe_y
                 border = axe_y[0]
             elif position > y_median:
-                tmp_vf.trim_area(intervy=[axe_y[0], position],
-                                 inplace=True)
+                tmp_vf.crop(intervy=[axe_y[0], position], ind=False,
+                            inplace=True)
                 side = 'up'
                 axe_y = tmp_vf.axe_y
                 border = axe_y[-1]
@@ -5316,7 +5278,7 @@ class ScalarField(Field):
         Parameters
         ----------
         hard : boolean, optional
-            If 'True', partially masked border are cropped as well.
+            If 'True', partially masked border are croped as well.
         """
         #
         if inplace:
@@ -5343,20 +5305,19 @@ class ScalarField(Field):
                 # deleting more masked border
                 if more_masked == 0:
                     len_x = len(tmp_vf.axe_x)
-                    tmp_vf.trim_area(intervx=[1, len_x], ind=True,
-                                     inplace=True)
+                    tmp_vf.crop(intervx=[1, len_x], ind=True, inplace=True)
                 elif more_masked == 1:
                     len_x = len(tmp_vf.axe_x)
-                    tmp_vf.trim_area(intervx=[0, len_x - 2], ind=True,
-                                     inplace=True)
+                    tmp_vf.crop(intervx=[0, len_x - 2], ind=True,
+                                inplace=True)
                 elif more_masked == 2:
                     len_y = len(tmp_vf.axe_y)
-                    tmp_vf.trim_area(intervy=[1, len_y], ind=True,
-                                     inplace=True)
+                    tmp_vf.crop(intervy=[1, len_y], ind=True,
+                                inplace=True)
                 elif more_masked == 3:
                     len_y = len(tmp_vf.axe_y)
-                    tmp_vf.trim_area(intervy=[0, len_y - 2], ind=True,
-                                     inplace=True)
+                    tmp_vf.crop(intervy=[0, len_y - 2], ind=True,
+                                inplace=True)
         # soft cropping
         else:
             axe_x_m = np.logical_not(np.all(mask, axis=1))
@@ -5365,9 +5326,9 @@ class ScalarField(Field):
             axe_x_max = np.where(axe_x_m)[0][-1]
             axe_y_min = np.where(axe_y_m)[0][0]
             axe_y_max = np.where(axe_y_m)[0][-1]
-            tmp_vf.trim_area([axe_x_min, axe_x_max],
-                             [axe_y_min, axe_y_max],
-                             ind=True, inplace=True)
+            tmp_vf.crop([axe_x_min, axe_x_max],
+                        [axe_y_min, axe_y_max],
+                         ind=True, inplace=True)
         # returning
         if not inplace:
             return tmp_vf
@@ -5397,7 +5358,7 @@ class ScalarField(Field):
             If 'False', no treatment
             (faster when few masked values)
         crop : boolean, optional
-            If 'True', SF borders are cropped before filling.
+            If 'True', SF borders are croped before filling.
                 """
         # check parameters coherence
         if not isinstance(kind, STRINGTYPES):
@@ -6464,7 +6425,7 @@ class VectorField(Field):
             (faster when a lot of masked values)
             If 'False', no treatment (faster when few masked values)
         crop : boolean, optional
-            If 'True', TVF borders are cropped before filling.
+            If 'True', TVF borders are croped before filling.
         """
         # check parameters coherence
         if isinstance(value, NUMBERTYPES):
@@ -6498,10 +6459,10 @@ class VectorField(Field):
                                   unit_values=self.unit_values)
             return vf
 
-    def trim_area(self, intervx=None, intervy=None, ind=False,
-                  inplace=False):
+    def crop(self, intervx=None, intervy=None, ind=False,
+             inplace=False):
         """
-        Return a trimed  area in respect with given intervals.
+        Crop the area in respect with given intervals.
 
         Parameters
         ----------
@@ -6513,12 +6474,12 @@ class VectorField(Field):
             If 'True', intervals are understood as indices along axis.
             If 'False' (default), intervals are understood in axis units.
         inplace : boolean, optional
-            If 'True', the field is trimed in place.
+            If 'True', the field is croped in place.
         """
         if inplace:
             indmin_x, indmax_x, indmin_y, indmax_y = \
-                Field.trim_area(self, intervx, intervy, full_output=True,
-                                ind=ind, inplace=True)
+                Field.crop(self, intervx, intervy, full_output=True,
+                           ind=ind, inplace=True)
             self.__comp_x = self.comp_x[indmin_x:indmax_x + 1,
                                         indmin_y:indmax_y + 1]
             self.__comp_y = self.comp_y[indmin_x:indmax_x + 1,
@@ -6526,16 +6487,16 @@ class VectorField(Field):
             self.__mask = self.mask[indmin_x:indmax_x + 1,
                                     indmin_y:indmax_y + 1]
         else:
-            indmin_x, indmax_x, indmin_y, indmax_y, trimfield = \
-                Field.trim_area(self, intervx, intervy, full_output=True,
-                                ind=ind)
-            trimfield.__comp_x = self.comp_x[indmin_x:indmax_x + 1,
+            indmin_x, indmax_x, indmin_y, indmax_y, cropfield = \
+                Field.crop(self, intervx=intervx, intervy=intervy, 
+                           full_output=True, ind=ind)
+            cropfield.__comp_x = self.comp_x[indmin_x:indmax_x + 1,
                                              indmin_y:indmax_y + 1]
-            trimfield.__comp_y = self.comp_y[indmin_x:indmax_x + 1,
+            cropfield.__comp_y = self.comp_y[indmin_x:indmax_x + 1,
                                              indmin_y:indmax_y + 1]
-            trimfield.__mask = self.mask[indmin_x:indmax_x + 1,
+            cropfield.__mask = self.mask[indmin_x:indmax_x + 1,
                                          indmin_y:indmax_y + 1]
-            return trimfield
+            return cropfield
 
     def crop_masked_border(self, hard=False, inplace=False):
         """
@@ -6544,7 +6505,7 @@ class VectorField(Field):
         Parameters
         ----------
         hard : boolean, optional
-            If 'True', partially masked border are cropped as well.
+            If 'True', partially masked border are croped as well.
         """
         #
         if inplace:
@@ -6571,20 +6532,17 @@ class VectorField(Field):
                 # deleting more masked border
                 if more_masked == 0:
                     len_x = len(tmp_sf.axe_x)
-                    tmp_sf.trim_area(intervx=[1, len_x], ind=True,
-                                     inplace=True)
+                    tmp_sf.crop(intervx=[1, len_x], ind=True, inplace=True)
                 elif more_masked == 1:
                     len_x = len(tmp_sf.axe_x)
-                    tmp_sf.trim_area(intervx=[0, len_x - 2], ind=True,
-                                     inplace=True)
+                    tmp_sf.crop(intervx=[0, len_x - 2], ind=True, inplace=True)
                 elif more_masked == 2:
                     len_y = len(self.axe_y)
-                    tmp_sf.trim_area(intervy=[1, len_y], ind=True,
-                                     inplace=True)
+                    tmp_sf.crop(intervy=[1, len_y], ind=True,
+                                inplace=True)
                 elif more_masked == 3:
                     len_y = len(tmp_sf.axe_y)
-                    tmp_sf.trim_area(intervy=[0, len_y - 2],
-                                     ind=True, inplace=True)
+                    tmp_sf.crop(intervy=[0, len_y - 2], ind=True, inplace=True)
         # soft cropping
         else:
             axe_x_m = np.logical_not(np.all(mask, axis=1))
@@ -6593,9 +6551,8 @@ class VectorField(Field):
             axe_x_max = np.where(axe_x_m)[0][-1]
             axe_y_min = np.where(axe_y_m)[0][0]
             axe_y_max = np.where(axe_y_m)[0][-1]
-            tmp_sf.trim_area([axe_x_min, axe_x_max],
-                             [axe_y_min, axe_y_max],
-                             ind=True, inplace=True)
+            tmp_sf.crop([axe_x_min, axe_x_max], [axe_y_min, axe_y_max],
+                        ind=True, inplace=True)
         # returning
         if not inplace:
             return tmp_sf
@@ -7302,6 +7259,28 @@ class TemporalFields(Fields, Field):
         result_f /= fact
         return result_f
 
+    def get_interpolated_field(self, time):
+        """
+        Return the interpolated field happening at the time 'time'.
+        """
+        # check
+        assert isinstance(time, NUMBERTYPES)
+        assert time >= self.times[0]
+        assert time <= self.times[-1]
+        # if time is in self.times
+        if np.any(self.times == time):
+            return self.fields[self.times == time][0]
+        # else, get the surrounding fields
+        ind_time = np.argwhere(self.times > time)[0][0]
+        denom = self.times[ind_time] - self.times[ind_time - 1]
+        coef1 = (self.times[ind_time] - time)/denom
+        coef2 = (time - self.times[ind_time - 1])/denom
+        new_field = self.fields[ind_time]*coef2 + self.fields[ind_time - 1]*coef1
+        new_field.time = time
+        # returning
+        assert isinstance(new_field, self.fields[0].__class__)
+        return new_field
+        
     def get_fluctuant_fields(self, nmb_min_mean=1):
         """
         Calculate the fluctuant fields (fields minus mean field).
@@ -7885,6 +7864,51 @@ class TemporalFields(Fields, Field):
         else:
             return tmp_TFS
 
+    def augment_temporal_resolution(self, fact=2, inplace=False):
+        """
+        Augment the temporal resolution using temporal interpoalation.
+        
+        Parameters
+        ----------
+        fact : integer
+            Temporal resolution ratio.
+        inplace : bool
+            .
+        """
+        # check
+        assert type(fact) in [int], "TypeError"
+        assert fact > 0, "ValueError"
+        assert type(inplace) == bool, "TypeError"
+        # fact = 1 (fool...)
+        if fact == 1:
+            if inplace:
+                return None
+            else:
+                return self.copy()
+        # get data
+        if inplace:
+            tf = self
+        else:
+            tf = self.copy()
+        # get new times
+        new_times = []
+        for i in range(len(tf.times) - 1):
+            tmp_times = np.linspace(tf.times[i], tf.times[i + 1],
+                                    fact + 1)[0:-1]
+            new_times.append(tmp_times)
+        new_times = np.array(new_times).flatten()
+        new_times = np.append(new_times, tf.times[-1])
+        # loop on new times
+        new_fields = []
+        for time in new_times:
+            new_fields.append(tf.get_interpolated_field(time))
+        # store
+        tf.fields = new_fields
+        tf.times = new_times
+        # returning
+        if not inplace:
+            return tf
+
     def crop_masked_border(self, hard=False, inplace=False):
         """
         Crop the masked border of the velocity fields in place.
@@ -7892,10 +7916,10 @@ class TemporalFields(Fields, Field):
         Parameters
         ----------
         hard : boolean, optional
-            If 'True', partially masked border are cropped as well.
+            If 'True', partially masked border are croped as well.
         inplace : boolean, optional
             If 'True', crop the F in place,
-            else, return a cropped TF.
+            else, return a croped TF.
         """
         #get cumulated mask
         mask_cum = self.mask_cum
@@ -7929,20 +7953,17 @@ class TemporalFields(Fields, Field):
                 # deleting more masked border
                 if more_masked == 0:
                     len_x = len(tmp_tf.axe_x)
-                    tmp_tf.trim_area(intervx=[1, len_x], ind=True,
-                                     inplace=True)
+                    tmp_tf.crop(intervx=[1, len_x], ind=True, inplace=True)
                 elif more_masked == 1:
                     len_x = len(tmp_tf.axe_x)
-                    tmp_tf.trim_area(intervx=[0, len_x - 2], ind=True,
-                                     inplace=True)
+                    tmp_tf.crop(intervx=[0, len_x - 2], ind=True,
+                                inplace=True)
                 elif more_masked == 2:
                     len_y = len(tmp_tf.axe_y)
-                    tmp_tf.trim_area(intervy=[1, len_y], ind=True,
-                                     inplace=True)
+                    tmp_tf.crop(intervy=[1, len_y], ind=True, inplace=True)
                 elif more_masked == 3:
                     len_y = len(tmp_tf.axe_y)
-                    tmp_tf.trim_area(intervy=[0, len_y - 2], ind=True,
-                                     inplace=True)
+                    tmp_tf.crop(intervy=[0, len_y - 2], ind=True, inplace=True)
             if not inplace:
                 return tmp_tf
         # soft cropping
@@ -7959,23 +7980,22 @@ class TemporalFields(Fields, Field):
             axe_x_max = np.where(axe_x_m)[0][-1]
             axe_y_min = np.where(axe_y_m)[0][0]
             axe_y_max = np.where(axe_y_m)[0][-1]
-            # trim
+            # crop
             if inplace:
-                self.trim_area([axe_x_min, axe_x_max],
-                               [axe_y_min, axe_y_max],
-                               ind=True, inplace=True)
+                self.crop(intervx=[axe_x_min, axe_x_max],
+                          intervy=[axe_y_min, axe_y_max], ind=True,
+                          inplace=True)
             else:
                 tmp_tf = self.copy()
-                tmp_tf.trim_area([axe_x_min, axe_x_max],
-                                 [axe_y_min, axe_y_max],
-                                 ind=True, inplace=True)
+                tmp_tf.crop(intervx=[axe_x_min, axe_x_max],
+                            intervy=[axe_y_min, axe_y_max], ind=True,
+                            inplace=True)
                 return tmp_tf
 
-    def trim_area(self, intervx=None, intervy=None, intervt=None,
-                  full_output=False,
-                  ind=False, inplace=False):
+    def crop(self, intervx=None, intervy=None, intervt=None, full_output=False,
+             ind=False, inplace=False):
         """
-        Return a trimed field in respect with given intervals.
+        Return a croped field in respect with given intervals.
 
         Parameters
         ----------
@@ -7988,7 +8008,7 @@ class TemporalFields(Fields, Field):
         full_output : boolean, optional
             If 'True', cutting indices are alson returned
         inplace : boolean, optional
-            If 'True', fields are trimed in place.
+            If 'True', fields are croped in place.
         """
         # check parameters
         if intervt is not None:
@@ -8015,24 +8035,24 @@ class TemporalFields(Fields, Field):
                 else:
                     ind2 = np.where(intervt[1] >= self.times)[0][-1]
                 intervt = [ind1, ind2]
-        ### trim
+        ### crop
         if inplace:
-            trimfield = self
+            cropfield = self
         else:
-            trimfield = self.copy()
+            cropfield = self.copy()
         # temporal
         if intervt is not None:
-            trimfield.fields = trimfield.fields[intervt[0]:intervt[1] + 1]
-            trimfield.times = trimfield.times[intervt[0]:intervt[1] + 1]
+            cropfield.fields = cropfield.fields[intervt[0]:intervt[1] + 1]
+            cropfield.times = cropfield.times[intervt[0]:intervt[1] + 1]
         # spatial
-        Field.trim_area(trimfield, intervx, intervy, ind=ind,
-                        inplace=True)
-        for field in trimfield.fields:
-            field.trim_area(intervx, intervy, ind=ind,
+        Field.crop(cropfield, intervx=intervx, intervy=intervy, ind=ind,
+                   inplace=True)
+        for field in cropfield.fields:
+            field.crop(intervx=intervx, intervy=intervy, ind=ind,
                             inplace=True)
         # returning
         if not inplace:
-            return trimfield
+            return cropfield
 
 
     def set_origin(self, x=None, y=None):
@@ -8468,7 +8488,7 @@ class TemporalScalarFields(TemporalFields):
         inplace : boolean, optional
             .
         crop : boolean, optional
-            If 'True', TVF borders are cropped before filling.
+            If 'True', TVF borders are croped before filling.
         """
         # TODO : utiliser Profile.fill au lieu d'une nouvelle méthode de filling
         # checking parameters coherence
@@ -8760,7 +8780,7 @@ class TemporalVectorFields(TemporalFields):
         inplace : boolean, optional
             .
         crop : boolean, optional
-            If 'True', TVF borders are cropped before filling.
+            If 'True', TVF borders are croped before filling.
         """
         # TODO : utiliser Profile.fill au lieu d'une nouvelle méthode de filling
         # checking parameters coherence

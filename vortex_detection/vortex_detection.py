@@ -340,7 +340,7 @@ class VF(object):
         # getting masks
         mask_x = np.logical_and(self.axe_x > x_min, self.axe_x < x_max)
         mask_y = np.logical_and(self.axe_y > y_min, self.axe_y < y_max)
-        # trimming original field
+        # cropping original field
         vx = self.vx[mask_y, :]
         vx = vx[:, mask_x]
         vy = self.vy[mask_y, :]
@@ -762,7 +762,7 @@ class CritPoints(object):
         self.times = np.append(self.times, time)
         self._sort_by_time()
         # trajectories are obsolete
-        self.current_epsilon = None
+        self._remove_trajectories()
 
     def remove_point(self, time=None, indice=None):
         """
@@ -793,7 +793,7 @@ class CritPoints(object):
         self.sadd = np.delete(self.sadd, indice)
         self.times = np.delete(self.times, indice)
         # trajectories are obsolete
-        self.current_epsilon = None
+        self._remove_trajectories()
 
     def change_unit(self, axe, new_unit):
         """
@@ -898,57 +898,69 @@ class CritPoints(object):
         if not inplace:
             return tmp_cp
 
-    def trim_space(self, intervx=None, intervy=None, inplace=False):
+    def crop(self, intervx=None, intervy=None, intervt=None, ind=False, 
+             inplace=False):
         """
-        Trim the point field.
+        crop the point field.
         """
-        # default values
-        if intervx is None:
-            intervx = [-np.inf, np.inf]
-        if intervy is None:
-            intervy = [-np.inf, np.inf]
         # inplace
         if inplace:
             tmp_cp = self
         else:
             tmp_cp = self.copy()
-        # trajectories are obsolete
-        tmp_cp.current_epsilon = None
-        # loop on points
-        for kind in tmp_cp.iter:
-            for pts in kind:
-                pts.trim(intervx=intervx, intervy=intervy, inplace=True)
+        # temporal cropping
+        if intervt is not None:
+            if ind:
+                filt = np.zeros(shape=(len(tmp_cp.times)), dtype=bool)
+                filt[intervt[0]:intervt[1]] = True
+            else:
+                filt = np.logical_and(tmp_cp.times >= intervt[0],
+                                      tmp_cp.times <= intervt[1])
+            tmp_cp.times = tmp_cp.times[filt]
+            tmp_cp.foc = tmp_cp.foc[filt]
+            tmp_cp.foc_c = tmp_cp.foc_c[filt]
+            tmp_cp.sadd = tmp_cp.sadd[filt]
+            tmp_cp.node_i = tmp_cp.node_i[filt]
+            tmp_cp.node_o = tmp_cp.node_o[filt]
+        # spatial cropping
+        if intervx is not None or intervy is not None:
+            for kind in tmp_cp.iter:
+                for pts in kind:
+                    pts.crop(intervx=intervx, intervy=intervy, ind=ind, 
+                             inplace=True)
+        # make trajectories obsolete
+        tmp_cp._remove_trajectories()
         # returning
         if not inplace:
             return tmp_cp
 
-    def trim_time(self, intervtime, ind=False, inplace=False):
-        """
-        Trim the points field
-        """
-        # inplace
-        if inplace:
-            tmp_cp = self
-        else:
-            tmp_cp = self.copy()
-        # trajectories are obsolete
-        tmp_cp.current_epsilon = None
-        # trim the things...
-        if ind:
-            filt = np.zeros(shape=(len(tmp_cp.times)), dtype=bool)
-            filt[intervtime[0]:intervtime[1]] = True
-        else:
-            filt = np.logical_and(tmp_cp.times >= intervtime[0],
-                                  tmp_cp.times <= intervtime[1])
-        tmp_cp.times = tmp_cp.times[filt]
-        tmp_cp.foc = tmp_cp.foc[filt]
-        tmp_cp.foc_c = tmp_cp.foc_c[filt]
-        tmp_cp.sadd = tmp_cp.sadd[filt]
-        tmp_cp.node_i = tmp_cp.node_i[filt]
-        tmp_cp.node_o = tmp_cp.node_o[filt]
-        # returning
-        if not inplace:
-            return tmp_cp        
+#    def trim_time(self, intervtime, ind=False, inplace=False):
+#        """
+#        Trim the points field
+#        """
+#        # inplace
+#        if inplace:
+#            tmp_cp = self
+#        else:
+#            tmp_cp = self.copy()
+#        # trajectories are obsolete
+#        tmp_cp._remove_trajectories()
+#        # trim the things...
+#        if ind:
+#            filt = np.zeros(shape=(len(tmp_cp.times)), dtype=bool)
+#            filt[intervtime[0]:intervtime[1]] = True
+#        else:
+#            filt = np.logical_and(tmp_cp.times >= intervtime[0],
+#                                  tmp_cp.times <= intervtime[1])
+#        tmp_cp.times = tmp_cp.times[filt]
+#        tmp_cp.foc = tmp_cp.foc[filt]
+#        tmp_cp.foc_c = tmp_cp.foc_c[filt]
+#        tmp_cp.sadd = tmp_cp.sadd[filt]
+#        tmp_cp.node_i = tmp_cp.node_i[filt]
+#        tmp_cp.node_o = tmp_cp.node_o[filt]
+#        # returning
+#        if not inplace:
+#            return tmp_cp        
         
     def clean_traj(self, min_nmb_in_traj):
         """
@@ -974,7 +986,7 @@ class CritPoints(object):
 
     def smooth_traj(self, tos='uniform', size=None):
         """
-        Smooth the CP trjaectories.
+        Smooth the CP trajectories.
 
         Parameters :
         ------------
@@ -1112,43 +1124,21 @@ class CritPoints(object):
         elif cp_type == 'node_o':
             tmp_traj.node_o = new_cp_pts
         # make trajectories obsolete
-        tmp_traj.current_epsilon = None
+        tmp_traj._remove_trajectories()
         # return
         if not inplace:
             return tmp_traj
-#        foc = cp_traj.foc
-#        foc_c = cp_traj.foc_c
-#        times = cp_traj.times
-#        new_foc = []
-#        new_foc_c = []
-#        print("+ Adjusting the position of the critical points to suit"
-#              "residual vorticity vortex definition")
-#        res_vorts = vod.get_residual_vorticity(fields)
-#        PG1 = imttools.ProgressCounter("Beginning", "end", nmb_max=len(foc)*2)
-#        for i, pts in enumerate(foc_c):
-#            PG1.print_progress()
-#            if len(pts) == 0:
-#                continue
-#            tmp_pts = pts.copy()
-#            res_vort = res_vorts.fields[res_vorts.times == times[i]][0]
-#            tmp_pts.xy = res_vort.get_nearest_extrema(pts.xy, extrema='max')
-#            new_foc_c.append(tmp_pts)
-#        for i, pts in enumerate(foc):
-#            PG1.print_progress()
-#            if len(pts) == 0:
-#                continue
-#            tmp_pts = pts.copy()
-#            res_vort = res_vorts.fields[res_vorts.times == times[i]][0]
-#            tmp_pts.xy = res_vort.get_nearest_extrema(pts.xy, extrema='max')
-#            new_foc.append(tmp_pts)
-#        # store
-#        new_cp_traj = cp_traj.copy()
-#        new_cp_traj.foc = new_foc
-#        new_cp_traj.foc = new_foc_c
-#        new_cp_traj.compute_traj(eps_traj)
-
 
     ### Private ###
+    def _remove_trajectories(self):
+        """
+        Delete the computed trajectories.
+        This method is called when some points are modified (deleted or added).
+        """
+        self.current_epsilon = None
+        for i in range(len(self.iter_traj)):
+            self.iter_traj[i] = None
+        
     def _sort_by_time(self):
         """
         Sort the cp by increasing times.
@@ -1954,7 +1944,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                     elif position < intervy[1]:
                         ind = tmp_vf.get_indice_on_axe(2, position)[1]
                         intervy[1] = axe_y[ind + 1]
-            res.trim_space(intervx=intervx, intervy=intervy, inplace=True)
+            res.crop(intervx=intervx, intervy=intervy, ind=False, inplace=True)
     # if obj is vector fields
     elif isinstance(obj, TemporalVectorFields):
         res = CritPoints(unit_time=obj.unit_times)
