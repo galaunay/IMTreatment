@@ -241,10 +241,19 @@ class VF(object):
                        'Vy_3': Vy_bl[1, 0], 'Vy_4': Vy_bl[1, 1],
                        'dx': real_dx, 'dy': real_dy,
                        'sqrt': lambda x: x**.5}
-            x_sols = [eval(sol[j][0], {"__builtins__": {}}, tmp_dic)
-                      for j in np.arange(len(sol))]
-            y_sols = [eval(sol[j][1], {"__builtins__": {}}, tmp_dic)
-                      for j in np.arange(len(sol))]
+            x_sols = []
+            y_sols = []
+            for j in np.arange(len(sol)):
+                # if error such as 'Division by zero' occur, the zero velocity
+                # point is at the cell center
+                try:
+                    x_sols.append(eval(sol[j][0], {"__builtins__": {}}, tmp_dic))
+                    y_sols.append(eval(sol[j][1], {"__builtins__": {}}, tmp_dic))
+                except RuntimeWarning:
+                    print("bad point : \n ({}, {})".format(tmp_x, tmp_y))
+                    x_sols.append(real_dx/2.)
+                    y_sols.append(real_dy/2.)
+
             # delete the points outside the cell
             tmp_sol = []
             for j in np.arange(len(x_sols)):
