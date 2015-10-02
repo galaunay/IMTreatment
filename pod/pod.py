@@ -129,10 +129,10 @@ class ModalFields(Field):
                                  unit_times=self.unit_times)
             return tmp_tf
 
-    def remove_modes(self, modes_to_keep=None, modes_to_remove=None,
-                   inplace=True):
+    def crop_modal_base(self, modes_to_keep=None, modes_to_remove=None,
+                        inplace=True):
         """
-        Remove some modes from the set.
+        Remove some modes from the modal base.
         
         Parameters
         ----------

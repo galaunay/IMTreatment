@@ -935,7 +935,7 @@ class CritPoints(object):
         if intervx is not None or intervy is not None:
             for kind in tmp_cp.iter:
                 for pts in kind:
-                    pts.crop(intervx=intervx, intervy=intervy, ind=ind, 
+                    pts.crop(intervx=intervx, intervy=intervy,
                              inplace=True)
         # make trajectories obsolete
         tmp_cp._remove_trajectories()
