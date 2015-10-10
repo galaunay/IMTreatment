@@ -538,7 +538,7 @@ class ModalFields(Field):
                 tmp_mode_y = self.modes[n].comp_y
                 tmp_prof = temp_evo[n]
                 for t in ind_times:
-                    coef = tmp_prof.get_interpolated_value(x=times[t])[0]
+                    coef = tmp_prof.get_interpolated_values(x=times[t])[0]
                     tmp_tf_x[t] += np.real(tmp_mode_x*coef)
                     tmp_tf_y[t] += np.real(tmp_mode_y*coef)
             # returning

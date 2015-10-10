@@ -2205,7 +2205,53 @@ class Profile(object):
         """
         return copy.deepcopy(self)
 
-    def get_interpolated_value(self, x=None, y=None, ind=False):
+    def get_interpolated_values(self, x=None, y=None, ind=False):
+        """
+        Get the interpolated (or not) value for given 'x' or 'y' values.
+
+        If several possibilities are possible, an array with all the results
+        is returned.
+
+        Parameters
+        ----------
+        x : number or array of number
+            Value(s) of x, for which we want the y value.
+        y : number or array of number
+            Value(s) of y, for which we want the x value.
+        ind : boolean
+            If 'True', 'x' and 'y' are treated as indices, else, they are
+            treated as position alog axis.
+        Returns
+        -------
+        i_values : number or array
+            Interpolated value(s).
+        """
+        if x is None and y is None:
+            raise Warning("Ok, but i'll do nothing if i don't have a 'x' "
+                          "or a 'y' value")
+        if y is not None and x is not None:
+            raise ValueError("Maybe you would like to look at the help "
+                             "one more time...")
+        if x is not None:
+            if isinstance(x, NUMBERTYPES):
+                return self._get_interpolated_single_value(x=x, ind=ind)
+            else:
+                res = []
+                for xi in x:
+                    res.append(self._get_interpolated_single_value(x=xi,
+                                                                   ind=ind))
+                return res
+        if y is not None:
+            if isinstance(y,  NUMBERTYPES):
+                return self._get_interpolated_single_value(y=y, ind=ind)
+            else:
+                res = []
+                for yi in y:
+                    res.append(self._get_interpolated_single_value(y=yi,
+                                                                   ind=ind))
+                return res
+
+    def _get_interpolated_single_value(self, x=None, y=None, ind=False):
         """
         Get the interpolated (or not) value for a given 'x' or 'y' value.
 
@@ -2232,12 +2278,7 @@ class Profile(object):
         if y is not None:
             if not isinstance(y, NUMBERTYPES):
                 raise TypeError("'y' must be a number")
-        if x is None and y is None:
-            raise Warning("Ok, but i'll do nothing if i don't have a 'x' "
-                          "or a 'y' value")
-        if y is not None and x is not None:
-            raise ValueError("Maybe you would like to look at the help "
-                             "one more time...")
+
         if not isinstance(ind, bool):
             raise TypeError()
         # getting data
@@ -2275,7 +2316,7 @@ class Profile(object):
         # returning
         return i_values
 
-    def get_value_position(self, value):
+    def get_value_position(self, value, ind=False):
         """
         Return the interpolated position(s) of the wanted value.
 
@@ -2283,6 +2324,9 @@ class Profile(object):
         ----------
         value : number
             .
+        ind : boolean
+           If 'True', return the value indices, else, return the 'y' position.
+           (Default is 'False')
         """
         # check parameters
         if not isinstance(value, NUMBERTYPES):
@@ -2294,7 +2338,6 @@ class Profile(object):
         else:
             pos_0 = []
         # search for positions
-        filt = np.logical_not(self.mask)
         y = self.y
         y[self.mask] = 0
         y = y - value
@@ -2303,16 +2346,18 @@ class Profile(object):
         chang = np.abs(np.logical_xor(sign[1::], sign[0:-1:]))
         mask_chang = np.logical_or(self.mask[1::], self.mask[0:-1:])
         chang[mask_chang] = False
-        ind_0 = np.argwhere(chang)
-        masked_indices = np.arange(len(x))[filt]
-        for i, ind in enumerate(ind_0):
-            if ind not in masked_indices:
-                continue
-            v1 = np.abs(y[ind])
-            v2 = np.abs(y[ind + 1])
-            x1 = x[ind]
-            x2 = x[ind + 1]
-            pos_0.append(x1 + v1/(v1 + v2)*(x2 - x1))
+        ind_0 = np.argwhere(chang).flatten()
+        masked_indices = np.arange(len(x))[self.mask]
+        # get interpolated 0-value position
+        val_1 = np.abs(y[ind_0])
+        val_2 = np.abs(y[ind_0 + 1])
+        if ind:
+            x_1 = ind_0
+            x_2 = ind_0 + 1
+        else:
+            x_1 = x[ind_0]
+            x_2 = x[ind_0 + 1]
+        pos_0 = x_1 + val_1/(val_1 + val_2)*(x_2 - x_1)
         # returning
         return pos_0
 
@@ -2728,7 +2773,42 @@ class Profile(object):
                           unit_y=unit_y)
         return distrib
 
-
+    def get_extrema_position(self, smoothing=None, ind=False):
+        """
+        Return the local extrema of the profile.
+        
+        Parameters
+        ----------
+        smoothing : number, optional
+            Size of the gaussian smoothing to apply before extrema detection.
+        ind : bool, optional
+            If 'True', return indice position, else, return position along 
+            x axis (default is 'False').
+            
+        Returns
+        -------
+        min_pos, max_pos : arrays of numbers
+            .
+        """
+        # get data
+        prof = self.copy()
+        # smooth if necessary
+        if smoothing is not None:
+            prof.smooth(tos='gaussian', size=smoothing, inplace=True)
+        # get gradients
+        grad = prof.get_gradient()
+        grad2 = grad.get_gradient()
+        max_filt = grad2.y < 0
+        grad_max = grad.copy()
+        grad_max.mask = np.logical_not(max_filt)
+        grad_min = grad.copy()
+        grad_min.mask = max_filt
+        # get 0-value positions
+        pos_max = grad_max.get_value_position(0, ind=ind)
+        pos_min = grad_min.get_value_position(0, ind=ind)
+        # returning
+        return pos_min, pos_max
+        
 
     ### Modifiers ###
     def add_point(self, x, y):

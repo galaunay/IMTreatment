@@ -25,7 +25,6 @@ import copy
 from multiprocess import Pool
 
 
-
 def velocityfield_to_vf(vectorfield, time):
     """
     Create a VF object from a VectorField object.
@@ -721,6 +720,79 @@ class CritPoints(object):
         # returning
         return fig
 
+    def get_traj_direction_changement(self, cp_type, direction, smoothing=None):
+        """
+        Return the position of trajectories direction changement.
+        
+        Parameters
+        ----------
+        cp_type : string in ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']
+            CP type to use
+        direction: string in ['x', 'y']
+            Direction along which look
+        smoothing : number, optional
+            Smoothing size (performed on value before gradient search).
+        Returns
+        -------
+        chg_pts_1, chg_pts_2 : Points objects
+            .
+        """
+        if not cp_type in self.cp_types:
+            raise ValueError()
+        # get trajectories
+        trajs = np.array(self.iter_traj)[cp_type == np.array(self.cp_types)][0]
+        # get changement points
+        res_min = Points(unit_x=trajs[0].unit_x, unit_y=trajs[0].unit_y,
+                         unit_v=trajs[0].unit_v)
+        res_max = Points(unit_x=trajs[0].unit_x, unit_y=trajs[0].unit_y,
+                         unit_v=trajs[0].unit_v)
+        for traj in trajs:
+            # skip too short trajs
+            if len(traj) <= 2:
+                continue
+            # get data
+            prof_x = Profile(traj.v, traj.xy[:, 0], unit_x=traj.unit_v,
+                             unit_y=traj.unit_x)
+            prof_y = Profile(traj.v, traj.xy[:, 1], unit_x=traj.unit_v,
+                             unit_y=traj.unit_y)
+            prof_t = Profile(traj.v, traj.v, unit_x=traj.unit_v,
+                             unit_y=traj.unit_v)
+            # smooth if necessary
+            if smoothing is not None:
+                prof_x.smooth(tos='gaussian', size=smoothing, inplace=True)
+                prof_y.smooth(tos='gaussian', size=smoothing, inplace=True)
+                prof_t.smooth(tos='gaussian', size=smoothing, inplace=True)
+            # get directionnal data
+            if direction == 'x':
+                prof_a = prof_x
+            elif direction == 'y':
+                prof_a = prof_y
+            else:
+                raise ValueError()
+            # get 0-gradient position
+            ind_min, ind_max = prof_a.get_extrema_position(smoothing=None,
+                                                           ind=True)
+
+            x_min = prof_x.get_interpolated_values(x=ind_min, ind=True)
+            y_min = prof_y.get_interpolated_values(x=ind_min, ind=True)
+            t_min = prof_t.get_interpolated_values(x=ind_min, ind=True)
+            x_min = np.array(x_min).flatten()
+            y_min = np.array(y_min).flatten()
+            t_min = np.array(t_min).flatten()
+            x_max = prof_x.get_interpolated_values(x=ind_max, ind=True)
+            y_max = prof_y.get_interpolated_values(x=ind_max, ind=True)
+            t_max = prof_t.get_interpolated_values(x=ind_max, ind=True)
+            x_max = np.array(x_max).flatten()
+            y_max = np.array(y_max).flatten()
+            t_max = np.array(t_max).flatten()
+            for i in range(len(x_min)):
+                res_min.add([x_min[i], y_min[i]], v=t_min[i])
+            for i in range(len(x_max)):
+                res_max.add([x_max[i], y_max[i]], v=t_max[i])
+        # returning
+        return res_min, res_max       
+        
+    
     ### Modifiers ###
     def add_point(self, foc=None, foc_c=None, node_i=None,
                   node_o=None, sadd=None, time=None):
@@ -1873,11 +1945,14 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     if mirroring is not None:
         if not isinstance(mirroring, ARRAYTYPES):
             raise TypeError()
-        mirroring = np.array(mirroring)
-        if mirroring.ndim != 2:
-            raise ValueError()
-        if mirroring.shape[1] != 2:
-            raise ValueError()
+        if len(mirroring) == 0:
+            mirroring = None
+        else:
+            mirroring = np.array(mirroring)
+            if mirroring.ndim != 2:
+                raise ValueError()
+            if mirroring.shape[1] != 2:
+                raise ValueError()
     if mirror_interp is not None:
         if not isinstance(mirror_interp, STRINGTYPES):
             raise TypeError()
@@ -1890,9 +1965,9 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     if not isinstance(thread, int):
         if thread not in  ['all']:
             raise ValueError()
-    # check if mask (not fully supported yet)
-    if np.any(obj.mask):
-        raise ValueError("Should not have masked values")
+#    # check if mask (not fully supported yet)
+#    if np.any(obj.mask):
+#        raise ValueError("Should not have masked values")
     # if obj is a vector field
     if isinstance(obj, VectorField):
         # mirroring if necessary
