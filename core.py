@@ -1807,9 +1807,9 @@ class OrientedPoints(Points):
         Points.remove(self, ind)
         self.orientations = np.delete(self.orientations, ind, axis=0)
 
-    def cut(self, intervx=None, intervy=None):
+    def crop(self, intervx=None, intervy=None, intervv=None, inplace=True):
         """
-        Return a point cloud where the given area has been removed.
+        Crop the points cloud.
 
         Parameters
         ----------
@@ -1817,23 +1817,39 @@ class OrientedPoints(Points):
             Interval on x axis
         intervy : 2x1 tuple
             Interval on y axis
+        intervv : 2x1 tuple
+            Interval on v values
 
         Returns
         -------
-        tmp_pts : OrientedPoints object
-            Cutted version of the point cloud.
+        tmp_pts : Points object
+            croped version of the point cloud.
         """
-        Points.cut(self, intervx, intervy)
-        mask = np.ones(len(self.xy))
+        if inplace:
+            tmp_pts = self
+        else:
+            tmp_pts = self.copy()
+        # crop orientations (not efficient at all !)
+        mask = np.zeros(len(self.xy), dtype=bool)
         if intervx is not None:
-            out_zone = np.logical_and(self.xy[:, 0] > intervx[0],
-                                      self.xy[:, 0] < intervx[1])
-            mask = np.logical_and(mask, out_zone)
+            out_zone = np.logical_or(self.xy[:, 0] < intervx[0],
+                                     self.xy[:, 0] > intervx[1])
+            mask = np.logical_or(mask, out_zone)
         if intervy is not None:
-            out_zone = np.logical_and(self.xy[:, 1] > intervy[0],
-                                      self.xy[:, 1] < intervy[1])
-            mask = np.logical_and(mask, out_zone)
-        self.orientations = self.orientations[~mask]
+            out_zone = np.logical_or(self.xy[:, 1] < intervy[0],
+                                     self.xy[:, 1] > intervy[1])
+            mask = np.logical_or(mask, out_zone)
+        if intervv is not None and len(self.v) != 0:
+            out_zone = np.logical_or(self.v < intervv[0],
+                                     self.v > intervv[1])
+            mask = np.logical_or(mask, out_zone)
+        # use inheritance
+        super(OrientedPoints, tmp_pts).crop(intervx=intervx, intervy=intervy,
+                                            intervv=intervv, inplace=True)
+        tmp_pts.orientations = tmp_pts.orientations[~mask, :]
+        # returning
+        if not inplace:
+            return tmp_pts
 
     def decompose(self):
         """
@@ -4517,12 +4533,12 @@ class ScalarField(Field):
         # returning
         return extremum_pos
 
-    def get_profile(self, direction, position, ind=False):
+    def get_profile(self, direction, position, ind=False, interp='linear'):
         """
         Return a profile of the scalar field, at the given position (or at
         least at the nearest possible position).
         If position is an interval, the fonction return an average profile
-        in this interval. (Tested)
+        in this interval.
 
         Function
         --------
@@ -4537,13 +4553,15 @@ class ScalarField(Field):
         ind : boolean
             If 'True', position has to be given in indices
             If 'False' (default), position has to be given in axis unit.
+        interp : string in ['nearest', 'linear']
+            if 'nearest', get the profile at the nearest position on the grid,
+            if 'linear', use linear interpolation to get the profile at the
+            exact position
 
         Returns
         -------
         profile : Profile object
             Wanted profile
-        cutposition : array or number
-            Final position or interval in which the profile has been taken
         """
         # checking parameters
         if not isinstance(direction, int):
@@ -4561,7 +4579,11 @@ class ScalarField(Field):
                 raise ValueError()
         if not isinstance(ind, bool):
             raise TypeError()
-        # geting data
+        if not isinstance(interp, STRINGTYPES):
+            raise TypeError()
+        if not interp in ['nearest', 'linear']:
+            raise ValueError()
+        # getting data
         if direction == 1:
             axe = self.axe_x
             unit_x = self.unit_y
@@ -4594,7 +4616,24 @@ class ScalarField(Field):
             position = np.array([axe[0], axe[-1]])
         else:
             raise ValueError()
-        # passage from values to indices
+        # if use interpolation
+        if isinstance(position, NUMBERTYPES) and interp =='linear':
+            if direction == 1:
+                axe = self.axe_y
+                if ind:
+                    position = self.axe_x[position]
+                vals = [self.get_value(position, axe_i) for axe_i in axe]
+                prof = Profile(x=axe, y=vals, mask=False, unit_x=self.unit_y, 
+                               unit_y=self.unit_values)
+            if direction == 2:
+                axe = self.axe_x
+                if ind:
+                    position = self.axe_y[position]
+                vals = [self.get_value(axe_i, position) for axe_i in axe]
+                prof = Profile(x=axe, y=vals, mask=False, unit_x=self.unit_x, 
+                               unit_y=self.unit_values)
+            return prof
+        # if not
         if isinstance(position, NUMBERTYPES) and not ind:
             for i in np.arange(1, len(axe)):
                 if (axe[i] >= position and axe[i-1] <= position) \
@@ -4624,7 +4663,7 @@ class ScalarField(Field):
                 prof_mask = self.mask[:, position]
                 profile = self.values[:, position]
                 axe = self.axe_x
-                cutposition = self.axe_y[position]
+                cutposition = self.axe_y[position]           
         # Calculation of the profile for an interval of position
         elif isinstance(position, ARRAYTYPES) and not ind:
             axe_mask = np.logical_and(axe >= position[0], axe <= position[1])
@@ -4649,8 +4688,7 @@ class ScalarField(Field):
                 profile = self.values[:, position[0]:position[1] + 1].mean(1)
                 axe = self.axe_x
                 cutposition = self.axe_y[position[0]:position[1] + 1].mean()
-        return (Profile(axe, profile, prof_mask, unit_x, unit_y, "Profile"),
-                cutposition)
+        return Profile(axe, profile, prof_mask, unit_x, unit_y, "Profile")
 
     def get_spatial_autocorrelation(self, direction, window_len=None):
         """
@@ -6265,7 +6303,8 @@ class VectorField(Field):
         return np.array([self.comp_x_as_sf.get_value(x, y, ind=ind, unit=unit),
                          self.comp_y_as_sf.get_value(x, y, ind=ind, unit=unit)])
 
-    def get_profile(self, component, direction, position, ind=False):
+    def get_profile(self, component, direction, position, ind=False,
+                    interp='linear'):
         """
         Return a profile of the vector field component, at the given position
         (or at least at the nearest possible position).
@@ -6287,7 +6326,11 @@ class VectorField(Field):
         ind : boolean, optional
             If 'True', position is taken as an indice
             Else (default), position is in the field units.
-
+        interp : string in ['nearest', 'linear']
+            if 'nearest', get the profile at the nearest position on the grid,
+            if 'linear', use linear interpolation to get the profile at the
+            exact position
+            
         Returns
         -------
         profile : Profile object
@@ -6298,9 +6341,11 @@ class VectorField(Field):
         if not isinstance(component, int):
             raise TypeError("'component' must be an integer")
         if component == 1:
-            return self.comp_x_as_sf.get_profile(direction, position, ind)
+            return self.comp_x_as_sf.get_profile(direction, position, ind,
+                                                 interp=interp)
         elif component == 2:
-            return self.comp_y_as_sf.get_profile(direction, position, ind)
+            return self.comp_y_as_sf.get_profile(direction, position, ind,
+                                                 interp=interp)
         else:
             raise ValueError("'component' must have the value of 1 or 2")
 

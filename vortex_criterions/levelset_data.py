@@ -4,7 +4,6 @@ Created on Fri May 29 19:20:00 2015
 
 @author: glaunay
 """
-
 import numpy as np
 import sympy
 
@@ -20,39 +19,44 @@ def get_sol():
 
 
 def compute_coefs():
-        # prepare the analytical solution
-        a1, b1, c1, d1, x, y = sympy.symbols('a1, b1, c1, d1, x, y')
-        def funct(params, x, y, Vx):
-            a1, b1, c1, d1 = tuple(params)
-            return sympy.Eq(a1*x + b1*y + c1*x*y + d1, Vx)
-        def funct1(dx, dy, Vx):
-            return sympy.Eq(d1, Vx)
-        def funct2(dx, dy, Vx):
-            return sympy.Eq(a1*dx + d1, Vx)
-        def funct3(dx, dy, Vx):
-            return sympy.Eq(b1*dy + d1, Vx)
-        def funct4(dx, dy, Vx):
-            return sympy.Eq(a1*dx + b1*dy + c1*dx*dy + d1, Vx)
-        # get the analytical solution for arbitrary Vx and Vy
-        Vx_1, Vx_2, Vx_3, Vx_4 = sympy.symbols('Vx_1, Vx_2, Vx_3, Vx_4')
-        Vy_1, Vy_2, Vy_3, Vy_4 = sympy.symbols('Vy_1, Vy_2, Vy_3, Vy_4')
-        dx, dy = sympy.symbols('dx, dy')
-        bl11 = funct1(dx, dy, Vx_1)
-        bl12 = funct2(dx, dy, Vx_2)
-        bl13 = funct3(dx, dy, Vx_3)
-        bl14 = funct4(dx, dy, Vx_4)
-        sol1 = sympy.solve([bl11, bl12, bl13, bl14], [a1, b1, c1, d1])
-        params = [sol1[a1], sol1[b1], sol1[c1], sol1[d1]]
-        eq1 = funct(params, x, y, 0.)
-        eq2 = eq1.subs(Vx_1, Vy_1)
-        eq2 = eq2.subs(Vx_2, Vy_2)
-        eq2 = eq2.subs(Vx_3, Vy_3)
-        eq2 = eq2.subs(Vx_4, Vy_4)
-        sol = sympy.solve([eq1, eq2], [x, y])
-        sol = np.array(sol)
-        if sol.ndim == 1:
-            sol = np.array([sol])
-        for i in np.arange(sol.shape[0]):
-            for j in np.arange(sol.shape[1]):
-                sol[i, j] = sol[i, j].__repr__()
-        return sol
+    # prepare the analytical solution
+    a1, b1, c1, d1, x, y = sympy.symbols('a1, b1, c1, d1, x, y')
+
+    def funct(params, x, y, Vx):
+        a1, b1, c1, d1 = tuple(params)
+        return sympy.Eq(a1*x + b1*y + c1*x*y + d1, Vx)
+
+    def funct1(dx, dy, Vx):
+        return sympy.Eq(d1, Vx)
+
+    def funct2(dx, dy, Vx):
+        return sympy.Eq(a1*dx + d1, Vx)
+
+    def funct3(dx, dy, Vx):
+        return sympy.Eq(b1*dy + d1, Vx)
+
+    def funct4(dx, dy, Vx):
+        return sympy.Eq(a1*dx + b1*dy + c1*dx*dy + d1, Vx)
+    # get the analytical solution for arbitrary Vx and Vy
+    Vx_1, Vx_2, Vx_3, Vx_4 = sympy.symbols('Vx_1, Vx_2, Vx_3, Vx_4')
+    Vy_1, Vy_2, Vy_3, Vy_4 = sympy.symbols('Vy_1, Vy_2, Vy_3, Vy_4')
+    dx, dy = sympy.symbols('dx, dy')
+    bl11 = funct1(dx, dy, Vx_1)
+    bl12 = funct2(dx, dy, Vx_2)
+    bl13 = funct3(dx, dy, Vx_3)
+    bl14 = funct4(dx, dy, Vx_4)
+    sol1 = sympy.solve([bl11, bl12, bl13, bl14], [a1, b1, c1, d1])
+    params = [sol1[a1], sol1[b1], sol1[c1], sol1[d1]]
+    eq1 = funct(params, x, y, 0.)
+    eq2 = eq1.subs(Vx_1, Vy_1)
+    eq2 = eq2.subs(Vx_2, Vy_2)
+    eq2 = eq2.subs(Vx_3, Vy_3)
+    eq2 = eq2.subs(Vx_4, Vy_4)
+    sol = sympy.solve([eq1, eq2], [x, y])
+    sol = np.array(sol)
+    if sol.ndim == 1:
+        sol = np.array([sol])
+    for i in np.arange(sol.shape[0]):
+        for j in np.arange(sol.shape[1]):
+            sol[i, j] = sol[i, j].__repr__()
+    return sol

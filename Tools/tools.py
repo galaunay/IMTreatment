@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import os
 from ..core import ARRAYTYPES, STRINGTYPES, NUMBERTYPES
 from matplotlib.collections import LineCollection
+import re
 import scipy.interpolate as spinterp
 try:
     from multiprocess import Pool, cpu_count, Value, Process, Manager
@@ -21,6 +22,7 @@ except ImportError:
 
 
 class MultiThreading(object):
+
     def __init__(self, funct, data, threads='all'):
         raise Exception("Not functionnal yet !")
         self.funct = funct
@@ -41,14 +43,11 @@ class MultiThreading(object):
         self.manager = Manager()
         self.manager.register("PG", self.PG)
 
-
     def run(self):
         res = self.pool.map_async(self.PG_func_wrapper, self.data)
         self.pool.close()
         self.pool.join()
         return res
-
-
 
 
 class ProgressCounter(object):
@@ -128,7 +127,6 @@ class ProgressCounter(object):
             self._print_end()
             return 0
 
-
     def _format_time(self, second):
         second = int(second)
         m, s = divmod(second, 60)
@@ -155,11 +153,13 @@ class RemoveFortranOutput(object):
     >>> with RemoveFortranOutput():
     >>>     # put some fortran functions here
     """
+
     def __enter__(self):
         self.null_fds = [os.open(os.devnull, os.O_RDWR) for x in xrange(2)]
         self.save = os.dup(1), os.dup(2)
         os.dup2(self.null_fds[0], 1)
         os.dup2(self.null_fds[1], 2)
+
     def __exit__(self, type, value, traceback):
         os.dup2(self.save[0], 1)
         os.dup2(self.save[1], 2)
@@ -312,3 +312,51 @@ def colored_plot(x, y, z=None, log='plot', min_colors=1000, color_label=None,
         cb = plt.colorbar(sm)
         cb.set_label(color_label)
     return lc
+
+
+def remove_files_in_dirs(rootpath, dir_regex, file_regex):
+    """
+    make a recursive search for file from root, and remove all the files satisfying 'file_regex' in it.
+    """
+    # ### TODO : add the possibility to remove empty directories
+    # get dirs
+    dir_paths = []
+    nmb_files = []
+    file_paths = []
+    nmb_tot_files = 0
+    for root, dirs, files in os.walk(rootpath):
+        nmb_tot_files += len(files)
+        if re.match(dir_regex, root):
+            tmp_nmb_files = 0
+            for f in files:
+                if re.match(file_regex, f):
+                    tmp_nmb_files += 1
+                    file_paths.append(os.path.join(root, f))
+            # check if there is actuelly files in there
+            if not tmp_nmb_files == 0:
+                nmb_files.append(tmp_nmb_files)
+                dir_paths.append(root)
+    # ask before deletion
+    print("+++ Checked {} files".format(nmb_tot_files))
+    print("+++ Ready to remove {} files in directories :".format(np.sum(nmb_files)))
+    for i in range(len(dir_paths)):
+        print("+++    [{} files] {}".format(nmb_files[i], dir_paths[i]))
+    print("+++ Okay with that ?")
+    while True:
+        rep = raw_input("Okay with that ('o', 'n') ?")
+        if rep in ['o', 'O', 'y', 'Y', 'oui', 'Oui', 'Yes', 'yes', 'YES', 'OUI']:
+            rep = True
+            break
+        elif rep in ['n', 'N', 'No', 'no', 'non', 'Non', 'NON', 'NO']:
+            rep = False
+            break
+    # remove if necessary
+    print(rep)
+    if rep:
+        import pdb
+        pdb.set_trace()
+        PG = ProgressCounter("Begin removing", "Done", len(file_paths),
+                             name_things='files', perc_interv=10)
+        for p in file_paths:
+            PG.print_progress()
+            os.remove(p)

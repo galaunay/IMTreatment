@@ -220,7 +220,7 @@ class VF(object):
             # check if null values
             nmb_zeros = np.sum(Vx_bl + Vy_bl == 0)
             if nmb_zeros == 1:
-                inds = np.where(Vx_bl + Vy_bl == 0)[0]
+                inds = np.array(np.where(Vx_bl + Vy_bl == 0)).reshape(2)
                 res_pos = np.array([axe_x[ind_x + inds[0]],
                                              axe_y[ind_y + inds[1]]])
                 return res_pos
@@ -1445,9 +1445,6 @@ class CritPoints(object):
                 """
                 pts = np.asarray(pts)
                 dist2 = [pt.dist2(opt) for opt in pts]
-                print("")
-                print(pt)
-                print(dist2)
                 ind_min = np.argmin(dist2)
                 return ind_min, dist2[ind_min]
             
@@ -2649,12 +2646,12 @@ def _get_saddle_orientations(vectorfield, pt):
     # get jacobian eignevalues
     jac = _get_jacobian_matrix(local_Vx, local_Vy, dx, dy)
     eigvals, eigvects = np.linalg.eig(jac)
-    if eigvals[0] < eigvals[1]:
-        orient1 = eigvects[:, 0]
-        orient2 = eigvects[:, 1]
+    if eigvals[1] < eigvals[0]:
+        orient1 = np.abs(eigvects[:, 0])
+        orient2 = np.abs(eigvects[:, 1])
     else:
-        orient1 = eigvects[:, 1]
-        orient2 = eigvects[:, 0]
+        orient1 = np.abs(eigvects[:, 1])
+        orient2 = np.abs(eigvects[:, 0])
     return np.real(orient1), np.real(orient2)
 
 
