@@ -351,10 +351,7 @@ def remove_files_in_dirs(rootpath, dir_regex, file_regex):
             rep = False
             break
     # remove if necessary
-    print(rep)
     if rep:
-        import pdb
-        pdb.set_trace()
         PG = ProgressCounter("Begin removing", "Done", len(file_paths),
                              name_things='files', perc_interv=10)
         for p in file_paths:

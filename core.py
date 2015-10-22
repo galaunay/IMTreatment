@@ -22,6 +22,7 @@ import unum
 import unum.units as units
 import copy
 from scipy import stats
+
 try:
     units.counts = unum.Unum.unit('counts')
     units.pixel = unum.Unum.unit('pixel')
@@ -36,6 +37,7 @@ NUMBERTYPES = (long, float, complex, np.float, np.float16, np.float32,
 STRINGTYPES = (str, unicode)
 MYTYPES = ('Profile', 'ScalarField', 'VectorField', 'VelocityField',
            'VelocityFields', 'TemporalVelocityFields', 'patialVelocityFields')
+from . import tools as imttls
 
 
 class ShapeError(StandardError):
@@ -2350,9 +2352,11 @@ class Profile(object):
         # if the asked value is present
         if np.any(self.y == value):
             ind_0 = np.argwhere(self.y == value)[0]
-            pos_0 = [self.x[ind] for ind in ind_0]
-        else:
-            pos_0 = []
+            if ind:
+                return ind_0
+            else:                    
+                pos_0 = [self.x[ind] for ind in ind_0]
+                return pos_0
         # search for positions
         y = self.y
         y[self.mask] = 0
@@ -2363,7 +2367,6 @@ class Profile(object):
         mask_chang = np.logical_or(self.mask[1::], self.mask[0:-1:])
         chang[mask_chang] = False
         ind_0 = np.argwhere(chang).flatten()
-        masked_indices = np.arange(len(x))[self.mask]
         # get interpolated 0-value position
         val_1 = np.abs(y[ind_0])
         val_2 = np.abs(y[ind_0 + 1])
@@ -7753,6 +7756,103 @@ class TemporalFields(Fields, Field):
                                 "option")
         magn = magn/real_nmb_fields
         return magn
+
+    def get_spectrum_map(self, comp, welch_seglen=None, nmb_pic=1, 
+                         spec_smooth=None,
+                         verbose=True):
+        """
+        Return the temporal spectrum map.
+        
+        Parameters
+        ----------
+        comp : string
+            Component to get the spectrum from.
+        welch_seglen : integer
+            .
+        nmb_pic : integer
+            Number of succesive spectrum pic to detect
+        spec_smooth : number
+            .
+        verbose : bool
+            .
+            
+        Returns
+        -------
+        map_freq_sf : 
+            .
+        map_freq_quality_sf :
+            .
+        """
+        # check
+        try:
+            self.fields[0].__getattribute__(comp)
+        except AttributeError():
+            raise ValueError()
+        # prepare
+        map_freq = []
+        map_freq_quality = []
+        map_freq_mask = np.zeros(self.shape, dtype=bool)
+        for i in range(nmb_pic):
+            map_freq.append(np.zeros(self.shape, dtype=float))
+            map_freq_quality.append(np.zeros(self.shape, dtype=float))
+        if verbose:
+            PG = imttls.ProgressCounter("Begin spectrum map computation on {}"
+                                        .format(comp),
+                                        "Done", self.shape[0]*self.shape[1],
+                                        "points")
+        # loop on field points
+        for i, x in enumerate(self.axe_x):
+            for j, y in enumerate(self.axe_y):
+                if verbose:
+                    PG.print_progress()
+                # get local spectrum
+                tmp_prof = self.get_time_profile(comp, x, y)
+                # check if should be masked
+                if np.sum(tmp_prof.mask)/float(len(tmp_prof)) > .5:
+                    map_freq_mask[i, j] = True
+                    continue
+                spec = tmp_prof.get_spectrum(welch_seglen=welch_seglen)
+                # smooth if necessary
+                if spec_smooth is not None:
+                    spec.smooth(tos='gaussian', size=spec_smooth, inplace=True)
+                # get maximale frequences
+                for n in range(nmb_pic):                    
+                    spec_max = spec.max
+                    max_pos_ind = spec.get_value_position(spec_max, ind=True)[0]
+                    map_freq[n][i, j] = spec.x[max_pos_ind]
+                    # get spectrum 'quality'
+                    filt = np.logical_not(spec.mask)
+                    spec_var = np.mean((spec.y[filt]
+                                       - np.mean(spec.y[filt]))**2)**.5
+                    map_freq_quality[n][i, j] = (spec_max - spec.mean)/spec_var
+                    # remove this particular pic
+                    spec.mask[max_pos_ind] = True
+        # store results
+        maps_freq = []
+        maps_freq_quality = []
+        for i in range(nmb_pic):
+            map_freq_sf = ScalarField()
+            map_freq_sf.import_from_arrays(axe_x=self.axe_x, axe_y=self.axe_y,
+                                           values=map_freq[i], mask=map_freq_mask,
+                                           unit_x=self.unit_x,
+                                           unit_y=self.unit_y,
+                                           unit_values=spec.unit_y)
+            map_freq_quality_sf = ScalarField()
+            map_freq_quality_sf.import_from_arrays(axe_x=self.axe_x,
+                                                   axe_y=self.axe_y,
+                                                   values=map_freq_quality[i],
+                                                   mask=map_freq_mask,
+                                                   unit_x=self.unit_x,
+                                                   unit_y=self.unit_y,
+                                                   unit_values='')
+            maps_freq.append(map_freq_sf)
+            maps_freq_quality.append(map_freq_quality_sf)
+        # return
+        if nmb_pic == 1:
+            return maps_freq[0], maps_freq_quality[0]
+        else:
+            return maps_freq, maps_freq_quality
+        
 
     ### Modifiers ###
     def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
