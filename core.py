@@ -1436,8 +1436,6 @@ class Points(object):
             if self.v is None:
                 plot = plt.scatter(x_values, y_values, **plotargs)
             else:
-                if not 'cmap' in plotargs:
-                    plotargs['cmap'] = plt.cm.jet
                 if not 'c' in plotargs:
                     plotargs['c'] = color_values
                 plot = plt.scatter(x_values, y_values, **plotargs)
@@ -5743,20 +5741,15 @@ class ScalarField(Field):
                              .format(component))
         # displaying according to 'kind'
         if kind == 'contour':
-            if (not 'cmap' in plotargs.keys()
-                    and not 'colors' in plotargs.keys()):
-                plotargs['cmap'] = cm.jet
             displ = plt.contour(axe_x, axe_y, values, linewidth=1, **plotargs)
         elif kind == 'contourf':
             if 'cmap' in plotargs.keys() or 'colors' in plotargs.keys():
                 displ = plt.contourf(axe_x, axe_y, values, linewidth=1,
                                      **plotargs)
             else:
-                displ = plt.contourf(axe_x, axe_y, values, cmap=cm.jet,
+                displ = plt.contourf(axe_x, axe_y, values,
                                      linewidth=1, **plotargs)
         elif kind == "imshow" or kind is None:
-            if not 'cmap' in plotargs.keys():
-                plotargs['cmap'] = cm.jet
             if not 'interpolation' in plotargs.keys():
                 plotargs['interpolation'] = 'nearest'
             if not 'aspect' in plotargs.keys():
