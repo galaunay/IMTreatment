@@ -337,13 +337,13 @@ def remove_files_in_dirs(rootpath, dir_regex, file_regex):
                 nmb_files.append(tmp_nmb_files)
                 dir_paths.append(root)
     # ask before deletion
+    print("")
     print("+++ Checked {} files".format(nmb_tot_files))
     print("+++ Ready to remove {} files in directories :".format(np.sum(nmb_files)))
     for i in range(len(dir_paths)):
         print("+++    [{} files] {}".format(nmb_files[i], dir_paths[i]))
-    print("+++ Okay with that ?")
     while True:
-        rep = raw_input("Okay with that ('o', 'n') ?")
+        rep = raw_input("+++ Okay with that ? ('o', 'n') \n+++ ")
         if rep in ['o', 'O', 'y', 'Y', 'oui', 'Oui', 'Yes', 'yes', 'YES', 'OUI']:
             rep = True
             break
@@ -352,7 +352,8 @@ def remove_files_in_dirs(rootpath, dir_regex, file_regex):
             break
     # remove if necessary
     if rep:
-        PG = ProgressCounter("Begin removing", "Done", len(file_paths),
+        print("")
+        PG = ProgressCounter("Begin cleaning", "Done", len(file_paths),
                              name_things='files', perc_interv=10)
         for p in file_paths:
             PG.print_progress()

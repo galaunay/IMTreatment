@@ -1927,6 +1927,9 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     -----
     If the fields have masked values, saddle streamlines ar not computed.
     """
+#    # buggity bug, 'verbose = False' seems to interfer with multiprocess...
+#    verb = verbose
+#    verbose = True
     # check parameters
     if not isinstance(time, NUMBERTYPES):
         raise TypeError()
@@ -2032,10 +2035,9 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         res.unit_x = obj.unit_x
         res.unit_y = obj.unit_y
         res.unit_time = obj.unit_times
-        if verbose:
-            PG = ProgressCounter(init_mess="Begin CP detection", end_mess='Done',
-                                 nmb_max=len(obj.fields),
-                                 name_things='fields')
+        PG = ProgressCounter(init_mess="Begin CP detection", end_mess='Done',
+                             nmb_max=len(obj.fields),
+                             name_things='fields')
         # function o ge cp on one field (used for multiprocessing)
         def get_cp_on_one_field(args):
             if verbose:
@@ -2059,11 +2061,9 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                 pool = Pool(thread)
             res = pool.map_async(get_cp_on_one_field, zip(obj.fields, obj.times))
             pool.close()
-            pool.join()   
+            pool.join()
             res = res.get()
-        res = np.sum(res)
-                                       
-            
+        res = np.sum(res)            
     else:
         raise TypeError()
     return res
