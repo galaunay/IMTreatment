@@ -339,6 +339,9 @@ def remove_files_in_dirs(rootpath, dir_regex, file_regex):
     # ask before deletion
     print("")
     print("+++ Checked {} files".format(nmb_tot_files))
+    if np.sum(nmb_files) == 0:
+        print("+++ Nothing to delete")
+        return None
     print("+++ Ready to remove {} files in directories :".format(np.sum(nmb_files)))
     for i in range(len(dir_paths)):
         print("+++    [{} files] {}".format(nmb_files[i], dir_paths[i]))

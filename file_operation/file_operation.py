@@ -23,6 +23,7 @@ import scipy.io as spio
 import scipy.misc as spmisc
 from os import path
 import matplotlib.pyplot as plt
+import re
 
 ### Path adaptater ###
 def check_path(filepath, newfile=False):
@@ -67,6 +68,55 @@ def check_path(filepath, newfile=False):
     if newfile:
         filepath = path.join(filepath, filename)
     return filepath
+    
+def find_file_in_path(regs, dirpath, ask=False):
+    """
+    Search recursively for a folder containing files matching a regular
+    expression, in the given root folder.
+    
+    Parameters
+    ----------
+    exts : list of string
+        List of regular expressions
+    dirpath : string
+        Root path to search from
+    ask : bool
+        If 'True', ask for the wanted folder and return only this one.
+        
+    Returns
+    -------
+    folders : list of string
+        List of folder containings wanted files.
+    """
+    # check
+    if not os.path.isdir(dirpath):
+        raise ValueError()
+    if not isinstance(regs, ARRAYTYPES):
+        raise TypeError()
+    regs = np.array(regs, dtype=unicode)
+    # 
+    dir_paths = []
+    # recursive loop on folders
+    for root, dirs, files in os.walk(dirpath):
+        for f in files:
+            match = np.any([re.match(reg, f) for reg in regs])
+            if match:
+                break
+        if match:
+            dir_paths.append(root)
+    # choose
+    if ask and len(dir_paths) >  1:
+        print("{} folders found :".format(len(dir_paths)))
+        for i, p in enumerate(dir_paths):
+            print("  {} :  {}".format(i + 1, p))
+        rep = 0
+        while rep not in np.arange(1, len(dir_paths)+1):
+            rep = input("Want to go with wich one ?\n")
+        dir_paths = [dir_paths[rep - 1]]
+    # return
+    return dir_paths
+
+
     
 ### Parsers ###
 def matlab_parser(obj, name):
@@ -560,13 +610,21 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
                             " string")
         fieldspaths = np.array(fieldspath)
     elif isinstance(fieldspath, STRINGTYPES):
-        fieldspaths = np.array([f for f in glob(os.path.join(fieldspath, '*'))
-                               if os.path.splitext(f)[-1] in ['.im7', '.IM7']])
-        filenames = [os.path.basename(p) for p in fieldspaths]
+        fieldspath = check_path(fieldspath)
+        paths = np.array([f for f in glob(os.path.join(fieldspath, '*'))
+                          if os.path.splitext(f)[-1] in ['.im7', '.IM7']])
+        # if no file found, search recursively
+        if len(paths) == 0:
+            poss_paths = find_file_in_path(['.*.im7', '.*.IM7'], fieldspath,
+                                           ask=True)
+            if len(poss_paths) == 0:
+                raise ValueError()
+            paths = np.array([f for f in glob(os.path.join(poss_paths[0], '*'))
+                              if os.path.splitext(f)[-1] in ['.im7', '.IM7']])
+        # Sort path by numbers
+        filenames = [os.path.basename(p) for p in paths]
         ind_sort = np.argsort(filenames)
-        fieldspaths = fieldspaths[ind_sort]
-        if len(fieldspaths) == 0:
-            raise ValueError()
+        paths = paths[ind_sort]
     else:
         raise TypeError()
     if fieldnumbers is not None:
@@ -724,6 +782,8 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
     Parameters
     ----------
     fieldspath : string or tuple of string
+        If no '.vc7' are found directly under 'fieldspath', present folders are
+        recursively serached for '.vc7' files.
     kind : string, optional
         Kind of object to create with VC7 files.
         (can be 'TVF' or 'SVF').
@@ -738,22 +798,31 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
     Verbose : bool, optional
         .
     """
-    # check
+    # check and adpat 'fieldspath'
     if isinstance(fieldspath, ARRAYTYPES):
         if not isinstance(fieldspath[0], STRINGTYPES):
             raise TypeError("'fieldspath' must be a string or a tuple of"
                             " string")
+        paths = fieldspath
     elif isinstance(fieldspath, STRINGTYPES):
         fieldspath = check_path(fieldspath)
-        fieldspath = np.array([f for f in glob(os.path.join(fieldspath, '*'))
-                               if os.path.splitext(f)[-1] in ['.vc7', '.VC7']])
-        filenames = [os.path.basename(p) for p in fieldspath]
+        paths = np.array([f for f in glob(os.path.join(fieldspath, '*'))
+                          if os.path.splitext(f)[-1] in ['.vc7', '.VC7']])
+        # if no file found, search recursively
+        if len(paths) == 0:
+            poss_paths = find_file_in_path(['.*.vc7', '.*.VC7'], fieldspath,
+                                           ask=True)
+            if len(poss_paths) == 0:
+                raise ValueError()
+            paths = np.array([f for f in glob(os.path.join(poss_paths[0], '*'))
+                              if os.path.splitext(f)[-1] in ['.vc7', '.VC7']])
+        # Sort path by numbers
+        filenames = [os.path.basename(p) for p in paths]
         ind_sort = np.argsort(filenames)
-        fieldspath = fieldspath[ind_sort]
-        if len(fieldspath) == 0:
-            raise ValueError()
+        paths = paths[ind_sort]
     else:
         raise TypeError()
+    # check and adapt 'fieldnumbers'
     if fieldnumbers is not None:
         if not isinstance(fieldnumbers, ARRAYTYPES):
             raise TypeError("'fieldnumbers' must be a 2x1 array")
@@ -763,12 +832,13 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
                 or not isinstance(fieldnumbers[1], int):
             raise TypeError("'fieldnumbers' must be an array of integers")
     else:
-        fieldnumbers = [0, len(fieldspath)]
+        fieldnumbers = [0, len(paths)]
+    # check and adpat 'incr'
     if not isinstance(incr, int):
         raise TypeError("'incr' must be an integer")
     if incr <= 0:
         raise ValueError("'incr' must be positive")
-    # Import
+    # Prepare containers
     if kind == 'TVF':
         fields = TemporalVectorFields()
     elif kind == 'SVF':
@@ -786,9 +856,9 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
     # loop on files
     t = 0.
     if add_fields:
-        tmp_vf, add_fields = import_from_VC7(fieldspath[0], add_fields=True)
+        tmp_vf, add_fields = import_from_VC7(paths[0], add_fields=True)
         suppl_fields = [TemporalScalarFields() for field in add_fields]
-    for i, p in enumerate(fieldspath[start:end:incr]):
+    for i, p in enumerate(paths[start:end:incr]):
         if verbose:
             pc.print_progress()
         if add_fields:
@@ -808,6 +878,7 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
             dt = float(dt[0])
             t += dt*incr
             fields.add_field(tmp_vf, t, unit_time)
+    # return
     if add_fields:
         return fields, suppl_fields
     else:
