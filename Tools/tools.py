@@ -7,9 +7,14 @@ Created on Tue Jun 02 18:50:02 2015
 from __future__ import print_function
 import time as modtime
 import numpy as np
+import shutil
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import os
+import pdb
+from os.path import join
+import json
+import copy
 from ..core import ARRAYTYPES, STRINGTYPES, NUMBERTYPES
 from matplotlib.collections import LineCollection
 import re
@@ -313,10 +318,221 @@ def colored_plot(x, y, z=None, log='plot', min_colors=1000, color_label=None,
         cb.set_label(color_label)
     return lc
 
+class Files(object):
+    
+    def __init__(self):
+        """
+        Class representing a bunch of files (and/or folders)
+        """
+        self.paths = []
+        self.exist = []
+        self.isdir = []
+ 
+    def __add__(self, obj):
+        if isinstance(obj, Files):
+            tmp_files = self.copy()
+            tmp_files.paths += obj.paths
+            tmp_files.exist += obj.exist
+            tmp_files.isdir += obj.isdir
+            return tmp_files
+    
+    def __repr__(self):
+        # build tree
+        self.build_tree()
+        # use json to parse (not optimal...)
+        text = json.dumps(self.tree, indent=2)
+        text = re.sub('{\n', "\n", text)
+        text = re.sub('":\s', '"', text)
+        text = re.sub("\[", "", text)
+        text = re.sub("\]\n", "", text)
+        text = re.sub("\],\s\n", "\n", text)
+        text = re.sub("\},\s\n", "\n", text)
+        text = re.sub("}\n", "", text)
+        text = re.sub("}$", "", text)
+        text = re.sub('"', "", text)
+        text = re.sub(',\s\n', "\n", text)
+        text = re.sub('{\n', "\n", text)
+        text = re.sub('{[\s]*$', "", text)
+        text = re.sub('{', "", text)
+        return text        
 
-def remove_files_in_dirs(rootpath, dir_regex, file_regex):
+    
+    def copy(self):
+        return copy.deepcopy(self)
+   
+    def add_file(self, path):
+        # check argument type
+        try:
+            path = unicode(path)
+        except:
+            raise TypeError()
+        # check if valid path or not
+        path = os.path.normpath(path)
+        if os.path.exists(path):
+            self.paths.append(path)
+            self.exist.append(True)
+            if os.path.isdir(path):
+                self.isdir.append(True)
+            else:
+                self.isdir.append(False)
+        elif os.access(os.path.dirname(path), os.W_OK):
+            self.paths.append(path)
+            self.exist.append(False)
+            self.isdir.append(None)
+        else:
+            raise Exception()
+            
+    def remove_file(self, ind):
+        del self.paths[ind]
+        del self.exist[ind]
+        del self.isdir[ind]
+        
+    def load_files_from_regex(self, rootpath, regex, load_files=True, 
+                              load_dirs=True, depth='all'):
+        """
+        Load existing files from a regular expression.
+        """
+        # get folder names
+        paths = []
+        isdir = []
+        exist = []
+        rootpath = os.path.normpath(rootpath)
+        for root, dirs, files in os.walk(rootpath, topdown=True):
+            # check depth 
+            if depth != "all":
+                tmp_depth = (root[len(rootpath) + len(os.path.sep):]
+                             .count(os.path.sep))
+                if depth < tmp_depth:
+                    break
+            # load direcories
+            if load_dirs:
+                for d in dirs:
+                    fullpath = join(root, d)
+                    if re.match(regex, fullpath):
+                        paths.append(fullpath)
+                        isdir.append(True)
+                        exist.append(True)
+            # load files
+            if load_files:
+                for f in files:
+                    fullpath = join(root, f)
+                    if re.match(regex, fullpath):
+                        paths.append(fullpath)
+                        isdir.append(False)
+                        exist.append(True)
+        # store
+        self.paths += paths
+        self.isdir += isdir
+        self.exist += exist
+               
+    def build_tree(self):
+        """
+        Build a file tree
+        """
+        dic = {}
+        for isdir, path in zip(self.isdir, self.paths):
+            sep_path  = path.split(os.path.sep)
+            tmp_dic = dic
+            sep_path_len = len(sep_path)
+            for i, fold in enumerate(sep_path):
+                # folders
+                if isdir or i != sep_path_len - 1:
+                    if fold in tmp_dic.keys():
+                        tmp_dic = tmp_dic[fold]
+                    else:
+                        new_dic = {}
+                        tmp_dic[fold] = new_dic
+                        tmp_dic = new_dic
+                # files ()
+                else:
+                    if 'files' in tmp_dic.keys():
+                        tmp_dic['files'].append(fold)
+                    else:
+                        tmp_dic['files'] = [fold]
+        # store
+        self.tree = dic
+        
+    def delete_existing_files(self, recursive=False):
+        tmp_isdir = list(np.array(self.isdir)[np.array(self.exist)])
+        tmp_paths = list(np.array(self.paths)[np.array(self.exist)])
+        nmb_dir = np.sum(tmp_isdir)
+        nmb_files = len(tmp_paths) - nmb_dir
+        print("+++ Ready to remove {} files and {} directories "
+              .format(nmb_files, nmb_dir))
+        while True:
+            rep = raw_input("+++ Okay with that ? ('o', 'n') \n+++ ")
+            if rep in ['o', 'O', 'y', 'Y', 'oui', 'Oui', 'Yes', 'yes', 'YES', 'OUI']:
+                rep = True
+                break
+            elif rep in ['n', 'N', 'No', 'no', 'non', 'Non', 'NON', 'NO']:
+                rep = False
+                break
+        # remove if necessary
+        if rep:
+            print("")
+            PG = ProgressCounter("Begin cleaning", "Done", nmb_files,
+                                 name_things='files', perc_interv=10)
+            # remove files                    
+            for i, p in enumerate(np.array(tmp_paths)):
+                if tmp_isdir[i]:
+                    continue
+                PG.print_progress()
+                os.remove(p)
+                
+            # remove dirs
+            for i, p in enumerate(np.array(tmp_paths)):
+                if tmp_isdir[i]:
+                    # force recursive removing
+                    if recursive:
+                        shutil.rmtree(p)
+                    else:
+                        # else, check if each folder is empty
+                        try:
+                            os.rmdir(p)
+                        except WindowsError:
+                            print("+++ Following folder is not empty\n"
+                                  "{}".format(p))
+                            while True:
+                                rep = raw_input("+++ Delete anyway ? ('o', 'n') \n+++ ")
+                                if rep in ['o', 'O', 'y', 'Y', 'oui', 'Oui',
+                                           'Yes', 'yes', 'YES', 'OUI']:
+                                    rep = True
+                                    break
+                                elif rep in ['n', 'N', 'No', 'no', 'non',
+                                             'Non', 'NON', 'NO']:
+                                    rep = False
+                                    break
+                            if rep is True:
+                                shutil.rmtree(p)
+            # 
+            for i in range(len(self.exist)):
+                self.exist[i] = False
+            
+        
+            
+        
+    
+def remove_files_in_dirs(rootpath, dir_regex, file_regex,
+                         depth='all', remove_dir=False, remove_files=True):
     """
-    make a recursive search for file from root, and remove all the files satisfying 'file_regex' in it.
+    make a recursive search for directories satisfying "dir_regex'
+    from "rootpath", and remove all the files satisfying 'file_regex' in it.
+    
+    Parameters
+    ----------
+    rootpath : string
+        Path where to begin searching.
+    dir_regex : string
+        Regular expression matching the directory where we want to remove
+        stuff.
+    file_regex : string
+        Regular expression matching the files we want to delete.
+    depth : integer or 'all'
+        Number of directory layer to go through.
+    remove_dir : 
+    
+
+    
     """
     # ### TODO : add the possibility to remove empty directories
     # get dirs
@@ -361,3 +577,23 @@ def remove_files_in_dirs(rootpath, dir_regex, file_regex):
         for p in file_paths:
             PG.print_progress()
             os.remove(p)
+
+
+
+
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

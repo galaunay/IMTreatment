@@ -111,7 +111,11 @@ def find_file_in_path(regs, dirpath, ask=False):
             print("  {} :  {}".format(i + 1, p))
         rep = 0
         while rep not in np.arange(1, len(dir_paths)+1):
-            rep = input("Want to go with wich one ?\n")
+            rep = raw_input("Want to go with wich one ?\n")
+            try:
+                rep = int(rep)
+            except:
+                pass
         dir_paths = [dir_paths[rep - 1]]
     # return
     return dir_paths

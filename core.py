@@ -5,23 +5,24 @@ IMTreatment module
     Auteur : Gaby Launay
 """
 
-import scipy.interpolate as spinterp
-import scipy.ndimage.measurements as msr
-from scipy import ndimage
-import scipy.optimize as spopt
+
 import matplotlib as mpl
 from matplotlib import cm
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import Plotlib as pplt
-import warnings
-warnings.filterwarnings('error')
+#import warnings
+#warnings.filterwarnings('error')
 import numpy as np
 import pdb
 import unum
 import unum.units as units
 import copy
 from scipy import stats
+import scipy.interpolate as spinterp
+import scipy.ndimage.measurements as msr
+from scipy import ndimage
+import scipy.optimize as spopt
 
 try:
     units.counts = unum.Unum.unit('counts')
@@ -7315,7 +7316,9 @@ class TemporalFields(Fields, Field):
         if not isinstance(values, ARRAYTYPES):
             raise TypeError()
         if len(self.fields) != len(values):
-            raise ValueError()
+            raise ValueError("New number of time ({}) do not corespond to "
+                             "the number of fields ({})"
+                             .format(len(values), len(self.fields)))
         self.__times = values
 
     @times.deleter
@@ -7368,7 +7371,10 @@ class TemporalFields(Fields, Field):
         result_f.fill(kind='value', value=value, crop=False, inplace=True)
         mask_cum = np.zeros(self.shape, dtype=int)
         mask_cum[np.logical_not(self.fields[0].mask)] += 1
+        i = 0
         for field in self.fields[1::]:
+            i += 1
+#            print("{},  {}".format(i, field.unit_values))
             added_field = field.copy()
             added_field.fill(kind='value', value=0., inplace=True)
             result_f += added_field

@@ -41,8 +41,14 @@ class POD_CP_protocol(object):
         if self.temporal_scale < 1:
             tvf.reduce_temporal_resolution(int(np.round(1./self.temporal_scale)),
                                            mean=False, inplace=True)
+        # save a display 
+        plt.figure()
+        tvf.get_mean_field().display(kind='stream', density=3)
+        plt.savefig(join(self.respath, "{}/mean_field.png".format(self.name)))
+        plt.close(plt.gcf())
         # store
         imtio.export_to_file(tvf, join(self.imtpath, "{}_cln.cimt".format(self.name)))
+        del tvf
         
     def pod_decomp(self):
         print("    Making POD decomposition    ")
@@ -52,14 +58,14 @@ class POD_CP_protocol(object):
         pod = imtpod.modal_decomposition(tvf, kind='pod',
                                          wanted_modes='all',
                                          max_vecs_per_node=len(tvf) + 1,
-                                         verbose=False)
-        # save data
-        imtio.export_to_file(pod, join(self.imtpath, "{}_pod.cimt".format(self.name)))
+                                         verbose=False)   
         # save a display        
-        plt.figure()
         pod.display()
         plt.savefig(join(self.respath, "{}/pod.png".format(self.name)))
         plt.close(plt.gcf())
+        # save data
+        imtio.export_to_file(pod, join(self.imtpath, "{}_pod.cimt".format(self.name)))
+        del pod
     
     def pod_reconstr(self):
         print("    Making POD reconstruction    ")
@@ -87,13 +93,15 @@ class POD_CP_protocol(object):
         plt.close(plt.gcf())
         # save data
         imtio.export_to_file(rec, join(self.imtpath, "{}_rec.cimt".format(self.name)))
+        del rec
         
     def CP_detection(self):
         # improt data
+        print("    Making CP detection    ")
         rec = imtio.import_from_file(join(self.imtpath, "{}_rec.cimt".format(self.name)))
         traj = imtvod.get_critical_points(rec, kind='pbi',
                                           mirroring=self.mirroring,
-                                          verbose=False, thread=4)
+                                          verbose=False, thread='all')
         traj.compute_traj(epsilon=self.eps_traj)
         traj.clean_traj(self.nmb_min_in_traj)       
         # save display
@@ -113,27 +121,33 @@ class POD_CP_protocol(object):
         traj.display_traj('y', filt=[True, True, False, False, False])
         plt.savefig(join(self.respath, "{}/traj_y_cln.png".format(self.name)))
         plt.close(plt.gcf())
+        # save
         imtio.export_to_file(traj, join(self.imtpath, "{}_traj.cimt".format(self.name)))
+        del traj
         
     def compute_everything(self):
         if not os.path.exists(join(self.respath, "{}".format(self.name))):
             os.mkdir(join(self.respath, "{}".format(self.name)))
         if not os.path.exists(join(self.imtpath, "{}_cln.cimt".format(self.name))):
+            self._display_heading()      
             self.prepare_data()
             self.pod_decomp()
             self.pod_reconstr()
             self.CP_detection()
         elif not os.path.exists(join(self.imtpath, "{}_pod.cimt".format(self.name))):
+            self._display_heading()          
             self.pod_decomp()
             self.pod_reconstr()
             self.CP_detection()
         elif not os.path.exists(join(self.imtpath, "{}_rec.cimt".format(self.name))):
+            self._display_heading()                
             self.pod_reconstr()
             self.CP_detection()
         elif not os.path.exists(join(self.imtpath, "{}_traj.cimt".format(self.name))):
+            self._display_heading()                
             self.CP_detection()
         else:
-            print("    Nothing to do")
+            pass
         
     def recompute_everything(self):
         if not os.path.exists(join(self.respath, "{}".format(self.name))):
@@ -142,3 +156,10 @@ class POD_CP_protocol(object):
         self.pod_decomp()
         self.pod_reconstr()
         self.CP_detection()
+        
+    def _display_heading(self):
+        title = "=   {}   =".format(self.name)
+        print("\n" + "="*len(title))
+        print(title)
+        print("="*len(title))
+        

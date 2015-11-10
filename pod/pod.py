@@ -413,7 +413,10 @@ class ModalFields(Field):
         """
         # check parameters
         if not isinstance(fact, int):
-            raise TypeError()
+            if int(fact) - fact == 0:
+                fact = int(fact)
+            else:
+                raise TypeError()
         if fact <= 0:
             raise TypeError()
         if not isinstance(interp, STRINGTYPES):
