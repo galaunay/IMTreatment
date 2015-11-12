@@ -10,6 +10,7 @@ import numpy as np
 import shutil
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import colorama
 import os
 import pdb
 from os.path import join
@@ -337,24 +338,103 @@ class Files(object):
             return tmp_files
     
     def __repr__(self):
-        # build tree
-        self.build_tree()
-        # use json to parse (not optimal...)
-        text = json.dumps(self.tree, indent=2)
-        text = re.sub('{\n', "\n", text)
-        text = re.sub('":\s', '"', text)
-        text = re.sub("\[", "", text)
-        text = re.sub("\]\n", "", text)
-        text = re.sub("\],\s\n", "\n", text)
-        text = re.sub("\},\s\n", "\n", text)
-        text = re.sub("}\n", "", text)
-        text = re.sub("}$", "", text)
-        text = re.sub('"', "", text)
-        text = re.sub(',\s\n', "\n", text)
-        text = re.sub('{\n', "\n", text)
-        text = re.sub('{[\s]*$', "", text)
-        text = re.sub('{', "", text)
+        text = self.get_tree_representation(max_file_list=10, hide_top=True)
         return text        
+      
+    def get_tree_representation(self, max_file_list=10, hide_top=False):
+        self.build_tree()
+        # properties
+        tab0 = "|"
+        tab1 = tab0 + ">" + tab0
+        tab2 = tab0 + " "
+        separator = "/"
+        heading_separator = "="
+        tab_color = colorama.Fore.BLACK + colorama.Style.BRIGHT
+        tab0 = tab_color + tab0 + colorama.Style.NORMAL
+        tab1 = tab_color + tab1 + colorama.Style.NORMAL
+        tab2 = tab_color + tab2 + colorama.Style.NORMAL
+        folder_color = colorama.Fore.BLACK
+        file_color = colorama.Fore.GREEN
+        file_number_color = colorama.Fore.CYAN
+        folders_end_of_line = "\n"
+        files_end_of_line = "\n"
+        max_file_list = max_file_list
+        
+        # recursion function
+        def get_info_for_folder(fold, tab1, tab2):
+            if not isinstance(fold, dict):
+                raise TypeError()
+            # skip it if common to all files paths
+            if hide_top:
+                if len(fold.keys()) == 1 and fold.keys()[0] != 'files':
+                    for thing in get_info_for_folder(fold[fold.keys()[0]],
+                                                          tab1, tab2):
+                        yield thing
+                    raise StopIteration()
+            # if too much files to display, display number of files
+            if 'files' in fold.keys():
+                if len(fold['files']) > max_file_list:
+                    yield (tab1 + file_number_color 
+                           + '[{} Files]'.format(len(fold['files']))
+                           + files_end_of_line)
+            # loop recursively on folder's folders
+            for key in fold.keys():
+                if key == 'files':
+                    pass
+                else:
+                    yield tab1 + folder_color + key + folders_end_of_line
+                    for thing in get_info_for_folder(fold[key], tab1, tab2):
+                        yield tab2 + thing
+            # loop on folder's files
+            if 'files' in fold.keys():
+                if len(fold['files']) <= max_file_list:
+                    for f in fold['files']:
+                        yield tab1 + file_color + f + files_end_of_line
+        # get 
+        text = ""
+        # add heading wih common  path
+        if hide_top:
+            curr_fold = self.tree
+            while True:
+                if isinstance(curr_fold, dict):
+                    if len(curr_fold.keys()) == 1:
+                        text += curr_fold.keys()[0] 
+                        curr_fold = curr_fold[curr_fold.keys()[0]]
+                    else:
+                        break
+                else:
+                    break
+                text += separator
+            heading_sep = heading_separator*(len(text)+2)
+            text = (tab0 + tab_color + heading_sep + tab0 + folders_end_of_line 
+                    + tab0 + " " + text + " " + tab0 + folders_end_of_line 
+                    + tab_color + tab0 + tab_color + heading_sep + tab0
+                    + folders_end_of_line)
+                    
+        # display the tree
+        for thing in get_info_for_folder(self.tree, tab1=tab1,
+                                         tab2=tab2):
+            text += thing
+        return text
+                
+        
+        
+        
+#        #use json to parse (not optimal...)
+#        text = json.dumps(self.tree, indent=2)
+#        text = re.sub('{\n', "\n", text)
+#        text = re.sub('":\s', '"', text)
+#        text = re.sub("\[", "", text)
+#        text = re.sub("\]\n", "", text)
+#        text = re.sub("\],\s\n", "\n", text)
+#        text = re.sub("\},\s\n", "\n", text)
+#        text = re.sub("}\n", "", text)
+#        text = re.sub("}$", "", text)
+#        text = re.sub('"', "", text)
+#        text = re.sub(',\s\n', "\n", text)
+#        text = re.sub('{\n', "\n", text)
+#        text = re.sub('{[\s]*$', "", text)
+#        text = re.sub('{', "", text)
 
     
     def copy(self):

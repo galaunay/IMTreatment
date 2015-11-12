@@ -1830,7 +1830,14 @@ class OrientedPoints(Points):
             tmp_pts = self
         else:
             tmp_pts = self.copy()
-        # crop orientations (not efficient at all !)
+        # check if sometyhing to do
+        if len(tmp_pts.xy) == 0:
+            if not inplace:
+                return tmp_pts
+            else:
+                return None
+        # crop orientations 
+        ### TODO : not efficient at all
         mask = np.zeros(len(self.xy), dtype=bool)
         if intervx is not None:
             out_zone = np.logical_or(self.xy[:, 0] < intervx[0],
@@ -8020,9 +8027,9 @@ class TemporalFields(Fields, Field):
         # sorting the field with time
         self.__sort_field_by_time()
 
-    def remove_field(self, fieldnumbers):
+    def remove_fields(self, fieldnumbers):
         """
-        Remove a field of the existing fields.
+        Remove field(s) of the existing fields.
 
         Parameters
         ----------
@@ -8215,6 +8222,64 @@ class TemporalFields(Fields, Field):
                             intervy=[axe_y_min, axe_y_max], ind=True,
                             inplace=True)
                 return tmp_tf
+                
+    def remove_weird_fields(self, std_coef=3., treatment='interpolate',
+                            inplace=False):
+        """
+        Look at the time evolution of spatial mean magnitude to identify and
+        replace weird fields.
+        
+        Parameters
+        ----------
+        std_coef : number
+            Fields associated with mean magnitude outside the interval 
+            [mean - std_coef*std, mean - std_coef*std] are treated as weird
+            fields. Default value of '3' corespond for a 99.7% interval.
+        treatment : string in ['remove', 'interpolate']
+            Type of treatment for the weird fields
+            (default is 'interpolate')
+        inplace : bool
+            .
+            
+        Returns
+        -------
+        tf : TemporalField
+            treated temporal field
+        """
+        # get data
+        if inplace:
+            tmp_tf = self
+        else:
+            tmp_tf = self.copy()
+        # get weird fields indices
+        mean_magn = []
+        for field in tmp_tf.fields:
+            mean_magn.append(np.sum(field.magnitude[~field.mask]))
+        mean = np.mean(mean_magn)
+        mean_eps = np.std(mean_magn)*std_coef
+        filt = np.logical_or(mean_magn < mean - mean_eps,
+                             mean_magn > mean + mean_eps)
+        weird_inds = np.arange(len(tmp_tf))[filt]
+        # treat weird fields
+        if treatment == 'interpolate':
+            # replace weird fields with interpolations
+            for weird_ind in weird_inds:
+                eps = 1
+                while True:
+                    if (weird_ind + eps in weird_inds
+                        or weird_ind - eps in weird_inds):
+                        eps += 1
+                    else:
+                        break
+                tmp_tf.fields[weird_ind] = (tmp_tf.fields[weird_ind + eps]
+                                            + tmp_tf.fields[weird_ind - eps])/2.
+        elif treatment == 'remove':
+            tmp_tf.remove_fields(weird_inds)
+        else:
+            raise ValueError()
+        # return
+        if not inplace:
+            return tmp_tf
 
     def crop(self, intervx=None, intervy=None, intervt=None, full_output=False,
              ind=False, inplace=False):

@@ -11,7 +11,8 @@ class POD_CP_protocol(object):
     def __init__(self, name, imtpath, respath, crop_x=[-np.inf, np.inf],
                  crop_y=[-np.inf, np.inf], hard_crop=True,
                  pod_coh=0.05, mirroring=[[2, 0], [1, 0]], eps_traj=15.,
-                 temporal_scale=1., nmb_min_in_traj=1) :
+                 temporal_scale=1., nmb_min_in_traj=1,
+                 thread='all', remove_weird=False) :
         self.name = name
         self.imtpath = imtpath
         self.respath = respath
@@ -25,6 +26,8 @@ class POD_CP_protocol(object):
         self.temporal_scale = temporal_scale
         self.nmb_min_in_traj = nmb_min_in_traj
         self.len_data = None
+        self.thread = thread
+        self.remove_weird = remove_weird
         
     def prepare_data(self):
         print("    Preparing data    ")
@@ -41,6 +44,10 @@ class POD_CP_protocol(object):
         if self.temporal_scale < 1:
             tvf.reduce_temporal_resolution(int(np.round(1./self.temporal_scale)),
                                            mean=False, inplace=True)
+        # check for weird fields
+        if self.remove_weird:
+            tvf.remove_weird_fields(std_coef=3., treatment='interpolate',
+                                    inplace=True)
         # save a display 
         plt.figure()
         tvf.get_mean_field().display(kind='stream', density=3)
@@ -101,24 +108,26 @@ class POD_CP_protocol(object):
         rec = imtio.import_from_file(join(self.imtpath, "{}_rec.cimt".format(self.name)))
         traj = imtvod.get_critical_points(rec, kind='pbi',
                                           mirroring=self.mirroring,
-                                          verbose=False, thread='all')
+                                          verbose=False, thread=self.thread)
         traj.compute_traj(epsilon=self.eps_traj)
         traj.clean_traj(self.nmb_min_in_traj)       
         # save display
+#        plt.figure()
+#        traj.display_traj('x', marker=None)
+#        plt.savefig(join(self.respath, "{}/traj_x.png".format(self.name)))
+#        plt.close(plt.gcf())
+#        plt.figure()
+#        traj.display_traj('y', marker=None)
+#        plt.savefig(join(self.respath, "{}/traj_y.png".format(self.name)))
+#        plt.close(plt.gcf())
         plt.figure()
-        traj.display_traj('x')
-        plt.savefig(join(self.respath, "{}/traj_x.png".format(self.name)))
-        plt.close(plt.gcf())
-        plt.figure()
-        traj.display_traj('y')
-        plt.savefig(join(self.respath, "{}/traj_y.png".format(self.name)))
-        plt.close(plt.gcf())
-        plt.figure()
-        traj.display_traj('x', filt=[True, True, False, False, False])
+        traj.display_traj('x', filt=[True, True, False, False, False],
+                          marker=None)
         plt.savefig(join(self.respath, "{}/traj_x_cln.png".format(self.name)))
         plt.close(plt.gcf())
         plt.figure()
-        traj.display_traj('y', filt=[True, True, False, False, False])
+        traj.display_traj('y', filt=[True, True, False, False, False],
+                          marker=None)
         plt.savefig(join(self.respath, "{}/traj_y_cln.png".format(self.name)))
         plt.close(plt.gcf())
         # save

@@ -229,10 +229,17 @@ class VF(object):
                 return res_pos
             # check if zero values
             if np.any(Vx_bl == 0) or np.any(Vy_bl == 0):
+                # if only one point
+                filt = np.logical_and(Vx_bl == 0, Vy_bl == 0)
+                if np.sum(filt) == 1:
+                    tmp_inds = np.argwhere(filt)
+                    return np.array([tmp_inds[0] + axe_x[ind_x],
+                                     tmp_inds[1] + axe_y[ind_y]])
+                # else raise warning
                 warnings.warn("There is a point with zero velocity, it's"
                               "a particular case not implemented yet. "
                               "Skipping this cell (there will be missing CP).")
-                return np.nan
+                return np.array([np.nan, np.nan])
             # solve to get the zero velocity point
             tmp_dic = {'Vx_1': Vx_bl[0, 0], 'Vx_2': Vx_bl[0, 1],
                        'Vx_3': Vx_bl[1, 0], 'Vx_4': Vx_bl[1, 1],
@@ -296,8 +303,7 @@ class VF(object):
         new_positions = np.array(new_positions)
         # clean Nan
         if len(new_positions) > 0:
-            filt = np.logical_not(np.isnan(new_positions))
-            filt1d = np.logical_or(filt[:, 0], filt[:, 1])
+            filt1d = ~np.sum(np.isnan(new_positions), axis=1, dtype=bool)
             cp_types = cp_types[filt1d]
             new_positions = new_positions[filt1d, :]
         # returning
