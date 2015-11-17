@@ -449,6 +449,10 @@ class CritPoints(object):
 
     def __add__(self, obj):
         if isinstance(obj, CritPoints):
+            if len(obj.times) == 0:
+                return self
+            if len(self.times) == 0:
+                return obj
             if not self.unit_time == obj.unit_time:
                 raise ValueError()
             if not self.unit_x == obj.unit_x:
@@ -2038,9 +2042,6 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     # if obj is vector fields
     elif isinstance(obj, TemporalVectorFields):
         res = CritPoints(unit_time=obj.unit_times)
-        res.unit_x = obj.unit_x
-        res.unit_y = obj.unit_y
-        res.unit_time = obj.unit_times
         PG = ProgressCounter(init_mess="Begin CP detection", end_mess='Done',
                              nmb_max=len(obj.fields),
                              name_things='fields')

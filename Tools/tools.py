@@ -6,6 +6,7 @@ Created on Tue Jun 02 18:50:02 2015
 """
 from __future__ import print_function
 import time as modtime
+import warnings
 import numpy as np
 import shutil
 import matplotlib as mpl
@@ -364,13 +365,6 @@ class Files(object):
         def get_info_for_folder(fold, tab1, tab2):
             if not isinstance(fold, dict):
                 raise TypeError()
-            # skip it if common to all files paths
-            if hide_top:
-                if len(fold.keys()) == 1 and fold.keys()[0] != 'files':
-                    for thing in get_info_for_folder(fold[fold.keys()[0]],
-                                                          tab1, tab2):
-                        yield thing
-                    raise StopIteration()
             # if too much files to display, display number of files
             if 'files' in fold.keys():
                 if len(fold['files']) > max_file_list:
@@ -392,51 +386,34 @@ class Files(object):
                         yield tab1 + file_color + f + files_end_of_line
         # get 
         text = ""
+        tree = self.tree
         # add heading wih common  path
         if hide_top:
             curr_fold = self.tree
             while True:
                 if isinstance(curr_fold, dict):
-                    if len(curr_fold.keys()) == 1:
-                        text += curr_fold.keys()[0] 
+                    if len(curr_fold.keys()) == 1 and curr_fold.keys()[0] != "files":
+                        text += curr_fold.keys()[0] + separator
                         curr_fold = curr_fold[curr_fold.keys()[0]]
                     else:
                         break
                 else:
                     break
-                text += separator
+            # put a nice heading
+            text = text[:-1] 
             heading_sep = heading_separator*(len(text)+2)
             text = (tab0 + tab_color + heading_sep + tab0 + folders_end_of_line 
                     + tab0 + " " + text + " " + tab0 + folders_end_of_line 
                     + tab_color + tab0 + tab_color + heading_sep + tab0
                     + folders_end_of_line)
-                    
+            # update folder
+            tree = curr_fold
         # display the tree
-        for thing in get_info_for_folder(self.tree, tab1=tab1,
+        for thing in get_info_for_folder(tree, tab1=tab1,
                                          tab2=tab2):
             text += thing
         return text
-                
-        
-        
-        
-#        #use json to parse (not optimal...)
-#        text = json.dumps(self.tree, indent=2)
-#        text = re.sub('{\n', "\n", text)
-#        text = re.sub('":\s', '"', text)
-#        text = re.sub("\[", "", text)
-#        text = re.sub("\]\n", "", text)
-#        text = re.sub("\],\s\n", "\n", text)
-#        text = re.sub("\},\s\n", "\n", text)
-#        text = re.sub("}\n", "", text)
-#        text = re.sub("}$", "", text)
-#        text = re.sub('"', "", text)
-#        text = re.sub(',\s\n', "\n", text)
-#        text = re.sub('{\n', "\n", text)
-#        text = re.sub('{[\s]*$', "", text)
-#        text = re.sub('{', "", text)
 
-    
     def copy(self):
         return copy.deepcopy(self)
    
@@ -462,11 +439,39 @@ class Files(object):
         else:
             raise Exception()
             
-    def remove_file(self, ind):
-        del self.paths[ind]
-        del self.exist[ind]
-        del self.isdir[ind]
+    def remove_files(self, arg):
+        """
+        Remove some files from the files set.
         
+        Parameters
+        ----------
+        arg : integer, regex or array of integer or regex
+            If integer, remove the associated path,
+            if a regex, remove the paths that match,
+            if an array, delete paths for each element.
+        """
+        if isinstance(arg, int):
+            ind = arg
+            del self.paths[ind]
+            del self.exist[ind]
+            del self.isdir[ind]
+        elif isinstance(arg, ARRAYTYPES):
+            for thing in arg:
+                self.remove_files(thing)
+        elif isinstance(arg, str):
+            for i in np.arange(len(self.paths) - 1, -1, -1):
+                res = re.match(arg, self.paths[i])
+                if res is not None:
+                    print("remove {}".format(self.paths[i]))
+                    self.remove_files(i)
+        else:
+            raise TypeError()
+                
+    def remove_empty_directories():
+        """
+        """
+        pass                
+                
     def load_files_from_regex(self, rootpath, regex, load_files=True, 
                               load_dirs=True, depth='all'):
         """
@@ -614,6 +619,7 @@ def remove_files_in_dirs(rootpath, dir_regex, file_regex,
 
     
     """
+    warnings.warn("Deprecated, use 'Files' class instead")
     # ### TODO : add the possibility to remove empty directories
     # get dirs
     dir_paths = []

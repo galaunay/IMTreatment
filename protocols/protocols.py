@@ -9,7 +9,8 @@ import os
 
 class POD_CP_protocol(object):
     def __init__(self, name, imtpath, respath, crop_x=[-np.inf, np.inf],
-                 crop_y=[-np.inf, np.inf], hard_crop=True,
+                 crop_y=[-np.inf, np.inf], crop_t=[-np.inf, np.inf],
+                 hard_crop=True,
                  pod_coh=0.05, mirroring=[[2, 0], [1, 0]], eps_traj=15.,
                  temporal_scale=1., nmb_min_in_traj=1,
                  thread='all', remove_weird=False) :
@@ -18,6 +19,7 @@ class POD_CP_protocol(object):
         self.respath = respath
         self.crop_x = crop_x
         self.crop_y = crop_y
+        self.crop_t = crop_t
         self.hard_crop = hard_crop
         self.pod = None
         self.pod_coh = pod_coh     
@@ -39,7 +41,8 @@ class POD_CP_protocol(object):
             tvf.crop_masked_border(hard=True, inplace=True)
         else:
             tvf.crop_masked_border(inplace=True)
-        tvf.crop(intervx=self.crop_x, intervy=self.crop_y, inplace=True)
+        tvf.crop(intervx=self.crop_x, intervy=self.crop_y, intervt=self.crop_t,
+                 inplace=True)
         # adjust temporal resolution
         if self.temporal_scale < 1:
             tvf.reduce_temporal_resolution(int(np.round(1./self.temporal_scale)),
@@ -112,14 +115,6 @@ class POD_CP_protocol(object):
         traj.compute_traj(epsilon=self.eps_traj)
         traj.clean_traj(self.nmb_min_in_traj)       
         # save display
-#        plt.figure()
-#        traj.display_traj('x', marker=None)
-#        plt.savefig(join(self.respath, "{}/traj_x.png".format(self.name)))
-#        plt.close(plt.gcf())
-#        plt.figure()
-#        traj.display_traj('y', marker=None)
-#        plt.savefig(join(self.respath, "{}/traj_y.png".format(self.name)))
-#        plt.close(plt.gcf())
         plt.figure()
         traj.display_traj('x', filt=[True, True, False, False, False],
                           marker=None)
