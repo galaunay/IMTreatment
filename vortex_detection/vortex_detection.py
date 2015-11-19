@@ -3044,13 +3044,16 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
 
 ### Separation point ###
 def get_separation_position(obj, wall_direction, wall_position,
-                            interval=None):
+                            interval=None, nmb_lines=4):
     """
     Compute and return the separation points position.
     Separation points position is computed by searching zero streamwise
-    velocities on surrounding field lines (4 of them) and by interpolating at
+    velocities on surrounding field lines and by extrapolating at
     the wanted 'wall_position'.
-    'interval' must include separation points on the 4 nearest field line.
+    If specified, 'interval' must include separation points on the 4 nearest
+    field line.
+    If multiples changments of streamwise velocity are found, return the mean
+    positions of those points.
 
     Parameters
     ----------
@@ -3064,7 +3067,9 @@ def get_separation_position(obj, wall_direction, wall_position,
         Position of the wall.
     interval : 2x1 array of numbers, optional
         Optional interval in which search for the detachment points.
-
+    nmb_lines : int
+        Number of lines to take into account to make the extrapolation.
+        (default is 4)
     """
     # checking parameters coherence
     if not isinstance(obj, (ScalarField, VectorField, VectorField,
@@ -3084,7 +3089,8 @@ def get_separation_position(obj, wall_direction, wall_position,
             interval = [np.min(axe_y), np.max(axe_y)]
     if not isinstance(interval, ARRAYTYPES):
         raise TypeError("'interval' must be a array")
-    # checking 'obj' type
+        
+    # Get data according to 'obj' type
     if isinstance(obj, ScalarField):
         # checking masked values
         if np.any(obj.mask):
@@ -3121,10 +3127,9 @@ def get_separation_position(obj, wall_direction, wall_position,
                        unit_y=unit_axe)
     else:
         raise ValueError("Unknown type for 'obj'")
-    # Getting separation position ( We get separation points on adjacents
-    # lines, and we interpolate.)
-    #    Getting lines around wall
-    nmb_lines = 4
+        
+    ### Getting separation position 
+    # Getting lines around wall
     if wall_position < axe[0]:
         lines_pos = axe[0:nmb_lines]
     elif wall_position > axe[-1]:
@@ -3139,19 +3144,19 @@ def get_separation_position(obj, wall_direction, wall_position,
             lines_pos = axe[-nmb_lines-1:-1]
         else:
             lines_pos = axe[inds[0] - nmb_lines/2:inds[1] + nmb_lines/2]
-    #    Getting separation points on surrounding lines
+    # Getting separation points on surrounding lines
     seps = np.array([])
     for lp in lines_pos:
         # extraction one line
-        tmp_profile, _ = V.get_profile(wall_direction, lp)
+        tmp_profile = V.get_profile(wall_direction, lp)
         # getting the velocity sign changment on the line
-        values = tmp_profile.get_interpolated_value(y=0)
+        values = tmp_profile.get_interpolated_values(y=0)
         values = np.array(values)
         # masking with 'interval'
         values = values[np.logical_and(values > interval[0],
                                        values < interval[1])]
         seps = np.append(seps, np.mean(values))
-    # deleting lines where no separation points were found
+    # Deleting lines where no separation points were found
     if np.any(np.isnan(seps)):
         warnings.warn("I can't find a separation points on one (or more)"
                       " line(s). You may want to change 'interval' values")
