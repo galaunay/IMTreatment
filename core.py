@@ -5291,7 +5291,7 @@ class ScalarField(Field):
             delta_gap = -(position - border)/delta
         else:
             delta_gap = (position - border)/delta
-        inds_to_add = np.ceil(inds_to_mirror + 2*delta_gap) + 2
+        inds_to_add = np.ceil(inds_to_mirror + 2*delta_gap) - 1
         # extend the field
         tmp_dic = {'nmb_{}'.format(side): inds_to_add}
         tmp_vf.extend(inplace=True, **tmp_dic)
@@ -5300,21 +5300,36 @@ class ScalarField(Field):
         # filling mirrored part with interpolated values
         for i, x in enumerate(new_axe_x):
             for j, y in enumerate(new_axe_y):
+                # if point is not masked
+                if not tmp_vf.mask[i, j]:
+                    continue
+                # get mirror point position
                 if direction == 1:
                     mir_pos = [position - (x - position), y]
                 else:
                     mir_pos = [x, position - (y - position)]
+                # if mirror point is outside hte field
                 if mir_pos[0] < new_axe_x[0] or mir_pos[0] > new_axe_x[-1] \
                         or mir_pos[1] < new_axe_y[0] \
                         or mir_pos[1] > new_axe_y[-1]:
                     continue
+                # get mirror point value
                 mir_val = tmp_vf.get_value(*mir_pos, ind=False)
-                if not np.isnan(mir_val):
-                    tmp_vf.values[i, j] = mir_val*mir_coef
-                    tmp_vf.mask[i, j] = False
+                # if mirror point can't be interpolated (masked)
+                if np.isnan(mir_val):
+                    continue
+                # Sotring the new value in the field
+                tmp_vf.values[i, j] = mir_val*mir_coef
+                tmp_vf.mask[i, j] = False
+        # getting mask
         masked_values = np.any(tmp_vf.mask)
         # interpolating between mirror images
-        if interp == 'linear' and masked_values:
+        if interp is None:
+            pass
+        elif interp == 'value' and masked_values:
+            tmp_vf.fill(kind='value', value=value, inplace=True, crop=False,
+                        reduce_tri=False)
+        elif interp == 'linear' and masked_values:
             # getting data
             new_axe_x = tmp_vf.axe_x
             new_axe_y = tmp_vf.axe_y
@@ -6749,8 +6764,9 @@ class VectorField(Field):
             Position of the symetry plane along the given axe
         inds_to_mirror : integer
             Number of vector rows to symetrize (default is all)
-        mir_coef : number, optional
-            Optional coefficient applied only to the mirrored values.
+        mir_coef : number or 2x1 array, optional
+            Optional coefficient(s) applied only to the mirrored values.
+            If ana array first value is for 'comp_x' and second one to 'comp_y'
         inplace : boolean, optional
             .
         interp : string, optional
@@ -6768,14 +6784,20 @@ class VectorField(Field):
         vx = self.comp_x_as_sf
         vy = self.comp_y_as_sf
         # treating sign changments
-        if direction == 1:
-            coefx = -1
-            coefy = 1
+        if isinstance(mir_coef, NUMBERTYPES):
+            if direction == 1:
+                coefx = -1
+                coefy = 1
+            else:
+                coefx = 1
+                coefy = -1
+            coefx *= mir_coef
+            coefy *= mir_coef
+        elif isinstance(mir_coef, ARRAYTYPES):
+            coefx = mir_coef[0]
+            coefy = mir_coef[1]
         else:
-            coefx = 1
-            coefy = -1
-        coefx *= mir_coef
-        coefy *= mir_coef
+            raise ValueError()
         # mirroring on components
         vx.mirroring(direction, position, inds_to_mirror=inds_to_mirror,
                      interp=interp, value=value[0], inplace=True,
