@@ -1003,7 +1003,7 @@ class Points(object):
             xytmp = self.simplify(axe=1).xy
 
         if kind == 'polynomial':
-            p = np.polyfit(xytmp[:, 0], xytmp[:, 1], order)
+            p = np.polyfit(xytmp[:, 0], xytmp[:, 1], deg=order)
             return p
         elif kind == 'ellipse':
             import fit_ellipse as fte
@@ -2014,8 +2014,42 @@ class Profile(object):
             new_unit_y = self.unit_y*otherone
             y = self.y*new_unit_y.asNumber()
             new_unit_y = new_unit_y/new_unit_y.asNumber()
+        elif isinstance(otherone, Profile):
+            if not np.any(otherone.x - self.x > 1e-6*np.mean(self.x)):
+                raise ValueError("Given profiles does'nt share the same"
+                                 " x axis")
+            if not otherone.unit_x == self.unit_x:
+                raise ValueError("Given profiles does'nt share the same"
+                                 " x units")
+            # get shared x
+            # TODO : find another way to deal with quasi equal values 
+            dx = self.x[1] - self.x[0]
+            shared_x = [0, 0]
+            if otherone.x[0] in self.x:
+                shared_x[0] = otherone.x[0] - dx/2.
+            else:
+                shared_x[0] = self.x[0] - dx/2.
+            if otherone.x[-1] in self.x:
+                shared_x[1] = otherone.x[-1] + dx/2.
+            else:
+                shared_x[1] = self.x[-1] + dx/2.
+            # get filters
+            filt_self = np.logical_and(self.x <= shared_x[1],
+                                       self.x >= shared_x[0])
+            filt_other = np.logical_and(otherone.x <= shared_x[1],
+                                        otherone.x >= shared_x[0])
+            # get values
+            x = self.x[filt_self]
+            values = self.y[filt_self]*otherone.y[filt_other]
+            mask = np.logical_or(self.mask[filt_self],
+                                 otherone.mask[filt_other])
+            unit_y = self.unit_y*otherone.unit_y
+            tmp_prof = Profile(x, values, mask=mask, unit_x=self.unit_x,
+                               unit_y=unit_y)
+            return tmp_prof
         else:
-            raise TypeError("You only can multiply Profile with number")
+            raise TypeError("You only can multiply Profile with number and "
+                            "other profiles")
         return Profile(x=self.x, y=y, unit_x=self.unit_x, unit_y=new_unit_y,
                        name=self.name)
 
@@ -2062,7 +2096,8 @@ class Profile(object):
             raise TypeError("You only can use a number for the power "
                             "on a Profile")
         y = np.power(self.y, number)
-        return Profile(x=self.x, y=y, unit_x=self.unit_x, unit_y=self.unit_y,
+        unit_y = np.power(self.unit_y, number)
+        return Profile(x=self.x, y=y, unit_x=self.unit_x, unit_y=unit_y,
                        name=self.name)
 
     def __len__(self):
@@ -2229,6 +2264,32 @@ class Profile(object):
         """
         return copy.deepcopy(self)
 
+    def get_interpolator(self, kind='linear'):
+        """
+        Return an interpolator of the profile
+        
+        Parameters
+        ----------
+        kind : str or int, optional
+            Specifies the kind of interpolation as a string (‘linear’,
+            ‘nearest’, ‘zero’, ‘slinear’, ‘quadratic, ‘cubic’ where ‘slinear’,
+            ‘quadratic’ and ‘cubic’ refer to a spline interpolation of first,
+            second or third order) or as an integer specifying the order of
+            the spline interpolator to use. Default is ‘linear’.
+        
+        Returns
+        -------
+        interpolator : function
+            Take a single value 'x' and return the interpolated value of 'y'.
+        Note
+        ----
+        Use scipy.interpolate module
+        """
+        valid_x = self.x[~self.mask]
+        valid_y = self.y[~self.mask]
+        interpo = spinterp.interp1d(valid_x, valid_y, kind=kind)
+        return interpo
+
     def get_interpolated_values(self, x=None, y=None, ind=False):
         """
         Get the interpolated (or not) value for given 'x' or 'y' values.
@@ -2263,8 +2324,8 @@ class Profile(object):
                 res = []
                 for xi in x:
                     res.append(self._get_interpolated_single_value(x=xi,
-                                                                   ind=ind))
-                return res
+                                                                   ind=ind)[0])
+                return np.array(res, dtype=float)
         if y is not None:
             if isinstance(y,  NUMBERTYPES):
                 return self._get_interpolated_single_value(y=y, ind=ind)
@@ -2272,8 +2333,8 @@ class Profile(object):
                 res = []
                 for yi in y:
                     res.append(self._get_interpolated_single_value(y=yi,
-                                                                   ind=ind))
-                return res
+                                                                   ind=ind)[0])
+                return np.array(res, dtype=float)
 
     def _get_interpolated_single_value(self, x=None, y=None, ind=False):
         """
@@ -4604,9 +4665,10 @@ class ScalarField(Field):
         # applying interval type
         if isinstance(position, ARRAYTYPES) and not ind:
             for pos in position:
-                if pos > axe.max() or pos < axe.min():
-                    raise ValueError("'position' must be included in"
-                                     " the choosen axis values")
+                if pos > axe.max():
+                    pos = axe.max()
+                if pos < axe.min():
+                    pos = axe.min()
         elif isinstance(position, ARRAYTYPES) and ind:
             if np.min(position) < 0 or np.max(position) > len(axe) - 1:
                 raise ValueError("'position' must be included in"

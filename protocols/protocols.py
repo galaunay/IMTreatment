@@ -51,13 +51,16 @@ class POD_CP_protocol(object):
         if self.remove_weird:
             tvf.remove_weird_fields(std_coef=3., treatment='interpolate',
                                     inplace=True)
-        # save a display 
+        # save a display
+        mean_field = tvf.get_mean_field()
+        mean_field.crop_masked_border(hard=True, inplace=True)
         plt.figure()
-        tvf.get_mean_field().display(kind='stream', density=3)
+        mean_field.display(kind='stream', density=3)
         plt.savefig(join(self.respath, "{}/mean_field.png".format(self.name)))
         plt.close(plt.gcf())
         # store
         imtio.export_to_file(tvf, join(self.imtpath, "{}_cln.cimt".format(self.name)))
+        imtio.export_to_file(mean_field, join(self.imtpath, "{}_mean.cimt".format(self.name)))
         del tvf
         
     def pod_decomp(self):

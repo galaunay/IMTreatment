@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import odeint, ode
 from .. import Profile, make_unit, ScalarField
 import pdb
+import scipy.integrate as spinteg
 
 NUMBERTYPES = (int, float, long, np.float, np.float16, np.float32)
 ARRAYTYPES = (list, np.ndarray)
@@ -43,24 +44,6 @@ class BlasiusBL(object):
         self.nu = nu
         self.rho = rho
 
-    def display(self, intervx, allturbulent=False, **plotargs):
-        """
-        Display the Blasius boundray layer.
-
-        Parameters
-        ----------
-        intervx : array of numbers
-            x values where we want the BL.
-        allturbulent : boolean, optional
-            if True, the all boundary layer is considered turbulent.
-        """
-        x = np.linspace(intervx[0], intervx[1], 1000)
-        delta, _, _ = self.get_thickness(x, allturbulent)
-        if not "label" in plotargs:
-            plotargs["label"] = "Blasius theorical BL"
-        fig = delta.display(**plotargs)
-        return fig
-
     def get_Rex(self, x):
         """
         Return the Reynolds number based on the distance from the beginning of
@@ -71,14 +54,13 @@ class BlasiusBL(object):
             print('Warning : Turbulent BL')
         return Re_x
 
-    def get_thickness(self, x, allTurbulent=False):
+    def get_BL_properties(self, x, allTurbulent=False):
         """
-        Return the boundary layer thickness and the friction coefficient
-        according to blasius theory.
+        Return the boundary layer properties according to blasius theory.
 
         Fonction
         --------
-        delta, Cf = BlasiusBL(allTurbulent=False)
+        delta, delta2, delta_star, H, Cf, Rex, tau_w = BlasiusBL(allTurbulent=False)
 
         Parameters
         ---------
@@ -90,42 +72,66 @@ class BlasiusBL(object):
 
         Returns
         -------
-        delta : Profile object
+        delta : array of numbers
             Boundary layer thickness profile (m)
-        Cf : Profile object
-            Friction coefficient profile (s.u)
-        Rex : Profile object
+        delta2 : array of numbers
+            Boundary layer momentum thickness (m)
+        delta_star : array of numbers
+            Boundary layer displacement thickness (m)
+        H : array of numbers
+            Shape factor 
+        Cf : array of numbers
+            Friction coefficient profile
+        Rex : array of numbers
             Reynolds number on the distance from the border.
+        tau_w : array of numbers
+            Wall shear stress (Pa)   
         """
+        # check
         if not isinstance(x, (NUMBERTYPES, ARRAYTYPES)):
             raise TypeError("x is not a number or a list")
         if isinstance(x, NUMBERTYPES):
             x = np.array([x])
         if not isinstance(allTurbulent, bool):
             raise TypeError("'allTurbulent' has to be a boolean")
+        # Loop on c position
         delta = []
+        delta2 = []
+        delta_star = []
+        H = np.ones(len(x))*2.59
         Cf = []
         Rex = []
+        tau_w = []
         for xpos in x:
             if xpos == 0:
                 delta.append(0)
+                delta2.append(0)
+                delta_star.append(0)
                 Cf.append(0)
                 Rex.append(0)
+                tau_w.append(0)
             else:
                 Rex.append(self.Uinf*xpos/self.nu)
                 if Rex[-1] < 5e5 and not allTurbulent:
-                    delta.append(xpos*4.92/np.power(Rex[-1], 0.5))
+                    delta.append(xpos*4.92/np.power(Rex[-1], 0.5)) 
+                    delta2.append(0.664*(self.nu*xpos/self.Uinf)**.5)
+                    delta_star.append(delta2[-1]*2.59)
                     Cf.append(0.664/np.power(Rex[-1], 0.5))
+                    tau_w.append(Cf[-1]*1./2.*self.rho*self.Uinf**2)
                 else:
                     delta.append(xpos*0.3806/np.power(Rex[-1], 0.2))
+                    delta2.append(0)
+                    delta_star.append(delta2[-1]*2.59)
                     Cf.append(0.0592/np.power(Rex[-1], 0.2))
-        delta = Profile(x, delta, unit_x=make_unit('m'),
-                        unit_y=make_unit('m'))
-        Cf = Profile(x, Cf, unit_x=make_unit('m'),
-                     unit_y=make_unit(''))
-        Rex = Profile(x, Rex, unit_x=make_unit('m'),
-                      unit_y=make_unit(''))
-        return delta, Cf, Rex
+                    tau_w.append(Cf[-1]*1./2.*self.rho*self.Uinf**2)
+        delta = np.array(delta)
+        delta2 = np.array(delta2)
+        delta_star = np.array(delta_star)
+        H = np.array(H)
+        Cf = np.array(Cf)
+        Rex = np.array(Rex)
+        tau_w = np.array(tau_w)
+        return delta, delta2, delta_star, H, Cf, Rex, tau_w
 
     def get_thickness_with_confinement(self, x, h, allTurbulent=False):
         """
@@ -157,33 +163,12 @@ class BlasiusBL(object):
             x = np.array([x])
         if isinstance(h, NUMBERTYPES):
             h = np.array([h])
-        delta_blas = self.get_thickness(x, allTurbulent=allTurbulent)[0].y[0]
-
+        delta_blas = self.get_BL_properties(x, allTurbulent=allTurbulent)[0]
         delta_perso = delta_blas*(1 - 0.26547*delta_blas/h)
         # returning
         delta = Profile(x, delta_perso, unit_x=make_unit('m'),
                         unit_y=make_unit('m'))
         return delta
-
-    def get_wall_shear_stress(self, x, allTurbulent=False):
-        """
-        Return the theorical wall shear stress.
-
-        Parameters
-        ----------
-        x : number
-            Position where we want the shear stress
-        allTurbulent : boolean, optional
-            If 'True', the boundary layer (BL) is assumed turbulent.
-            else (default), Re_x is used to determined if the BL is turbulent
-            or not.
-        """
-        Re_x = self.get_Rex(x)
-        if allTurbulent or Re_x > 10**5:
-            tau_w = 0.0592/Re_x**(0.2)*1./2.*self.rho*self.Uinf**2
-        else:
-            tau_w = 0.664/Re_x**(0.5)*1./2.*self.rho*self.Uinf**2
-        return tau_w
 
     def get_profile(self, x, y=None, allTurbulent=False):
         """
@@ -301,8 +286,8 @@ class FalknerSkanBL(object):
         ----------
         nu : number
             Viscosity
-        m, c0 : integer and number
-            Pressure gradient parameters. Such as U_e = c0*x^m.
+        m, c0 , L: integer and numbers
+            Pressure gradient parameters. Such as U_e = c0*(x/L)^m.
         """
         self.nu = nu
         self.m = m
@@ -354,7 +339,7 @@ class FalknerSkanBL(object):
         * Remark on numerical resolution :
 
             The Falkner-Skan equation is a ODE system with BVP
-            (boundary layer problem). Classical ODE algorithm such as
+            (boundary value problem). Classical ODE algorithm such as
             Runge-Kutta or Vode cannot take care of the :math:`f'(\\infty)=0`.
             This ODE system is so solved with a shooting method.
         """
@@ -508,6 +493,111 @@ class FalknerSkanBL(object):
         return y, vx
 
 
+class ThwaitesBL(object):
+
+    def __init__(self, u_e, nu=1.e-6):
+        """
+        Represent a The solution of the boundary layer momentum equation 
+        using Thwaites solution.
+
+        Parameters
+        ----------
+        u_e : function
+            External velocity, should take a distance in 'm' as argument
+            and returning a velocity in 'm/s'.
+        nu : number
+            Viscosity (default to water, at 1e-6)
+        """
+        self.nu = nu
+        self.u_e = u_e
+        # classical empirical coefficients
+        self.emp_coef_0 = 0.441
+        self.emp_coef_1 = 5.68
+
+    def u_e_pow(self, x):
+        """
+        Function u_e(x)**4.68
+        (used int numerical resolution)
+        """
+        return self.u_e(x)**(self.emp_coef_1 - 1)
+
+    def get_momentum_thikness(self, x):
+        """
+        Return the evolution of the boundary layer momentum thikness.
+        
+        Parameters
+        ----------
+        x : number or array of numbers
+            Position along the flat plan until where we want to solve the
+            momentum equation.
+            (has no influence on the resoluion accuracy)
+            
+        Returns
+        -------
+        delta2 : position and value of momentum thicknesses
+        """
+        if isinstance(x, NUMBERTYPES):
+            res, eps = spinteg.quad(func=self.u_e_pow, a=0, b=x)
+            denom = self.u_e(x)**(self.emp_coef_1/2.)
+            if denom == 0:
+                delta2 = None
+            else:
+                delta2 = self.emp_coef_0*self.nu**.5/denom*res**.5
+        elif isinstance(x, ARRAYTYPES):
+            x = np.array(x, dtype=float)
+            delta2 = []
+            for xi in x:
+                delta2.append(self.get_momentum_thikness(xi))
+            delta2 = np.array(delta2, dtype=float)
+        else:
+            raise TypeError()
+        return np.array(delta2)
+        
+    def get_BL_properties(self, x):
+        """
+        Return the boundary layer properties for given values of x
+        
+        Parameters
+        ----------
+        x : number or array of numbers
+            Position along the flat plan until where we want to solve the
+            momentum equation.
+            (has no influence on the resoluion accuracy)
+
+        Returns
+        -------
+        lambda : array of numbers
+            Dimensionless pressure gradient.
+            (According to Kays and Crawford, a value of -0.082 is caracteristic 
+            of the separation phenomenon.)
+        delta2 : array of numbers
+            Boundary layer momentum thickness
+        delta_star : array of numbers
+            Boundary layer displacement thickness
+        H : array of numbers
+            H factor
+        """
+        # get u_e and grad u_e
+        u_e = np.array([self.u_e(xi) for xi in x])
+        d_u_e = np.gradient(u_e)
+        # get delta2
+        delta2 = self.get_momentum_thikness(x)
+        # get lambda
+        lambd = delta2**2/self.nu*d_u_e
+        # get H factor
+        H = []
+        for lambdi in lambd:
+            if lambdi >= 0 and lambdi < 0.1:
+                H.append(2.61 - 3.75*lambdi + 5.24*lambdi**2)
+            elif lambdi < 0 and lambdi > -0.1:
+                H.append(2.088 + 0.0731/(lambdi + 0.14))
+            else:
+                H.append(np.nan)
+        H = np.array(H, dtype=float)
+        # get delta_star
+        delta_star = H*delta2
+        return lambd, delta2, delta_star, H
+        
 class WallLaw(object):
     """
     Class representing a law of the wall profile.
@@ -725,7 +815,7 @@ def get_bl_thickness(obj, direction=1,  perc=0.95):
         maxi = obj.max
         if maxi is None:
             return 0
-        value = obj.get_interpolated_value(y=maxi*perc)
+        value = obj.get_interpolated_values(y=maxi*perc)
         return value[0]
     elif isinstance(obj, ScalarField):
         if direction == 1:
@@ -813,7 +903,7 @@ def get_displ_thickness(obj, direction=1):
         bl_thick = get_bl_thickness(obj, perc=bl_perc)
         if bl_thick == 0:
             return 0
-        obj = obj.trim([0, bl_thick])
+        obj = obj.crop([0, bl_thick])
         # removing negative and masked points
         if isinstance(obj.y, np.ma.MaskedArray):
             mask = np.logical_and(obj.y.mask, obj.x < 0)
@@ -839,7 +929,7 @@ def get_displ_thickness(obj, direction=1):
         else:
             axe = obj.axe_y
         profiles = [obj.get_profile(direction, x) for x in axe]
-        values = [get_displ_thickness(prof) for prof, _ in profiles]
+        values = [get_displ_thickness(prof) for prof in profiles]
         return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
     else:
         raise TypeError("Can't compute (yet ?) BL displacement thickness on"
@@ -870,7 +960,7 @@ def get_momentum_thickness(obj, direction=1):
         bl_thick = get_bl_thickness(obj, perc=bl_perc)
         if bl_thick == 0:
             return 0
-        obj = obj.trim([0, bl_thick])
+        obj = obj.crop([0, bl_thick])
         # removing negative and masked points
         if isinstance(obj.y, np.ma.MaskedArray):
             mask = np.logical_and(obj.y.mask, obj.x < 0)
@@ -896,7 +986,7 @@ def get_momentum_thickness(obj, direction=1):
         else:
             axe = obj.axe_y
         profiles = [obj.get_profile(direction, x) for x in axe]
-        values = [get_momentum_thickness(prof) for prof, _ in profiles]
+        values = [get_momentum_thickness(prof) for prof in profiles]
         return Profile(axe, values, unit_x=obj.unit_x, unit_y=obj.unit_y)
     else:
         raise TypeError("Can't compute (yet ?) BL momentum thickness on"
@@ -1020,6 +1110,62 @@ def get_shear_stress(obj, direction=1, method='simple',
         else:
             raise ValueError()
     elif isinstance(obj, ScalarField):
-        raise Exception("not implemented yet")
+        # get axis
+        if direction == 1:
+            axe = obj.axe_x
+        else:
+            axe = obj.axe_y
+        # get profiles
+        profiles = [obj.get_profile(direction, pos_ind, ind=True)
+                    for pos_ind in range(len(axe))]
+        # get shear stresses
+        values = np.zeros(obj.shape)
+        for i in range(len(profiles)):
+            if direction == 1:
+                values[i, :] = get_shear_stress(profiles[i], direction=1, 
+                                                method=method, respace=False,
+                                                tau_w_guess=tau_w_guess,
+                                                rho=rho, nu=nu).y
+            else:
+                values[:, i] = get_shear_stress(profiles[i], direction=1, 
+                                                method=method, respace=False,
+                                                tau_w_guess=tau_w_guess,
+                                                rho=rho, nu=nu).y
+        # returning
+        mask = np.isnan(values)
+        unit_values = profiles[0].unit_y
+        tau_w = ScalarField()
+        tau_w.import_from_arrays(obj.axe_x, obj.axe_y, values, mask=mask,
+                                 unit_x=obj.unit_x, unit_y=obj.unit_y,
+                                 unit_values=unit_values)
+        return tau_w
     else:
         raise TypeError()
+
+
+
+
+if __name__ == '__main__':
+    
+    # comparaison Blasius BL and Thwaites BL
+    L = 0.6
+    u_e_0 = 0.05
+    def u_e(x):
+        return u_e_0 - x/L*u_e_0
+        
+    x = np.linspace(0, L*.9, 1000.)
+    tbl = ThwaitesBL(u_e)
+    bbl = BlasiusBL(u_e_0, 1.e-6, 1000.)
+    Bdelta, Bdelta2, Bdelta_star, BH, _, _, _ = bbl.get_BL_properties(x)
+    Tlambd, Tdelta2, Tdelta_star, TH = tbl.get_BL_properties(x)
+   
+    colors = ['r', 'b', 'g']
+    plt.figure()
+    plt.plot(x, Tlambd, color='k', label="$\lambda$")
+    plt.plot(x, Bdelta2, label="$\delta_2$", linestyle='--', color=colors[1])
+    plt.plot(x, Bdelta_star, label="$\delta^*$", linestyle='--', color=colors[2])
+    plt.plot(x, Bdelta, label="$\delta$", linestyle='--', color=colors[0])
+    plt.plot(x, Tdelta2, label="$\delta_2$", linestyle='-', color=colors[1])
+    plt.plot(x, Tdelta_star, label="$\delta^*$", linestyle='-', color=colors[2])
+    plt.legend()
+    plt.axhline(-0.082, linestyle='--', color='k')

@@ -3146,6 +3146,7 @@ def get_separation_position(obj, wall_direction, wall_position,
             lines_pos = axe[inds[0] - nmb_lines/2:inds[1] + nmb_lines/2]
     # Getting separation points on surrounding lines
     seps = np.array([])
+    new_lines_pos = np.array([])
     for lp in lines_pos:
         # extraction one line
         tmp_profile = V.get_profile(wall_direction, lp)
@@ -3155,7 +3156,16 @@ def get_separation_position(obj, wall_direction, wall_position,
         # masking with 'interval'
         values = values[np.logical_and(values > interval[0],
                                        values < interval[1])]
+        if len(values) == 0:
+            continue
         seps = np.append(seps, np.mean(values))
+        new_lines_pos = np.append(new_lines_pos, lp)
+    if len(seps) == 0:
+        raise Exception("Can't find sign chagment on the given interval")
+    elif len(seps) != nmb_lines:
+        warnings.warn("extrapolation done on only {} points"
+                      " instead of {}".format(len(seps), nmb_lines))
+    lines_pos = new_lines_pos
     # Deleting lines where no separation points were found
     if np.any(np.isnan(seps)):
         warnings.warn("I can't find a separation points on one (or more)"
