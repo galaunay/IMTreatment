@@ -511,15 +511,18 @@ class ThwaitesBL(object):
         self.nu = nu
         self.u_e = u_e
         # classical empirical coefficients
-        self.emp_coef_0 = 0.441
-        self.emp_coef_1 = 5.68
+        self.emp_coef_1 = 0.441
+        self.emp_coef_2 = 5.68
+#        # adapted empirical coefficients
+#        self.emp_coef_1 = 0.19199
+#        self.emp_coef_2 = 10.6612
 
     def u_e_pow(self, x):
         """
         Function u_e(x)**4.68
         (used int numerical resolution)
         """
-        return self.u_e(x)**(self.emp_coef_1 - 1)
+        return self.u_e(x)**(self.emp_coef_2 - 1)
 
     def get_momentum_thikness(self, x):
         """
@@ -538,11 +541,11 @@ class ThwaitesBL(object):
         """
         if isinstance(x, NUMBERTYPES):
             res, eps = spinteg.quad(func=self.u_e_pow, a=0, b=x)
-            denom = self.u_e(x)**(self.emp_coef_1/2.)
+            denom = self.u_e(x)**self.emp_coef_2
             if denom == 0:
                 delta2 = None
             else:
-                delta2 = self.emp_coef_0*self.nu**.5/denom*res**.5
+                delta2 = (self.emp_coef_1*self.nu/denom*res)**.5
         elif isinstance(x, ARRAYTYPES):
             x = np.array(x, dtype=float)
             delta2 = []
