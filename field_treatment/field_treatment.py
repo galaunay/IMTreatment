@@ -732,7 +732,8 @@ def get_streamlines_fast(vf, xy, delta=.25, interp='linear',
         return streams
 
 def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
-                     max_steps=1000, resolution=0.25, boundary_tr='stop'):
+                    max_steps=1000, resolution=0.25, resolution_kind='length',
+                    boundary_tr='stop'):
     """
     Return the lagrangien displacement of a set of particules initialy at the
     positions xys.
@@ -751,6 +752,9 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
         Maximum number of steps (default = 1000).
     resolution : number,
         resolution of the resulting streamline (do not impact accuracy).
+    resolution_kind : string in ['time', 'length']
+        if 'time', returned points time space are homogeneous,
+        if 'length', returned points space interval are homogeneous.
     boundary_tr : string
         Method to treat the field boundaries. If 'stop', streamlines are
         stopped when encountering a boundary, If 'hide', streamlines
@@ -882,7 +886,10 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
             nmb_it = 0
             while ODE.successful():
                 try:
-                    rk_dt = dxy/np.linalg.norm(fun(res[-1]))*resolution
+                    if resolution_kind == "time":
+                        rk_dt = resolution
+                    else:
+                        rk_dt = dxy/np.linalg.norm(fun(res[-1]))*resolution
                 except (ValueError, RuntimeWarning):
                     break
                 try:
@@ -893,6 +900,10 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
                 # stopping tests (max iteration)
                 if nmb_it > max_steps:
                     break
+                if resolution_kind == "time":
+                    min_dxy = (dxy/40)**2
+                    if (tmp_xy[0] - res[-1][0])**2 + (tmp_xy[1] - res[-1][1])**2 < min_dxy:
+                        break 
                 # store
                 res.append(tmp_xy)
             new_xys = res
@@ -912,6 +923,39 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
         return streams[0]
     else:
         return streams
+
+def get_fieldlines(VF, xys, reverse=False, rel_err=1.e-8,
+                   max_steps=1000, resolution=0.25, resolution_kind='length',
+                   boundary_tr='stop'):
+    """
+    Return the field lines associated to a set of particules initialy at the
+    positions xys.
+    Use Fortran integration of the VODE algorithm.
+    (Source: http://www.netlib.org/ode/vode.f)
+
+    Parameters
+    ----------
+    VF : VectorField or velocityField object
+        Field on which compute the fieldlines
+    xys : 2xN tuple of number
+        Initial points positions
+    rel_err : number
+        relative maximum error for rk4 algorithm
+    max_steps : integer
+        Maximum number of steps (default = 1000).
+    resolution : number,
+        resolution of the resulting fieldline (do not impact accuracy).
+    resolution_kind : string in ['time', 'length']
+        if 'time', returned points time space are homogeneous,
+        if 'length', returned points space interval are homogeneous.
+    boundary_tr : string
+        Method to treat the field boundaries. If 'stop', fieldlines are
+        stopped when encountering a boundary, If 'hide', fieldlines
+        that encounter a boundary are not returned.
+    """
+    # transform the field so that streamlines become filedlines
+    tmp_field = get_tracklines(VF, xys)
+    return tmp_field
 
 
 def get_tracklines(vf, xy, delta=.25, interp='linear',
