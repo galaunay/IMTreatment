@@ -546,6 +546,9 @@ class ThwaitesBL(object):
                 delta2 = None
             else:
                 delta2 = (self.emp_coef_1*self.nu/denom*res)**.5
+#            # limitation #TMP
+#            if delta2 > 0.02:
+#                delta2 = 0.02
         elif isinstance(x, ARRAYTYPES):
             x = np.array(x, dtype=float)
             delta2 = []

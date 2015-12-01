@@ -954,8 +954,15 @@ def get_fieldlines(VF, xys, reverse=False, rel_err=1.e-8,
         that encounter a boundary are not returned.
     """
     # transform the field so that streamlines become filedlines
-    tmp_field = get_tracklines(VF, xys)
-    return tmp_field
+    tmp_vf = VF.copy()
+    tmp_vf.comp_x = VF.comp_y
+    tmp_vf.comp_y = -VF.comp_x
+    # get the fieldlines
+    sts = get_streamlines(tmp_vf, xys, reverse=reverse, rel_err=rel_err, max_steps=max_steps,
+                          resolution=resolution, resolution_kind=resolution_kind,
+                          boundary_tr=boundary_tr)
+    # return
+    return sts
 
 
 def get_tracklines(vf, xy, delta=.25, interp='linear',

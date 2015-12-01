@@ -636,8 +636,18 @@ class Points(object):
         kernel.inv_cov[0, 1] *= 0
         kernel.inv_cov[1, 0] *= 0
         # creating grid
-        dx = (max_x - min_x)/10.
-        dy = (max_y - min_y)/10.
+        if isinstance(bw_method, NUMBERTYPES):
+            dx = bw_method*2
+            dy = bw_method*2
+        elif bw_method is None or bw_method == 'scott':
+            dx = 0.05*width_x
+            dy = 0.05*width_y
+        elif bw_method == "silverman":
+            dx = 0.05*width_x
+            dy = 0.05*width_y
+        else:
+            dx = bw_method(kernel)*2
+            dy = bw_method(kernel)*2
         axe_x = np.linspace(min_x - dx, max_x + dx, res_x)
         axe_y = np.linspace(min_y - dy, max_y + dy, res_y)
         X, Y = np.meshgrid(axe_x, axe_y)
