@@ -10,6 +10,6 @@ from .vortex_detection import \
     get_critical_line, CritPoints,\
     get_vortex_radius, get_vortex_radius_time_evolution,\
     get_vortex_circulation,\
-    get_vortex_intensity_time_evolution, \
-    get_vortex_intensity, _get_vortex_position_on_VF,\
+    get_vortex_property_time_evolution, \
+    get_vortex_property, _get_vortex_position_on_VF,\
     get_vortex_position

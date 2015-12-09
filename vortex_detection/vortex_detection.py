@@ -18,6 +18,7 @@ from ..vortex_criterions import get_kappa, get_gamma, get_iota, get_vorticity,\
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline
+from scipy.integrate import simps
 import warnings
 import scipy.ndimage.measurements as msr
 import unum
@@ -40,7 +41,6 @@ def velocityfield_to_vf(vectorfield, time):
     # using VF methods to get cp position
     vf = VF(vx, vy, ind_x, ind_y, mask, theta, time)
     return vf
-    
 
 
 class VF(object):
@@ -200,9 +200,10 @@ class VF(object):
         real_dy = axe_y[1] - axe_y[0]
         # import linear interpolation levelset solutions (computed with sympy)
         from levelset_data import get_sol
-        sol = get_sol()           
-        
-        # function to get the position in a cell detected by get_cp_cell_position
+        sol = get_sol()
+
+        # function to get the position in a cell detected by
+        #     get_cp_cell_position
         def get_cp_position_in_cell(pos):
             tmp_x = pos[0]
             tmp_y = pos[1]
@@ -222,7 +223,7 @@ class VF(object):
             if nmb_zeros == 1:
                 inds = np.array(np.where(Vx_bl + Vy_bl == 0)).reshape(2)
                 res_pos = np.array([axe_x[ind_x + inds[0]],
-                                             axe_y[ind_y + inds[1]]])
+                                    axe_y[ind_y + inds[1]]])
                 return res_pos
             elif nmb_zeros > 1:
                 res_pos = pos
@@ -253,8 +254,10 @@ class VF(object):
                 # if error such as 'Division by zero' occur, the zero velocity
                 # point is at the cell center
                 try:
-                    x_sols.append(eval(sol[j][0], {"__builtins__": {}}, tmp_dic))
-                    y_sols.append(eval(sol[j][1], {"__builtins__": {}}, tmp_dic))
+                    x_sols.append(eval(sol[j][0], {"__builtins__": {}},
+                                       tmp_dic))
+                    y_sols.append(eval(sol[j][1], {"__builtins__": {}},
+                                       tmp_dic))
                 except RuntimeWarning:
                     print("bad point : \n ({}, {})".format(tmp_x, tmp_y))
                     x_sols.append(real_dx/2.)
@@ -281,14 +284,14 @@ class VF(object):
                     raise Exception()
                 tmp_sol = tmp_sol[0]
                 res_pos = np.array([tmp_sol[0] + axe_x[ind_x],
-                                             tmp_sol[1] + axe_y[ind_y]])
+                                    tmp_sol[1] + axe_y[ind_y]])
             # if one point (ok case)
             else:
                 tmp_sol = tmp_sol[0]
                 res_pos = np.array([tmp_sol[0] + axe_x[ind_x],
-                                             tmp_sol[1] + axe_y[ind_y]])
+                                    tmp_sol[1] + axe_y[ind_y]])
             return res_pos
-            
+
         # use multiprocessing to get cp position on cell if asked
         if thread != 1:
             if thread == 'all':
@@ -298,7 +301,7 @@ class VF(object):
             new_positions = pool.map_async(get_cp_position_in_cell, positions)
             pool.close()
             pool.join()
-        else:           
+        else:
             new_positions = [get_cp_position_in_cell(pos) for pos in positions]
         new_positions = np.array(new_positions)
         # clean Nan
@@ -615,7 +618,7 @@ class CritPoints(object):
                 continue
             pts.v = [self.times[i]]*len(pts)
             sadds = np.append(sadds, pts.decompose())
-        # getting trajectories          
+        # getting trajectories
         self.foc_traj = self._get_cp_time_evolution(focs, times=self.times,
                                                     epsilon=epsilon,
                                                     close_traj=close_traj)
@@ -730,10 +733,11 @@ class CritPoints(object):
         # returning
         return fig
 
-    def get_traj_direction_changement(self, cp_type, direction, smoothing=None):
+    def get_traj_direction_changement(self, cp_type, direction,
+                                      smoothing=None):
         """
         Return the position of trajectories direction changement.
-        
+
         Parameters
         ----------
         cp_type : string in ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']
@@ -747,7 +751,7 @@ class CritPoints(object):
         chg_pts_1, chg_pts_2 : Points objects
             .
         """
-        if not cp_type in self.cp_types:
+        if cp_type not in self.cp_types:
             raise ValueError()
         # get trajectories
         trajs = np.array(self.iter_traj)[cp_type == np.array(self.cp_types)][0]
@@ -800,9 +804,9 @@ class CritPoints(object):
             for i in range(len(x_max)):
                 res_max.add([x_max[i], y_max[i]], v=t_max[i])
         # returning
-        return res_min, res_max       
-        
-    
+        return res_min, res_max
+
+
     ### Modifiers ###
     def add_point(self, foc=None, foc_c=None, node_i=None,
                   node_o=None, sadd=None, time=None):
@@ -989,7 +993,7 @@ class CritPoints(object):
         if not inplace:
             return tmp_cp
 
-    def crop(self, intervx=None, intervy=None, intervt=None, ind=False, 
+    def crop(self, intervx=None, intervy=None, intervt=None, ind=False,
              inplace=False):
         """
         crop the point field.
@@ -1051,8 +1055,8 @@ class CritPoints(object):
 #        tmp_cp.node_o = tmp_cp.node_o[filt]
 #        # returning
 #        if not inplace:
-#            return tmp_cp        
-        
+#            return tmp_cp
+
     def clean_traj(self, min_nmb_in_traj):
         """
         Remove some isolated points.
@@ -1162,7 +1166,7 @@ class CritPoints(object):
             .
         """
         # check
-        if not cp_type in ['foc', 'foc_c', 'sadd', 'node_i', 'node_o']:
+        if cp_type not in ['foc', 'foc_c', 'sadd', 'node_i', 'node_o']:
             raise ValueError()
         if not isinstance(fields, TemporalScalarFields):
             raise TypeError()
@@ -1229,7 +1233,7 @@ class CritPoints(object):
         self.current_epsilon = None
         for i in range(len(self.iter_traj)):
             self.iter_traj[i] = None
-        
+
     def _sort_by_time(self):
         """
         Sort the cp by increasing times.
@@ -1342,22 +1346,23 @@ class CritPoints(object):
                                   for i in range(len(uns_times))
                                   if time == uns_times[i]]
                     self.points.append(tmp_points)
-                    
+
                 # store in Point objects
                 del uns_xs, uns_ys, uns_times
                 #  get unities
                 self.unit_x = pts_tupl[0].unit_x
                 self.unit_y = pts_tupl[0].unit_y
-                self.unit_v = pts_tupl[0].unit_v   
+                self.unit_v = pts_tupl[0].unit_v
                 # prepare some storage for lines
                 self.closed_lines = []
-                self.open_lines = []      
-                self.curr_time = 0                        
+                self.open_lines = []
+                self.curr_time = 0
 
             def get_points_at_time(self, time):
                 """
                 Return all the points for a given time.
-                If 'init' is True, get the points from the initial points field.
+                If 'init' is True, get the points from the initial points
+                field.
                 """
                 return self.points[time]
 
@@ -1367,7 +1372,7 @@ class CritPoints(object):
                 """
                 for pt in self.get_points_at_time(0):
                     self.open_lines.append(Line(pt))
-                    
+
             def make_one_step(self):
                 """
                 Use the points from the next step to fill the Lines
@@ -1375,7 +1380,8 @@ class CritPoints(object):
                 # get points to add
                 new_pts = self.get_points_at_time(self.curr_time + 1)
                 # get distances matrix
-                dist2_mat = np.empty(shape=(len(new_pts), len(self.open_lines)))
+                dist2_mat = np.empty(shape=(len(new_pts),
+                                            len(self.open_lines)))
                 for i in range(len(new_pts)):
                     pt = new_pts[i]
                     for j in range(len(self.open_lines)):
@@ -1391,7 +1397,9 @@ class CritPoints(object):
                     usable_mat = False
                 # loop over min values of dist2_mat
                 while usable_mat:
-                    indmin_pt, indmin_line = np.unravel_index(np.argmin(dist2_mat), dist2_mat.shape)
+                    indmin_pt, indmin_line \
+                        = np.unravel_index(np.argmin(dist2_mat),
+                                           dist2_mat.shape)
                     # if dist to big or nothing remaining, we stop
                     if (dist2_mat[indmin_pt, indmin_line] > epsilon
                             or dist2_mat[indmin_pt, indmin_line] == np.inf):
@@ -1413,8 +1421,8 @@ class CritPoints(object):
                 for pt in new_pts[np.logical_not(used_pts)]:
                     self.open_lines.append(Line(init_pt=pt))
                 # ready for the next step
-                self.curr_time += 1    
-                
+                self.curr_time += 1
+
             def make_all_steps(self):
                 """
                 Put all points into the Lines.
@@ -1428,7 +1436,7 @@ class CritPoints(object):
                 for line in self.open_lines:
                     self.closed_lines.append(line)
                 self.open_lines = []
-            
+
             def get_trajectories(self):
                 """
                 return the trajectories under the form of sorted Points objects
@@ -1448,7 +1456,7 @@ class CritPoints(object):
                     pts = np.asarray(pts)
                     pts = pts[ind_sort]
                 return pts
-            
+
             @staticmethod
             def get_closer_point(pt, pts):
                 """
@@ -1457,9 +1465,7 @@ class CritPoints(object):
                 dist2 = [pt.dist2(opt) for opt in pts]
                 ind_min = np.argmin(dist2)
                 return ind_min, dist2[ind_min]
-            
-                
-                
+
         # local class line to store vortex center evolution line
         class Line(object):
             """
@@ -1492,21 +1498,19 @@ class CritPoints(object):
         class Point(object):
             """
             Class representing a point with a value on it.
-            """      
+            """
             def __init__(self, x, y, time):
                 self.x = x
                 self.y = y
                 self.time = time
-                
+
             def __repr__(self):
                 return "{}, {}".format(self.x, self.y)
 #            def norm2(self):
 #                return self.x**2 + self.y**2
-            
+
             def dist2(self, pt):
                 return (self.x - pt.x)**2 + (self.y - pt.y)**2
-
-            
         # Getting the vortex centers trajectory
         PF = PointField(points, epsilon, times)
         pts = PF.get_trajectories()
@@ -1558,7 +1562,7 @@ class CritPoints(object):
                 lnkw['color'] = colors[4]
             streams = self.sadd[indice]\
                 .get_streamlines_from_orientations(field,
-                reverse_direction=[True, False], interp='cubic')
+                    reverse_direction=[True, False], interp='cubic')
             for stream in streams:
                 stream._display(kind='plot', **lnkw)
         # loop on the points types
@@ -1881,7 +1885,6 @@ class TopoPoints(object):
             Window size used to compute non-local criterions.
         """
 
-
     def display(self):
         plt.figure()
         plt.scatter(self.xy[:, 0], self.xy[:, 1], c=self.types, vmax=6,
@@ -1971,9 +1974,9 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     if not isinstance(smoothing_size, NUMBERTYPES):
         raise TypeError()
     if smoothing_size < 0:
-        raise ValueError()        
+        raise ValueError()
     if not isinstance(thread, int):
-        if thread not in  ['all']:
+        if thread not in ['all']:
             raise ValueError()
 #    # check if mask (not fully supported yet)
 #    if np.any(obj.mask):
@@ -2045,6 +2048,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         PG = ProgressCounter(init_mess="Begin CP detection", end_mess='Done',
                              nmb_max=len(obj.fields),
                              name_things='fields')
+
         # function o ge cp on one field (used for multiprocessing)
         def get_cp_on_one_field(args):
             if verbose:
@@ -2066,11 +2070,12 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                 pool = Pool()
             else:
                 pool = Pool(thread)
-            res = pool.map_async(get_cp_on_one_field, zip(obj.fields, obj.times))
+            res = pool.map_async(get_cp_on_one_field, zip(obj.fields,
+                                                          obj.times))
             pool.close()
             pool.join()
             res = res.get()
-        res = np.sum(res)            
+        res = np.sum(res)
     else:
         raise TypeError()
     return res
@@ -2082,7 +2087,7 @@ def get_vortex_position(obj, criterion=get_residual_vorticity,
     """
     Return the position of the vortex (according to the given criterion) on
     vector field(s).
-    
+
      Parameters
     ----------
     vectorfield : VectorField or TemporalVectorFields object
@@ -2098,7 +2103,7 @@ def get_vortex_position(obj, criterion=get_residual_vorticity,
         If 'rel' is 'True' (default), 'threshold' is relative to
         the extremum values of the field.
         If 'rel' is 'False', 'threshold' is treated like an absolut
-        values.   
+        values.
     """
     # vectorfield
     if isinstance(obj, VectorField):
@@ -2111,25 +2116,26 @@ def get_vortex_position(obj, criterion=get_residual_vorticity,
         return cp
     elif isinstance(obj, TemporalVectorFields):
         cp = CritPoints(unit_time=obj.unit_times)
-        #loop on fields
+        # loop on fields
         for i, field in enumerate(obj.fields):
-            tmp_vort_c , tmp_vort = _get_vortex_position_on_VF(
-                                              field,
-                                              criterion=criterion,
-                                              criterion_args=criterion_args,
-                                              threshold=threshold,
-                                              rel=rel)
+            tmp_vort_c, tmp_vort = _get_vortex_position_on_VF(
+                field,
+                criterion=criterion,
+                criterion_args=criterion_args,
+                threshold=threshold,
+                rel=rel)
             cp.add_point(foc=tmp_vort, foc_c=tmp_vort_c, time=obj.times[i])
         # returning
         return cp
     else:
         raise TypeError()
 
+
 def _get_vortex_position_on_VF(vectorfield, criterion=get_residual_vorticity,
                                criterion_args={}, threshold=0.5, rel=True):
     """
     Return the vortex positions on a vector field, using the given criterion.
-    
+
     Parameters
     ----------
     vectorfield : VectorField object
@@ -2174,9 +2180,10 @@ def _get_vortex_position_on_VF(vectorfield, criterion=get_residual_vorticity,
     bornes_p = [threshold, val_max]
 
     vort = sf.get_zones_centers(bornes=bornes_n, rel=False, kind='ponderated')
-    vort_c = sf.get_zones_centers(bornes=bornes_p, rel=False, kind='ponderated')
+    vort_c = sf.get_zones_centers(bornes=bornes_p, rel=False,
+                                  kind='ponderated')
     return vort, vort_c
-    
+
 
 def _get_cp_pbi_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                       window_size=4, thread=1):
@@ -2697,6 +2704,7 @@ def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1.):
     jac = np.array([[Vx_dx2, Vx_dy2], [Vy_dx2, Vy_dy2]], subok=True)
     return jac
 
+
 ### Vortex properties ###
 def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
                       output_unit=False):
@@ -2847,120 +2855,246 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
         return radii_prof
 
 
-def get_vortex_intensity(VF, vort_center, crit=None, output_unit=False,
-                         use_gamma2=True):
+def get_vortex_property(VF, vort_center, size_crit=None, size_crit_lim=0.1,
+                        prop_crit=None, output_unit=False, verbose=False):
     """
-    Return the intensity of the given vortex.
+    Return a property of a particular vortex.
 
     Parameters:
     -----------
     VF : vectorfield object
-        Velocity field on which compute gamma2.
+        Base velocity field.
     vort_center : 2x1 array
         Approximate position of the vortex center.
-    crit : function
-        Function to inegrate on the vortex zone. should take a VectorField as
-        argument and return a ScalarField. Default is 'get_residual_vorticity'.
-    use_gamma2 : boolean, optional
-        If 'True' (default), gamma2 is used to get the vortex area, and the
-        criterion is integrated on this area. If 'False', returned intensity is
-        directly the criterion intensity at the wanted point.
-    output_unit ; boolean, optional
+    size_crit : function
+        Function applied to 'VF' and returning a ScalarField used to get the
+        vortex area.
+        (Default is residual vorticity)
+    size_crit_lim : number
+        Used to determine the size criterion interval defining the vortex area
+        (i.e. the vortex area is the area around the vortex center where
+        the size criterion is superior to 'size_crit_lim' times the value at
+        the center)
+        (Default is 0.1 (10%))
+    prop_crit : function
+        Function applied to 'VF' and returning a ScalarField used to get the
+        property value (Default is residual vorticity)
+    output_unit : boolean, optional
         If 'True', return the associated unit.
+    verbose : bool
+        If 'True', display information and graph along computation.
 
     Returns :
     ---------
-    intens : number
-        Intensity of the vortex. If no vortex is found, 0 is returned.
+    prop : number
+        Property associated to the vortex.
+        (Is the integral of 'prop_crit' result on the area defined by
+        'size_crit')
     """
-    if crit is None:
-        crit = get_residual_vorticity
+    # default behavior
+    if size_crit is None:
+        size_crit = get_residual_vorticity
+    if prop_crit is None:
+        prop_crit = get_residual_vorticity
     # getting data
-        if use_gamma2:
-            gamma2 = get_gamma(VF, ind=False, kind='gamma2', raw=True)
+    if size_crit == prop_crit:
+        prop_crit = size_crit(VF)
+        size_crit = np.abs(prop_crit)
+    else:
+        size_crit = np.abs(size_crit(VF))
+        prop_crit = prop_crit(VF)
     ind_x = VF.get_indice_on_axe(1, vort_center[0], kind='nearest')
     ind_y = VF.get_indice_on_axe(2, vort_center[1], kind='nearest')
+    unit_int = prop_crit.unit_values*prop_crit.unit_x*prop_crit.unit_y
+    # check if value is positive at the vortex center
+    if VF.magnitude[ind_x, ind_y] <= 0:
+        raise ValueError()
+    # get first guess vortex zone (use value at center as a predica of
+    #    the maxima)
+    tmp_maxi = size_crit.values[ind_x, ind_y]
+    vort_zones = size_crit.values > tmp_maxi*size_crit_lim
+    vort_zones_labs, _ = msr.label(vort_zones)
+    lab = vort_zones_labs[ind_x, ind_y]
+    # if we're outside, just give up
+    if lab == 0:
+        if output_unit:
+            return 0, unit_int
+        else:
+            return 0
+    # get final vortex zone with real maxima
+    size_crit_maxi = np.max(size_crit.values[lab == vort_zones_labs])
+    vort_zones = size_crit.values > size_crit_maxi*size_crit_lim
+    vort_zones_labs, _ = msr.label(vort_zones)
+    lab = vort_zones_labs[ind_x, ind_y]
+    # get prop_crit integral along zone
+    tmp_prop_crit = prop_crit.values.copy()
+    tmp_prop_crit[lab != vort_zones_labs] = 0.
     dx = VF.axe_x[1] - VF.axe_x[0]
     dy = VF.axe_y[1] - VF.axe_y[0]
-    # getting criterion field
-    tmp_cf = crit(VF)
-    if use_gamma2:
-        # get vortex zone
-        vort = np.abs(gamma2) > 2/np.pi
-        vort, nmb_vort = msr.label(vort)
-        # get wanted zone label
-        lab = vort[ind_x, ind_y]
-        # if we are outside a zone
-        if lab == 0:
-            tmp_int = 0
-        else:
-            tmp_int = np.sum(np.abs(tmp_cf.values[vort == lab]))*dx*dy
+    prop = simps(simps(tmp_prop_crit, dx=dy), dx=dx)
+    # verbose
+    if verbose:
+        tmp_vort_zone = ScalarField()
+        tmp_vort_zone.import_from_arrays(VF.axe_x, VF.axe_y,
+                                         values=lab == vort_zones_labs)
+        fig, axs = plt.subplots(2, 1)
+        plt.sca(axs[0])
+        size_crit.display()
+        VF.display(kind='stream', color='w')
+        tmp_vort_zone._display(kind='contour', levels=[-1e30, 0.5, 1e30],
+                               colors='r')
+        plt.plot([], color='r', label='Detected vortex zone')
+        plt.plot(*vort_center, marker='o', linestyle='none', mec='k', mfc='w',
+                 label="Vortex center")
+        plt.title("Vortex size detection")
+        plt.legend()
+        plt.sca(axs[1])
+        prop_crit.display()
+        VF.display(kind='stream', color='w')
+        tmp_vort_zone._display(kind='contour', levels=[-1e30, 0.5, 1e30],
+                               colors='r')
+        plt.plot([], color='r', label='Detected vortex zone')
+        plt.plot(*vort_center, marker='o', linestyle='none', mec='k', mfc='w',
+                 label="Vortex center")
+        plt.title("Vortex property integration on vortex zone\nProp={:.2f} {}"
+                  .format(prop, unit_int.strUnit()))
+        plt.legend()
+    # returning
+    if output_unit:
+        return prop, unit_int
     else:
-        tmp_int = tmp_cf.get_value(ind_x, ind_y, ind=True)
-    if output_unit and use_gamma2:
-        unit_int = tmp_cf.unit_values*tmp_cf.unit_x*tmp_cf.unit_y
-        scale = unit_int.asNumber()
-        unit_int /= scale
-        tmp_int *= scale
-        return tmp_int, unit_int
-    elif output_unit:
-        return tmp_int, tmp_cf.unit_values
-    else:
-        return tmp_int
+        return prop
 
 
-def get_vortex_intensity_time_evolution(TVFS, traj, crit=None,
-                                        use_gamma2=True, verbose=False):
+def get_vortex_property_time_evolution(TVFs, vort_center_traj, size_crit=None,
+                                       size_crit_lim=0.1,
+                                       prop_crit=None, output_unit=False,
+                                       verbose=0):
     """
-    Return the radius evolution in time for the given vortex center trajectory.
-
-    Use the criterion |gamma2| > 2/pi. The returned radius is an average value
-    if the vortex zone is not circular.
+    Return a property of a particular vortex.
 
     Parameters:
     -----------
-    TVFS : TemporalField object
-        Velocity field on which compute gamma2.
-    traj : Points object
-        Trajectory of the vortex.
-    crit : function
-        Function to inegrate on the vortex zone. should take a VectorField as
-        argument and return a ScalarField. Default is 'get_residual_vorticity'.
-    use_gamma2 : boolean, optional
-        If 'True' (default), gamma2 is used to get the vortex area, and the
-        criterion is integrated on this area. If 'False', returned intensity is
-        directly the criterion intensity at the wanted point.
-    verbose : boolean
-        .
+    TVFs : TemporalVectorFields object
+        Base velocity fields.
+    vort_center : Points object
+        Approximate position of the vortex centers along times.
+    size_crit : function
+        Function applied to 'VF' and returning a ScalarField used to get the
+        vortex area.
+        (Default is residual vorticity)
+    size_crit_lim : number
+        Used to determine the size criterion interval defining the vortex area
+        (i.e. the vortex area is the area around the vortex center where
+        the size criterion is superior to 'size_crit_lim' times the value at
+        the center)
+        (Default is 0.1 (10%))
+    prop_crit : function
+        Function applied to 'VF' and returning a ScalarField used to get the
+        property value (Default is residual vorticity)
+    verbose : integer
+        specified the number of fields to verbosify.
+        Default is 0.
 
     Returns :
     ---------
-    intensity : Profile object
-        Average intensity of the vortex. If no vortex is found, 0 is returned.
+    prop : Profile object
+        Evolution of the property associated with the vortex long time.
     """
-    intens = np.empty((len(traj.xy),))
-    if verbose:
-        pg = ProgressCounter("Begin vortex intensity detection",
-                             "Done", len(traj.xy), 'fields', perc_interv=1)
-    # loop on traj times
-    for i, _ in enumerate(traj):
-        if verbose:
-            pg.print_progress()
-        # getting time and associated velocity field
-        time = traj.v[i]
-        field = TVFS.fields[TVFS.times == time][0]
-        # getting the wanted point
-        wanted_xy = traj.xy[i, :]
-        tmp_int, unit_int = get_vortex_intensity(field, wanted_xy, crit=crit,
-                                                 output_unit=True,
-                                                 use_gamma2=use_gamma2)
-        intens[i] = tmp_int
+    # prepare storage
+    times = []
+    props = []
+    if verbose == 1:
+        field_to_verbosify = [len(vort_center_traj)/2]
+    elif verbose == 2:
+        field_to_verbosify = [len(vort_center_traj)/3,
+                              len(vort_center_traj)*2/3]
+    else:
+        field_to_verbosify = np.round(np.linspace(0, len(vort_center_traj),
+                                                  verbose))
+    # loop on fields
+    for i in range(len(TVFs)):
+        # pass if vortex center is not defined for this time
+        if TVFs.times[i] not in vort_center_traj.v:
+            continue
+        ind_traj = np.where(vort_center_traj.v == TVFs.times[i])[0][0]
+        # verbosify (or not...)
+        if len(times) in field_to_verbosify:
+            verbose = True
+        else:
+            verbose = False
+        # get the wanted property
+        field = TVFs.fields[i]
+        vc = vort_center_traj.xy[ind_traj]
+        prop, unit = get_vortex_property(VF=field, vort_center=vc,
+                                         size_crit=size_crit,
+                                         size_crit_lim=size_crit_lim,
+                                         prop_crit=prop_crit, verbose=verbose,
+                                         output_unit=True)
+        times.append(TVFs.times[i])
+        props.append(prop)
+    # store on a Profile object
+    prof_prop = Profile(x=times, y=props, unit_x=TVFs.unit_times,
+                        unit_y=unit)
     # returning
-    mask = intens == 0.
-    radii_prof = Profile(traj.v, intens, mask=mask, unit_x=TVFS.unit_times,
-                         unit_y=unit_int)
-    return radii_prof
+    return prof_prop
 
+
+#
+#
+#
+#TVFS, traj, crit=None,
+#                                        use_gamma2=True, verbose=False):
+#    """
+#    Return the radius evolution in time for the given vortex center trajectory.
+#
+#    Use the criterion |gamma2| > 2/pi. The returned radius is an average value
+#    if the vortex zone is not circular.
+#
+#    Parameters:
+#    -----------
+#    TVFS : TemporalField object
+#        Velocity field on which compute gamma2.
+#    traj : Points object
+#        Trajectory of the vortex.
+#    crit : function
+#        Function to inegrate on the vortex zone. should take a VectorField as
+#        argument and return a ScalarField. Default is 'get_residual_vorticity'.
+#    use_gamma2 : boolean, optional
+#        If 'True' (default), gamma2 is used to get the vortex area, and the
+#        criterion is integrated on this area. If 'False', returned intensity is
+#        directly the criterion intensity at the wanted point.
+#    verbose : boolean
+#        .
+#
+#    Returns :
+#    ---------
+#    intensity : Profile object
+#        Average intensity of the vortex. If no vortex is found, 0 is returned.
+#    """
+#    intens = np.empty((len(traj.xy),))
+#    if verbose:
+#        pg = ProgressCounter("Begin vortex intensity detection",
+#                             "Done", len(traj.xy), 'fields', perc_interv=1)
+#    # loop on traj times
+#    for i, _ in enumerate(traj):
+#        if verbose:
+#            pg.print_progress()
+#        # getting time and associated velocity field
+#        time = traj.v[i]
+#        field = TVFS.fields[TVFS.times == time][0]
+#        # getting the wanted point
+#        wanted_xy = traj.xy[i, :]
+#        tmp_int, unit_int = get_vortex_intensity(field, wanted_xy, crit=crit,
+#                                                 output_unit=True,
+#                                                 use_gamma2=use_gamma2)
+#        intens[i] = tmp_int
+#    # returning
+#    mask = intens == 0.
+#    radii_prof = Profile(traj.v, intens, mask=mask, unit_x=TVFS.unit_times,
+#                         unit_y=unit_int)
+#    return radii_prof
+#
 
 def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
     """
@@ -3089,7 +3223,7 @@ def get_separation_position(obj, wall_direction, wall_position,
             interval = [np.min(axe_y), np.max(axe_y)]
     if not isinstance(interval, ARRAYTYPES):
         raise TypeError("'interval' must be a array")
-        
+
     # Get data according to 'obj' type
     if isinstance(obj, ScalarField):
         # checking masked values
@@ -3127,8 +3261,8 @@ def get_separation_position(obj, wall_direction, wall_position,
                        unit_y=unit_axe)
     else:
         raise ValueError("Unknown type for 'obj'")
-        
-    ### Getting separation position 
+
+    ### Getting separation position
     # Getting lines around wall
     if wall_position < axe[0]:
         lines_pos = axe[0:nmb_lines]
