@@ -1459,7 +1459,7 @@ class Points(object):
             raise ValueError()
         return plot
 
-    def display(self, kind=None, axe_x=None, axe_y=None, axe_color=None, 
+    def display(self, kind=None, axe_x=None, axe_y=None, axe_color=None,
                 **plotargs):
         """
         Display the set of points.
@@ -1471,7 +1471,7 @@ class Points(object):
             or 'scatter' (default if points have values).
             or 'colored_plot'.
         axe_x, axe_y, axe_color : strings in ['x', 'y', 'v']
-            To determine wich value has to be plotted along which axis, and 
+            To determine wich value has to be plotted along which axis, and
             whith value is used to color the scattered points.
             Default plot 'y' to 'x' with colors from 'v'.
         """
@@ -1515,6 +1515,13 @@ class Points(object):
             plt.ylabel('Y ' + self.unit_y.strUnit())
         else:
             plt.ylabel('V ' + self.unit_v.strUnit())
+        # cb label
+        if axe_color == 'x':
+            cb.set_label('X ' + self.unit_x.strUnit())
+        elif axe_color == 'y':
+            cb.set_label('Y ' + self.unit_y.strUnit())
+        else:
+            cb.set_label('V ' + self.unit_v.strUnit())
         if self.name is None:
             plt.title('Set of points')
         else:
@@ -1555,18 +1562,18 @@ class Points(object):
         #
         plt.tight_layout()
         return ax
-    
+
     ### Exporters ###
     def export_to_profile(self, axe_x='x', axe_y='y'):
         """
         Export the unsorted point object to a sorted Profile object.
-        
-        Parameters 
+
+        Parameters
         ----------
         axe_x, axe_y : strings in ['x', 'y', 'v']
             Which value used to construct the profile
         """
-        # check 
+        # check
         if not axe_x in ['x', 'y', 'v']:
             raise ValueError()
         if not axe_y in ['x', 'y', 'v']:
@@ -1846,7 +1853,7 @@ class OrientedPoints(Points):
                 return tmp_pts
             else:
                 return None
-        # crop orientations 
+        # crop orientations
         ### TODO : not efficient at all
         mask = np.zeros(len(self.xy), dtype=bool)
         if intervx is not None:
@@ -2032,7 +2039,7 @@ class Profile(object):
                 raise ValueError("Given profiles does'nt share the same"
                                  " x units")
             # get shared x
-            # TODO : find another way to deal with quasi equal values 
+            # TODO : find another way to deal with quasi equal values
             dx = self.x[1] - self.x[0]
             shared_x = [0, 0]
             if otherone.x[0] in self.x:
@@ -2277,7 +2284,7 @@ class Profile(object):
     def get_interpolator(self, kind='linear'):
         """
         Return an interpolator of the profile
-        
+
         Parameters
         ----------
         kind : str or int, optional
@@ -2286,7 +2293,7 @@ class Profile(object):
             ‘quadratic’ and ‘cubic’ refer to a spline interpolation of first,
             second or third order) or as an integer specifying the order of
             the spline interpolator to use. Default is ‘linear’.
-        
+
         Returns
         -------
         interpolator : function
@@ -2431,7 +2438,7 @@ class Profile(object):
             ind_0 = np.argwhere(self.y == value)[0]
             if ind:
                 return ind_0
-            else:                    
+            else:
                 pos_0 = [self.x[ind] for ind in ind_0]
                 return pos_0
         # search for positions
@@ -2872,15 +2879,15 @@ class Profile(object):
     def get_extrema_position(self, smoothing=None, ind=False):
         """
         Return the local extrema of the profile.
-        
+
         Parameters
         ----------
         smoothing : number, optional
             Size of the gaussian smoothing to apply before extrema detection.
         ind : bool, optional
-            If 'True', return indice position, else, return position along 
+            If 'True', return indice position, else, return position along
             x axis (default is 'False').
-            
+
         Returns
         -------
         min_pos, max_pos : arrays of numbers
@@ -2904,7 +2911,7 @@ class Profile(object):
         pos_min = grad_min.get_value_position(0, ind=ind)
         # returning
         return pos_min, pos_max
-        
+
 
     ### Modifiers ###
     def add_point(self, x, y):
@@ -2918,12 +2925,12 @@ class Profile(object):
     def remove_point(self, ind):
         """
         Remove a point from the profile
-        
+
         Parameters
         ----------
         ind : integer
             Idice of the point to remove
-        
+
         """
         # check
         if not isinstance(ind, int):
@@ -3017,6 +3024,54 @@ class Profile(object):
                                self.unit_y)
             return tmp_prof
 
+    def scale(self, scalex=1., scaley=1., scalev=1., inplace=False):
+        """
+        Change the scale of the axis.
+
+        Parameters
+        ----------
+        scalex, scaley : numbers or Unum objects
+            scales along x and y
+        inplace : boolean, optional
+            If 'True', scaling is done in place, else, a new instance is
+            returned.
+        """
+        # check params
+        if not isinstance(scalex, NUMBERTYPES + (unum.Unum, )):
+            raise TypeError()
+        if not isinstance(scaley, NUMBERTYPES + (unum.Unum, )):
+            raise TypeError()
+        if not isinstance(inplace, bool):
+            raise TypeError()
+        if inplace:
+            tmp_prof = self
+        else:
+            tmp_prof = self.copy()
+        # adapt unit
+        if isinstance(scalex, unum.Unum):
+            new_unit = scalex*tmp_prof.unit_x
+            fact = new_unit.asNumber()
+            new_unit /= fact
+            tmp_prof.unit_x = new_unit
+            scalex = fact
+        if isinstance(scaley, unum.Unum):
+            new_unit = scaley*tmp_prof.unit_y
+            fact = new_unit.asNumber()
+            new_unit /= fact
+            tmp_prof.unit_y = new_unit
+            scaley = fact
+        # loop
+        if scalex != 1.:
+            tmp_prof.x *= scalex
+        if scaley != 1.:
+            tmp_prof.y *= scaley
+        if scalev != 1.:
+            tmp_prof.v *= scalev
+        # returning
+        if not inplace:
+            return tmp_prof
+
+
     def fill(self, kind='slinear', fill_value=0., inplace=False, crop=False):
         """
         Return a filled profile (no more masked values).
@@ -3090,7 +3145,7 @@ class Profile(object):
     def augment_resolution(self, fact=2, interp='linear', inplace=True):
         """
         Augment the temporal resolution of the profile.
-        
+
         Parameters
         ----------
         fact : integer
@@ -3102,7 +3157,7 @@ class Profile(object):
             to a spline interpolation of first, second or third order.
         inplace bool
             .
-            
+
         Note
         ----
         If masked values are present, they are interpolated as well, using the
@@ -4704,14 +4759,14 @@ class ScalarField(Field):
                 if ind:
                     position = self.axe_x[position]
                 vals = [self.get_value(position, axe_i) for axe_i in axe]
-                prof = Profile(x=axe, y=vals, mask=False, unit_x=self.unit_y, 
+                prof = Profile(x=axe, y=vals, mask=False, unit_x=self.unit_y,
                                unit_y=self.unit_values)
             if direction == 2:
                 axe = self.axe_x
                 if ind:
                     position = self.axe_y[position]
                 vals = [self.get_value(axe_i, position) for axe_i in axe]
-                prof = Profile(x=axe, y=vals, mask=False, unit_x=self.unit_x, 
+                prof = Profile(x=axe, y=vals, mask=False, unit_x=self.unit_x,
                                unit_y=self.unit_values)
             return prof
         # if not
@@ -4744,7 +4799,7 @@ class ScalarField(Field):
                 prof_mask = self.mask[:, position]
                 profile = self.values[:, position]
                 axe = self.axe_x
-                cutposition = self.axe_y[position]           
+                cutposition = self.axe_y[position]
         # Calculation of the profile for an interval of position
         elif isinstance(position, ARRAYTYPES) and not ind:
             axe_mask = np.logical_and(axe >= position[0], axe <= position[1])
@@ -5176,7 +5231,7 @@ class ScalarField(Field):
                                indmin_y:indmax_y + 1]
         else:
             indmin_x, indmax_x, indmin_y, indmax_y, cropfield = \
-                Field.crop(self, intervx=intervx, intervy=intervy, 
+                Field.crop(self, intervx=intervx, intervy=intervy,
                            full_output=True, ind=ind, inplace=False)
             cropfield.__values = self.values[indmin_x:indmax_x + 1,
                                              indmin_y:indmax_y + 1]
@@ -6421,7 +6476,7 @@ class VectorField(Field):
             if 'nearest', get the profile at the nearest position on the grid,
             if 'linear', use linear interpolation to get the profile at the
             exact position
-            
+
         Returns
         -------
         profile : Profile object
@@ -6704,7 +6759,7 @@ class VectorField(Field):
                                     indmin_y:indmax_y + 1]
         else:
             indmin_x, indmax_x, indmin_y, indmax_y, cropfield = \
-                Field.crop(self, intervx=intervx, intervy=intervy, 
+                Field.crop(self, intervx=intervx, intervy=intervy,
                            full_output=True, ind=ind)
             cropfield.__comp_x = self.comp_x[indmin_x:indmax_x + 1,
                                              indmin_y:indmax_y + 1]
@@ -7508,7 +7563,7 @@ class TemporalFields(Fields, Field):
         # returning
         assert isinstance(new_field, self.fields[0].__class__)
         return new_field
-        
+
     def get_fluctuant_fields(self, nmb_min_mean=1):
         """
         Calculate the fluctuant fields (fields minus mean field).
@@ -7857,12 +7912,12 @@ class TemporalFields(Fields, Field):
         magn = magn/real_nmb_fields
         return magn
 
-    def get_spectrum_map(self, comp, welch_seglen=None, nmb_pic=1, 
+    def get_spectrum_map(self, comp, welch_seglen=None, nmb_pic=1,
                          spec_smooth=None,
                          verbose=True):
         """
         Return the temporal spectrum map.
-        
+
         Parameters
         ----------
         comp : string
@@ -7875,10 +7930,10 @@ class TemporalFields(Fields, Field):
             .
         verbose : bool
             .
-            
+
         Returns
         -------
-        map_freq_sf : 
+        map_freq_sf :
             .
         map_freq_quality_sf :
             .
@@ -7916,7 +7971,7 @@ class TemporalFields(Fields, Field):
                 if spec_smooth is not None:
                     spec.smooth(tos='gaussian', size=spec_smooth, inplace=True)
                 # get maximale frequences
-                for n in range(nmb_pic):                    
+                for n in range(nmb_pic):
                     spec_max = spec.max
                     max_pos_ind = spec.get_value_position(spec_max, ind=True)[0]
                     map_freq[n][i, j] = spec.x[max_pos_ind]
@@ -7952,7 +8007,7 @@ class TemporalFields(Fields, Field):
             return maps_freq[0], maps_freq_quality[0]
         else:
             return maps_freq, maps_freq_quality
-        
+
 
     ### Modifiers ###
     def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
@@ -8192,7 +8247,7 @@ class TemporalFields(Fields, Field):
     def augment_temporal_resolution(self, fact=2, inplace=False):
         """
         Augment the temporal resolution using temporal interpoalation.
-        
+
         Parameters
         ----------
         fact : integer
@@ -8316,17 +8371,17 @@ class TemporalFields(Fields, Field):
                             intervy=[axe_y_min, axe_y_max], ind=True,
                             inplace=True)
                 return tmp_tf
-                
+
     def remove_weird_fields(self, std_coef=3., treatment='interpolate',
                             inplace=False):
         """
         Look at the time evolution of spatial mean magnitude to identify and
         replace weird fields.
-        
+
         Parameters
         ----------
         std_coef : number
-            Fields associated with mean magnitude outside the interval 
+            Fields associated with mean magnitude outside the interval
             [mean - std_coef*std, mean - std_coef*std] are treated as weird
             fields. Default value of '3' corespond for a 99.7% interval.
         treatment : string in ['remove', 'interpolate']
@@ -8334,7 +8389,7 @@ class TemporalFields(Fields, Field):
             (default is 'interpolate')
         inplace : bool
             .
-            
+
         Returns
         -------
         tf : TemporalField
@@ -8824,7 +8879,7 @@ class TemporalScalarFields(TemporalFields):
         mask = mask_cum <= nmb_min
         result_f.mask = mask
         return result_f
-        
+
     def get_max_field(self, nmb_min=1):
         """
         Calculate the maximum scalar field, from all the fields.
