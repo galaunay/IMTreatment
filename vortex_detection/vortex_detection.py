@@ -23,8 +23,11 @@ import warnings
 import scipy.ndimage.measurements as msr
 import unum
 import copy
-from multiprocess import Pool
-
+try:
+    from multiprocess import Pool
+    MULTIPROC = True
+except:
+    MULTIPROC = False
 
 def velocityfield_to_vf(vectorfield, time):
     """
@@ -2866,16 +2869,18 @@ def get_vortex_property(VF, vort_center, size_crit=None, size_crit_lim=0.1,
         Base velocity field.
     vort_center : 2x1 array
         Approximate position of the vortex center.
-    size_crit : function
+    size_crit : function or 'value'
         Function applied to 'VF' and returning a ScalarField used to get the
         vortex area.
         (Default is residual vorticity)
+        If 'value', only the value at the given point is returned.
     size_crit_lim : number
         Used to determine the size criterion interval defining the vortex area
         (i.e. the vortex area is the area around the vortex center where
         the size criterion is superior to 'size_crit_lim' times the value at
         the center)
         (Default is 0.1 (10%))
+        Useless if 'size_crit='value'
     prop_crit : function
         Function applied to 'VF' and returning a ScalarField used to get the
         property value (Default is residual vorticity)
@@ -2897,6 +2902,13 @@ def get_vortex_property(VF, vort_center, size_crit=None, size_crit_lim=0.1,
     if prop_crit is None:
         prop_crit = get_residual_vorticity
     # getting data
+    if size_crit == "value":
+        prop_crit = prop_crit(VF)
+        val = prop_crit.get_value(*vort_center)
+        if output_unit:
+            return val, prop_crit.unit_values
+        else:
+            return val
     if size_crit == prop_crit:
         prop_crit = size_crit(VF)
         size_crit = np.abs(prop_crit)
@@ -2979,16 +2991,18 @@ def get_vortex_property_time_evolution(TVFs, vort_center_traj, size_crit=None,
         Base velocity fields.
     vort_center : Points object
         Approximate position of the vortex centers along times.
-    size_crit : function
+    size_crit : function or 'value'
         Function applied to 'VF' and returning a ScalarField used to get the
         vortex area.
         (Default is residual vorticity)
+        if 'value', only return the value at point.
     size_crit_lim : number
         Used to determine the size criterion interval defining the vortex area
         (i.e. the vortex area is the area around the vortex center where
         the size criterion is superior to 'size_crit_lim' times the value at
         the center)
         (Default is 0.1 (10%))
+        Useless if "size_crit='value".
     prop_crit : function
         Function applied to 'VF' and returning a ScalarField used to get the
         property value (Default is residual vorticity)

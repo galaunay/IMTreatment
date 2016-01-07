@@ -1437,47 +1437,55 @@ def get_shear_vorticity(vf, raw=False):
 
     Parameters
     ----------
-    vf : VectorField or Velocityfield
+    vf : VectorField or VectorFields
         Field on which compute shear stress
     raw : boolean, optional
         If 'True', return an arrays,
         if 'False' (default), return a ScalarField object.
     """
-    if not isinstance(vf, VectorField):
-        raise TypeError()
-    # getting data
-    tmp_vf = vf.copy()
-    tmp_vf.crop_masked_border()
-    tmp_vf.fill(inplace=True, reduce_tri=True)
-    axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
-    comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
-    mask = tmp_vf.mask
-    dx = axe_x[1] - axe_x[0]
-    dy = axe_y[1] - axe_y[0]
-    # getting gradients
-    Exx, Exy = np.gradient(comp_x, dx, dy)
-    Eyx, Eyy = np.gradient(comp_y, dx, dy)
-    # getting principal rate of strain (s)
-    s = np.sqrt(4*Exx**2 + (Exy + Eyx)**2)/2.
-    # getting the vorticity-tensor component
-    omega = (Eyx - Exy)/2.
-    omega_abs = np.abs(omega)
-    sign_omega = omega/omega_abs
-    filt1 = s < omega_abs
-    filt2 = np.logical_not(filt1)
-    # getting the residual vorticity
-    sh_vort = np.zeros(vf.shape)
-    sh_vort[filt2] = omega[filt2]
-    sh_vort[filt1] = sign_omega[filt1]*(s[filt1])
-    if raw:
-        return sh_vort
+    if isinstance(vf, VectorField):
+        # getting data
+        tmp_vf = vf.copy()
+        tmp_vf.crop_masked_border()
+        tmp_vf.fill(inplace=True, reduce_tri=True)
+        axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+        comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
+        mask = tmp_vf.mask
+        dx = axe_x[1] - axe_x[0]
+        dy = axe_y[1] - axe_y[0]
+        # getting gradients
+        Exx, Exy = np.gradient(comp_x, dx, dy)
+        Eyx, Eyy = np.gradient(comp_y, dx, dy)
+        # getting principal rate of strain (s)
+        s = np.sqrt(4*Exx**2 + (Exy + Eyx)**2)/2.
+        # getting the vorticity-tensor component
+        omega = (Eyx - Exy)/2.
+        omega_abs = np.abs(omega)
+        sign_omega = omega/omega_abs
+        filt1 = s < omega_abs
+        filt2 = np.logical_not(filt1)
+        # getting the residual vorticity
+        sh_vort = np.zeros(vf.shape)
+        sh_vort[filt2] = omega[filt2]
+        sh_vort[filt1] = sign_omega[filt1]*(s[filt1])
+        if raw:
+            return sh_vort
+        else:
+            unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
+            unit_values = vf.unit_values/vf.unit_x
+            sh_vort *= unit_values.asNumber()
+            unit_values /= unit_values.asNumber()
+            vort_sf = ScalarField()
+            vort_sf.import_from_arrays(axe_x, axe_y, sh_vort, mask=mask,
+                                       unit_x=unit_x, unit_y=unit_y,
+                                       unit_values=unit_values)
+            return vort_sf
+    elif isinstance(vf, TemporalVectorFields):
+        ret = TemporalScalarFields()
+        for i, field in enumerate(vf.fields):
+            tmp_ret = get_shear_vorticity(field)
+            ret.add_field(tmp_ret, time=vf.times[i],
+                          unit_times=vf.unit_times)
+        return ret
     else:
-        unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
-        unit_values = vf.unit_values/vf.unit_x
-        sh_vort *= unit_values.asNumber()
-        unit_values /= unit_values.asNumber()
-        vort_sf = ScalarField()
-        vort_sf.import_from_arrays(axe_x, axe_y, sh_vort, mask=mask,
-                                   unit_x=unit_x, unit_y=unit_y,
-                                   unit_values=unit_values)
-        return vort_sf
+        raise TypeError()
