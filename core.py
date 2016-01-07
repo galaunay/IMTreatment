@@ -549,14 +549,13 @@ class Points(object):
             The method used to calculate the estimator bandwidth.
             This can be 'scott', 'silverman', a scalar constant or
             a callable. If a scalar, this will be used as std
-            (it should aprocimately be the size of the density
+            (it should aproximately be the size of the density
             node you want to see).
             If a callable, it should take a gaussian_kde instance as only
             parameter and return a scalar. If None (default), 'scott' is used.
             See Notes for more details.
-        resolution : integer or 2x1 tuple of integers, optional
+        resolution : integer, optional
             Resolution for the resulting field.
-            Can be a tuple in order to specify resolution along x and y.
         output_format : string, optional
             'normalized' (default) : give position probability
                                      (integral egal 1).
@@ -582,7 +581,7 @@ class Points(object):
         max_x = np.max(self.xy[:, 0])
         min_y = np.min(self.xy[:, 1])
         max_y = np.max(self.xy[:, 1])
-        # checking parameters
+        # getting min, max values and resolution in each direction
         if isinstance(resolution, int):
             width_x = max_x - min_x
             width_y = max_y - min_y
@@ -606,11 +605,6 @@ class Points(object):
             else:
                 res_y = resolution
                 res_x = int(np.round(resolution*width_x/width_y))
-        elif isinstance(resolution, ARRAYTYPES):
-            if len(resolution) != 2:
-                raise ValueError()
-            res_x = resolution[0]
-            res_y = resolution[1]
         else:
             raise TypeError()
         if res_x < 2 or res_y < 2:
@@ -622,42 +616,41 @@ class Points(object):
         # get kernel using scipy
         if isinstance(bw_method, NUMBERTYPES):
             if width_x > width_y:
-                bw_method /= width_y
+                ad_len = width_y
             else:
-                bw_method /= width_x
-        kernel = stats.gaussian_kde(self.xy.transpose(),
-                                    bw_method=bw_method)
-        # little adaptation to avoi streched density map
-
-        if width_x > width_y:
-            kernel.inv_cov[0, 0] *= (width_x/width_y)**2
+                ad_len = width_x
+            ad_bw_method = bw_method/ad_len
         else:
-            kernel.inv_cov[1, 1] *= (width_y/width_x)**2
+            ad_bw_method = bw_method
+        kernel = stats.gaussian_kde(self.xy.transpose(),
+                                    bw_method=ad_bw_method)
+        # little adaptation to avoid streched density map
+        if width_x > width_y:
+            kernel.inv_cov[0, 0] = np.max([kernel.inv_cov])
+        else:
+            kernel.inv_cov[1, 1] = np.max([kernel.inv_cov])
         kernel.inv_cov[0, 1] *= 0
         kernel.inv_cov[1, 0] *= 0
         # creating grid
-        if isinstance(bw_method, NUMBERTYPES):
-            dx = bw_method*2
-            dy = bw_method*2
-        elif bw_method is None or bw_method == 'scott':
-            dx = 0.05*width_x
-            dy = 0.05*width_y
-        elif bw_method == "silverman":
-            dx = 0.05*width_x
-            dy = 0.05*width_y
+        if width_x > width_y:
+            dx_border = kernel.factor*width_y/2.
+            dy_border = dx_border
         else:
-            dx = bw_method(kernel)*2
-            dy = bw_method(kernel)*2
-        axe_x = np.linspace(min_x - dx, max_x + dx, res_x)
-        axe_y = np.linspace(min_y - dy, max_y + dy, res_y)
+            dx_border = kernel.factor*width_x/2.
+            dy_border = dx_border
+        axe_x = np.linspace(min_x - dx_border, max_x + dx_border, res_x)
+        axe_y = np.linspace(min_y - dy_border, max_y + dy_border, res_y)
         X, Y = np.meshgrid(axe_x, axe_y)
         X = X.flatten()
         Y = Y.flatten()
         positions = np.array([[X[i], Y[i]]
                               for i in np.arange(len(X))]).transpose()
-        # estimate density
+        # estimating density
         values = kernel(positions)
         values = values.reshape((res_y, res_x)).transpose()
+        # normalize (not normalized yet because of the modification of inv_cov)
+        values /= np.sum(np.sum(values))*(axe_x[1]-axe_x[0])*(axe_y[1]-axe_y[0])
+        # adapt to wanted output_format
         if output_format is None or output_format == "normalized":
             unit_values = make_unit('')
         elif output_format == 'ponderated':
@@ -1501,6 +1494,13 @@ class Points(object):
         if len(self.v) != 0 and kind is not 'plot':
             cb = plt.colorbar(plot)
             cb.set_label(self.unit_v.strUnit())
+            # cb label
+            if axe_color == 'x':
+                cb.set_label('X ' + self.unit_x.strUnit())
+            elif axe_color == 'y':
+                cb.set_label('Y ' + self.unit_y.strUnit())
+            else:
+                cb.set_label('V ' + self.unit_v.strUnit())
         # x axis label
         if axe_x == 'x':
             plt.xlabel('X ' + self.unit_x.strUnit())
@@ -1515,13 +1515,6 @@ class Points(object):
             plt.ylabel('Y ' + self.unit_y.strUnit())
         else:
             plt.ylabel('V ' + self.unit_v.strUnit())
-        # cb label
-        if axe_color == 'x':
-            cb.set_label('X ' + self.unit_x.strUnit())
-        elif axe_color == 'y':
-            cb.set_label('Y ' + self.unit_y.strUnit())
-        else:
-            cb.set_label('V ' + self.unit_v.strUnit())
         if self.name is None:
             plt.title('Set of points')
         else:
@@ -2912,6 +2905,73 @@ class Profile(object):
         # returning
         return pos_min, pos_max
 
+    def get_convolution(self, other_prof, mode='full'):
+        """
+        Return the convolution with the give profile.
+
+        Parameters
+        ----------
+        other_prof : Profile object
+            .
+        mode : {‘full’, ‘valid’, ‘same’}, optional
+            ‘full’:
+                By default, mode is ‘full’. This returns the convolution at
+                each point of overlap, with an output shape of (N+M-1,). At
+                the end-points of the convolution, the signals do not overlap
+                completely, and boundary effects may be seen.
+            ‘same’:
+                Mode same returns output of length max(M, N). Boundary effects
+                are still visible.
+            ‘valid’:
+                Mode valid returns output of length max(M, N) - min(M, N) + 1.
+                The convolution product is only given for points where the
+                signals overlap completely. Values outside the signal boundary
+                have no effect.
+
+        Returns
+        -------
+        conv_prof : Profile object
+            Result of the convolution
+
+        Notes
+        -----
+        Use the numpy function 'convolve'.
+        """
+        # check
+        if not isinstance(other_prof, Profile):
+            raise TypeError()
+        if not isinstance(mode, STRINGTYPES):
+            raise TypeError()
+        if not mode in ['full', 'same', 'valid']:
+            raise ValueError()
+        if not np.all(self.x[1:] - self.x[0:-1] == self.x[1] - self.x[0]):
+            raise Exception("Profiles should have orthogonal x axis")
+        if not np.all(other_prof.x[1:] - other_prof.x[0:-1]
+                      == other_prof.x[1] - other_prof.x[0]):
+            raise Exception("Profiles should have orthogonal x axis")
+        if not self.x[1] - self.x[0] == other_prof.x[1] - other_prof.x[0]:
+            raise Exception("Profiles should have same x discretization step")
+        if not self.unit_x == other_prof.unit_x:
+            raise Exception("Profiles should have the same x unit")
+        dx = self.x[1] - self.x[0]
+        # get convolution
+        conv = np.convolve(self.y, other_prof.y, mode=mode)
+        # store in a profile
+        conv_prof = Profile(np.arange(0, dx*len(conv), dx),
+                            conv, unit_x=self.unit_x,
+                            unit_y=self.unit_y*other_prof.unit_y)
+        # return
+        return conv_prof
+
+    def get_dephasage(self, other_profile):
+        """
+        Return the dephasage between the two profiles using convolution
+        """
+        tmp_conv = self.get_convolution(other_profile, mode='full')
+        _, maxs = tmp_conv.get_extrema_position()
+        ind_closer = np.argmin(np.abs(maxs - (len(tmp_conv) + 1)/2.))
+        tmp_deph =  (len(tmp_conv) + 1)/2. - maxs[ind_closer]
+        return tmp_deph/2.
 
     ### Modifiers ###
     def add_point(self, x, y):
@@ -7666,7 +7726,7 @@ class TemporalFields(Fields, Field):
         spec /= nmb
         return spec
 
-    def get_time_profile(self, component, x, y, wanted_times=None, ind=False):
+    def get_time_profile(self, component, pt, wanted_times=None, ind=False):
         """
         Return a profile contening the time evolution of the given component.
 
@@ -7674,7 +7734,7 @@ class TemporalFields(Fields, Field):
         ----------
         component : string
             Should be an attribute name of the stored fields.
-        x, y : numbers
+        pt : 2x1 array of numbers, or Points object
             Wanted position for the time profile, in axis units.
         wanted_times : 2x1 array of numbers
             Time interval in which getting profile (default is all).
@@ -7689,39 +7749,40 @@ class TemporalFields(Fields, Field):
         # check parameters coherence
         if not isinstance(component, STRINGTYPES):
             raise TypeError("'component' must be a string")
-        if not isinstance(x, NUMBERTYPES) or not isinstance(y, NUMBERTYPES):
-            raise TypeError("'x' and 'y' must be numbers")
-        if wanted_times is None:
-            wanted_times = [self.times[0], self.times[-1]]
-        if (np.any(wanted_times < self.times[0])
-                or np.any(wanted_times > self.times[-1])):
-            raise ValueError()
-        if wanted_times[-1] <= wanted_times[0]:
-            raise ValueError()
-        if ind:
-            if not (isinstance(x, int) and isinstance(y, int)):
-                raise TypeError()
-            ind_x = x
-            ind_y = y
-        else:
-            ind_x = self.get_indice_on_axe(1, x, kind='nearest')
-            ind_y = self.get_indice_on_axe(2, y, kind='nearest')
-        axe_x, axe_y = self.axe_x, self.axe_y
-        if not (0 <= ind_x < len(axe_x) and 0 <= ind_y < len(axe_y)):
-            raise ValueError("'x' ans 'y' values out of bounds")
-        # getting wanted time if necessary
+        if isinstance(pt, ARRAYTYPES):
+            if ind:
+                if not (isinstance(pt[0], int) and isinstance(pt[1], int)):
+                    raise TypeError()
+                ind_x = pt[0]
+                ind_y = pt[1]
+            else:
+                ind_x = self.get_indice_on_axe(1, pt[0], kind='nearest')
+                ind_y = self.get_indice_on_axe(2, pt[1], kind='nearest')
+            axe_x, axe_y = self.axe_x, self.axe_y
+            if not (0 <= ind_x < len(axe_x) and 0 <= ind_y < len(axe_y)):
+                raise ValueError("'x' ans 'y' values out of bounds")
+            pt = np.array([[ind_x, ind_y]]*len(self.times), dtype=int)
+            mask_times = np.zeros(len(self.times), dtype=bool)
+        if isinstance(pt, Points):
+            mask_times = [time not in pt.v for time in self.times]
+            mask_times = np.array(mask_times, dtype=bool)
+            pt = [[self.get_indice_on_axe(1, pt.xy[i, 0], kind='nearest'),
+                   self.get_indice_on_axe(2, pt.xy[i, 1], kind='nearest')]
+                  for i in range(len(pt.xy))]
+            pt = np.array(pt, dtype=int)
         if wanted_times is not None:
-            times = self.times
-            w_times_ind = np.argwhere(np.logical_and(times <= wanted_times[1],
-                                                     times >= wanted_times[0]))
-            w_times_ind = w_times_ind.squeeze()
-        else:
-            w_times_ind = np.arange(len(self.times))
+            if wanted_times[-1] <= wanted_times[0]:
+                raise ValueError()
+            mask_times = np.logical_or(self.times < wanted_times[0], mask_times)
+            mask_times = np.logical_or(self.times > wanted_times[1], mask_times)
+        # getting wanted time if necessary
+        w_times_ind = np.arange(len(self.times))[~mask_times]
         # getting component values
         dim = len(w_times_ind)
         compo = np.empty(dim, dtype=float)
         masks = np.empty(dim, dtype=float)
         for i, time_ind in enumerate(w_times_ind):
+            ind_x, ind_y = pt[i]
             compo[i] = self.fields[time_ind].__getattribute__(component)[ind_x,
                                                                          ind_y]
             masks[i] = self.fields[time_ind].mask[ind_x, ind_y]
