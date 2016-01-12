@@ -1553,11 +1553,15 @@ class CritPoints(object):
         if field is not None:
             if not isinstance(field, VectorField):
                 raise TypeError()
-        # Set the color
+        # Set default params
         if 'color' in cpkw.keys():
             colors = [cpkw.pop('color')]*len(self.colors)
         else:
             colors = self.colors
+        if "marker" in cpkw.keys():
+            pass
+        else:
+            cpkw['marker'] = 'o'
         # display the critical lines
         if (field is not None and len(self.sadd[indice].xy) != 0
                 and isinstance(self.sadd[indice], OrientedPoints)):
@@ -1572,7 +1576,7 @@ class CritPoints(object):
         for i, pt in enumerate(self.iter):
             if pt[indice] is None:
                 continue
-            pt[indice].display(kind='plot', marker='o', color=colors[i],
+            pt[indice].display(kind='plot', color=colors[i],
                                linestyle='none', axe_x='x', axe_y='y', **cpkw)
 
     def display_traj(self, data='default', filt=None, **kw):
@@ -2181,7 +2185,6 @@ def _get_vortex_position_on_VF(vectorfield, criterion=get_residual_vorticity,
         threshold *= val_max
     bornes_n = [-val_max, -threshold]
     bornes_p = [threshold, val_max]
-
     vort = sf.get_zones_centers(bornes=bornes_n, rel=False, kind='ponderated')
     vort_c = sf.get_zones_centers(bornes=bornes_p, rel=False,
                                   kind='ponderated')

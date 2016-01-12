@@ -4593,6 +4593,8 @@ class ScalarField(Field):
             bornes = np.array(bornes, dtype=float)
         if not bornes.shape == (2,):
             raise ValueError("'bornes' must be a 2x1 array")
+        if bornes[0] == bornes[1]:
+            return None
         if not bornes[0] < bornes[1]:
             raise ValueError("'bornes' must be crescent")
         if not isinstance(rel, bool):
@@ -6398,7 +6400,7 @@ class VectorField(Field):
 
     @property
     def max(self):
-        return np.max(self.magnitude)
+        return np.max(self.magnitude[np.logical_not(self.mask)])
 
     @property
     def magnitude(self):
@@ -8432,6 +8434,53 @@ class TemporalFields(Fields, Field):
                             intervy=[axe_y_min, axe_y_max], ind=True,
                             inplace=True)
                 return tmp_tf
+
+    def mirroring(self, direction, position, inds_to_mirror='all', mir_coef=1.,
+                  inplace=False, interp=None, value=[0, 0]):
+        """
+        Return the fields with additional mirrored values.
+
+        Parameters
+        ----------
+        direction : integer
+            Axe on which place the symetry plane (1 for x and 2 for y)
+        position : number
+            Position of the symetry plane along the given axe
+        inds_to_mirror : integer
+            Number of vector rows to symetrize (default is all)
+        mir_coef : number or 2x1 array, optional
+            Optional coefficient(s) applied only to the mirrored values.
+            It can be an array first value is for 'comp_x' and second one to
+            'comp_y' (for vector fields)
+        inplace : boolean, optional
+            .
+        interp : string, optional
+            If specified, method used to fill the gap near the
+            symetry plane by interpoaltion.
+            'value' : fill with the given value,
+            'nearest' : fill with the nearest value,
+            'linear' (default): fill using linear interpolation
+            (Delaunay triangulation),
+            'cubic' : fill using cubic interpolation (Delaunay triangulation)
+        value : array, optional
+            Value at the symetry plane, in case of interpolation
+        """
+        if inplace:
+            tmp_tf = self
+        else:
+            tmp_tf = self.copy()
+        # mirror fields
+        for i in range(len(self.fields)):
+            tmp_tf.fields[i].mirroring(direction=direction, position=position,
+                                       inds_to_mirror=inds_to_mirror,
+                                       mir_coef=mir_coef, inplace=True,
+                                       interp=interp, value=value)
+        # update field
+        tmp_tf.__axe_x = self.fields[i].axe_x
+        tmp_tf.__axe_y = self.fields[i].axe_y
+        # return
+        if not inplace:
+            return tmp_tf
 
     def remove_weird_fields(self, std_coef=3., treatment='interpolate',
                             inplace=False):
