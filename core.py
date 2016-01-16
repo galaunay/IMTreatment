@@ -28,9 +28,9 @@ try:
     units.pixel = unum.Unum.unit('pixel')
 except:
     pass
-from types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from .types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES, TypeTest
 
-
+@TypeTest(STRINGTYPES)
 def make_unit(string):
     """
     Function helping for the creation of units. For more details, see the
@@ -53,8 +53,6 @@ def make_unit(string):
     >>> make_unit("N/m/s**3")
     1 [kg/s4]
     """
-    if not isinstance(string, STRINGTYPES):
-        raise TypeError("Units should be define by a string, big boy")
     if len(string) == 0:
         return unum.Unum({})
     brackets = ['(', ')', '[', ']']
@@ -306,17 +304,11 @@ class Points(object):
     ### Attributes ###
     @property
     def xy(self):
-#        # XXX: for compatibility purpose, to remove
-#        try:
-#            return self.__xy
-#        except AttributeError:
-#            return self.__dict__['xy']
+        return self.__xy
 
     @xy.setter
+    @TypeTest(values=ARRAYTYPES)
     def xy(self, values):
-        if not isinstance(values, ARRAYTYPES):
-            raise TypeError("'xy' should be an array, not {}"
-                            .format(type(values)))
         values = np.array(values, subok=True, dtype=float)
         if len(values != 0):
             if not values.ndim == 2:
@@ -325,13 +317,8 @@ class Points(object):
             if not values.shape[1] == 2:
                 raise ValueError()
         self.__xy = values
-#        # XXX: for compatibility purpose, to remove
-#        try:
-#            if len(values) != len(self.__v):
-#                self.__v = np.array([])
-#        except AttributeError:
-#            if len(values) != len(self.__dict__['v']):
-#                self.__dict__['v'] == np.array([])
+        if len(values) != len(self.__v):
+            self.__v = np.array([])
 
     @xy.deleter
     def xy(self):
@@ -339,16 +326,11 @@ class Points(object):
 
     @property
     def v(self):
-#        # XXX: for compatibility purpose, to remove
-#        try:
-#            return self.__v
-#        except AttributeError:
-#            return self.__dict__['v']
+        return self.__v
 
     @v.setter
+    @TypeTest(values=ARRAYTYPES)
     def v(self, values):
-        if not isinstance(values, ARRAYTYPES):
-            raise TypeError
         values = np.array(values, subok=True)
         if not values.ndim == 1:
             raise ValueError()
@@ -362,13 +344,10 @@ class Points(object):
 
     @property
     def unit_x(self):
-#        # XXX: for compatibility purpose, to remove
-#        try:
-#            return self.__unit_x
-#        except AttributeError:
-#            return self.__dict__['unit_x']
+        return self.__unit_x
 
     @unit_x.setter
+    @TypeTest(unit=STRINGTYPES + (unum.Unum,))
     def unit_x(self, unit):
         if isinstance(unit, unum.Unum):
             self.__unit_x = unit
@@ -386,13 +365,10 @@ class Points(object):
 
     @property
     def unit_y(self):
-#        # XXX: for compatibility purpose, to remove
-#        try:
-#            return self.__unit_y
-#        except AttributeError:
-#            return self.__dict__['unit_y']
+        return self.__unit_y
 
     @unit_y.setter
+    @TypeTest(unit=STRINGTYPES + (unum.Unum,))
     def unit_y(self, unit):
         if isinstance(unit, unum.Unum):
             self.__unit_y = unit
@@ -410,13 +386,10 @@ class Points(object):
 
     @property
     def unit_v(self):
-#        # XXX: for compatibility purpose, to remove
-#        try:
-#            return self.__unit_v
-#        except AttributeError:
-#            return self.__dict__['unit_v']
+        return self.__unit_v
 
     @unit_v.setter
+    @TypeTest(unit=STRINGTYPES + (unum.Unum,))
     def unit_v(self, unit):
         if isinstance(unit, unum.Unum):
             self.__unit_v = unit
@@ -434,13 +407,10 @@ class Points(object):
 
     @property
     def name(self):
-#        # XXX: for compatibility purpose, to remove
-#        try:
-#            return self.__name
-#        except AttributeError:
-#            return self.__dict__['name']
+        return self.__name
 
     @name.setter
+    @TypeTest(name=STRINGTYPES + (unum.Unum,))
     def name(self, name):
         if isinstance(name, STRINGTYPES):
             self.__name = name
@@ -460,8 +430,9 @@ class Points(object):
         """
         return copy.deepcopy(self)
 
+    @TypeTest(resolution=int, output_format=STRINGTYPES, raw=bool)
     def get_points_density(self, bw_method=None, resolution=100,
-                           output_format=None, raw=False):
+                           output_format='normalized', raw=False):
         """
         Return a ScalarField with points density.
 
@@ -497,38 +468,34 @@ class Points(object):
         # checking points length
         if len(self.xy) < 2:
             return None
-        resolution = int(resolution)
         # getting data
         min_x = np.min(self.xy[:, 0])
         max_x = np.max(self.xy[:, 0])
         min_y = np.min(self.xy[:, 1])
         max_y = np.max(self.xy[:, 1])
         # getting min, max values and resolution in each direction
-        if isinstance(resolution, int):
-            width_x = max_x - min_x
-            width_y = max_y - min_y
-            if width_x == 0 and width_y == 0:
-                raise Exception()
-            elif width_x == 0:
-                min_x = min_x - width_y/2.
-                max_x = max_x + width_y/2.
-                width_x = width_y
-                res_x = resolution
-                res_y = resolution
-            elif width_y == 0:
-                min_y = min_y - width_x/2.
-                max_y = max_y + width_x/2.
-                width_y = width_x
-                res_x = resolution
-                res_y = resolution
-            elif width_x > width_y:
-                res_x = resolution
-                res_y = int(np.round(resolution*width_y/width_x))
-            else:
-                res_y = resolution
-                res_x = int(np.round(resolution*width_x/width_y))
+        width_x = max_x - min_x
+        width_y = max_y - min_y
+        if width_x == 0 and width_y == 0:
+            raise Exception()
+        elif width_x == 0:
+            min_x = min_x - width_y/2.
+            max_x = max_x + width_y/2.
+            width_x = width_y
+            res_x = resolution
+            res_y = resolution
+        elif width_y == 0:
+            min_y = min_y - width_x/2.
+            max_y = max_y + width_x/2.
+            width_y = width_x
+            res_x = resolution
+            res_y = resolution
+        elif width_x > width_y:
+            res_x = resolution
+            res_y = int(np.round(resolution*width_y/width_x))
         else:
-            raise TypeError()
+            res_y = resolution
+            res_x = int(np.round(resolution*width_x/width_y))
         if res_x < 2 or res_y < 2:
             raise ValueError()
         # check potential singular covariance matrix situations
@@ -708,7 +675,8 @@ class Points(object):
                                   unit_values=unit_values)
             return sf
 
-    def get_velocity(self, incr=1, smooth=None, xaxis='time'):
+    @TypeTest(incr=int, smooth=NUMBERTYPES, xaxis=STRINGTYPES)
+    def get_velocity(self, incr=1, smooth=0, xaxis='time'):
         """
         Assuming that associated 'v' values are times for each points,
         compute the velocity of the trajectory.
@@ -729,13 +697,8 @@ class Points(object):
         Vy : Profile object
             Profile of y velocity versus time.
         """
-        if smooth is not None:
-            if not isinstance(smooth, NUMBERTYPES):
-                raise TypeError()
-            if smooth < 0:
-                raise ValueError()
-        if not isinstance(xaxis, STRINGTYPES):
-            raise TypeError()
+        if smooth < 0:
+            raise ValueError()
         if xaxis not in ['time', 'x', 'y']:
             raise ValueError()
         # checking 'v' presence
@@ -756,7 +719,7 @@ class Points(object):
         dy = y[1::] - y[:-1]
         dt = times[1::] - times[:-1]
         # smoothing if necessary
-        if smooth is not None:
+        if smooth != 0:
             tmp_pts = Points(zip(x, y), times)
             tmp_pts.smooth(tos='lowpass', size=smooth, inplace=True)
             x = tmp_pts.xy[:, 0]
@@ -786,6 +749,7 @@ class Points(object):
                          unit_y=unit_Vy)
         return prof_x, prof_y
 
+    @TypeTest(SF=ScalarField, axe_x=(STRINGTYPES + None,))
     def get_evolution_on_sf(self, SF, axe_x=None):
         """
         Return the evolution of the value represented by a scalar field, on

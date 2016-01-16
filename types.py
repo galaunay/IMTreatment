@@ -33,8 +33,10 @@ class TypeTest(object):
             var = varnames[i]
             if var in self.kwargs_types.keys():
                 w_vartypes[var] = self.kwargs_types[var]
-            else:
+            elif i < len(self.arg_types):
                 w_vartypes[var] = self.arg_types[i]
+            else:
+                pass
         self.varnames = varnames
         self.w_vartypes = w_vartypes
 
@@ -53,6 +55,8 @@ class TypeTest(object):
                 given_vartypes[varname] = type(kwargs[varname])
             # check args types
             for varname in given_vartypes.keys():
+                if varname not in self.w_vartypes.keys():
+                    continue
                 w_type = self.w_vartypes[varname]
                 g_type = given_vartypes[varname]
                 try:
