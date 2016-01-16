@@ -7,12 +7,12 @@ IMTreatment module
 
 
 import matplotlib as mpl
-from matplotlib import cm
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import Plotlib as pplt
-#import warnings
-#warnings.filterwarnings('error')
+# import warnings
+# arnings.filterwarnings('error')
+from . import tools as imttls
 import numpy as np
 import pdb
 import unum
@@ -23,92 +23,14 @@ import scipy.interpolate as spinterp
 import scipy.ndimage.measurements as msr
 from scipy import ndimage
 import scipy.optimize as spopt
-
 try:
     units.counts = unum.Unum.unit('counts')
     units.pixel = unum.Unum.unit('pixel')
 except:
     pass
-
-# TODO :  changer ce truc par 'from types improt *' => plus general !
-ARRAYTYPES = (np.ndarray, list, tuple)
-INTEGERTYPES = (int, np.int, np.int16, np.int32, np.int64, np.int8)
-NUMBERTYPES = (long, float, complex, np.float, np.float16, np.float32,
-               np.float64) + INTEGERTYPES
-STRINGTYPES = (str, unicode)
-MYTYPES = ('Profile', 'ScalarField', 'VectorField', 'VelocityField',
-           'VelocityFields', 'TemporalVelocityFields', 'patialVelocityFields')
-from . import tools as imttls
+from types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 
 
-class ShapeError(StandardError):
-    pass
-
-
-class PTest(object):
-    """
-    Decorator used to test input parameters types.
-    """
-    #FIXME:  +++ need to use OrderedDict instead of classical dicts +++
-
-    def __init__(self, *types, **kwtypes):
-        self.types = list(types)
-        self.ktypes = list([None]*len(types))
-        self.ktypes += kwtypes.keys()
-        self.types += kwtypes.values()
-
-    def __call__(self, funct):
-        return self.decorator(funct)
-
-    def decorator(self, funct):
-        def new_funct(*args, **kwargs):
-            len_args = len(args)
-            types = self.types[0:len_args]
-            kwtypes = {}
-            # defining parameters name for error message
-            order_str = ['First', 'Second', 'Third', 'Fourth', 'Fifth',
-                         'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth']
-            # test if there is not too much arguments
-            if len_args + len(kwargs) > len(self.types):
-                return funct(*args, **kwargs)
-            # storing given keywords parameters
-            for i, key in enumerate(kwargs.keys()):
-                kwtypes.update({self.ktypes[i + len_args]:
-                                self.types[len_args + i]})
-            # treat non-keyword parameters
-            for i, arg in enumerate(args):
-                # raise error if argument type is not adequate
-                if not isinstance(args[i], types[i]):
-                    actual_types = str(types[i]).replace('type ', '')\
-                                                .replace('>', '')\
-                                                .replace('<', '')
-                    wanted_types = str(type(args[i])).replace('type ', '')\
-                                                     .replace('>', '')\
-                                                     .replace('<', '')
-                    raise TypeError("{} parameter should be {}, not {}."
-                                    .format(order_str[i], actual_types,
-                                            wanted_types))
-            # treat keyword parameters
-            for j, key in enumerate(kwargs.keys()):
-                # test if keyword param exist
-                if not key in kwtypes.keys():
-                    return funct(*args, **kwargs)
-                # return error if keyword argument type is not adequat
-                if not isinstance(kwargs[key], kwtypes[key]):
-                    actual_types = str(kwtypes[key]).replace('<type ', '')\
-                                                    .replace('>', '')
-                    wanted_types = str(type(kwargs[key]))\
-                        .replace('<type ', '')\
-                        .replace('>', '')
-                    raise TypeError("'{}' should be {}, not {}."
-                                    .format(key, actual_types, wanted_types))
-            return funct(*args, **kwargs)
-        new_funct.__doc__ = funct.__doc__
-        new_funct.__name__ = funct.__name__
-        return new_funct
-
-
-#@PTest(STRINGTYPES)
 def make_unit(string):
     """
     Function helping for the creation of units. For more details, see the
@@ -155,8 +77,8 @@ def make_unit(string):
         for symb in operators + brackets:
             j = len(pieces)-1
             while True:
-                if (pieces[j].find(symb) != -1
-                        and len(pieces[j]) != len(symb)):
+                if (pieces[j].find(symb) != -1 and
+                        len(pieces[j]) != len(symb)):
                     splitpiece = list(pieces[j].partition(symb))
                     pieces[j:j+1] = splitpiece
                     j += 2
@@ -230,7 +152,7 @@ def make_unit(string):
                     stringlist[j] = unum.Unum({stringlist[j]: 1})
         # traitement des opérateurs
         liste = stringlist
-            # ^
+        # ^
         for ind in np.arange(len(liste)-1, 0, -1):
             if isinstance(liste[ind], unum.Unum):
                 continue
@@ -239,7 +161,7 @@ def make_unit(string):
                 ind -= 2
                 if ind < 0:
                     break
-            # /
+        # /
         for ind in np.arange(len(liste)-1, 0, -1):
             if isinstance(liste[ind], unum.Unum):
                 continue
@@ -250,7 +172,7 @@ def make_unit(string):
                 ind -= 2
                 if ind < 0:
                     break
-            # *
+        # *
         for ind in np.arange(len(liste)-1, 0, -1):
             if isinstance(liste[ind], unum.Unum):
                 continue
@@ -384,18 +306,18 @@ class Points(object):
     ### Attributes ###
     @property
     def xy(self):
-        # XXX: for compatibility purpose, to remove
-        try:
-            return self.__xy
-        except AttributeError:
-            return self.__dict__['xy']
+#        # XXX: for compatibility purpose, to remove
+#        try:
+#            return self.__xy
+#        except AttributeError:
+#            return self.__dict__['xy']
 
     @xy.setter
     def xy(self, values):
         if not isinstance(values, ARRAYTYPES):
             raise TypeError("'xy' should be an array, not {}"
                             .format(type(values)))
-        values = np.array(values, subok=True)
+        values = np.array(values, subok=True, dtype=float)
         if len(values != 0):
             if not values.ndim == 2:
                 raise ValueError("ndim of xy is {} and should be 2"
@@ -417,11 +339,11 @@ class Points(object):
 
     @property
     def v(self):
-        # XXX: for compatibility purpose, to remove
-        try:
-            return self.__v
-        except AttributeError:
-            return self.__dict__['v']
+#        # XXX: for compatibility purpose, to remove
+#        try:
+#            return self.__v
+#        except AttributeError:
+#            return self.__dict__['v']
 
     @v.setter
     def v(self, values):
@@ -440,11 +362,11 @@ class Points(object):
 
     @property
     def unit_x(self):
-        # XXX: for compatibility purpose, to remove
-        try:
-            return self.__unit_x
-        except AttributeError:
-            return self.__dict__['unit_x']
+#        # XXX: for compatibility purpose, to remove
+#        try:
+#            return self.__unit_x
+#        except AttributeError:
+#            return self.__dict__['unit_x']
 
     @unit_x.setter
     def unit_x(self, unit):
@@ -464,11 +386,11 @@ class Points(object):
 
     @property
     def unit_y(self):
-        # XXX: for compatibility purpose, to remove
-        try:
-            return self.__unit_y
-        except AttributeError:
-            return self.__dict__['unit_y']
+#        # XXX: for compatibility purpose, to remove
+#        try:
+#            return self.__unit_y
+#        except AttributeError:
+#            return self.__dict__['unit_y']
 
     @unit_y.setter
     def unit_y(self, unit):
@@ -488,11 +410,11 @@ class Points(object):
 
     @property
     def unit_v(self):
-        # XXX: for compatibility purpose, to remove
-        try:
-            return self.__unit_v
-        except AttributeError:
-            return self.__dict__['unit_v']
+#        # XXX: for compatibility purpose, to remove
+#        try:
+#            return self.__unit_v
+#        except AttributeError:
+#            return self.__dict__['unit_v']
 
     @unit_v.setter
     def unit_v(self, unit):
@@ -512,11 +434,11 @@ class Points(object):
 
     @property
     def name(self):
-        # XXX: for compatibility purpose, to remove
-        try:
-            return self.__name
-        except AttributeError:
-            return self.__dict__['name']
+#        # XXX: for compatibility purpose, to remove
+#        try:
+#            return self.__name
+#        except AttributeError:
+#            return self.__dict__['name']
 
     @name.setter
     def name(self, name):
@@ -610,8 +532,8 @@ class Points(object):
         if res_x < 2 or res_y < 2:
             raise ValueError()
         # check potential singular covariance matrix situations
-        if (np.all(self.xy[:, 0] == self.xy[0, 0])
-                or np.all(self.xy[:, 1] == self.xy[0, 1])):
+        if (np.all(self.xy[:, 0] == self.xy[0, 0]) or
+                np.all(self.xy[:, 1] == self.xy[0, 1])):
             return None
         # get kernel using scipy
         if isinstance(bw_method, NUMBERTYPES):
@@ -649,7 +571,9 @@ class Points(object):
         values = kernel(positions)
         values = values.reshape((res_y, res_x)).transpose()
         # normalize (not normalized yet because of the modification of inv_cov)
-        values /= np.sum(np.sum(values))*(axe_x[1]-axe_x[0])*(axe_y[1]-axe_y[0])
+        dx = axe_x[1] - axe_x[0]
+        dy = axe_y[1] - axe_y[0]
+        values /= np.sum(np.sum(values))*(dx)*(dy)
         # adapt to wanted output_format
         if output_format is None or output_format == "normalized":
             unit_values = make_unit('')
@@ -665,7 +589,7 @@ class Points(object):
         else:
             raise ValueError()
         # return
-        if np.all(np.isnan(values)) or np.all(values == np.inf) :
+        if np.all(np.isnan(values)) or np.all(values == np.inf):
             return None
         if raw:
             return values
@@ -812,7 +736,7 @@ class Points(object):
                 raise ValueError()
         if not isinstance(xaxis, STRINGTYPES):
             raise TypeError()
-        if not xaxis in ['time', 'x', 'y']:
+        if xaxis not in ['time', 'x', 'y']:
             raise ValueError()
         # checking 'v' presence
         if len(self.v) == 0:
@@ -1336,7 +1260,8 @@ class Points(object):
             radius of the smoothing for 'uniform',
             radius of the smoothing for 'gaussian',
             cut off frequency for 'lowpass'
-            Default are 3 for 'uniform',  1 for 'gaussian' and 0.1 for 'lowpass'.
+            Default are 3 for 'uniform',  1 for 'gaussian' and 0.1 for '
+            lowpass'.
         inplace : boolean
             If 'False', return a smoothed points field
             else, smooth in place.
@@ -1386,7 +1311,8 @@ class Points(object):
                 v = signal.filtfilt(B, A, v)
 
         else:
-            raise ValueError("'tos' must be 'uniform', 'gaussian' or 'lowpass'")
+            raise ValueError("'tos' must be 'uniform', 'gaussian' or "
+                             "'lowpass'")
         # storing
         if inplace:
             self.xy[:, 0] = x
@@ -1440,7 +1366,7 @@ class Points(object):
             if self.v is None:
                 plot = plt.scatter(x_values, y_values, **plotargs)
             else:
-                if not 'c' in plotargs:
+                if 'c' not in plotargs:
                     plotargs['c'] = color_values
                 plot = plt.scatter(x_values, y_values, **plotargs)
         elif kind == 'plot':
@@ -1567,9 +1493,9 @@ class Points(object):
             Which value used to construct the profile
         """
         # check
-        if not axe_x in ['x', 'y', 'v']:
+        if axe_x not in ['x', 'y', 'v']:
             raise ValueError()
-        if not axe_y in ['x', 'y', 'v']:
+        if axe_y not in ['x', 'y', 'v']:
             raise ValueError()
         # get data
         if axe_x == 'x':
@@ -1649,7 +1575,8 @@ class OrientedPoints(Points):
             elif len(obj.xy) == 0:
                 tmp_ori = self.orientations
             else:
-                tmp_ori = np.append(self.orientations, obj.orientations, axis=0)
+                tmp_ori = np.append(self.orientations, obj.orientations,
+                                    axis=0)
             tmp_opts = OrientedPoints()
             tmp_opts.import_from_Points(tmp_pts, tmp_ori)
             return tmp_opts
@@ -2404,9 +2331,9 @@ class Profile(object):
                 val2_ipp = values2[ind + 1]
                 if (val_i >= value and val_ipp < value) \
                         or (val_i <= value and val_ipp > value):
-                    i_value = ((val2_i*np.abs(val_ipp - value)
-                               + val2_ipp*np.abs(values[ind] - value))
-                               / np.abs(values[ind] - val_ipp))
+                    i_value = ((val2_i*np.abs(val_ipp - value) +
+                               val2_ipp*np.abs(values[ind] - value)) /
+                               np.abs(values[ind] - val_ipp))
                     i_values.append(i_value)
         # returning
         return i_values
@@ -2582,10 +2509,12 @@ class Profile(object):
         fs = 1/(time[1] - time[0])
         if welch_seglen is None or welch_seglen >= len(time):
             if scaling == 'base':
-                frq, magn = periodogram(values, fs, scaling='spectrum', detrend='linear')
+                frq, magn = periodogram(values, fs, scaling='spectrum',
+                                        detrend='linear')
                 magn = np.sqrt(magn)
             else:
-                frq, magn = periodogram(values, fs, scaling=scaling, detrend='linear')
+                frq, magn = periodogram(values, fs, scaling=scaling,
+                                        detrend='linear')
         else:
             if scaling == 'base':
                 frq, magn = welch(values, fs, scaling='spectrum',
@@ -2634,7 +2563,7 @@ class Profile(object):
         Only work with uniformely spaced data.
 
         """
-        #check
+        # check
         dx = self.x[1] - self.x[0]
         if widths is None:
             widths = np.linspace(0, len(self.y) - 1, 101)[1::]
@@ -2672,7 +2601,6 @@ class Profile(object):
                                   unit_x=self.unit_x, unit_y=self.unit_x,
                                   unit_values=self.unit_y)
             return SF
-
 
     def get_pdf(self, bw_method='scott', resolution=1000, raw=False):
         """
@@ -2792,6 +2720,7 @@ class Profile(object):
         if p0 is None:
             nmb_arg = func.func_code.co_argcount
             p0 = [1]*nmb_arg
+
         # minimize function
         def min_func(args, x, y):
             return y - func(x, *args)
@@ -2824,7 +2753,9 @@ class Profile(object):
         bw_method : str or scalar, optional
             The method used to calculate the estimator bandwidth.
             Can be 'scott', 'silverman' or a number to set manually the
-            gaussians width.
+            gaussians std
+            (it should aproximately be the size of the density
+            node you want to see).
             (see 'scipy.stats.gaussian_kde' documentation for more details)
         Returns
         -------
@@ -2842,11 +2773,25 @@ class Profile(object):
         x = self.x[filt]
         y = self.y[filt]
 
+        # AD bandwidth
+        width_x = np.max(self.x) - np.min(self.x)
+        width_y = np.max(self.y) - np.min(self.y)
+        if isinstance(bw_method, NUMBERTYPES):
+            if width_x > width_y:
+                ad_len = width_y
+            else:
+                ad_len = width_x
+            ad_bw_method = bw_method/float(ad_len)
+        else:
+            ad_bw_method = bw_method
+
         # getting kernel estimator
-        kernel = stats.gaussian_kde(y, bw_method=bw_method)
+        kernel = stats.gaussian_kde(y, bw_method=ad_bw_method)
 
         # getting distribution
-        distrib_x = np.linspace(np.min(y), np.max(y), resolution)
+        distrib_x = np.linspace(np.min(y) - np.abs(np.min(y)*kernel.factor/2.),
+                                np.max(y) + np.abs(np.max(y)*kernel.factor/2.),
+                                resolution)
         distrib_y = kernel(distrib_x)
 
         # normalizing
@@ -2942,12 +2887,12 @@ class Profile(object):
             raise TypeError()
         if not isinstance(mode, STRINGTYPES):
             raise TypeError()
-        if not mode in ['full', 'same', 'valid']:
+        if mode not in ['full', 'same', 'valid']:
             raise ValueError()
         if not np.all(self.x[1:] - self.x[0:-1] == self.x[1] - self.x[0]):
             raise Exception("Profiles should have orthogonal x axis")
-        if not np.all(other_prof.x[1:] - other_prof.x[0:-1]
-                      == other_prof.x[1] - other_prof.x[0]):
+        if not np.all(other_prof.x[1:] - other_prof.x[0:-1] ==
+                      other_prof.x[1] - other_prof.x[0]):
             raise Exception("Profiles should have orthogonal x axis")
         if not self.x[1] - self.x[0] == other_prof.x[1] - other_prof.x[0]:
             raise Exception("Profiles should have same x discretization step")
@@ -2970,7 +2915,7 @@ class Profile(object):
         tmp_conv = self.get_convolution(other_profile, mode='full')
         _, maxs = tmp_conv.get_extrema_position()
         ind_closer = np.argmin(np.abs(maxs - (len(tmp_conv) + 1)/2.))
-        tmp_deph =  (len(tmp_conv) + 1)/2. - maxs[ind_closer]
+        tmp_deph =  (len(tmp_conv) + 1)/2.- maxs[ind_closer]
         return tmp_deph/2.
 
     ### Modifiers ###
@@ -3018,7 +2963,7 @@ class Profile(object):
         if not inplace:
             return tmp_prof
 
-    def crop(self, intervx, ind=False, inplace=False):
+    def crop(self, intervx=None, intervy=None, ind=False, inplace=False):
         """
         Crop the profile along 'x'.
 
@@ -3026,61 +2971,86 @@ class Profile(object):
         ----------
         intervx : array of two numbers
             Bound values of x.
+        intervy : array of two numbers
+            Bound values of y.
         ind : Boolean, optionnal
-            If 'False' (Default), 'intervx' are values along x axis,
-            if 'True', 'intervx' are indices of values along x.
+            If 'False' (Default), 'intervx' and 'intervy' are values along x
+            axis, if 'True', 'intervx' and 'intervy' are indices of values
+            along x.
         inplace : boolean, optional
             .
         """
         # checking parameters coherence
-        if not isinstance(intervx, ARRAYTYPES):
-            raise TypeError("'intervx' must be an array")
-        intervx = np.array(intervx)
-        if not intervx.shape == (2,):
-            raise ValueError("'intervx' must be an array with only two"
-                             "values")
-        if intervx[0] >= intervx[1]:
-            raise ValueError("'intervx' values must be crescent")
-        # given position is not an indice
-        if not ind:
+        if intervx is not None:
+            if not isinstance(intervx, ARRAYTYPES):
+                raise TypeError("'intervx' must be an array")
+            intervx = np.array(intervx)
+            if not intervx.shape == (2,):
+                raise ValueError("'intervx' must be an array with only two"
+                                 "values")
+            if intervx[0] >= intervx[1]:
+                raise ValueError("'intervx' values must be crescent")
+        if intervy is not None:
+            if not isinstance(intervy, ARRAYTYPES):
+                raise TypeError("'intervy' must be an array")
+            intervy = np.array(intervy)
+            if not intervy.shape == (2,):
+                raise ValueError("'intervy' must be an array with only two"
+                                 "values")
+            if intervy[0] >= intervy[1]:
+                raise ValueError("'intervy' values must be crescent")
+        new_x = self.x.copy()
+        new_y = self.y.copy()
+        new_mask = self.mask.copy()
+        # treat intervx with ind=False
+        if not ind and intervx is not None:
             if all(intervx < np.min(self.x))\
                     or all(intervx > np.max(self.x)):
                 raise ValueError("'intervx' values are out of profile")
             ind1 = 0
             ind2 = -1
-            for i in np.arange(len(self.x)-1, 0, -1):
-                if self.x[i] == intervx[0]:
+            for i in np.arange(len(new_x)-1, 0, -1):
+                if new_x[i] == intervx[0]:
                     ind1 = i
-                elif self.x[i] == intervx[1]:
+                elif new_x[i] == intervx[1]:
                     ind2 = i + 1
-                elif (self.x[i] > intervx[0] and self.x[i-1] < intervx[0]) \
-                        or (self.x[i] < intervx[0]
-                            and self.x[i-1] > intervx[0]):
+                elif (new_x[i] > intervx[0] and new_x[i-1] < intervx[0]) \
+                        or (new_x[i] < intervx[0] and
+                            new_x[i-1] > intervx[0]):
                     ind1 = i + 1
-                elif (self.x[i] > intervx[1] and self.x[i-1] < intervx[1]) \
-                        or (self.x[i] < intervx[1]
-                            and self.x[i-1] > intervx[1]):
+                elif (new_x[i] > intervx[1] and new_x[i-1] < intervx[1]) \
+                        or (new_x[i] < intervx[1] and
+                            new_x[i-1] > intervx[1]):
                     ind2 = i
             indices = [ind1, ind2]
-            #indices.sort()
-            x_new = self.x[indices[0]:indices[1]]
-            y_new = self.y[indices[0]:indices[1]]
-            mask_new = self.mask[indices[0]:indices[1]]
-        # given position is an indice
-        else:
+            new_x = new_x[indices[0]:indices[1]]
+            new_y = new_y[indices[0]:indices[1]]
+            new_mask = new_mask[indices[0]:indices[1]]
+        # treat intervy with ind=False
+        if not ind and intervy is not None:
+            filt = np.logical_and(self.y > intervy[0], self.y < intervy[1])
+            new_x = new_x[filt]
+            new_y = new_y[filt]
+            new_mask = new_mask[filt]
+        # treat intervx with ind=True
+        if ind and intervx is not None:
             intervx = np.array(intervx, dtype=int)
             if any(intervx < 0) or any(intervx > len(self.x)):
                 raise ValueError("'intervx' indices are out of profile")
-            x_new = self.x[intervx[0]:intervx[1]]
-            y_new = self.y[intervx[0]:intervx[1]]
-            mask_new = self.mask[intervx[0]:intervx[1]]
+            new_x = self.x[intervx[0]:intervx[1]]
+            new_y = self.y[intervx[0]:intervx[1]]
+            new_mask = self.mask[intervx[0]:intervx[1]]
+        # treat intervy with ind=True
+        if ind and intervy is not None:
+            raise ValueError("Specifying 'intervy' with indices has no sens")
+        # return
         if inplace:
-            self.x = x_new
-            self.y = y_new
-            self.mask = mask_new
+            self.x = new_x
+            self.y = new_y
+            self.mask = new_mask
             return None
         else:
-            tmp_prof = Profile(x_new, y_new, mask_new, self.unit_x,
+            tmp_prof = Profile(new_x, new_y, new_mask, self.unit_x,
                                self.unit_y)
             return tmp_prof
 
@@ -3130,7 +3100,6 @@ class Profile(object):
         # returning
         if not inplace:
             return tmp_prof
-
 
     def fill(self, kind='slinear', fill_value=0., inplace=False, crop=False):
         """
@@ -3231,7 +3200,7 @@ class Profile(object):
         if not isinstance(interp, STRINGTYPES):
             raise TypeError()
         if not interp in ['linear', 'nearest', 'zero', 'slinear', 'quadratic',
-            'cubic']:
+                          'cubic']:
             raise ValueError()
         if not isinstance(inplace, bool):
             raise TypeError()
@@ -3245,11 +3214,11 @@ class Profile(object):
         # interpolate using scipy
         old_inds = np.arange(0, len(tmp_prof.x)*fact, fact)
         new_inds = np.arange(old_inds[-1] + 1)
-        interp_x = spinterp.interp1d(old_inds[filt], tmp_prof.x[filt], kind=interp,
-                                     assume_sorted=True)
+        interp_x = spinterp.interp1d(old_inds[filt], tmp_prof.x[filt],
+                                     kind=interp, assume_sorted=True)
         new_x = interp_x(new_inds)
-        interp_y = spinterp.interp1d(old_inds[filt], tmp_prof.y[filt], kind=interp,
-                                     assume_sorted=True)
+        interp_y = spinterp.interp1d(old_inds[filt], tmp_prof.y[filt],
+                                     kind=interp, assume_sorted=True)
         new_y = interp_y(new_inds)
         # return
         tmp_prof.x = new_x
@@ -3359,10 +3328,10 @@ class Profile(object):
             size = 3
         elif size is None and tos == 'gaussian':
             size = 1
-        if not direction in ['x', 'y', 'xy']:
+        if direction not in ['x', 'y', 'xy']:
             raise ValueError()
         # default smoothing border mode to 'nearest'
-        if not 'mode' in kw.keys():
+        if 'mode' not in kw.keys():
             kw.update({'mode': 'nearest'})
         # getting data
         if inplace:
@@ -3599,6 +3568,14 @@ class Field(object):
     def shape(self):
         return self.__axe_x.shape[0], self.__axe_y.shape[0]
 
+    @property
+    def dx(self):
+        return self.axe_x[1] - self.axe_x[0]
+
+    @property
+    def dy(self):
+        return self.axe_y[1] - self.axe_y[0]
+
     ### Watchers ###
     def copy(self):
         """
@@ -3642,7 +3619,7 @@ class Field(object):
                 raise ValueError("'value' is out of bound.")
         if not isinstance(kind, STRINGTYPES):
             raise TypeError()
-        if not kind in ['bounds', 'nearest', 'decimal']:
+        if kind not in ['bounds', 'nearest', 'decimal']:
             raise ValueError()
         # getting the borning indices
         ind = np.searchsorted(axe, value)
@@ -3669,8 +3646,8 @@ class Field(object):
             value_1 = axe[inds[0]]
             value_2 = axe[inds[1]]
             delta = np.abs(value_2 - value_1)
-            return (inds[0]*np.abs(value - value_2)/delta
-                    + inds[1]*np.abs(value - value_1)/delta)
+            return (inds[0]*np.abs(value - value_2)/delta +
+                    inds[1]*np.abs(value - value_1)/delta)
 
     def get_points_around(self, center, radius, ind=False):
         """
@@ -3694,7 +3671,7 @@ class Field(object):
             [(ind1x, ind1y), (ind2x, ind2y), ...].
             You can easily put them in the axes to obtain points coordinates
         """
-        #checking parameters
+        # checking parameters
         if not isinstance(center, ARRAYTYPES):
             raise TypeError("'center' must be an array")
         center = np.array(center, dtype=float)
@@ -3811,7 +3788,7 @@ class Field(object):
         # check params
         if not isinstance(angle, NUMBERTYPES):
             raise TypeError()
-        if angle%90 != 0:
+        if angle % 90 != 0:
             raise ValueError()
         if not isinstance(inplace, bool):
             raise TypeError()
@@ -3821,7 +3798,7 @@ class Field(object):
         else:
             tmp_field = self.copy()
         # normalize angle
-        angle = angle%360
+        angle = angle % 360
         # rotate
         if angle == 0:
             pass
@@ -4000,7 +3977,6 @@ class Field(object):
             else:
                 return cropfield
 
-
     def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
                inplace=False):
         """
@@ -4130,9 +4106,9 @@ class ScalarField(Field):
                 new_axe_x = self.axe_x[new_ind_x]
                 new_axe_y = self.axe_y[new_ind_y]
                 fact = otherone.unit_values/self.unit_values
-                new_values = (self.values[new_ind_value]
-                              + otherone.values[new_ind_valueo]
-                              * fact.asNumber())
+                new_values = (self.values[new_ind_value] +
+                              otherone.values[new_ind_valueo] *
+                              fact.asNumber())
                 new_values = new_values.reshape((len(new_axe_x),
                                                  len(new_axe_y)))
                 new_mask = np.logical_or(self.mask[new_ind_value],
@@ -4508,9 +4484,9 @@ class ScalarField(Field):
                 pos_y2 = self.axe_y[inds_y[1]]
                 value1 = self.values[ind_x, inds_y[0]]
                 value2 = self.values[ind_x, inds_y[1]]
-                i_value = ((value2*np.abs(pos_y1 - y)
-                           + value1*np.abs(pos_y2 - y))
-                           / np.abs(pos_y1 - pos_y2))
+                i_value = ((value2*np.abs(pos_y1 - y) +
+                           value1*np.abs(pos_y2 - y)) /
+                           np.abs(pos_y1 - pos_y2))
                 res = i_value*unit
             # if we are on a y grid branch
             elif inds_y[0] == inds_y[1]:
@@ -4519,9 +4495,9 @@ class ScalarField(Field):
                 pos_x2 = self.axe_x[inds_x[1]]
                 value1 = self.values[inds_x[0], ind_y]
                 value2 = self.values[inds_x[1], ind_y]
-                i_value = ((value2*np.abs(pos_x1 - x)
-                            + value1*np.abs(pos_x2 - x))
-                           / np.abs(pos_x1 - pos_x2))
+                i_value = ((value2*np.abs(pos_x1 - x) +
+                            value1*np.abs(pos_x2 - x)) /
+                            np.abs(pos_x1 - pos_x2))
                 return i_value*unit
             # if we are in the middle of nowhere (linear interpolation)
             else:
@@ -4550,7 +4526,8 @@ class ScalarField(Field):
                 a = a.flatten()
                 b = b.flatten()
                 pts = zip(a, b)
-                interp_vx = spinterp.LinearNDInterpolator(pts, values.flatten())
+                interp_vx = spinterp.LinearNDInterpolator(pts,
+                                                          values.flatten())
                 i_value = float(interp_vx(x, y))
                 res = i_value*unit
             return res
@@ -4694,7 +4671,8 @@ class ScalarField(Field):
         """
         # get data
         tmp_sf = self.copy()
-        tmp_sf.mirroring(direction=1, position=tmp_sf.axe_x[0], inds_to_mirror=1, inplace=True)
+        tmp_sf.mirroring(direction=1, position=tmp_sf.axe_x[0],
+                         inds_to_mirror=1, inplace=True)
         tmp_sf.mirroring(direction=1, position=tmp_sf.axe_x[-1],
                          inds_to_mirror=1, inplace=True)
         tmp_sf.mirroring(direction=2, position=tmp_sf.axe_y[0],
@@ -4716,7 +4694,7 @@ class ScalarField(Field):
         else:
             reverse = False
         sts = get_streamlines(vf, pts, reverse=reverse, resolution=0.1)
-         # get the final converged points
+        # get the final converged points
         extremum_pos = []
         if isinstance(sts, ARRAYTYPES):
             for i, st in enumerate(sts):
@@ -4778,7 +4756,7 @@ class ScalarField(Field):
             raise TypeError()
         if not isinstance(interp, STRINGTYPES):
             raise TypeError()
-        if not interp in ['nearest', 'linear']:
+        if interp not in ['nearest', 'linear']:
             raise ValueError()
         # getting data
         if direction == 1:
@@ -4815,7 +4793,7 @@ class ScalarField(Field):
         else:
             raise ValueError()
         # if use interpolation
-        if isinstance(position, NUMBERTYPES) and interp =='linear':
+        if isinstance(position, NUMBERTYPES) and interp == 'linear':
             if direction == 1:
                 axe = self.axe_y
                 if ind:
@@ -4975,10 +4953,10 @@ class ScalarField(Field):
         If there is missing values on the field, 'fill' is used to linearly
         interpolate the missing values (can impact the spectrum).
         """
-         # check parameters
+        # check parameters
         if not isinstance(direction, STRINGTYPES):
             raise TypeError()
-        if not direction in ['x', 'y']:
+        if direction not in ['x', 'y']:
             raise ValueError()
         if intervx is None:
             intervx = [self.axe_x[0], self.axe_x[-1]]

@@ -497,14 +497,14 @@ class CritPoints(object):
         if not isinstance(new_unit_x, unum.Unum):
             raise TypeError()
         self.__unit_x = new_unit_x
-        for kind in self.iter:
-            for i in np.arange(len(kind)):
-                kind[i].unit_x = new_unit_x
-        for kind in self.iter_traj:
-            if kind is None:
-                continue
-            for i in np.arange(len(kind)):
-                kind[i].unit_x = new_unit_x
+#        for kind in self.iter:
+#            for i in np.arange(len(kind)):
+#                kind[i].unit_x = new_unit_x
+#        for kind in self.iter_traj:
+#            if kind is None:
+#                continue
+#            for i in np.arange(len(kind)):
+#                kind[i].unit_x = new_unit_x
 
     @property
     def unit_y(self):
@@ -517,14 +517,14 @@ class CritPoints(object):
         if not isinstance(new_unit_y, unum.Unum):
             raise TypeError()
         self.__unit_y = new_unit_y
-        for kind in self.iter:
-            for i in np.arange(len(kind)):
-                kind[i].unit_y = new_unit_y
-        for kind in self.iter_traj:
-            if kind is None:
-                continue
-            for i in np.arange(len(kind)):
-                kind[i].unit_y = new_unit_y
+#        for kind in self.iter:
+#            for i in np.arange(len(kind)):
+#                kind[i].unit_y = new_unit_y
+#        for kind in self.iter_traj:
+#            if kind is None:
+#                continue
+#            for i in np.arange(len(kind)):
+#                kind[i].unit_y = new_unit_y
 
     @property
     def unit_time(self):
@@ -537,14 +537,14 @@ class CritPoints(object):
         if not isinstance(new_unit_time, unum.Unum):
             raise TypeError()
         self.__unit_time = new_unit_time
-        for kind in self.iter:
-            for i in np.arange(len(kind)):
-                kind[i].unit_v = new_unit_time
-        for kind in self.iter_traj:
-            if kind is None:
-                continue
-            for i in np.arange(len(kind)):
-                kind[i].unit_v = new_unit_time
+#        for kind in self.iter:
+#            for i in np.arange(len(kind)):
+#                kind[i].unit_v = new_unit_time
+#        for kind in self.iter_traj:
+#            if kind is None:
+#                continue
+#            for i in np.arange(len(kind)):
+#                kind[i].unit_v = new_unit_time
 
     ### Properties ###
     @property
@@ -1074,11 +1074,15 @@ class CritPoints(object):
             raise Exception("You must calculate trajectories"
                             "before cleaning them")
         # clean trajectories
-        for type_traj in self.iter_traj:
-            for i in np.arange(len(type_traj) - 1, -1, -1):
-                traj = type_traj[i]
+        trajs = ['foc_traj', 'foc_c_traj', 'node_i_traj', 'node_o_traj',
+                 'sadd_traj']
+        for j in range(len(trajs)):
+            tmp_type_traj = self.__getattribute__(trajs[j])
+            for i in np.arange(len(tmp_type_traj) - 1, -1, -1):
+                traj = tmp_type_traj[i]
                 if len(traj.xy) < min_nmb_in_traj:
-                    del type_traj[i]
+                    tmp_type_traj = np.delete(tmp_type_traj, i)
+            self.__setattr__(trajs[j], tmp_type_traj)
         # extend deleting to points
         self._traj_to_pts()
 
