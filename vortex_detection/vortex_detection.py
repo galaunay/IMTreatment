@@ -810,7 +810,8 @@ class CritPoints(object):
         return res_min, res_max
 
     def get_mean_trajectory(self, cp_type, min_len=20,
-                            min_nmb_to_avg=5, max_rel_epsilon=1.):
+                            min_nmb_to_avg=5, max_rel_epsilon=1.,
+                            verbose=False):
         """
         Return a mean trajectory (based on a set of trajectories)
 
@@ -837,19 +838,24 @@ class CritPoints(object):
         mean_trajs = []
         trajs = self.__dict__['{}_traj'.format(cp_type)]
         used = np.zeros((len(trajs)), dtype=bool)
-        min_conv = []
+        skipped = np.zeros((len(trajs)), dtype=bool)
+        nmb_mean_traj = 0
+        nmb_too_short = 0
+        nmb_too_diff = 0
         while True:
+            nmb_traj_used = 0
             av_x = None
             av_y = None
             av_t = None
             # concatenate all the trajectories
             for i, traj in enumerate(trajs):
                 # skip if already used
-                if used[i]:
+                if used[i] or skipped[i]:
                     continue
                 # remove from the set if trajectory length is too low
                 if len(traj) < min_len:
                     used[i] = True
+                    nmb_too_short += 1
                     continue
                 # get the parameters evolution with time
                 tmp_x = traj.export_to_profile(axe_x="v", axe_y="x")
@@ -860,23 +866,27 @@ class CritPoints(object):
                 tmp_t.x -= tmp_t.x[0]
                 # store first trajectory (referential)
                 if av_x is None:
-                    tmp_x_base = tmp_x
+                    tmp_x_base = tmp_x.copy()
                     av_x = tmp_x.copy()
                     av_y = tmp_y.copy()
                     av_t = tmp_t.copy()
                     used[i] = True
+                    nmb_traj_used += 1
                     continue
+                # actualize reference
+                tmp_x_base = av_x.average_doublons(inplace=False)
                 # if trajectory is too different from the referential one, skip
                 tmp_conv = tmp_x.get_convolution_of_difference(tmp_x_base,
                                                                normalized=True)
-                min_conv.append(tmp_conv.min)
                 if tmp_conv.min > max_rel_epsilon:
                     continue
                 # else, shift the trajectory and add it to the set
                 shift = ((tmp_x_base.x[-1] - tmp_x_base.x[0])
-                         - (tmp_x.x[-1] - tmp_x.x[0])/2.)
-                shift += tmp_conv.get_value_position(tmp_conv.min)[0]
-                shift -= tmp_conv.x[-1]/2.
+                         - (tmp_x.x[-1] - tmp_x.x[0]))/2.
+                shift += (tmp_conv.get_value_position(tmp_conv.min)[0]
+                          - tmp_conv.x[-1]/2.)
+                dx = tmp_x.x[1] - tmp_x.x[0]
+                shift = np.floor(shift/dx)*dx   # not allow quarter-dx
                 tmp_x.x += shift
                 tmp_y.x += shift
                 tmp_t.x += shift
@@ -884,6 +894,7 @@ class CritPoints(object):
                 av_y.add_points(tmp_y)
                 av_t.add_points(tmp_t)
                 used[i] = True
+                nmb_traj_used += 1
             # if no remaining trajectories, end the While loop
             if av_x is None:
                 break
@@ -904,17 +915,40 @@ class CritPoints(object):
                 assoc_std_x.append(np.std(av_x.y[filt]))
                 assoc_std_y.append(np.std(av_y.y[filt]))
                 assoc_real_times.append(av_t.y[filt])
+            # skipping if no remaining points
+            if len(new_x) == 0:
+                nmb_too_diff += nmb_traj_used
+                continue
+            nmb_mean_traj += 1
             # storing the mean trajectory
             xy = zip(new_x, new_y)
             mean_traj = MeanTrajectory(xy=xy, time=new_t,
                                        assoc_real_times=assoc_real_times,
                                        assoc_std_x=assoc_std_x,
                                        assoc_std_y=assoc_std_y,
+                                       nmb_traj_used=nmb_traj_used,
                                        unit_x=self.unit_x,
                                        unit_y=self.unit_y,
                                        unit_times=self.unit_time, name='')
             mean_traj.sort(ref='v', inplace=True)
             mean_trajs.append(mean_traj)
+        # echo some stats
+        if verbose:
+            pad = len("{}".format(len(trajs)))
+            print("+++++++++++++++++++++++++++++++++++++")
+            print("+++ Mean trajectories computation +++")
+            print("+++++++++++++++++++++++++++++++++++++")
+            print("+++ {:>{pad}} Trajectories in the set"
+                  .format(len(trajs), pad=pad))
+            print("+++ {:>{pad}} Mean Trajectories defined :"
+                  .format(nmb_mean_traj, pad=pad))
+            for i, traj in enumerate(mean_trajs):
+                print("+++     {:>{pad}} trajectories used for MT{}"
+                      .format(traj.nmb_traj_used, i, pad=pad))
+            print("+++ {:>{pad}} Trajectories skipped"
+                  .format(nmb_too_short + nmb_too_diff, pad=pad))
+            print("+++     {:>{pad}} too short".format(nmb_too_short, pad=pad))
+            print("+++     {:>{pad}} too different".format(nmb_too_diff, pad=pad))
         # return the set of mean trajectories
         return mean_trajs
 
@@ -2015,6 +2049,7 @@ class MeanTrajectory(Points):
 
     def __init__(self, xy=np.empty((0, 2), dtype=float), time=[],
                  assoc_real_times=[], assoc_std_x=[], assoc_std_y=[],
+                 nmb_traj_used=0,
                  unit_x='', unit_y='',
                  unit_times='', name=''):
         """
@@ -2032,6 +2067,8 @@ class MeanTrajectory(Points):
             associated with the mean trajectory points.
         assoc_std : nx1 array
             Representing the std at each mean trajectory points
+        nmb_traj_used : number
+            Number of trajectories used to average
         unit_x : Unit object, optional
             X unit.
         unit_y : Unit object, optional
@@ -2052,6 +2089,7 @@ class MeanTrajectory(Points):
         self.assoc_real_times = assoc_real_times
         self.assoc_std_x = assoc_std_x
         self.assoc_std_y = assoc_std_y
+        self.nmb_traj_used = nmb_traj_used
 
     @property
     def time(self):

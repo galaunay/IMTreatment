@@ -2930,7 +2930,7 @@ class Profile(object):
             len_min += 1
         # create elongated long profile
         y_long = np.zeros((len_max + len_min), dtype=float)
-        y_long_mask = np.ones((len_max + len_min), dtype=bool)
+        y_long_mask = np.zeros((len_max + len_min), dtype=bool)
         y_long[len_min/2:len_max + len_min/2] = y_long_o
         y_long_mask[len_min/2:len_max + len_min/2] = y_long_mask_o
         # calculate diff for each shift
@@ -3423,6 +3423,27 @@ class Profile(object):
             tmp_prof.x = x
             tmp_prof.y = y
             return tmp_prof
+
+    def average_doublons(self, inplace=False):
+        """
+        Replace values associated to the same 'x' by their average.
+        """
+        if inplace:
+            tmp_prof = self
+        else:
+            tmp_prof = self.copy()
+        new_x = []
+        new_y = []
+        for xi in np.array(list(set(tmp_prof.x))):
+            filt = tmp_prof.x == xi
+            new_x.append(xi)
+            new_y.append(np.mean(tmp_prof.y[filt]))
+        tmp_prof.x = new_x
+        tmp_prof.y = new_y
+        # returning
+        if not inplace:
+            return tmp_prof
+
 
     ### Displayers ###
     def _display(self, kind='plot', reverse=False, **plotargs):
