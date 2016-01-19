@@ -186,31 +186,28 @@ def make_unit(string):
 
 
 class Points(object):
-    """
-    Class representing a set of points.
-    You can use 'make_unit' to provide unities.
-
-    Parameters
-    ----------
-    xy : nx2 array.
-        Representing the coordinates of each point of the set (n points).
-    v : n array, optional
-        Representing values attached at each points.
-    unit_x : Unit object, optional
-        X unit_y.
-    unit_y : Unit object, optional
-        Y unit_y.
-    unit_v : Unit object, optional
-        values unit_y.
-    name : string, optional
-        Name of the points set
-    """
 
     ### Operators ###
     def __init__(self, xy=np.empty((0, 2), dtype=float), v=[],
                  unit_x='', unit_y='', unit_v='', name=''):
         """
-        Points builder.
+        Class representing a set of points.
+        You can use 'make_unit' to provide unities.
+
+        Parameters
+        ----------
+        xy : nx2 array.
+            Representing the coordinates of each point of the set (n points).
+        v : n array, optional
+            Representing values attached at each points.
+        unit_x : Unit object, optional
+            X unit_y.
+        unit_y : Unit object, optional
+            Y unit_y.
+        unit_v : Unit object, optional
+            values unit_y.
+        name : string, optional
+            Name of the points set
         """
         self.__v = []
         if len(xy) == 0:
@@ -749,7 +746,6 @@ class Points(object):
                          unit_y=unit_Vy)
         return prof_x, prof_y
 
-    @TypeTest(SF=ScalarField, axe_x=(STRINGTYPES + None,))
     def get_evolution_on_sf(self, SF, axe_x=None):
         """
         Return the evolution of the value represented by a scalar field, on
@@ -926,11 +922,11 @@ class Points(object):
             if not isinstance(v, NUMBERTYPES):
                 raise TypeError()
         # store new data
-        self.xy = np.append(self.xy, [pt], axis=0)
+        self.__xy = np.append(self.xy, [pt], axis=0)
         if v is None and self.v.shape[0] != 0:
             raise ValueError('You should specify an associated value : v')
         if v is not None:
-            self.v = np.append(self.v, v)
+            self.__v = np.append(self.v, v)
 
     def remove(self, ind):
         """
@@ -1030,9 +1026,9 @@ class Points(object):
             out_zone = np.logical_or(self.v < intervv[0],
                                      self.v > intervv[1])
             mask = np.logical_or(mask, out_zone)
-        tmp_pts.xy = tmp_pts.xy[~mask, :]
+        tmp_pts.__xy = tmp_pts.xy[~mask, :]
         if tmp_pts.v is not None:
-            tmp_pts.v = tmp_pts.v[~mask]
+            tmp_pts.__v = tmp_pts.v[~mask]
         # returning
         if not inplace:
             return tmp_pts
@@ -2004,6 +2000,23 @@ class Profile(object):
     def __len__(self):
         return len(self.x)
 
+    def __getitem__(self, ind):
+        if isinstance(ind, ARRAYTYPES):
+            ind = np.array(ind)
+            if len(ind) == len(self):
+                tmp_pts = self.copy()
+                tmp_pts.x = self.x[ind]
+                tmp_pts.y = self.y[ind]
+                tmp_pts.mask = self.mask[ind]
+                return tmp_pts
+            else:
+                raise ValueError()
+        elif isinstance(ind, int):
+            return self.x[ind], self.y[ind]
+        else:
+            raise TypeError()
+
+
     ### Attributes ###
     @property
     def x(self):
@@ -2853,7 +2866,8 @@ class Profile(object):
             raise TypeError()
         if mode not in ['full', 'same', 'valid']:
             raise ValueError()
-        if not np.all(self.x[1:] - self.x[0:-1] == self.x[1] - self.x[0]):
+        if not np.all(self.x[1:] - self.x[0:-1] - (self.x[1] - self.x[0])
+                      < self.x[-1]*1e-10) :
             raise Exception("Profiles should have orthogonal x axis")
         if not np.all(other_prof.x[1:] - other_prof.x[0:-1] ==
                       other_prof.x[1] - other_prof.x[0]):
@@ -2882,6 +2896,65 @@ class Profile(object):
         tmp_deph =  (len(tmp_conv) + 1)/2.- maxs[ind_closer]
         return tmp_deph/2.
 
+    def get_convolution_of_difference(self, other_profile, normalized=True):
+        """
+        Return a convolution that use difference instead of multiplication.
+
+        Note
+        ----
+        Difference is not normaized, but averaged on the available points.
+        """
+        # check
+        if not self.unit_x == other_profile.unit_x:
+            raise ValueError()
+        if not self.unit_y == other_profile.unit_y:
+            raise ValueError()
+        if len(self.y) > len(other_profile.y):
+            y_short = other_profile.y
+            y_long_o = self.y
+            y_short_mask = other_profile.mask
+            y_long_mask_o = self.mask
+            x = self.x - self.x[0]
+        else:
+            y_short = self.y
+            y_long_o = other_profile.y
+            y_short_mask = self.mask
+            y_long_mask_o = other_profile.mask
+            x = other_profile.x - other_profile.x[0]
+        len_max = len(y_long_o)
+        len_min = len(y_short)
+        # assure that sort signal has a length multiple of 2
+        if len_min % 2 != 0:
+            y_short = np.append(y_short, [0])
+            y_short_mask = np.append(y_short_mask, [True])
+            len_min += 1
+        # create elongated long profile
+        y_long = np.zeros((len_max + len_min), dtype=float)
+        y_long_mask = np.ones((len_max + len_min), dtype=bool)
+        y_long[len_min/2:len_max + len_min/2] = y_long_o
+        y_long_mask[len_min/2:len_max + len_min/2] = y_long_mask_o
+        # calculate diff for each shift
+        diffs = []
+        for i in range(len_max):
+            tmp_y_long_mask = y_long_mask[i:i+len_min]
+            tmp_y_short_mask = y_short_mask
+            tmp_filter = np.logical_not(np.logical_or(tmp_y_long_mask,
+                                                      tmp_y_short_mask))
+            if not np.any(tmp_filter):
+                diffs.append(np.nan)
+                continue
+            tmp_y_short = y_short[tmp_filter]
+            tmp_y_long = y_long[i:i+len_min][tmp_filter]
+            diff = np.sum(np.abs(tmp_y_long - tmp_y_short))/len(tmp_y_long)
+            # normalize
+            if normalized:
+                diff /= np.sum(np.abs(tmp_y_long))/len(tmp_y_long)
+            diffs.append(diff)
+        # returning
+        return Profile(x, diffs, mask=np.isnan(diffs), unit_x=self.unit_x,
+                       unit_y=self.unit_y)
+
+
     ### Modifiers ###
     def add_point(self, x, y):
         """
@@ -2890,6 +2963,22 @@ class Profile(object):
         pos_ind = np.searchsorted(self.x, x)
         self.x = np.concatenate((self.x[0:pos_ind], [x], self.x[pos_ind::]))
         self.y = np.concatenate((self.y[0:pos_ind], [y], self.y[pos_ind::]))
+
+    def add_points(self, prof=None):
+        """
+        Add points from another profile.
+        """
+        if prof is not None:
+            if (prof.unit_x != self.unit_x or
+                prof.unit_y != self.unit_y):
+                    raise ValueError()
+            tmp_x = np.append(self.x, prof.x)
+            tmp_y = np.append(self.y ,prof.y)
+            tmp_mask = np.append(self.mask, prof.mask)
+            ind_sort = np.argsort(tmp_x)
+            self.x = tmp_x[ind_sort]
+            self.y = tmp_y[ind_sort]
+            self.mask = tmp_mask[ind_sort]
 
     def remove_point(self, ind):
         """
