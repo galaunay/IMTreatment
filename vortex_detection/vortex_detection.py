@@ -809,6 +809,42 @@ class CritPoints(object):
         # returning
         return res_min, res_max
 
+    def break_trajectories(self, smooth_size=5, inplace=False):
+        """
+        Break the trajectories in pieces.
+        Usefull to do before using 'get_mean_trajectory'
+        """
+        if inplace:
+            tmp_cp = self
+        else:
+            tmp_cp = self.copy()
+        # decompose each traj of each kind
+        new_trajs = []
+        for traj_type in tmp_cp.iter_traj:
+            tmp_trajs = []
+            for traj in traj_type:
+                x_prof = traj.export_to_profile(axe_x='v', axe_y='x')
+                dx = x_prof.x[1] - x_prof.x[0]
+                ind_min, _ = x_prof.get_extrema_position(smoothing=smooth_size)
+                # if nothing in ind_min
+                if len(ind_min) == 0:
+                    tmp_trajs.append(traj)
+                    continue
+                # else, break the trajectory
+                ind_min = np.concatenate(([-np.inf], ind_min, [np.inf]))
+                for i, ind in enumerate(ind_min[0:-1]):
+                    tmp_trajs.append(traj.crop(intervv=[ind_min[i],
+                                                        ind_min[i+1] + dx],
+                                     inplace=False))
+            new_trajs.append(tmp_trajs)
+        # store
+        for i, type_name in enumerate(tmp_cp.cp_types):
+            tmp_cp.__dict__['{}_traj'.format(type_name)] = new_trajs[i]
+        # return
+        if not inplace:
+            return tmp_cp
+
+
     def get_mean_trajectory(self, cp_type, min_len=20,
                             min_nmb_to_avg=5, max_rel_epsilon=1.,
                             verbose=False):
@@ -830,6 +866,13 @@ class CritPoints(object):
         -------
         mean_traj : MeanTrajectory object
             .
+        skipped_traj : tuple of Points objects
+            Skipped trajectories
+
+        Notes
+        -----
+        You may want to separate your lonf trajectories with
+        'break_trajectories' before using this function
         """
         # check
         if not cp_type in ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']:
@@ -838,63 +881,75 @@ class CritPoints(object):
         mean_trajs = []
         trajs = self.__dict__['{}_traj'.format(cp_type)]
         used = np.zeros((len(trajs)), dtype=bool)
-        skipped = np.zeros((len(trajs)), dtype=bool)
         nmb_mean_traj = 0
         nmb_too_short = 0
         nmb_too_diff = 0
+        skipped_trajs = []
         while True:
             nmb_traj_used = 0
             av_x = None
             av_y = None
             av_t = None
+            used_traj_inds = []
             # concatenate all the trajectories
-            for i, traj in enumerate(trajs):
-                # skip if already used
-                if used[i] or skipped[i]:
-                    continue
-                # remove from the set if trajectory length is too low
-                if len(traj) < min_len:
+            # we make multiples loops to be sure that the result is not
+            # dependant on the initial trajectory choice
+            old_used = -1
+            while True:
+                # break if no modification on the run
+                if np.sum(used) == old_used:
+                    break
+                else:
+                    old_used = np.sum(used)
+                for i, traj in enumerate(trajs):
+                    # skip if already used
+                    if used[i]:
+                        continue
+                    # remove from the set if trajectory length is too low
+                    if len(traj) < min_len:
+                        used[i] = True
+                        nmb_too_short += 1
+                        continue
+                    # get the parameters evolution with time
+                    tmp_x = traj.export_to_profile(axe_x="v", axe_y="x")
+                    tmp_y = traj.export_to_profile(axe_x="v", axe_y="y")
+                    tmp_t = traj.export_to_profile(axe_x="v", axe_y="v")
+                    tmp_x.x -= tmp_x.x[0]
+                    tmp_y.x -= tmp_y.x[0]
+                    tmp_t.x -= tmp_t.x[0]
+                    # store first trajectory (referential)
+                    if av_x is None:
+                        tmp_x_base = tmp_x.copy()
+                        av_x = tmp_x.copy()
+                        av_y = tmp_y.copy()
+                        av_t = tmp_t.copy()
+                        used[i] = True
+                        used_traj_inds.append(i)
+                        nmb_traj_used += 1
+                        continue
+                    # actualize reference
+                    tmp_x_base = av_x.average_doublons(inplace=False)
+                    # if trajectory is too different from the referential one, skip
+                    tmp_conv = tmp_x.get_convolution_of_difference(tmp_x_base,
+                                                                   normalized=True)
+                    if tmp_conv.min > max_rel_epsilon:
+                        continue
+                    # else, shift the trajectory and add it to the set
+                    shift = ((tmp_x_base.x[-1] - tmp_x_base.x[0])
+                             - (tmp_x.x[-1] - tmp_x.x[0]))/2.
+                    shift += (tmp_conv.get_value_position(tmp_conv.min)[0]
+                              - tmp_conv.x[-1]/2.)
+                    dx = tmp_x.x[1] - tmp_x.x[0]
+                    shift = np.floor(shift/dx)*dx   # not allow quarter-dx
+                    tmp_x.x += shift
+                    tmp_y.x += shift
+                    tmp_t.x += shift
+                    av_x.add_points(tmp_x)
+                    av_y.add_points(tmp_y)
+                    av_t.add_points(tmp_t)
                     used[i] = True
-                    nmb_too_short += 1
-                    continue
-                # get the parameters evolution with time
-                tmp_x = traj.export_to_profile(axe_x="v", axe_y="x")
-                tmp_y = traj.export_to_profile(axe_x="v", axe_y="y")
-                tmp_t = traj.export_to_profile(axe_x="v", axe_y="v")
-                tmp_x.x -= tmp_x.x[0]
-                tmp_y.x -= tmp_y.x[0]
-                tmp_t.x -= tmp_t.x[0]
-                # store first trajectory (referential)
-                if av_x is None:
-                    tmp_x_base = tmp_x.copy()
-                    av_x = tmp_x.copy()
-                    av_y = tmp_y.copy()
-                    av_t = tmp_t.copy()
-                    used[i] = True
+                    used_traj_inds.append(i)
                     nmb_traj_used += 1
-                    continue
-                # actualize reference
-                tmp_x_base = av_x.average_doublons(inplace=False)
-                # if trajectory is too different from the referential one, skip
-                tmp_conv = tmp_x.get_convolution_of_difference(tmp_x_base,
-                                                               normalized=True)
-                if tmp_conv.min > max_rel_epsilon:
-                    continue
-                # else, shift the trajectory and add it to the set
-                shift = ((tmp_x_base.x[-1] - tmp_x_base.x[0])
-                         - (tmp_x.x[-1] - tmp_x.x[0]))/2.
-                shift += (tmp_conv.get_value_position(tmp_conv.min)[0]
-                          - tmp_conv.x[-1]/2.)
-                dx = tmp_x.x[1] - tmp_x.x[0]
-                shift = np.floor(shift/dx)*dx   # not allow quarter-dx
-                tmp_x.x += shift
-                tmp_y.x += shift
-                tmp_t.x += shift
-                av_x.add_points(tmp_x)
-                av_y.add_points(tmp_y)
-                av_t.add_points(tmp_t)
-                used[i] = True
-                nmb_traj_used += 1
             # if no remaining trajectories, end the While loop
             if av_x is None:
                 break
@@ -918,6 +973,8 @@ class CritPoints(object):
             # skipping if no remaining points
             if len(new_x) == 0:
                 nmb_too_diff += nmb_traj_used
+                for ind in used_traj_inds:
+                    skipped_trajs.append(trajs[ind])
                 continue
             nmb_mean_traj += 1
             # storing the mean trajectory
@@ -950,7 +1007,7 @@ class CritPoints(object):
             print("+++     {:>{pad}} too short".format(nmb_too_short, pad=pad))
             print("+++     {:>{pad}} too different".format(nmb_too_diff, pad=pad))
         # return the set of mean trajectories
-        return mean_trajs
+        return mean_trajs, skipped_trajs
 
     ### Modifiers ###
     def add_point(self, foc=None, foc_c=None, node_i=None,

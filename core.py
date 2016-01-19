@@ -3432,12 +3432,8 @@ class Profile(object):
             tmp_prof = self
         else:
             tmp_prof = self.copy()
-        new_x = []
-        new_y = []
-        for xi in np.array(list(set(tmp_prof.x))):
-            filt = tmp_prof.x == xi
-            new_x.append(xi)
-            new_y.append(np.mean(tmp_prof.y[filt]))
+        new_x = list(set(tmp_prof.x))
+        new_y = [np.mean(tmp_prof.y[tmp_prof.x == xi]) for xi in new_x]
         tmp_prof.x = new_x
         tmp_prof.y = new_y
         # returning
