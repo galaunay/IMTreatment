@@ -809,6 +809,114 @@ class CritPoints(object):
         # returning
         return res_min, res_max
 
+    def get_mean_trajectory(self, cp_type, min_len=20,
+                            min_nmb_to_avg=5, max_rel_epsilon=1.):
+        """
+        Return a mean trajectory (based on a set of trajectories)
+
+        Parameters
+        ----------
+        cp_type : string in ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']
+            Trajectory type to average.
+        min_len : number
+            Ignore trajectories with length smaller.
+        min_nmb_to_avg : number
+            Minimum number of values necessary to make an average
+        max_rel_epsilon : number
+            Maximum relative difference used to determine the different
+            mean trajectories.
+        Returns
+        -------
+        mean_traj : MeanTrajectory object
+            .
+        """
+        # check
+        if not cp_type in ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']:
+            raise ValueError()
+        # loop for each mean trajectory
+        mean_trajs = []
+        trajs = self.__dict__['{}_traj'.format(cp_type)]
+        used = np.zeros((len(trajs)), dtype=bool)
+        min_conv = []
+        while True:
+            av_x = None
+            av_y = None
+            av_t = None
+            # concatenate all the trajectories
+            for i, traj in enumerate(trajs):
+                # skip if already used
+                if used[i]:
+                    continue
+                # remove from the set if trajectory length is too low
+                if len(traj) < min_len:
+                    used[i] = True
+                    continue
+                # get the parameters evolution with time
+                tmp_x = traj.export_to_profile(axe_x="v", axe_y="x")
+                tmp_y = traj.export_to_profile(axe_x="v", axe_y="y")
+                tmp_t = traj.export_to_profile(axe_x="v", axe_y="v")
+                tmp_x.x -= tmp_x.x[0]
+                tmp_y.x -= tmp_y.x[0]
+                tmp_t.x -= tmp_t.x[0]
+                # store first trajectory (referential)
+                if av_x is None:
+                    tmp_x_base = tmp_x
+                    av_x = tmp_x.copy()
+                    av_y = tmp_y.copy()
+                    av_t = tmp_t.copy()
+                    used[i] = True
+                    continue
+                # if trajectory is too different from the referential one, skip
+                tmp_conv = tmp_x.get_convolution_of_difference(tmp_x_base,
+                                                               normalized=True)
+                min_conv.append(tmp_conv.min)
+                if tmp_conv.min > max_rel_epsilon:
+                    continue
+                # else, shift the trajectory and add it to the set
+                shift = ((tmp_x_base.x[-1] - tmp_x_base.x[0])
+                         - (tmp_x.x[-1] - tmp_x.x[0])/2.)
+                shift += tmp_conv.get_value_position(tmp_conv.min)[0]
+                shift -= tmp_conv.x[-1]/2.
+                tmp_x.x += shift
+                tmp_y.x += shift
+                tmp_t.x += shift
+                av_x.add_points(tmp_x)
+                av_y.add_points(tmp_y)
+                av_t.add_points(tmp_t)
+                used[i] = True
+            # if no remaining trajectories, end the While loop
+            if av_x is None:
+                break
+            # averaging the set of trajectories on each time step
+            new_x = []
+            new_y = []
+            new_t = []
+            assoc_real_times = []
+            assoc_std_x = []
+            assoc_std_y = []
+            for t in np.array(list(set(av_t.x))):
+                filt = av_x.x == t
+                if np.sum(filt) < min_nmb_to_avg:
+                    continue
+                new_x.append(np.mean(av_x.y[filt]))
+                new_y.append(np.mean(av_y.y[filt]))
+                new_t.append(t)
+                assoc_std_x.append(np.std(av_x.y[filt]))
+                assoc_std_y.append(np.std(av_y.y[filt]))
+                assoc_real_times.append(av_t.y[filt])
+            # storing the mean trajectory
+            xy = zip(new_x, new_y)
+            mean_traj = MeanTrajectory(xy=xy, time=new_t,
+                                       assoc_real_times=assoc_real_times,
+                                       assoc_std_x=assoc_std_x,
+                                       assoc_std_y=assoc_std_y,
+                                       unit_x=self.unit_x,
+                                       unit_y=self.unit_y,
+                                       unit_times=self.unit_time, name='')
+            mean_traj.sort(ref='v', inplace=True)
+            mean_trajs.append(mean_traj)
+        # return the set of mean trajectories
+        return mean_trajs
 
     ### Modifiers ###
     def add_point(self, foc=None, foc_c=None, node_i=None,
@@ -1901,6 +2009,100 @@ class TopoPoints(object):
         plt.scatter(self.xy[:, 0], self.xy[:, 1], c=self.types, vmax=6,
                     vmin=0, s=50)
         plt.colorbar()
+
+
+class MeanTrajectory(Points):
+
+    def __init__(self, xy=np.empty((0, 2), dtype=float), time=[],
+                 assoc_real_times=[], assoc_std_x=[], assoc_std_y=[],
+                 unit_x='', unit_y='',
+                 unit_times='', name=''):
+        """
+        Representing an averaged trajecory
+        (mean trajectory over a set of trajectories)
+
+        Parameters
+        ----------
+        xy : nx2 array.
+            Representing the coordinates of each point of the set (n points).
+        time : n array, optional
+            Representing time at each points.
+        assoc_real_times : nxm array
+            Representing the real times (of the original trajectories)
+            associated with the mean trajectory points.
+        assoc_std : nx1 array
+            Representing the std at each mean trajectory points
+        unit_x : Unit object, optional
+            X unit.
+        unit_y : Unit object, optional
+            Y unit.
+        unit_times : Unit object, optional
+            time unit.
+        name : string, optional
+            Name of the points set
+        """
+        super(MeanTrajectory, self).__init__(xy=xy, v=time, unit_x=unit_x,
+                                             unit_y=unit_y,
+                                             unit_v=unit_times, name=name)
+        # check
+        if not isinstance(assoc_real_times, ARRAYTYPES):
+            raise TypeError()
+        if not len(assoc_real_times) == len(xy):
+            raise ValueError()
+        self.assoc_real_times = assoc_real_times
+        self.assoc_std_x = assoc_std_x
+        self.assoc_std_y = assoc_std_y
+
+    @property
+    def time(self):
+        return self.v
+
+    @time.setter
+    def time(self, values):
+        self.v = values
+
+    @property
+    def unit_times(self):
+        return self.unit_v
+
+    @unit_times.setter
+    def unit_times(self, unit):
+        self.unit_v = unit
+
+    def _display(self, *args, **kwargs):
+        super(MeanTrajectory, self)._display(*args, **kwargs)
+        plt.errorbar(self.xy[:, 0], self.xy[:, 1], xerr=self.assoc_std_x,
+                     yerr=self.assoc_std_y, fmt='none', ecolor='k')
+
+    def display(self, *args, **kwargs):
+        super(MeanTrajectory, self).display(*args, **kwargs)
+        plt.errorbar(self.xy[:, 0], self.xy[:, 1], xerr=self.assoc_std_x,
+                     yerr=self.assoc_std_y, fmt='none', ecolor='k')
+
+    def reconstruct_fields(self, TF):
+        """
+        Do a conditionnal averaging based on the CP positions.
+
+        Parameters
+        ----------
+        TF : TemporalFields
+            .
+        """
+        fin_tf = TF.__class__()
+        for av_t, real_ts in zip(self.time, self.assoc_real_times):
+            # get real times indices for this averaged time
+            inds = []
+            for real_t in real_ts:
+                inds.append(np.where(TF.times == real_t)[0][0])
+            # sum the fields on those inds to make conditionnal averaging
+            tmp_field = TF.fields[inds[0]]
+            for ind in inds[1::]:
+                tmp_field += TF.fields[ind]
+            tmp_field /= len(inds)
+            # add this conditionnal averaged field to the set
+            fin_tf.add_field(tmp_field, time=av_t, unit_times=self.unit_times)
+        # return
+        return fin_tf
 
 
 ### CP and vortex positions ###
