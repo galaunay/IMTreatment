@@ -3006,20 +3006,7 @@ class Profile(object):
         elif conv == 'difference':
             tmp_conv = self.get_convolution_of_difference(other_profile,
                                                           normalized=True)
-            mini = tmp_conv.get_value_position(tmp_conv.min)[0]
-            if len(self) > len(other_profile):
-                tmp_deph = mini - (other_profile.x[-1]
-                                   + other_profile.x[0])/2.
-                if len(other_profile) % 2 == 0:
-                    tmp_deph -= 0.5
-                else:
-                    tmp_deph -= 1.
-            else:
-                tmp_deph = -(mini - (self.x[-1] + self.x[0])/2.)
-                if len(self) % 2 == 0:
-                    tmp_deph += 0.5
-                else:
-                    tmp_deph += 1.
+            tmp_deph = tmp_conv.get_value_position(tmp_conv.min)[0]
         return tmp_deph
 
     def get_convolution_of_difference(self, other_profile, normalized=True):
@@ -3040,33 +3027,22 @@ class Profile(object):
             raise ValueError()
         if not self.unit_y == other_profile.unit_y:
             raise ValueError()
-        if len(self.y) > len(other_profile.y):
-            y_short = other_profile.y
-            y_long_o = self.y
-            y_short_mask = other_profile.mask
-            y_long_mask_o = self.mask
-            x = self.x - self.x[0]
-        else:
-            y_short = self.y
-            y_long_o = other_profile.y
-            y_short_mask = self.mask
-            y_long_mask_o = other_profile.mask
-            x = other_profile.x - other_profile.x[0]
+        # get data
+        y_short = self.y
+        y_long_o = other_profile.y
+        y_short_mask = self.mask
+        y_long_mask_o = other_profile.mask
+        x = other_profile.x - other_profile.x[0]
         len_max = len(y_long_o)
         len_min = len(y_short)
-        # assure that sort signal has a length multiple of 2
-        if len_min % 2 != 0:
-            y_short = np.append(y_short, [0])
-            y_short_mask = np.append(y_short_mask, [True])
-            len_min += 1
         # create elongated long profile
-        y_long = np.zeros((len_max + len_min), dtype=float)
-        y_long_mask = np.zeros((len_max + len_min), dtype=bool)
-        y_long[len_min/2:len_max + len_min/2] = y_long_o
-        y_long_mask[len_min/2:len_max + len_min/2] = y_long_mask_o
+        y_long = np.zeros((len_max + 2*len_min - 2), dtype=float)
+        y_long_mask = np.zeros((len_max + 2*len_min - 2), dtype=bool)
+        y_long[len_min - 1:len_max + len_min - 1] = y_long_o
+        y_long_mask[len_min - 1:len_max + len_min - 1] = y_long_mask_o
         # calculate diff for each shift
         diffs = []
-        for i in range(len_max):
+        for i in range(len_max + len_min - 1):
             tmp_y_long_mask = y_long_mask[i:i+len_min]
             tmp_y_short_mask = y_short_mask
             tmp_filter = np.logical_not(np.logical_or(tmp_y_long_mask,
@@ -3079,8 +3055,19 @@ class Profile(object):
             diff = np.sum(np.abs(tmp_y_long - tmp_y_short))/len(tmp_y_long)
             # normalize
             if normalized:
-                diff /= np.sum(np.abs(tmp_y_long))/len(tmp_y_long)
+                norm = np.sum(np.abs(tmp_y_long))/len(tmp_y_long)
+                if norm == 0:
+                    diff = np.nan
+                else:
+                    diff /= norm
             diffs.append(diff)
+        # compute x axis
+        dx = x[1] - x[0]
+        x = np.arange(0, len(diffs)*dx, dx)
+        x -= (x[-1] + x[0])/2.
+        delta_x = ((other_profile.x[0] + other_profile.x[-1])/2.
+                   - (self.x[0] + self.x[-1])/2.)
+        x += delta_x
         # returning
         return Profile(x, diffs, mask=np.isnan(diffs), unit_x=self.unit_x,
                        unit_y=self.unit_y)
@@ -3563,7 +3550,7 @@ class Profile(object):
             tmp_prof = self
         else:
             tmp_prof = self.copy()
-        new_x = list(set(tmp_prof.x))
+        new_x = np.sort(list(set(tmp_prof.x)))
         new_y = [np.mean(tmp_prof.y[tmp_prof.x == xi]) for xi in new_x]
         tmp_prof.x = new_x
         tmp_prof.y = new_y

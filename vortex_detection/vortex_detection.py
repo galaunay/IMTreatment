@@ -958,6 +958,7 @@ class CritPoints(object):
                         used_traj_inds.append(i)
                         used_trajs.append(traj)
                         nmb_traj_used += 1
+#                        plt.plot(av_x.y, av_x.x, "b")
                         continue
                     # actualize reference
                     tmp_x_base = av_x.average_doublons(inplace=False)
@@ -972,19 +973,12 @@ class CritPoints(object):
                     if diff > rel_len_epsilon:
                         continue
                     # else, shift the trajectory and add it to the set
-                    shift1 = ((tmp_x_base.x[-1] + tmp_x_base.x[0])/2 - (tmp_x.x[-1] + tmp_x.x[0])/2.)
-                    shift2 = -(tmp_conv.get_value_position(tmp_conv.min)[0] - tmp_conv.x[-1]/2.)
-                    shift = shift1 + shift2
-                    shift = tmp_x_base.get_dephasage(tmp_x, conv='difference')
+                    shift = tmp_x.get_dephasage(tmp_x_base, conv='difference')
                     dx = tmp_x.x[1] - tmp_x.x[0]
                     shift = np.floor(shift/dx)*dx   # not allow quarter-dx
                     tmp_x.x += shift
                     tmp_y.x += shift
                     tmp_t.x += shift
-#                    if nmb_mean_traj == 1:
-#                        plt.plot(tmp_x.y, tmp_x.x, 'r')
-#                    if nmb_mean_traj == 1 and nmb_traj_used in [11]:
-#                        bug
                     av_x.add_points(tmp_x)
                     av_y.add_points(tmp_y)
                     av_t.add_points(tmp_t)
@@ -2257,10 +2251,7 @@ class MeanTrajectory(Points):
             # crop mean_traj
             super(MeanTrajectory, tmp_pts).crop(intervx=intervx, intervy=intervy,
                                                 intervv=intervt, inplace=True)
-            # crop base fields
-            for i in range(len(tmp_pts.base_trajs)):
-                tmp_pts.base_trajs[i].crop(intervx=intervx,  intervy=intervy,
-                                           intervv=intervt, inplace=True)
+            # DO NOT crop base fields
             # return
             if not inplace:
                 return tmp_pts
