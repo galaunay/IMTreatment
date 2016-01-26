@@ -14,7 +14,7 @@ from ..core import Points, OrientedPoints, Profile, ScalarField, VectorField,\
 from ..field_treatment import get_streamlines
 from ..tools import ProgressCounter
 from ..vortex_criterions import get_kappa, get_gamma, get_iota, get_vorticity,\
-    get_residual_vorticity
+    get_residual_vorticity, get_NL_residual_vorticity
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline
@@ -449,7 +449,8 @@ class CritPoints(object):
         self.unit_time = unit_time
         self.unit_x = make_unit('')
         self.unit_y = make_unit('')
-        self.colors = ['r', 'b', 'y', 'm', 'g']
+        self.colors = [u'#E24A33', u'#348ABD', u'#988ED5', u'#777777',
+                       u'#FBC15E', u'#8EBA42', u'#FFB5B8']
         self.cp_types = ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']
         self.current_epsilon = None
 
@@ -809,10 +810,18 @@ class CritPoints(object):
         # returning
         return res_min, res_max
 
-    def break_trajectories(self, smooth_size=5, inplace=False):
+    def break_trajectories(self, x=None, y=None, smooth_size=5, inplace=False):
         """
         Break the trajectories in pieces.
         Usefull to do before using 'get_mean_trajectory'
+
+        Parameters
+        ----------
+        x, y : number
+            Position of breaking
+            If not specified, break the trajectories where dx/dv=0
+        smooth_size : number
+            Smoothing used for the dx/dv=0 detection
         """
         if inplace:
             tmp_cp = self
@@ -823,18 +832,32 @@ class CritPoints(object):
         for traj_type in tmp_cp.iter_traj:
             tmp_trajs = []
             for traj in traj_type:
-                x_prof = traj.export_to_profile(axe_x='v', axe_y='x')
-                dx = x_prof.x[1] - x_prof.x[0]
-                ind_min, _ = x_prof.get_extrema_position(smoothing=smooth_size)
-                # if nothing in ind_min
-                if len(ind_min) == 0:
+                # if trajectory too short, just keep it
+                if len(traj) <= 2:
                     tmp_trajs.append(traj)
                     continue
+                # if x specified, find breaking indice
+                if x is not None:
+                    x_prof = traj.export_to_profile(axe_x='v', axe_y='x')
+                    dv = x_prof.x[1] - x_prof.x[0]
+                    ind_brk = x_prof.get_value_position(x, ind=False)
+                elif y is not None:
+                    y_prof = traj.export_to_profile(axe_x='v', axe_y='y')
+                    dv = y_prof.x[1] - y_prof.x[0]
+                    ind_brk = y_prof.get_value_position(y, ind=False)
+                else:
+                    x_prof = traj.export_to_profile(axe_x='v', axe_y='x')
+                    dv = x_prof.x[1] - x_prof.x[0]
+                    ind_brk, _ = x_prof.get_extrema_position(smoothing=smooth_size)
+                    # if nothing in ind_min
+                    if len(ind_brk) == 0:
+                        tmp_trajs.append(traj)
+                        continue
                 # else, break the trajectory
-                ind_min = np.concatenate(([-np.inf], ind_min, [np.inf]))
-                for i, ind in enumerate(ind_min[0:-1]):
-                    tmp_trajs.append(traj.crop(intervv=[ind_min[i],
-                                                        ind_min[i+1] + dx],
+                ind_brk = np.concatenate(([-np.inf], ind_brk, [np.inf]))
+                for i, ind in enumerate(ind_brk[0:-1]):
+                    tmp_trajs.append(traj.crop(intervv=[ind_brk[i],
+                                                        ind_brk[i+1] + dv],
                                      inplace=False))
             new_trajs.append(tmp_trajs)
         # store
@@ -846,21 +869,25 @@ class CritPoints(object):
 
 
     def get_mean_trajectory(self, cp_type, min_len=20,
-                            min_nmb_to_avg=5, max_rel_epsilon=1.,
-                            verbose=False):
+                            min_nmb_to_avg=10, rel_diff_epsilon=0.03,
+                            rel_len_epsilon=0.25, verbose=False):
         """
         Return a mean trajectory (based on a set of trajectories)
 
         Parameters
         ----------
         cp_type : string in ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']
+                  or a set of trajectories
             Trajectory type to average.
         min_len : number
             Ignore trajectories with length smaller.
         min_nmb_to_avg : number
             Minimum number of values necessary to make an average
-        max_rel_epsilon : number
+        rel_diff_epsilon : number
             Maximum relative difference used to determine the different
+            mean trajectories.
+        rel_len_epsilon : number
+            Maximum relative length difference used to determine the different
             mean trajectories.
         Returns
         -------
@@ -871,15 +898,18 @@ class CritPoints(object):
 
         Notes
         -----
-        You may want to separate your lonf trajectories with
+        -You may want to separate your lonf trajectories with
         'break_trajectories' before using this function
+        -Checking trajectory resemblance ake into account length of the
+         trajectories and integrale of their differences.
         """
         # check
-        if not cp_type in ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']:
-            raise ValueError()
+        if cp_type not in ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']:
+            trajs = cp_type
+        else:
+            trajs = self.__dict__['{}_traj'.format(cp_type)]
         # loop for each mean trajectory
         mean_trajs = []
-        trajs = self.__dict__['{}_traj'.format(cp_type)]
         used = np.zeros((len(trajs)), dtype=bool)
         nmb_mean_traj = 0
         nmb_too_short = 0
@@ -891,6 +921,7 @@ class CritPoints(object):
             av_y = None
             av_t = None
             used_traj_inds = []
+            used_trajs = []
             # concatenate all the trajectories
             # we make multiples loops to be sure that the result is not
             # dependant on the initial trajectory choice
@@ -925,6 +956,7 @@ class CritPoints(object):
                         av_t = tmp_t.copy()
                         used[i] = True
                         used_traj_inds.append(i)
+                        used_trajs.append(traj)
                         nmb_traj_used += 1
                         continue
                     # actualize reference
@@ -932,23 +964,33 @@ class CritPoints(object):
                     # if trajectory is too different from the referential one, skip
                     tmp_conv = tmp_x.get_convolution_of_difference(tmp_x_base,
                                                                    normalized=True)
-                    if tmp_conv.min > max_rel_epsilon:
+                    if tmp_conv.min > rel_diff_epsilon:
+                        continue
+                    # if trajectories length are too different, skip
+                    len_min, len_max = np.sort([len(tmp_x_base), len(tmp_x)])
+                    diff = (len_max - len_min)/float(len_max)
+                    if diff > rel_len_epsilon:
                         continue
                     # else, shift the trajectory and add it to the set
-                    shift = ((tmp_x_base.x[-1] - tmp_x_base.x[0])
-                             - (tmp_x.x[-1] - tmp_x.x[0]))/2.
-                    shift += (tmp_conv.get_value_position(tmp_conv.min)[0]
-                              - tmp_conv.x[-1]/2.)
+                    shift1 = ((tmp_x_base.x[-1] + tmp_x_base.x[0])/2 - (tmp_x.x[-1] + tmp_x.x[0])/2.)
+                    shift2 = -(tmp_conv.get_value_position(tmp_conv.min)[0] - tmp_conv.x[-1]/2.)
+                    shift = shift1 + shift2
+                    shift = tmp_x_base.get_dephasage(tmp_x, conv='difference')
                     dx = tmp_x.x[1] - tmp_x.x[0]
                     shift = np.floor(shift/dx)*dx   # not allow quarter-dx
                     tmp_x.x += shift
                     tmp_y.x += shift
                     tmp_t.x += shift
+#                    if nmb_mean_traj == 1:
+#                        plt.plot(tmp_x.y, tmp_x.x, 'r')
+#                    if nmb_mean_traj == 1 and nmb_traj_used in [11]:
+#                        bug
                     av_x.add_points(tmp_x)
                     av_y.add_points(tmp_y)
                     av_t.add_points(tmp_t)
                     used[i] = True
                     used_traj_inds.append(i)
+                    used_trajs.append(traj)
                     nmb_traj_used += 1
             # if no remaining trajectories, end the While loop
             if av_x is None:
@@ -986,7 +1028,8 @@ class CritPoints(object):
                                        nmb_traj_used=nmb_traj_used,
                                        unit_x=self.unit_x,
                                        unit_y=self.unit_y,
-                                       unit_times=self.unit_time, name='')
+                                       unit_times=self.unit_time, name='',
+                                       base_trajs=used_trajs,)
             mean_traj.sort(ref='v', inplace=True)
             mean_trajs.append(mean_traj)
         # echo some stats
@@ -1006,6 +1049,9 @@ class CritPoints(object):
                   .format(nmb_too_short + nmb_too_diff, pad=pad))
             print("+++     {:>{pad}} too short".format(nmb_too_short, pad=pad))
             print("+++     {:>{pad}} too different".format(nmb_too_diff, pad=pad))
+        #♠ sort the mean_traj by decreasing number of used trajectories
+        ind_sort = np.argsort([len(traj.base_trajs) for traj in mean_trajs])
+        mean_trajs = [mean_trajs[ind] for ind in ind_sort[::-1]]
         # return the set of mean trajectories
         return mean_trajs, skipped_trajs
 
@@ -2106,7 +2152,7 @@ class MeanTrajectory(Points):
 
     def __init__(self, xy=np.empty((0, 2), dtype=float), time=[],
                  assoc_real_times=[], assoc_std_x=[], assoc_std_y=[],
-                 nmb_traj_used=0,
+                 nmb_traj_used=0, base_trajs = [],
                  unit_x='', unit_y='',
                  unit_times='', name=''):
         """
@@ -2126,6 +2172,8 @@ class MeanTrajectory(Points):
             Representing the std at each mean trajectory points
         nmb_traj_used : number
             Number of trajectories used to average
+        base_trajs : tuple of Points objects
+            Trajectories used to compute this mean trajectory
         unit_x : Unit object, optional
             X unit.
         unit_y : Unit object, optional
@@ -2144,9 +2192,10 @@ class MeanTrajectory(Points):
         if not len(assoc_real_times) == len(xy):
             raise ValueError()
         self.assoc_real_times = assoc_real_times
-        self.assoc_std_x = assoc_std_x
-        self.assoc_std_y = assoc_std_y
-        self.nmb_traj_used = nmb_traj_used
+        self.assoc_std_x = np.array(assoc_std_x, dtype=float)
+        self.assoc_std_y = np.array(assoc_std_y, dtype=float)
+        self.nmb_traj_used = int(nmb_traj_used)
+        self.base_trajs = base_trajs
 
     @property
     def time(self):
@@ -2164,15 +2213,169 @@ class MeanTrajectory(Points):
     def unit_times(self, unit):
         self.unit_v = unit
 
+    def crop(self, intervx=None, intervy=None, intervt=None, inplace=True):
+            """
+            Crop the points cloud.
+
+            Parameters
+            ----------
+            intervx : 2x1 tuple
+                Interval on x axis
+            intervy : 2x1 tuple
+                Interval on y axis
+            intervt : 2x1 tuple
+                Interval on time
+
+            Returns
+            -------
+            tmp_pts : Points object
+                croped version of the point cloud.
+            """
+            if inplace:
+                tmp_pts = self
+            else:
+                tmp_pts = self.copy()
+            # crop associated values
+            mask = np.zeros(len(self.xy), dtype=bool)
+            if intervx is not None:
+                out_zone = np.logical_or(tmp_pts.xy[:, 0] < intervx[0],
+                                         tmp_pts.xy[:, 0] > intervx[1])
+                mask = np.logical_or(mask, out_zone)
+            if intervy is not None:
+                out_zone = np.logical_or(tmp_pts.xy[:, 1] < intervy[0],
+                                         tmp_pts.xy[:, 1] > intervy[1])
+                mask = np.logical_or(mask, out_zone)
+            if intervt is not None and len(tmp_pts.v) != 0:
+                out_zone = np.logical_or(tmp_pts.v < intervt[0],
+                                         tmp_pts.v > intervt[1])
+                mask = np.logical_or(mask, out_zone)
+            tmp_pts.assoc_real_times = [tmp_pts.assoc_real_times[i]
+                                        for i in range(len(tmp_pts.assoc_real_times))
+                                        if not mask[i]]
+            tmp_pts.assoc_std_x = tmp_pts.assoc_std_x[~mask]
+            tmp_pts.assoc_std_y = tmp_pts.assoc_std_y[~mask]
+            # crop mean_traj
+            super(MeanTrajectory, tmp_pts).crop(intervx=intervx, intervy=intervy,
+                                                intervv=intervt, inplace=True)
+            # crop base fields
+            for i in range(len(tmp_pts.base_trajs)):
+                tmp_pts.base_trajs[i].crop(intervx=intervx,  intervy=intervy,
+                                           intervv=intervt, inplace=True)
+            # return
+            if not inplace:
+                return tmp_pts
+
+    def scale(self, scalex=1., scaley=1., scalet=1., inplace=False):
+        if inplace:
+            tmp_mt = self
+        else:
+            tmp_mt = self.copy()
+        # scaling base trajectories
+        for i in range(len(tmp_mt.base_trajs)):
+            tmp_mt.base_trajs[i].scale(scalex=scalex, scaley=scaley,
+                                       scalev=scalet, inplace=True)
+        # scaling associated values
+        if isinstance(scalex, unum.Unum):
+            new_unit = scalex*self.unit_x
+            tmp_scalex = new_unit.asNumber()
+        else:
+            tmp_scalex = scalex
+        if isinstance(scaley, unum.Unum):
+            new_unit = scaley*self.unit_y
+            tmp_scaley = new_unit.asNumber()
+        else:
+            tmp_scaley = scaley
+        if isinstance(scalet, unum.Unum):
+            new_unit = scalet*self.unit_v
+            tmp_scalet = new_unit.asNumber()
+        else:
+            tmp_scalet = scalet
+        for i in range(len(tmp_mt.assoc_real_times)):
+            tmp_mt.assoc_real_times[i] *= tmp_scalet
+        tmp_mt.assoc_std_x = np.array(tmp_mt.assoc_std_x)*tmp_scalex
+        tmp_mt.assoc_std_y = np.array(tmp_mt.assoc_std_y)*tmp_scaley
+        # sclaing points attributes
+        super(MeanTrajectory, tmp_mt).scale(scalex=scalex, scaley=scaley,
+                                            scalev=scalet, inplace=True)
+        # returning
+        if not inplace:
+            return tmp_mt
+
     def _display(self, *args, **kwargs):
         super(MeanTrajectory, self)._display(*args, **kwargs)
-        plt.errorbar(self.xy[:, 0], self.xy[:, 1], xerr=self.assoc_std_x,
-                     yerr=self.assoc_std_y, fmt='none', ecolor='k')
 
     def display(self, *args, **kwargs):
         super(MeanTrajectory, self).display(*args, **kwargs)
-        plt.errorbar(self.xy[:, 0], self.xy[:, 1], xerr=self.assoc_std_x,
-                     yerr=self.assoc_std_y, fmt='none', ecolor='k')
+
+    def display_error_bars(self, kind='bar', **kwargs):
+        """
+        Display the error bar according to the trajectories used to compute the
+        mean trajectory.
+
+        Parameters
+        ----------
+        kind : string in ['bar', 'envelope']
+            If 'bar', display error bar,
+            if 'envelope', display envelope around trajectory
+        """
+        # get data
+        if "axe_x" in kwargs.keys():
+            axe = kwargs.pop("axe_x")
+            if axe == "x":
+                axe_x = self.xy[:, 0]
+                axe_x_err = self.assoc_std_x
+            elif axe == "y":
+                axe_x = self.xy[:, 1]
+                axe_x_err = self.assoc_std_y
+            elif axe in ["v", 'time']:
+                axe_x = self.v
+                axe_x_err = None
+            else:
+                raise ValueError()
+        else:
+            axe_x = self.xy[:, 0]
+            axe_x_err = self.assoc_std_x
+        if "axe_y" in kwargs.keys():
+            axe = kwargs.pop("axe_y")
+            if axe == "x":
+                axe_y = self.xy[:, 0]
+                axe_y_err = self.assoc_std_x
+            elif axe == "y":
+                axe_y = self.xy[:, 1]
+                axe_y_err = self.assoc_std_y
+            elif axe in ["v", 'time']:
+                axe_y = self.v
+                axe_y_err = None
+            else:
+                raise ValueError()
+        else:
+            axe_y = self.xy[:, 1]
+            axe_y_err = self.assoc_std_y
+        # set default properties
+        if kind == 'bar':
+            if 'fmt' not in kwargs.keys():
+                kwargs['fmt'] = 'none'
+            if 'color' in kwargs.keys():
+                kwargs['ecolor'] = kwargs.pop('color')
+            if 'ecolor' not in kwargs.keys():
+                kwargs['ecolor'] = 'k'
+            plt.errorbar(axe_x, axe_y, xerr=axe_x_err,
+                         yerr=axe_y_err, **kwargs)
+        elif kind == 'envelope':
+            if 'alpha'  in kwargs.keys():
+                alpha = kwargs.pop('alpha')
+            else:
+                alpha = np.inf
+            pts = Points()
+            for x, y, epsx, epsy in zip(axe_x, axe_y, axe_x_err, axe_y_err):
+                pts.add([x + epsx, y + epsy])
+                pts.add([x + epsx, y - epsy])
+                pts.add([x - epsx, y + epsy])
+                pts.add([x - epsx, y - epsy])
+            env = pts.get_envelope(alpha=alpha)
+            env.display(**kwargs)
+        else:
+            raise ValueError()
 
     def reconstruct_fields(self, TF):
         """
@@ -3013,13 +3216,10 @@ def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1.):
 
 
 ### Vortex properties ###
-def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
-                      output_unit=False):
+def get_vortex_radius(VF, vort_center, NL_radius=None, eps_detection=0.1,
+                      output_center=False, output_unit=False):
     """
-    Return the radius of the given vortex.
-
-    Use the criterion |gamma2| > 2/pi. The returned radius is an average value
-    if the vortex zone is not circular.
+    Return the radius of the given vortex, use the residual vorticity.
 
     Parameters:
     -----------
@@ -3027,8 +3227,12 @@ def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
         Velocity field on which compute gamma2.
     vort_center : 2x1 array
         Approximate position of the vortex center.
-    gamma2_radius : number, optional
-        Radius needed to compute gamma2.
+    NL_radius : number, optional
+        IF specified, radius used for the non-local computation of the
+        gradients.
+    eps_detection : number
+        epsilon used to determine the edge of the vortex (default is 0.1 for
+        10% of the maximum vorticity value).
     output_center : boolean, optional
         If 'True', return the associated vortex center, computed using center
         of mass algorythm.
@@ -3046,39 +3250,37 @@ def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
     """
 
     # getting data
-    gamma2 = get_gamma(VF, radius=gamma2_radius, ind=False, kind='gamma2')
-    gamma2 = gamma2.smooth('gaussian').values
-    vort = np.abs(gamma2) > 2/np.pi
-    ind_x = VF.get_indice_on_axe(1, vort_center[0], kind='nearest')
-    ind_y = VF.get_indice_on_axe(2, vort_center[1], kind='nearest')
+    if NL_radius is None:
+        vort = get_residual_vorticity(VF)
+    else:
+        vort = get_NL_residual_vorticity(VF, radius=NL_radius, ind=False,
+                                         mask=None, raw=False)
     dx = VF.axe_x[1] - VF.axe_x[0]
     dy = VF.axe_y[1] - VF.axe_y[0]
-    # find vortex zones and label them
-
-    vort, nmb_vort = msr.label(vort)
-    # get wanted zone label
-    lab = vort[ind_x, ind_y]
-    # if we are outside a zone
-    if lab == 0:
-        if output_center:
-            return 0, vort_center
-        else:
-            return 0
-    # else, we compute the radius
-    area = dx*dy*np.sum(vort == lab)
-    radius = np.sqrt(area/np.pi)
-    # optional computed center
+    # getting the ~initial maximum vorticity of the zone
+    ind_x = VF.get_indice_on_axe(1, vort_center[0], kind='nearest')
+    ind_y = VF.get_indice_on_axe(2, vort_center[1], kind='nearest')
+    max_vort = vort.values[ind_x, ind_y]
+    # getting zone around point
+    zones, nmb_zones = msr.label(vort.values > eps_detection*max_vort)
+    zone_number = zones[ind_x, ind_y]
+    # getting the real maximum vorticity
+    max_vort = np.max(vort.values[zones == zone_number])
+    # getting the real zones
+    zones, nmb_zones = msr.label(vort.values > eps_detection*max_vort)
+    zone_number = zones[ind_x, ind_y]
+    # getting the zone area and radius
+    area = np.sum(zones == zone_number)*dx*dy
+    radius = (area/np.pi)**.5
+    # getting the new center
     if output_center:
-        if gamma2[ind_x, ind_y] > 0:
-            pond = gamma2
-        else:
-            pond = -gamma2
-        center = np.array(msr.center_of_mass(pond, vort == lab))
+        center = np.array(msr.center_of_mass(np.abs(vort.values),
+                                             zones == zone_number))
         center[0] = VF.axe_x[0] + center[0]*dx
         center[1] = VF.axe_y[0] + center[1]*dy
     # optional computed unit
     if output_unit:
-        unit_radius = VF.unit_x
+        unit_radius = (VF.unit_x**2 + VF.unit_y**2)**.5
     # return
     if not output_unit and not output_center:
         return radius
@@ -3090,7 +3292,8 @@ def get_vortex_radius(VF, vort_center, gamma2_radius=None, output_center=False,
         return radius, center, unit_radius
 
 
-def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
+def get_vortex_radius_time_evolution(TVFS, traj,  NL_radius=None,
+                                     eps_detection=0.1,
                                      output_center=False, verbose=False):
     """
     Return the radius evolution in time for the given vortex center trajectory.
@@ -3104,8 +3307,12 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
         Velocity field on which compute gamma2.
     traj : Points object
         Trajectory of the vortex.
-    gamma2_radius : number, optional
-        Radius needed to compute gamma2.
+    NL_radius : number, optional
+        IF specified, radius used for the non-local computation of the
+        gradients.
+    eps_detection : number
+        epsilon used to determine the edge of the vortex (default is 0.1 for
+        10% of the maximum vorticity value).
     output_center : boolean, optional
         If 'True', return a Points object with associated vortex centers,
         computed using center of mass algorythm.
@@ -3136,7 +3343,8 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
             field = TVFS.fields[TVFS.times == time][0]
             # getting radius and center
             rad, cent = get_vortex_radius(field, traj.xy[i],
-                                          gamma2_radius=gamma2_radius,
+                                          NL_radius=NL_radius,
+                                          eps_detection=eps_detection,
                                           output_center=True)
             radii[i] = rad
             centers.add(cent, time)
@@ -3150,7 +3358,8 @@ def get_vortex_radius_time_evolution(TVFS, traj, gamma2_radius=None,
             field = TVFS.fields[TVFS.times == time][0]
             # getting radius
             radii[i] = get_vortex_radius(field, traj.xy[i],
-                                         gamma2_radius=gamma2_radius,
+                                         NL_radius=NL_radius,
+                                         eps_detection=eps_detection,
                                          output_center=False)
     # returning
     mask = radii == 0.

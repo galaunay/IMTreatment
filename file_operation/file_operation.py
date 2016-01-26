@@ -877,9 +877,13 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
                 suppl_fields[i].add_field(f, t, unit_time)
         else:
             tmp_vf, infos = import_from_VC7(p, infos=True)
-            dt = infos['FrameDt0'].split()
-            unit_time = make_unit(dt[1])
-            dt = float(dt[0])
+            try:
+                dt = infos['FrameDt0'].split()
+                unit_time = make_unit(dt[1])
+                dt = float(dt[0])
+            except KeyError:
+                dt = 1.
+                unit_time = make_unit("")
             t += dt*incr
             fields.add_field(tmp_vf, t, unit_time)
     # return

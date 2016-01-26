@@ -119,21 +119,21 @@ class ModalFields(Field):
         if self.field_class == VectorField:
             tmp_tf = TemporalVectorFields()
             for i in np.arange(len(self.modes)):
-                tmp_tf.add_field(self.modes[i], time=i,
+                tmp_tf.add_field(self.modes[i], time=i + 1,
                                  unit_times="")
             return tmp_tf
         elif self.field_class == ScalarField:
             tmp_tf = TemporalScalarFields()
             for i in np.arange(len(self.modes)):
-                tmp_tf.add_field(self.modes[i], time=self.times[i],
-                                 unit_times=self.unit_times)
+                tmp_tf.add_field(self.modes[i], time=i + 1,
+                                 unit_times="")
             return tmp_tf
 
     def crop_modal_base(self, modes_to_keep=None, modes_to_remove=None,
                         inplace=True):
         """
         Remove some modes from the modal base.
-        
+
         Parameters
         ----------
         modes_to_keep : array of integers or integer
@@ -158,7 +158,7 @@ class ModalFields(Field):
                                              len(self.modes))
             if not isinstance(modes_to_remove, ARRAYTYPES):
                 raise TypeError()
-            modes_to_remove = np.array(modes_to_remove, dtype=int)           
+            modes_to_remove = np.array(modes_to_remove, dtype=int)
             modes_to_keep = np.arrange(len(self.modes))
             modes_to_keep = np.delete(modes_to_keep, modes_to_remove)
         # get data
@@ -170,17 +170,17 @@ class ModalFields(Field):
         new_modes = []
         new_temp_evo = []
         if self.decomp_type == 'pod':
-            new_eigvals = Profile(unit_x=self.eigvals.unit_x, 
+            new_eigvals = Profile(unit_x=self.eigvals.unit_x,
                                   unit_y=self.eigvals.unit_y)
             new_eigvects = []
         elif self.decomp_type == "dmd":
-            new_growth_rate = Profile(unit_x=self.eigvals.unit_x, 
+            new_growth_rate = Profile(unit_x=self.eigvals.unit_x,
                                       unit_y=self.eigvals.unit_y)
-            new_mode_norms = Profile(unit_x=self.eigvals.unit_x, 
+            new_mode_norms = Profile(unit_x=self.eigvals.unit_x,
                                      unit_y=self.eigvals.unit_y)
-            new_pulsation = Profile(unit_x=self.eigvals.unit_x, 
+            new_pulsation = Profile(unit_x=self.eigvals.unit_x,
                                     unit_y=self.eigvals.unit_y)
-            new_ritz_vals = Profile(unit_x=self.eigvals.unit_x, 
+            new_ritz_vals = Profile(unit_x=self.eigvals.unit_x,
                                     unit_y=self.eigvals.unit_y)
         else:
             raise Exception('Not implemented for {}'.format(self.decomp_type))
@@ -191,7 +191,7 @@ class ModalFields(Field):
             if self.decomp_type == 'pod':
                 new_eigvals.add_point(tmp_pod.eigvals.x[ind],
                                       tmp_pod.eigvals.y[ind])
-                tmp_vect = []                     
+                tmp_vect = []
                 for ind2 in modes_to_keep:
                     tmp_vect.append(tmp_pod.eigvects[ind, ind2])
                 new_eigvects.append(tmp_vect)
@@ -221,12 +221,12 @@ class ModalFields(Field):
         # return
         if not inplace:
             return tmp_pod
-    
+
 #    def trim_time(self, interval, ind=False, inplace=False):
 #        """
 #        Remove some part of the temporal evolution
 #        (used to shorten the result of 'reconstruct')
-#        
+#
 #        Parameters
 #        ----------
 #        interval : 2x1 array of numbers
@@ -267,7 +267,7 @@ class ModalFields(Field):
 #                ind_2 = np.where(times > interval[1])[0][0]
 #            interval = [ind_1, ind_2]
 #        interval = np.array(interval, dtype=int)
-#        # trim 
+#        # trim
 #        tmp_pod.times = tmp_pod.times[interval[0]:interval[1]]
 #        tmp_pod._ModalFields__temp_coh = None
 #        for prof in tmp_pod.temp_evo:
@@ -275,7 +275,7 @@ class ModalFields(Field):
 #        # return
 #        if not inplace:
 #            return tmp_pod
-            
+
     def crop(self, intervx=None, intervy=None, intervt=None, ind=False,
                   inplace=False):
         """
@@ -322,7 +322,7 @@ class ModalFields(Field):
                     ind_2 = np.where(times > intervt[1])[0][0]
                 intervt = [ind_1, ind_2]
             intervt = np.array(intervt, dtype=int)
-            # crop 
+            # crop
             tmp_mf.times = tmp_mf.times[intervt[0]:intervt[1]]
             tmp_mf._ModalFields__temp_coh = None
             for prof in tmp_mf.temp_evo:
@@ -337,8 +337,40 @@ class ModalFields(Field):
                                    inplace=True)
             # loop on modes
             for mode in tmp_mf.modes:
-                mode.crop(intervx=intervx, intervy=intervy, 
+                mode.crop(intervx=intervx, intervy=intervy,
                           ind=ind, inplace=True)
+        # return
+        if not inplace:
+            return tmp_mf
+
+    def scale(self, scalex=1., scaley=1., scalet=1., scalev=1.,
+              inplace=False):
+        """
+        """
+        #
+        if inplace:
+            tmp_mf = self
+        else:
+            tmp_mf = self.copy()
+        # scale mean field
+        tmp_mf.mean_field.scale(scalex=scalex, scaley=scaley, scalev=scalev,
+                                inplace=True)
+        # scale axe and unities
+        tmp_mf.axe_x = tmp_mf.mean_field.axe_x
+        tmp_mf.axe_y = tmp_mf.mean_field.axe_y
+        tmp_mf.unit_x = tmp_mf.mean_field.unit_x
+        tmp_mf.unit_y = tmp_mf.mean_field.unit_y
+        tmp_mf.unit_values = tmp_mf.mean_field.unit_values
+        # scale temporal evolutions
+        for i in range(len(tmp_mf.temp_evo)):
+            tmp_mf.temp_evo[i].scale(scalex=scalet, inplace=True)
+        # scale times and unit
+        tmp_mf.times = tmp_mf.temp_evo[0].x
+        tmp_mf.unit_times = tmp_mf.temp_evo[0].unit_x
+        # scale modes
+        for i in range(len(tmp_mf.modes)):
+            tmp_mf.modes[i].scale(scalex=scalex, scaley=scaley, scalev=scalev,
+                                  inplace=True)
         # return
         if not inplace:
             return tmp_mf
@@ -396,7 +428,7 @@ class ModalFields(Field):
         """
         Augment the temporal resolution (to augmente the temporal resolution
         of the reconstructed fields).
-        
+
         Parameters
         ----------
         fact : integer
@@ -559,7 +591,7 @@ class ModalFields(Field):
 
     def get_modes_energy(self, cum=False, raw=False):
         """
-        Return a profile whith the modes energy.
+        Return a profile whith the modes mean energy.
 
         Parameters
         ----------
@@ -584,7 +616,7 @@ class ModalFields(Field):
                 magnitude = 1./2.*(np.real(self.modes[n].comp_x)**2
                                    + np.real(self.modes[n].comp_y)**2)
             coef_temp = np.mean(np.real(self.temp_evo[n].y)**2)
-            modes_nrj[n] = np.sum(magnitude)*coef_temp
+            modes_nrj[n] = np.mean(magnitude)*coef_temp
         # cum or not
         if cum:
             modes_nrj = np.cumsum(modes_nrj)
@@ -876,9 +908,8 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
     Notes
     -----
     You can use partially masked fields as input.
-    If so, the asked values are set to zero before doing the decomposition.
-    their influence is so minimized (zero energy points) and reported only in
-    the last modes.
+    If so, the asked values are lineary interpolated before doing the
+    decomposition.
     """
     ### Test parameters
     if not isinstance(TF, TemporalFields):
@@ -904,9 +935,10 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
     except:
         raise TypeError()
     ### getting datas
+    TF.crop_masked_border(inplace=True)
+    TF.fill(tof='spatial', kind='linear', inplace=True)
     ind_fields = np.arange(len(TF.fields))
     f_shape = TF.fields[0].shape
-    axe_x, axe_y = TF.axe_x, TF.axe_y
     unit_x, unit_y = TF.unit_x, TF.unit_y
     unit_values = TF.unit_values
     times = TF.times
@@ -914,7 +946,7 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
     mean_field = TF.get_mean_field()
     TF = TF.get_fluctuant_fields()
     super_mask = np.sum(TF.mask, axis=0) == TF.mask.shape[0]
-    TF.fill(kind='value', value=0., inplace=True)
+    axe_x, axe_y = TF.axe_x, TF.axe_y
     ### Link data
     if isinstance(TF, TemporalScalarFields):
         values = [TF.fields[t].values for t in ind_fields]
@@ -1011,13 +1043,13 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
             tmp_prof = eigvect[:, n]*eigvals.y[n]**.5
             tmp_prof = Profile(times, tmp_prof, mask=False,
                                unit_x=unit_times,
-                               unit_y=unit_values)
+                               unit_y=TF.unit_values)
             temporal_prof.append(tmp_prof)
     elif kind == 'dmd':
         for n in np.arange(len(modes)):
             tmp_prof = np.real([ritz_vals.y[n]**(k) for k in ind_fields])
             tmp_prof = Profile(times, tmp_prof, mask=False, unit_x=unit_times,
-                               unit_y=unit_values)
+                               unit_y=TF.unit_values)
             temporal_prof.append(tmp_prof)
     ### Returning
     modes_f = []

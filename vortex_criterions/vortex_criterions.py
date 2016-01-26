@@ -148,7 +148,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
 
     Parameters
     ----------
-    vectorfield : VectorField object
+    vectorfield : VectorField or TemporalVectorFields object
         .
     radius : number, optionnal
         The radius used to choose the zone where to compute
@@ -177,8 +177,8 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         Work only with 'gamma1'
     """
     ### Checking parameters coherence ###
-    if not isinstance(vectorfield, VectorField):
-        raise TypeError("'vectorfield' must be a VectorField object")
+    if not isinstance(vectorfield, (VectorField, TemporalVectorFields)):
+        raise TypeError()
     if radius is None:
         radius = 1.9
         ind = True
@@ -199,6 +199,14 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         mask = np.array(mask)
     if kind in ['gamma2', 'gamma2b']:
         dev_pass = False
+    # if TemporalVectorFields
+    if isinstance(vectorfield, TemporalVectorFields):
+        gammas = TemporalScalarFields()
+        for time, field in zip(vectorfield.times, vectorfield.fields):
+            gamma = get_gamma(field, radius=radius, ind=ind, kind=kind,
+                              mask=mask, raw=raw, dev_pass=dev_pass)
+            gammas.add_field(gamma, time=time, unit_times=vectorfield.unit_times)
+        return gammas
     # getting data and masks
     Vx = vectorfield.comp_x
     Vy = vectorfield.comp_y

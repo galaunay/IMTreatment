@@ -9,7 +9,7 @@ IMTreatment module
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import Plotlib as pplt
+import plotlib as pplt
 # import warnings
 # arnings.filterwarnings('error')
 from . import tools as imttls
@@ -301,7 +301,12 @@ class Points(object):
     ### Attributes ###
     @property
     def xy(self):
-        return self.__xy
+#        return self.__xy
+        # TODO : to remove (for compatibility)
+        try:
+            return self.__xy
+        except AttributeError:
+            return self.__dict__['xy']
 
     @xy.setter
     @TypeTest(values=ARRAYTYPES)
@@ -323,8 +328,12 @@ class Points(object):
 
     @property
     def v(self):
-        return self.__v
-
+#        return self.__v
+        # TODO : to remove (for compatibility)
+        try:
+            return self.__v
+        except AttributeError:
+            return self.__dict__['v']
     @v.setter
     @TypeTest(values=ARRAYTYPES)
     def v(self, values):
@@ -341,8 +350,12 @@ class Points(object):
 
     @property
     def unit_x(self):
-        return self.__unit_x
-
+#        return self.__unit_x
+        # TODO : to remove (for compatibility)
+        try:
+            return self.__unit_x
+        except AttributeError:
+            return self.__dict__['unit_x']
     @unit_x.setter
     @TypeTest(unit=STRINGTYPES + (unum.Unum,))
     def unit_x(self, unit):
@@ -362,8 +375,12 @@ class Points(object):
 
     @property
     def unit_y(self):
-        return self.__unit_y
-
+#        return self.__unit_y
+        # TODO : to remove (for compatibility)
+        try:
+            return self.__unit_y
+        except AttributeError:
+            return self.__dict__['unit_y']
     @unit_y.setter
     @TypeTest(unit=STRINGTYPES + (unum.Unum,))
     def unit_y(self, unit):
@@ -383,7 +400,12 @@ class Points(object):
 
     @property
     def unit_v(self):
-        return self.__unit_v
+#        return self.__unit_v
+        # TODO : to remove (for compatibility)
+        try:
+            return self.__unit_v
+        except AttributeError:
+            return self.__dict__['unit_v']
 
     @unit_v.setter
     @TypeTest(unit=STRINGTYPES + (unum.Unum,))
@@ -443,7 +465,6 @@ class Points(object):
             node you want to see).
             If a callable, it should take a gaussian_kde instance as only
             parameter and return a scalar. If None (default), 'scott' is used.
-            See Notes for more details.
         resolution : integer, optional
             Resolution for the resulting field.
         output_format : string, optional
@@ -671,6 +692,78 @@ class Points(object):
                                   unit_x=self.unit_x, unit_y=self.unit_y,
                                   unit_values=unit_values)
             return sf
+
+    def get_envelope(self, alpha=None):
+        """
+        Return the convex or concave hull (if alpha specified) for the set of
+        points.
+
+        Parameters
+        ---------
+        alpha : number
+            maximum distance between two points of the hull.
+
+        Notes
+        -----
+        Credit to mlaloux
+        (https://github.com/mlaloux/Python--alpha-shape_concave_hull)
+        """
+        # import shapely functions
+        try:
+            from shapely.geometry import mapping
+            from shapely.geometry import MultiLineString
+            from shapely.ops import polygonize, cascaded_union
+        except ImportError:
+            raise Exception("This functionnality need 'shapely' module")
+        if alpha is None:
+            alpha = np.inf
+        # triangulate
+        from scipy.spatial import Delaunay
+        points = self.xy
+        tri = Delaunay(points)
+        # add and sort points
+        edges = set()
+        edge_points = []
+
+        def add_edge(i, j):
+            """Add a line between the i-th and j-th points,
+            if not in the list already"""
+            if (i, j) in edges or (j, i) in edges:
+                return
+            edges.add((i, j))
+            edge_points.append(points[[i, j]])
+        points = np.array(points)
+        for ia, ib, ic in tri.vertices:
+            pa = points[ia]
+            pb = points[ib]
+            pc = points[ic]
+            # Lengths of sides of triangle
+            a = np.sqrt((pa[0]-pb[0])**2 + (pa[1]-pb[1])**2)
+            b = np.sqrt((pb[0]-pc[0])**2 + (pb[1]-pc[1])**2)
+            c = np.sqrt((pc[0]-pa[0])**2 + (pc[1]-pa[1])**2)
+            # Semiperimeter of triangle
+            s = (a + b + c)/2.0
+            # Area of triangle by Heron's formula
+            area = np.sqrt(s*(s-a)*(s-b)*(s-c))
+            circum_r = a*b*c/(4.0*area)
+            # Here's the radius filter.
+            #if circum_r < 1.0/alpha:
+            if circum_r < alpha:
+                add_edge(ia, ib)
+                add_edge(ib, ic)
+                add_edge(ic, ia)
+        # concatenate polygons
+        m = MultiLineString(edge_points)
+        triangles = list(polygonize(m))
+        hull = mapping(cascaded_union(triangles))['coordinates'][0]
+        hull = np.array(hull, dtype=float)
+        if hull.ndim == 3:
+            hull = hull[0]
+        # transform to Points object
+        pt = Points(xy=hull, v=[], unit_x=self.unit_x,
+                    unit_y=self.unit_y)
+        return pt
+
 
     @TypeTest(incr=int, smooth=NUMBERTYPES, xaxis=STRINGTYPES)
     def get_velocity(self, incr=1, smooth=0, xaxis='time'):
@@ -1291,7 +1384,7 @@ class Points(object):
     def _display(self, kind=None, axe_x=None, axe_y=None, axe_color=None,
                  **plotargs):
         if kind is None:
-            if self.v is None:
+            if len(self.v) == 0:
                 kind = 'plot'
             else:
                 kind = 'scatter'
@@ -1336,6 +1429,7 @@ class Points(object):
             plot = colored_plot(x_values, y_values, z=color_values, **plotargs)
         else:
             raise ValueError()
+        pplt.DataCursorPoints(plot, x_values, y_values)
         return plot
 
     def display(self, kind=None, axe_x=None, axe_y=None, axe_color=None,
@@ -2816,11 +2910,13 @@ class Profile(object):
         # get gradients
         grad = prof.get_gradient()
         grad2 = grad.get_gradient()
-        max_filt = grad2.y < 0
+        tmp_y = grad2.y.copy()
+        tmp_y[np.isnan(tmp_y)] = 0
+        max_filt = tmp_y < 0
         grad_max = grad.copy()
-        grad_max.mask = np.logical_not(max_filt)
+        grad_max.mask = np.logical_or(np.logical_not(max_filt), grad.mask)
         grad_min = grad.copy()
-        grad_min.mask = max_filt
+        grad_min.mask = np.logical_or(max_filt, grad.mask)
         # get 0-value positions
         pos_max = grad_max.get_value_position(0, ind=ind)
         pos_min = grad_min.get_value_position(0, ind=ind)
@@ -2886,15 +2982,45 @@ class Profile(object):
         # return
         return conv_prof
 
-    def get_dephasage(self, other_profile):
+    def get_dephasage(self, other_profile, conv='difference'):
         """
         Return the dephasage between the two profiles using convolution
+
+        Parameters
+        ----------
+        conv : string in ['classic', 'difference']
+            The convection type to use
+
+        Returns
+        -------
+        dep : number
+            Dephasage, in profiles unit
         """
-        tmp_conv = self.get_convolution(other_profile, mode='full')
-        _, maxs = tmp_conv.get_extrema_position()
-        ind_closer = np.argmin(np.abs(maxs - (len(tmp_conv) + 1)/2.))
-        tmp_deph =  (len(tmp_conv) + 1)/2.- maxs[ind_closer]
-        return tmp_deph/2.
+        # TODO : Repair 'classic'
+        if conv == 'classic':
+            raise Exception("'classic' is broken for now...")
+            tmp_conv = self.get_convolution(other_profile, mode='same')
+            _, maxs = tmp_conv.get_extrema_position()
+            ind_closer = np.argmin(np.abs(maxs - (len(tmp_conv) + 1)/2.))
+            tmp_deph = ((len(tmp_conv) + 1)/2. - maxs[ind_closer])/2
+        elif conv == 'difference':
+            tmp_conv = self.get_convolution_of_difference(other_profile,
+                                                          normalized=True)
+            mini = tmp_conv.get_value_position(tmp_conv.min)[0]
+            if len(self) > len(other_profile):
+                tmp_deph = mini - (other_profile.x[-1]
+                                   + other_profile.x[0])/2.
+                if len(other_profile) % 2 == 0:
+                    tmp_deph -= 0.5
+                else:
+                    tmp_deph -= 1.
+            else:
+                tmp_deph = -(mini - (self.x[-1] + self.x[0])/2.)
+                if len(self) % 2 == 0:
+                    tmp_deph += 0.5
+                else:
+                    tmp_deph += 1.
+        return tmp_deph
 
     def get_convolution_of_difference(self, other_profile, normalized=True):
         """
@@ -2904,6 +3030,11 @@ class Profile(object):
         ----
         Difference is not normaized, but averaged on the available points.
         """
+        # TODO : change the returned x axis so that it corepsond to the
+        #        depahsage
+        # WARNING : 'get_dephasage' strongly depend on this function,
+        #           do ot change thing here without making the apropriate
+        #           changes in 'get_sephasage'
         # check
         if not self.unit_x == other_profile.unit_x:
             raise ValueError()
@@ -3484,6 +3615,7 @@ class Profile(object):
                     plot = pplt.colored_plot(x, y, z=color, log=kind,
                                              color_label=color_label,
                                              **plotargs)
+                    pplt.DataCursorPoints(plot, x, y)
                     return plot
         # check log error
         ind_to_del = np.zeros(len(x), dtype=bool)
@@ -3496,6 +3628,7 @@ class Profile(object):
         y = y[ind_to_keep]
         # display normal plot
         plot = plt.plot(x, y, **plotargs)
+        pplt.DataCursorPoints(plot, x, y)
         ax = plt.gca()
         if kind == 'plot':
             pass
@@ -7801,10 +7934,10 @@ class TemporalFields(Fields, Field):
             raise TypeError("'component' must be a string")
         if isinstance(pt, ARRAYTYPES):
             if ind:
-                if not (isinstance(pt[0], int) and isinstance(pt[1], int)):
-                    raise TypeError()
-                ind_x = pt[0]
-                ind_y = pt[1]
+                if pt[0] % 1 != 0 or pt[1] % 1 !=0:
+                    raise ValueError()
+                ind_x = int(pt[0])
+                ind_y = int(pt[1])
             else:
                 ind_x = self.get_indice_on_axe(1, pt[0], kind='nearest')
                 ind_y = self.get_indice_on_axe(2, pt[1], kind='nearest')
@@ -8530,7 +8663,7 @@ class TemporalFields(Fields, Field):
         if not inplace:
             return tmp_tf
 
-    def remove_weird_fields(self, std_coef=3., treatment='interpolate',
+    def remove_weird_fields(self, std_coef=3.29, treatment='interpolate',
                             inplace=False):
         """
         Look at the time evolution of spatial mean magnitude to identify and
@@ -8541,7 +8674,7 @@ class TemporalFields(Fields, Field):
         std_coef : number
             Fields associated with mean magnitude outside the interval
             [mean - std_coef*std, mean - std_coef*std] are treated as weird
-            fields. Default value of '3' corespond for a 99.7% interval.
+            fields. Default value of '3.29' corespond for a 99.9% interval.
         treatment : string in ['remove', 'interpolate']
             Type of treatment for the weird fields
             (default is 'interpolate')
@@ -8732,7 +8865,7 @@ class TemporalFields(Fields, Field):
                 plt.sca(axes.flat[i])
                 im = self.fields[field_ind].display(component=component,
                                                     kind=kind, **plotargs)
-                plt.title("t = {:.2f}{}".format(times[i],
+                plt.title("t = {:.2f}{}".format(times[field_ind],
                                                 self.unit_times.strUnit()))
             # deleting the non-wanted axes
             for ax in axes.flat[nmb_fields::]:
@@ -9409,8 +9542,10 @@ class TemporalVectorFields(TemporalFields):
             # loop on each field position
             for i, j in np.argwhere(super_mask):
                 # get time profiles
-                prof_x = self.get_time_profile('comp_x', i, j, ind=True)
-                prof_y = self.get_time_profile('comp_y', i, j, ind=True)
+                prof_x = self.get_time_profile(component='comp_x', pt=[i, j],
+                                               ind=True)
+                prof_y = self.get_time_profile(component='comp_y', pt=[i, j],
+                                               ind=True)
                 # getting masked position on profile
                 inds_masked_x = np.where(prof_x.mask)[0]
                 inds_masked_y = np.where(prof_y.mask)[0]
