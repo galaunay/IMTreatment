@@ -9008,7 +9008,7 @@ class TemporalFields(Fields, Field):
             elif compo == 'x':
                 comp = self.Vx_as_sf
             elif compo == 'y':
-                comp = self.vy_as_sf
+                comp = self.Vy_as_sf
             elif compo == 'mask':
                 comp = self.mask_as_sf
             else:

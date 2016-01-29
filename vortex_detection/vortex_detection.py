@@ -650,7 +650,7 @@ class CritPoints(object):
 #                    after_time = self.times[ind_time + 1]
 
     def get_points_density(self, kind, bw_method=None, resolution=100,
-                           output_format=None):
+                           output_format='normalized'):
         """
         Return the presence density map for the given point type.
 
@@ -3614,7 +3614,8 @@ def get_vortex_property_time_evolution(TVFs, vort_center_traj, size_crit=None,
 #    return radii_prof
 #
 
-def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
+def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False,
+                           verbose=False):
     """
     Return the circulation of the given vortex.
 
@@ -3633,7 +3634,7 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
     vort_center : 2x1 array
         Approximate position of the vortex center.
     epsilon : float, optional
-        seuil for the vorticity integral (default is 0.1).
+        Relative seuil for the vorticity integral (default is 0.1).
     output_unit : boolean, optional
         If 'True', circulation unit is returned.
 
@@ -3649,12 +3650,9 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
     dy = VF.axe_y[1] - VF.axe_y[0]
     vort = get_vorticity(VF)
     # find omega > 0.1 zones and label them
-    vort_zone = np.abs(vort.values) > epsilon
+    max_vort = np.max(np.abs(vort.values[~vort.mask]))
+    vort_zone = np.abs(vort.values)/max_vort > epsilon
     vort_zone, nmb_zone = msr.label(vort_zone)
-    plt.figure()
-    plt.imshow(vort_zone)
-    plt.figure()
-    vort.display()
     # get wanted zone label
     lab = vort_zone[ind_x, ind_y]
     # if we are outside a zone
@@ -3663,6 +3661,12 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False):
             return 0., make_unit("")
         else:
             return 0.
+    if verbose:
+        plt.figure()
+        vort.display()
+        plt.plot(vort_center[0], vort_center[1], 'ok')
+        plt.figure()
+        plt.imshow(vort_zone==lab)
     # else, we compute the circulation
     circ = np.sum(vort.values[vort_zone == lab])*dx*dy
     # if necessary, we compute the unit

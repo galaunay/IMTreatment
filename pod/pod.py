@@ -879,15 +879,104 @@ class ModalFields(Field):
         plt.tight_layout()
 
 
-def modal_decomposition(TF, kind='pod', wanted_modes='all',
+def _tsf_to_POD(tsf):
+    ### getting datas
+    props = {}
+    tsf = tsf.copy()
+    tsf.crop_masked_border(inplace=True)
+    tsf.fill(tof='spatial', kind='linear', inplace=True)
+    ind_fields = np.arange(len(tsf.fields))
+    props['ind_fields'] = ind_fields
+    props['f_shape'] = tsf.fields[0].shape
+    props['mean_field'] = tsf.get_mean_field()
+    tsf = tsf.get_fluctuant_fields()
+    props['super_mask'] = np.sum(tsf.mask, axis=0) == tsf.mask.shape[0]
+    props['axe_x'], props['axe_y'] = tsf.axe_x, tsf.axe_y
+    props['times'] = tsf.times
+    props['unit_x'], props['unit_y'] = tsf.unit_x, tsf.unit_y
+    props['unit_values'] = tsf.unit_values
+    props['unit_times'] = tsf.unit_times
+    ### Link data
+    values = [tsf.fields[t].values for t in ind_fields]
+    del tsf
+    snaps = [modred.VecHandleInMemory(values[t])
+             for t in ind_fields]
+    del values
+    # return
+    return snaps, props
+
+
+def _tvf_to_POD(tvf):
+    # getting datas
+    props = {}
+    tvf = tvf.copy()
+    tvf.crop_masked_border(inplace=True)
+    tvf.fill(tof='spatial', kind='linear', inplace=True)
+    ind_fields = np.arange(len(tvf.fields))
+    props['ind_fields'] = ind_fields
+    props['f_shape'] = tvf.fields[0].shape
+    props['mean_field'] = tvf.get_mean_field()
+    tvf = tvf.get_fluctuant_fields()
+    props['super_mask'] = np.sum(tvf.mask, axis=0) == tvf.mask.shape[0]
+    props['axe_x'], props['axe_y'] = tvf.axe_x, tvf.axe_y
+    props['times'] = tvf.times
+    props['unit_x'], props['unit_y'] = tvf.unit_x, tvf.unit_y
+    props['unit_values'] = tvf.unit_values
+    props['unit_times'] = tvf.unit_times
+    # Linking to snaps
+    values = [[tvf.fields[t].comp_x, tvf.fields[t].comp_y]
+              for t in ind_fields]
+    del tvf
+    snaps = [modred.VecHandleInMemory(np.transpose(values[i], (1, 2, 0)))
+             for i in ind_fields]
+    print(len(snaps))
+    del values
+    # return
+    return snaps, props
+
+
+def _POD_to_tsf(modes, props):
+    locals().update(props)
+    modes_f = []
+    for i in np.arange(len(modes)):
+        tmp_field = ScalarField()
+        tmp_field.import_from_arrays(axe_x, axe_y, modes[i].get(),
+                                     mask=super_mask, unit_x=unit_x,
+                                     unit_y=unit_y,
+                                     unit_values=unit_values)
+        modes[i] = 0
+        modes_f.append(tmp_field)
+    return modes_f
+
+
+def _POD_to_tvf(modes, props):
+    locals().update(props)
+    modes_f = []
+    for i in np.arange(len(modes)):
+        tmp_field = VectorField()
+        comp_x = modes[i].get()[:, :, 0]
+        comp_y = modes[i].get()[:, :, 1]
+        modes[i] = 0
+        tmp_field.import_from_arrays(axe_x, axe_y, comp_x, comp_y,
+                                     mask=super_mask, unit_x=unit_x,
+                                     unit_y=unit_y,
+                                     unit_values=unit_values)
+        modes[i] = 0
+        modes_f.append(tmp_field)
+    return modes_f
+
+
+def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
                         max_vecs_per_node=1000, verbose=True):
     """
     Compute POD modes of the given fields using the snapshot method.
 
     Parameters
     ----------
-    TF : TemporalFields (TemporalScalarFields or TemporalVectorFields)
+    obj : TemporalFields, Profile or Points object
         Fields to extract modes from
+    obj2 : same as obj
+        Only used as second dataset for BPOD
     kind : string, optional
         Kind of decomposition, can be 'pod' (default), 'bpod' or 'dmd'.
     wanted_modes : string or number or array of numbers
@@ -912,8 +1001,17 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
     decomposition.
     """
     ### Test parameters
-    if not isinstance(TF, TemporalFields):
+    if not isinstance(obj, (TemporalFields)):
         raise TypeError()
+    if kind == "bpod":
+        if obj2 is None:
+            raise ValueError()
+        if not isinstance(obj2, obj.__class__):
+            raise TypeError()
+        if not obj2.shape == obj.shape:
+            raise ValueError()
+#        if not len(obj2) == len(obj):
+#            raise ValueError()
     if not isinstance(kind, STRINGTYPES):
         raise TypeError()
     if not kind in ['pod', 'bpod', 'dmd']:
@@ -921,12 +1019,12 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
     if isinstance(wanted_modes, STRINGTYPES):
         if not wanted_modes == 'all':
             raise ValueError()
-        wanted_modes = np.arange(len(TF.fields))
+        wanted_modes = np.arange(len(obj.fields))
     elif isinstance(wanted_modes, NUMBERTYPES):
         wanted_modes = np.arange(wanted_modes)
     elif isinstance(wanted_modes, ARRAYTYPES):
         wanted_modes = np.array(wanted_modes)
-        if wanted_modes.min() < 0 or wanted_modes.max() > len(TF.fields):
+        if wanted_modes.min() < 0 or wanted_modes.max() > len(obj.fields):
             raise ValueError()
     else:
         raise TypeError()
@@ -935,34 +1033,20 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
     except:
         raise TypeError()
     ### getting datas
-    TF.crop_masked_border(inplace=True)
-    TF.fill(tof='spatial', kind='linear', inplace=True)
-    ind_fields = np.arange(len(TF.fields))
-    f_shape = TF.fields[0].shape
-    unit_x, unit_y = TF.unit_x, TF.unit_y
-    unit_values = TF.unit_values
-    times = TF.times
-    unit_times = TF.unit_times
-    mean_field = TF.get_mean_field()
-    TF = TF.get_fluctuant_fields()
-    super_mask = np.sum(TF.mask, axis=0) == TF.mask.shape[0]
-    axe_x, axe_y = TF.axe_x, TF.axe_y
-    ### Link data
-    if isinstance(TF, TemporalScalarFields):
-        values = [TF.fields[t].values for t in ind_fields]
-        del TF
-        snaps = [modred.VecHandleInMemory(values[t])
-                 for t in ind_fields]
-        del values
-    elif isinstance(TF, TemporalVectorFields):
-        values = [[TF.fields[t].comp_x, TF.fields[t].comp_y]
-                  for t in ind_fields]
-        del TF
-        snaps = [modred.VecHandleInMemory(np.transpose(values[i], (1, 2, 0)))
-                 for i in ind_fields]
-        del values
+    if isinstance(obj, TemporalScalarFields):
+        obj_type = 'TSF'
+        snaps, props = _tsf_to_POD(obj)
+        if kind == "bpod":
+            snaps2, _ = _tsf_to_POD(obj2)
+    elif isinstance(obj, TemporalVectorFields):
+        obj_type = 'TVF'
+        snaps, props = _tvf_to_POD(obj)
+        if kind == "bpod":
+            snaps2, _ = _tvf_to_POD(obj2)
     else:
-        raise Exception()
+        raise TypeError()
+    globals().update(props)
+
     ### Setting the decomposition mode
     eigvals = None
     eigvect = None
@@ -985,8 +1069,9 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
         my_decomp = modred.BPODHandles(np.vdot,
                                        max_vecs_per_node=max_vecs_per_node,
                                        verbosity=verbose)
-        eigvect, eigvals, eigvect_l = my_decomp.compute_decomp(snaps, snaps)
+        eigvect, eigvals, eigvect_l = my_decomp.compute_decomp(snaps, snaps2)
         del snaps
+        del snaps2
         wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
         eigvect = np.array(eigvect)
         eigvect = eigvect[:, wanted_modes]
@@ -1008,8 +1093,8 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
         mask = np.logical_and(lambd_i == 0, lambd_r <= 0)
         filt = np.logical_not(mask)
         lambd_arg[mask] = np.pi
-        lambd_arg[filt] = 2*np.arctan(lambd_i[filt]/(lambd_r[filt]
-                                                     + lambd_mod[filt]))
+        lambd_arg[filt] = 2*np.arctan(lambd_i[filt]/(lambd_r[filt] +
+                                                     lambd_mod[filt]))
         sigma = np.log(lambd_mod)/delta_t
         omega = lambd_arg/delta_t
         # creating profiles
@@ -1038,39 +1123,51 @@ def modal_decomposition(TF, kind='pod', wanted_modes='all',
         my_decomp.compute_adjoint_modes(wanted_modes, adj_modes)
     ### Getting temporal evolution
     temporal_prof = []
-    if kind in ['pod', 'bpod']:
+    if kind in ['pod']:
         for n in np.arange(len(modes)):
             tmp_prof = eigvect[:, n]*eigvals.y[n]**.5
             tmp_prof = Profile(times, tmp_prof, mask=False,
                                unit_x=unit_times,
-                               unit_y=TF.unit_values)
+                               unit_y=unit_values)
+            temporal_prof.append(tmp_prof)
+    if kind in ['bpod']:
+        for n in np.arange(len(modes)):
+            tmp_prof = eigvect[:, n]*eigvals.y[n]**.5
+            tmp_times = times[0:len(tmp_prof)]
+            tmp_prof = Profile(tmp_times, tmp_prof, mask=False,
+                               unit_x=unit_times,
+                               unit_y=unit_values)
             temporal_prof.append(tmp_prof)
     elif kind == 'dmd':
         for n in np.arange(len(modes)):
             tmp_prof = np.real([ritz_vals.y[n]**(k) for k in ind_fields])
             tmp_prof = Profile(times, tmp_prof, mask=False, unit_x=unit_times,
-                               unit_y=TF.unit_values)
+                               unit_y=obj.unit_values)
             temporal_prof.append(tmp_prof)
     ### Returning
-    modes_f = []
-    for i in np.arange(len(modes)):
-        if isinstance(mean_field, ScalarField):
-            tmp_field = ScalarField()
-            tmp_field.import_from_arrays(axe_x, axe_y, modes[i].get(),
-                                         mask=super_mask, unit_x=unit_x,
-                                         unit_y=unit_y,
-                                         unit_values=unit_values)
-            modes[i] = 0
-        else:
-            tmp_field = VectorField()
-            comp_x = modes[i].get()[:, :, 0]
-            comp_y = modes[i].get()[:, :, 1]
-            modes[i] = 0
-            tmp_field.import_from_arrays(axe_x, axe_y, comp_x, comp_y,
-                                         mask=super_mask, unit_x=unit_x,
-                                         unit_y=unit_y,
-                                         unit_values=unit_values)
-        modes_f.append(tmp_field)
+    if obj_type == "TSF":
+        modes_f = _POD_to_tsf(modes, props)
+    elif obj_type == "TVF":
+        modes_f = _POD_to_tvf(modes, props)
+#    modes_f = []
+#    for i in np.arange(len(modes)):
+#        if isinstance(mean_field, ScalarField):
+#            tmp_field = ScalarField()
+#            tmp_field.import_from_arrays(axe_x, axe_y, modes[i].get(),
+#                                         mask=super_mask, unit_x=unit_x,
+#                                         unit_y=unit_y,
+#                                         unit_values=unit_values)
+#            modes[i] = 0
+#        else:
+#            tmp_field = VectorField()
+#            comp_x = modes[i].get()[:, :, 0]
+#            comp_y = modes[i].get()[:, :, 1]
+#            modes[i] = 0
+#            tmp_field.import_from_arrays(axe_x, axe_y, comp_x, comp_y,
+#                                         mask=super_mask, unit_x=unit_x,
+#                                         unit_y=unit_y,
+#                                         unit_values=unit_values)
+#        modes_f.append(tmp_field)
     del modes
     modal_field = ModalFields(kind, mean_field, modes_f, wanted_modes,
                               temporal_prof,
