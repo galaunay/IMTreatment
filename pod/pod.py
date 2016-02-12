@@ -363,13 +363,14 @@ class ModalFields(Field):
         tmp_mf.unit_values = tmp_mf.mean_field.unit_values
         # scale temporal evolutions
         for i in range(len(tmp_mf.temp_evo)):
-            tmp_mf.temp_evo[i].scale(scalex=scalet, inplace=True)
+            tmp_mf.temp_evo[i].scale(scalex=scalet, scaley=scalev,
+                                     inplace=True)
         # scale times and unit
         tmp_mf.times = tmp_mf.temp_evo[0].x
         tmp_mf.unit_times = tmp_mf.temp_evo[0].unit_x
         # scale modes
         for i in range(len(tmp_mf.modes)):
-            tmp_mf.modes[i].scale(scalex=scalex, scaley=scaley, scalev=scalev,
+            tmp_mf.modes[i].scale(scalex=scalex, scaley=scaley,
                                   inplace=True)
         # return
         if not inplace:

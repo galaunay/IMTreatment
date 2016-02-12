@@ -296,7 +296,7 @@ class VF(object):
             return res_pos
 
         # use multiprocessing to get cp position on cell if asked
-        if thread != 1:
+        if thread != 1 and MULTIPROC:
             if thread == 'all':
                 pool = Pool()
             else:
@@ -1862,9 +1862,10 @@ class CritPoints(object):
                 color = colors[i]
                 if trajs is None or not filt[i]:
                     continue
+                if 'kind' not in kw.keys():
+                    kw['kind'] = 'plot'
                 for traj in trajs:
-                    traj.display(color=color, kind='plot',
-                                 **kw)
+                    traj.display(color=color, **kw)
             plt.xlabel('x {}'.format(self.unit_x.strUnit()))
             plt.ylabel('y {}'.format(self.unit_y.strUnit()))
         elif data == 'x':
@@ -2206,6 +2207,14 @@ class MeanTrajectory(Points):
     @unit_times.setter
     def unit_times(self, unit):
         self.unit_v = unit
+
+    @property
+    def used_traj_number(self):
+        return float(len(self.base_trajs))
+
+    @property
+    def used_pts_number(self):
+        return float(np.sum([len(tr) for tr in self.base_trajs]))
 
     def crop(self, intervx=None, intervy=None, intervt=None, inplace=True):
             """
@@ -2564,7 +2573,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                                       thread=1)
             return res
         # Mapping with multiprocess or not
-        if thread == 1:
+        if thread == 1 or not MULTIPROC:
             for i in np.arange(len(obj.fields)):
                 res += get_cp_on_one_field((obj.fields[i], obj.times[i]))
         else:

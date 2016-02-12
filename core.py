@@ -9,10 +9,10 @@ IMTreatment module
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import plotlib as pplt
+import Plotlib as pplt
 # import warnings
 # arnings.filterwarnings('error')
-from . import tools as imttls
+import tools as imttls
 import numpy as np
 import pdb
 import unum
@@ -1953,6 +1953,7 @@ class Profile(object):
         self.x = x[order]
         self.y = y[order]
         self.mask = mask[order]
+        self.mask = np.logical_or(self.mask, np.isnan(self.y))
         self.name = name
         self.unit_x = unit_x.copy()
         self.unit_y = unit_y.copy()
@@ -4611,6 +4612,9 @@ class ScalarField(Field):
         unit_values : String unit, optionnal
             Unit for the scalar field
         """
+        axe_x = np.array(axe_x, dtype=float)
+        axe_y = np.array(axe_y, dtype=float)
+        values = np.array(values, dtype=float)
         # checking parameters coherence
         if (values.shape[0] != axe_x.shape[0] or
                 values.shape[1] != axe_y.shape[0]):
@@ -5733,6 +5737,8 @@ class ScalarField(Field):
             # getting the zone to interpolate
                 xy_good = xy[filt.flatten()]
                 values_good = values[filt]
+            else:
+                raise ValueError()
             # adding the value at the symetry plane
             if direction == 1:
                 addit_xy = zip([position]*len(tmp_vf.axe_y), tmp_vf.axe_y)
