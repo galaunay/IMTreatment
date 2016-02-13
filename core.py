@@ -13,6 +13,7 @@ import Plotlib as pplt
 # import warnings
 # arnings.filterwarnings('error')
 import tools as imttls
+import Plotlib as pplt
 import numpy as np
 import pdb
 import unum
@@ -1383,11 +1384,6 @@ class Points(object):
     ### Displayers ###
     def _display(self, kind=None, axe_x=None, axe_y=None, axe_color=None,
                  **plotargs):
-        if kind is None:
-            if len(self.v) == 0:
-                kind = 'plot'
-            else:
-                kind = 'scatter'
         # x values
         if axe_x == 'x' or axe_x is None:
             x_values = self.xy[:, 0]
@@ -1415,22 +1411,11 @@ class Points(object):
             color_values = self.v
         else:
             raise ValueError()
-        if kind == 'scatter':
-            if self.v is None:
-                plot = plt.scatter(x_values, y_values, **plotargs)
-            else:
-                if 'c' not in plotargs:
-                    plotargs['c'] = color_values
-                plot = plt.scatter(x_values, y_values, **plotargs)
-        elif kind == 'plot':
-            plot = plt.plot(x_values, y_values, **plotargs)
-        elif kind == 'colored_plot':
-            from IMTreatment.Tools import colored_plot
-            plot = colored_plot(x_values, y_values, z=color_values, **plotargs)
-        else:
-            raise ValueError()
-        pplt.DataCursorPoints(plot, x_values, y_values)
-        return plot
+        # display
+        dp = pplt.Displayer(x=x_values, y=y_values, values=color_values,
+                            kind=kind, **plotargs)
+        ax = dp.draw()
+        return ax
 
     def display(self, kind=None, axe_x=None, axe_y=None, axe_color=None,
                 **plotargs):
@@ -1872,11 +1857,6 @@ class OrientedPoints(Points):
     def _display(self, kind=None, **plotargs):
         # display like a Points object
         plot = Points._display(self, kind=kind, **plotargs)
-        if kind is None:
-            if self.v is None:
-                kind = 'plot'
-            else:
-                kind = 'scatter'
         # setting color
         if 'color' in plotargs.keys():
             colors = [plotargs.pop('color')]
@@ -3615,22 +3595,8 @@ class Profile(object):
         x = x[ind_to_keep]
         y = y[ind_to_keep]
         # display normal plot
-        plot = plt.plot(x, y, **plotargs)
-        pplt.DataCursorPoints(plot, x, y)
-        ax = plt.gca()
-        if kind == 'plot':
-            pass
-        elif kind == 'semilogx':
-            ax.set_yscale('linear')
-            ax.set_xscale('log')
-        elif kind == 'semilogy':
-            ax.set_yscale('log')
-            ax.set_xscale('linear')
-        elif kind == 'loglog':
-            ax.set_xscale('log')
-            ax.set_yscale('log')
-        else:
-            raise ValueError("Unknown plot type : {}.".format(kind))
+        dp = pplt.Displayer(x=x, y=y, kind=kind, **plotargs)
+        plot = dp.draw()
         return plot
 
     def display(self, kind='plot', reverse=False,  **plotargs):
@@ -6125,36 +6091,13 @@ class ScalarField(Field):
         else:
             raise ValueError("unknown value of 'component' parameter : {}"
                              .format(component))
-        # displaying according to 'kind'
-        if kind == 'contour':
-            displ = plt.contour(axe_x, axe_y, values, linewidth=1, **plotargs)
-        elif kind == 'contourf':
-            if 'cmap' in plotargs.keys() or 'colors' in plotargs.keys():
-                displ = plt.contourf(axe_x, axe_y, values, linewidth=1,
-                                     **plotargs)
-            else:
-                displ = plt.contourf(axe_x, axe_y, values,
-                                     linewidth=1, **plotargs)
-        elif kind == "imshow" or kind is None:
-            if not 'interpolation' in plotargs.keys():
-                plotargs['interpolation'] = 'nearest'
-            if not 'aspect' in plotargs.keys():
-                plotargs['aspect'] = 'equal'
-            delta_x = axe_x[1] - axe_x[0]
-            delta_y = axe_y[1] - axe_y[0]
-            displ = plt.imshow(values,
-                               extent=(axe_x[0] - delta_x/2.,
-                                       axe_x[-1] + delta_x/2.,
-                                       axe_y[0] - delta_y/2.,
-                                       axe_y[-1] + delta_y/2.),
-                               origin='lower', **plotargs)
-        else:
-            raise ValueError("Unknown 'kind' of plot for ScalarField object")
+        dp = pplt.Displayer(x=axe_x, y=axe_y, values=values, kind=kind,
+                            **plotargs)
+        plot = dp.draw()
         # setting labels
-        #plt.axis('image')
         plt.xlabel("X " + unit_x.strUnit())
         plt.ylabel("Y " + unit_y.strUnit())
-        return displ
+        return plot
 
     def display(self, component=None, kind=None, **plotargs):
         """
@@ -7219,73 +7162,14 @@ class VectorField(Field):
 
     ### Displayers ###
     def _display(self, component=None, kind=None, axis='image', **plotargs):
-        if kind is not None:
-            if not isinstance(kind, STRINGTYPES):
-                raise TypeError("'kind' must be a string")
-        axe_x, axe_y = self.axe_x, self.axe_y
-        if component is None or component == 'V':
-            Vx = np.transpose(self.comp_x).copy()
-            Vy = np.transpose(self.comp_y).copy()
-            mask = np.transpose(self.mask)
-
-            Vx[mask] = np.inf
-            Vy[mask] = np.inf
-            magn = np.transpose(self.magnitude)
-            magn[mask] = 0
-            unit_x, unit_y = self.unit_x, self.unit_y
-            if kind == 'stream':
-                if not 'color' in plotargs.keys():
-                    plotargs['color'] = magn
-                displ = plt.streamplot(axe_x, axe_y, Vx, Vy, **plotargs)
-            elif kind == 'track':
-                from IMTreatment.field_treatment import get_track_field
-                track_field = get_track_field(self)
-                Vx = np.transpose(track_field.comp_x)
-                Vy = np.transpose(track_field.comp_y)
-                mask = track_field.mask
-                Vx = np.ma.masked_array(Vx, mask)
-                Vy = np.ma.masked_array(Vy, mask)
-                if not 'color' in plotargs.keys():
-                    plotargs['color'] = magn
-                displ = plt.streamplot(axe_x, axe_y, Vx, Vy, **plotargs)
-            elif kind == 'quiver' or kind is None:
-                if 'C' in plotargs.keys():
-                    C = plotargs.pop('C')
-                    if not (C == 0 or C is None):
-                        displ = plt.quiver(axe_x, axe_y, Vx, Vy, C, **plotargs)
-                    else:
-                        displ = plt.quiver(axe_x, axe_y, Vx, Vy, **plotargs)
-                else:
-                    displ = plt.quiver(axe_x, axe_y, Vx, Vy, magn, **plotargs)
-            else:
-                raise ValueError("Unknown value of 'kind'")
-            plt.axis(axis)
-            plt.xlabel("X " + unit_x.strUnit())
-            plt.ylabel("Y " + unit_y.strUnit())
-        elif component == "x":
-            if kind == '3D':
-                displ = self.comp_x_as_sf.Display3D()
-            else:
-                displ = self.comp_x_as_sf._display(kind=kind, **plotargs)
-        elif component == "y":
-            if kind == '3D':
-                displ = self.comp_y_as_sf.Display3D()
-            else:
-                displ = self.comp_y_as_sf._display(kind=kind, **plotargs)
-        elif component == "mask":
-            if kind == '3D':
-                displ = self.mask_as_sf.Display3D()
-            else:
-                displ = self.mask_as_sf._display(kind=kind, **plotargs)
-        elif component == "magnitude":
-            if kind == '3D':
-                displ = self.magnitude_as_sf.Display3D()
-            else:
-                displ = self.magnitude_as_sf._display(kind=kind, **plotargs)
-        else:
-            raise TypeError("Unknown value of 'component'")
-
-        return displ
+        values = [self.comp_x, self.comp_y]
+        dp = pplt.Displayer(x=self.axe_x, y=self.axe_y, values=values,
+                            kind=kind, **plotargs)
+        plot = dp.draw()
+        unit_x, unit_y = self.unit_x, self.unit_y
+        plt.xlabel("X " + unit_x.strUnit())
+        plt.ylabel("Y " + unit_y.strUnit())
+        return plot
 
     def display(self, component=None, kind=None, **plotargs):
         """
@@ -7321,10 +7205,8 @@ class VectorField(Field):
         Vx, Vy = self.comp_x, self.comp_y
         if component is None or component == 'V':
             if kind == 'quiver' or kind is None:
-                if 'C' in plotargs.keys():
-                    C = plotargs.pop('C')
-                else:
-                    cb = plt.colorbar()
+                if 'C' not in plotargs.keys():
+                    cb = plt.colorbar(displ)
                     cb.set_label("Magnitude " + unit_values.strUnit())
                 legendarrow = round(np.max([Vx.max(), Vy.max()]))
                 plt.quiverkey(displ, 1.075, 1.075, legendarrow,
@@ -7333,7 +7215,7 @@ class VectorField(Field):
                               labelpos='W', fontproperties={'weight': 'bold'})
             elif kind in ['stream', 'track']:
                 if not 'color' in plotargs.keys():
-                    cb = plt.colorbar()
+                    cb = plt.colorbar(displ.lines)
                     cb.set_label("Magnitude " + unit_values.strUnit())
             plt.title("Values " + unit_values.strUnit())
         elif component == 'x':
@@ -8802,8 +8684,9 @@ class TemporalFields(Fields, Field):
         self.fields = self.fields[ind_sort]
 
     ### Displayers ###
-    def display_multiple(self, component, kind=None,  fields_ind=None,
-                         samecb=False, same_axes=False, **plotargs):
+    def display_multiple(self, component=None, kind=None,  inds=None,
+                         sharecb=False, sharex=False, sharey=False,
+                         **plotargs):
         """
         Display a component of the velocity fields.
 
@@ -8821,59 +8704,50 @@ class TemporalFields(Fields, Field):
         plotargs : dict, optional
             Arguments passed to the function used to display the vector field.
         """
-        # sharing the space between fields
-        nmb_fields = len(fields_ind)
-        nmb_col = int(np.sqrt(nmb_fields))
-        nmb_lines = int(np.ceil(float(nmb_fields)/nmb_col))
-        times = self.times
-        # If we want only one colorbar
-        if samecb:
-            if not 'vmin' in plotargs.keys() or not 'vmax' in plotargs.keys():
-                raise ValueError()
-            fig, axes = plt.subplots(nrows=nmb_lines, ncols=nmb_col,
-                                     sharex=same_axes, sharey=same_axes)
-            # displaying the wanted fields
-            for i, field_ind in enumerate(fields_ind):
-                plt.sca(axes.flat[i])
-                im = self.fields[field_ind]._display(component=component,
-                                                     kind=kind, **plotargs)
-                plt.title("t = {:.2f}{}".format(times[i],
-                                                self.unit_times.strUnit()))
-            # deleting the non-wanted axes
-            for ax in axes.flat[nmb_fields::]:
-                plt.sca(ax)
-                im = self.fields[field_ind]._display(component=component,
-                                                     kind=kind, **plotargs)
-                fig.delaxes(ax)
-            # adding the colorbar
-            fig.subplots_adjust(right=0.8)
-            cbar_ax = fig.add_axes([0.90, 0.1, 0.05, .8])
-            fig.colorbar(im, cax=cbar_ax)
-            plt.tight_layout(rect=[0., 0., 0.85, 1.])
+        nmb_fields = len(inds)
+        # getting values
+        if component is None or component == 'V':
+            try:
+                values = [[self.fields[ind].comp_x, self.fields[ind].comp_y]
+                          for ind in inds]
+            except AttributeError:
+                values = [self.fields[inds].values for ind in inds]
         else:
-            fig, axes = plt.subplots(nrows=nmb_lines, ncols=nmb_col,
-                                     sharex=same_axes, sharey=same_axes)
-            # displaying the wanted fields
-            for i, field_ind in enumerate(fields_ind):
-                plt.sca(axes.flat[i])
-                im = self.fields[field_ind].display(component=component,
-                                                    kind=kind, **plotargs)
-                plt.title("t = {:.2f}{}".format(times[field_ind],
-                                                self.unit_times.strUnit()))
-            # deleting the non-wanted axes
-            for ax in axes.flat[nmb_fields::]:
-                plt.sca(ax)
-                im = self.fields[field_ind]._display(component=component,
-                                                     kind=kind, **plotargs)
-                fig.delaxes(ax)
-            plt.tight_layout()
-        return fig
+            values = [self.fields[inds].__getattribute__(component)
+                      for ind in inds]
+        # display
+        db = pplt.Displayer(x=[self.axe_x]*nmb_fields,
+                            y=[self.axe_y]*nmb_fields,
+                            values=values, kind=kind, **plotargs)
+        plot = db.draw_multiple(inds=inds, sharecb=sharecb, sharex=sharex,
+                                sharey=sharey)
+        return plot
 
-    def display(self, compo=None, suppl_display=None, **plotargs):
+    def display(self, compo=None, kind=None, **plotargs):
         """
         Create a windows to display temporals field, controlled by buttons.
         http://matplotlib.org/1.3.1/examples/widgets/buttons.html
         """
+        nmb_fields = len(self.fields)
+        # getting values
+        if compo is None or compo == 'V':
+            try:
+                values = [[field.comp_x, field.comp_y]
+                          for field in self.fields]
+            except AttributeError:
+                values = [field.values for field in self.fields]
+        else:
+            values = [field.__getattribute__(compo)
+                      for field in self.fields]
+        # display
+        db = pplt.Displayer(x=[self.axe_x]*nmb_fields,
+                            y=[self.axe_y]*nmb_fields,
+                            values=values, kind=kind, **plotargs)
+        plot = db.draw_animate()
+        return plot
+
+
+
         from matplotlib.widgets import Button, Slider
         # getting data
         if isinstance(self, TemporalVectorFields):
