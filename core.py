@@ -3566,11 +3566,11 @@ class Profile(object):
             Reference to the displayed plot.
         """
         if not reverse:
-            x = self.x
-            y = self.y
+            x = self.x[~self.mask]
+            y = self.y[~self.mask]
         else:
-            x = self.y
-            y = self.x
+            x = self.y[~self.mask]
+            y = self.x[~self.mask]
         # check if color is an array
         if 'color_label' in plotargs.keys():
             color_label = plotargs.pop('color_label')
@@ -7162,10 +7162,17 @@ class VectorField(Field):
 
     ### Displayers ###
     def _display(self, component=None, kind=None, axis='image', **plotargs):
-        values = [self.comp_x, self.comp_y]
+        if component in [None, 'V']:
+            values = [self.comp_x, self.comp_y]
+        elif component in ['comp_x', 'x']:
+            values = self.comp_x
+        elif component in ['comp_y', 'y']:
+            values = self.comp_y
+        else:
+            values = self.__getattribute__(component)
         dp = pplt.Displayer(x=self.axe_x, y=self.axe_y, values=values,
                             kind=kind, **plotargs)
-        plot = dp.draw()
+        plot = dp.draw(cb=False)
         unit_x, unit_y = self.unit_x, self.unit_y
         plt.xlabel("X " + unit_x.strUnit())
         plt.ylabel("Y " + unit_y.strUnit())
@@ -7218,20 +7225,20 @@ class VectorField(Field):
                     cb = plt.colorbar(displ.lines)
                     cb.set_label("Magnitude " + unit_values.strUnit())
             plt.title("Values " + unit_values.strUnit())
-        elif component == 'x':
-            cb = plt.colorbar()
+        elif component in ['x', 'comp_x']:
+            cb = plt.colorbar(displ)
             cb.set_label("Vx " + unit_values.strUnit())
             plt.title("Vx " + unit_values.strUnit())
-        elif component == 'y':
-            cb = plt.colorbar()
+        elif component in ['y', 'comp_y']:
+            cb = plt.colorbar(displ)
             cb.set_label("Vy " + unit_values.strUnit())
             plt.title("Vy " + unit_values.strUnit())
         elif component == 'mask':
-            cb = plt.colorbar()
+            cb = plt.colorbar(displ)
             cb.set_label("Mask ")
             plt.title("Mask")
         elif component == 'magnitude':
-            cb = plt.colorbar()
+            cb = plt.colorbar(displ)
             cb.set_label("Magnitude")
             plt.title("Magnitude")
         else:
@@ -8723,7 +8730,7 @@ class TemporalFields(Fields, Field):
                                 sharey=sharey)
         return plot
 
-    def display(self, compo=None, kind=None, **plotargs):
+    def display(self, compo=None, kind=None, sharecb=True, **plotargs):
         """
         Create a windows to display temporals field, controlled by buttons.
         http://matplotlib.org/1.3.1/examples/widgets/buttons.html
@@ -8743,54 +8750,16 @@ class TemporalFields(Fields, Field):
         db = pplt.Displayer(x=[self.axe_x]*nmb_fields,
                             y=[self.axe_y]*nmb_fields,
                             values=values, kind=kind, **plotargs)
-        plot = db.draw_animate()
+        # check arguments for colorbar drawning
+        if 'norm' in db.dargs.keys():
+            sharecb = True
+            normcb = db.dargs['norm']
+        else:
+            normcb = None
+        plot = db.draw_animate(xlabel="X " + self.unit_x.strUnit(),
+                               ylabel="Y " + self.unit_y.strUnit(),
+                               sharecb=sharecb, normcb=normcb)
         return plot
-
-
-
-        from matplotlib.widgets import Button, Slider
-        # getting data
-        if isinstance(self, TemporalVectorFields):
-            if compo == 'V' or compo is None:
-                comp = self.fields
-            else:
-                try:
-                    comp = self.__getattribute__("{}_as_sf".format(compo))
-                except AttributeError:
-                    raise ValueError()
-        elif isinstance(self, TemporalScalarFields):
-            if compo is None:
-                compo = "values"
-            try:
-                comp = self.__getattribute__("{}_as_sf".format(compo))
-            except AttributeError:
-                raise ValueError()
-        else:
-            raise TypeError()
-        # setting default kind of display
-        if 'kind' in plotargs.keys():
-            kind = plotargs['kind']
-        else:
-            kind = None
-#        # getting min and max data
-#        if isinstance(comp[0], ScalarField):
-#            if 'vmin' not in plotargs.keys():
-#                mins = [field.min for field in comp.fields]
-#                plotargs['vmin'] = np.min(mins)
-#            if 'vmax' not in plotargs.keys():
-#                maxs = [field.max for field in comp.fields]
-#                plotargs['vmax'] = np.max(maxs)
-#        elif isinstance(comp[0], VectorField):
-#            if 'clim' not in plotargs.keys() and kind is not 'stream':
-#                mins = [np.min(field.magnitude[np.logical_not(field.mask)])
-#                        for field in comp]
-#                maxs = [np.max(field.magnitude[np.logical_not(field.mask)])
-#                        for field in comp]
-#                mini = np.min(mins)
-#                maxi = np.max(maxs)
-#                plotargs['clim'] = [mini, maxi]
-#        else:
-#            raise Exception()
 
         # button gestion class
         class Index(object):
