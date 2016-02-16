@@ -3044,7 +3044,7 @@ class Profile(object):
             diffs.append(diff)
         # compute x axis
         dx = x[1] - x[0]
-        x = np.arange(0, len(diffs)*dx, dx)
+        x = np.arange(0, len(diffs)*dx, dx)[0:len(diffs)]
         x -= (x[-1] + x[0])/2.
         delta_x = ((other_profile.x[0] + other_profile.x[-1])/2.
                    - (self.x[0] + self.x[-1])/2.)
@@ -8746,86 +8746,21 @@ class TemporalFields(Fields, Field):
         else:
             values = [field.__getattribute__(compo)
                       for field in self.fields]
+        # check arguments for colorbar drawning
+        if 'norm' in plotargs.keys():
+            sharecb = True
+            normcb = plotargs['norm']
+        else:
+            normcb = None
         # display
         db = pplt.Displayer(x=[self.axe_x]*nmb_fields,
                             y=[self.axe_y]*nmb_fields,
                             values=values, kind=kind, **plotargs)
-        # check arguments for colorbar drawning
-        if 'norm' in db.dargs.keys():
-            sharecb = True
-            normcb = db.dargs['norm']
-        else:
-            normcb = None
-        plot = db.draw_animate(xlabel="X " + self.unit_x.strUnit(),
-                               ylabel="Y " + self.unit_y.strUnit(),
-                               sharecb=sharecb, normcb=normcb)
-        return plot
-
-        # button gestion class
-        class Index(object):
-
-            def __init__(self, obj, compo, comp, kind, suppl_display,
-                         plotargs):
-                self.fig = plt.figure()
-                self.ax = self.fig.add_axes(plt.axes([0.1, 0.2, .9, 0.7]))
-                self.incr = 1
-                self.ind = 0
-                self.ind_max = len(comp) - 1
-                self.obj = obj
-                self.compo = compo
-                self.comp = comp
-                self.kind = kind
-                self.suppl_display = suppl_display
-                self.plotargs = plotargs
-                # display initial
-                self.displ = comp[0].display(**self.plotargs)
-                self.ttl = plt.title('')
-                self.update()
-
-            def next(self, event):
-                new_ind = self.ind + self.incr
-                if new_ind <= self.ind_max:
-                    self.ind = new_ind
-                else:
-                    self.ind = self.ind_max
-                self.bslid.set_val(self.ind + 1)
-
-            def prev(self, event):
-                new_ind = self.ind - self.incr
-                if new_ind > 0:
-                    self.ind = new_ind
-                else:
-                    self.ind = 0
-                self.bslid.set_val(self.ind + 1)
-
-            def slid(self, event):
-                self.ind = int(event) - 1
-                self.update()
-
-            def update(self):
-                self.obj._update_sf(num=self.ind, fig=self.fig, ax=self.ax,
-                                    displ=self.displ, ttl=self.ttl,
-                                    comp=self.comp,
-                                    compo=self.compo, plotargs=self.plotargs)
-                if self.suppl_display is not None:
-                    self.suppl_display(self.ind)
-                plt.draw()
-
-        #window creation
-        callback = Index(self, compo, comp, kind, suppl_display, plotargs)
-        axprev = callback.fig.add_axes(plt.axes([0.02, 0.02, 0.1, 0.05]))
-        axnext = callback.fig.add_axes(plt.axes([0.88, 0.02, 0.1, 0.05]))
-        axslid = callback.fig.add_axes(plt.axes([0.15, 0.02, 0.6, 0.05]))
-        callback.bnext = Button(axnext, 'Next')
-        callback.bnext.on_clicked(callback.next)
-        callback.bprev = Button(axprev, 'Previous')
-        callback.bprev.on_clicked(callback.prev)
-        callback.bslid = Slider(axslid, "", valmin=1, valfmt='%d',
-                                valmax=callback.ind_max, valinit=1)
-        callback.bslid.on_changed(callback.slid)
-        fig = callback.fig
-        del callback
-        return fig
+        win = pplt.ButtonManager(db,
+                                 xlabel="X " + self.unit_x.strUnit(),
+                                 ylabel="Y " + self.unit_y.strUnit(),
+                                 sharecb=sharecb, normcb=normcb)
+        return win
 
     def display_animate(self, compo=None, interval=500, fields_inds=None,
                         repeat=True,

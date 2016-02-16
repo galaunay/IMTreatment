@@ -729,7 +729,7 @@ class CritPoints(object):
         plt.hist(typ_lens, bins=np.arange(np.min(np.min(typ_lens)) - 0.5,
                                           np.max(np.max(typ_lens)) + 1.5, 1),
                  stacked=True, histtype='barstacked',
-                 color=self.colors,
+                 color=self.colors[0:5],
                  label=self.cp_types)
         plt.legend()
         plt.xlabel('Trajectories size')
