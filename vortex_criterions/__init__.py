@@ -13,5 +13,4 @@ from .vortex_criterions import \
     get_residual_vorticity, get_stokes_vorticity, get_Nk_criterion,\
     get_shear_vorticity,\
     get_enstrophy, get_improved_swirling_strength,\
-    get_NL_residual_vorticity\
-    
+    get_NL_residual_vorticity, get_divergence\

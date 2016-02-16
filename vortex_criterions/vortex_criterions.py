@@ -908,6 +908,61 @@ def _get_angles(Vx, Vy, check=False):
 
 
 ### Tensor based criterion ###
+def get_divergence(vf, raw=False):
+    """
+    Return a scalar field with the 2D divergence.
+
+    Parameters
+    ----------
+    vf : VectorField or TemporalVectorfields
+        Field(s) on which compute shear stress
+    raw : boolean, optional
+        If 'True', return an arrays,
+        if 'False' (default), return a ScalarField object.
+
+    Returns
+    -------
+    div : ScalarField or TemporalScalarFields
+        Divergence field(s)
+    """
+    if isinstance(vf, VectorField):
+        tmp_vf = vf.fill(inplace=False)
+        axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
+        comp_x, comp_y = tmp_vf.comp_x, tmp_vf.comp_y
+        mask = tmp_vf.mask
+        dx = axe_x[1] - axe_x[0]
+        dy = axe_y[1] - axe_y[0]
+        Exx, _ = np.gradient(comp_x, dx, dy)
+        _, Eyy = np.gradient(comp_y, dx, dy)
+        div = Exx + Eyy
+        if raw:
+            return div
+        else:
+            unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
+            unit_values = vf.unit_values/vf.unit_x
+            div *= unit_values.asNumber()
+            unit_values /= unit_values.asNumber()
+            div_sf = ScalarField()
+            div_sf.import_from_arrays(axe_x, axe_y, div, mask=mask,
+                                      unit_x=unit_x, unit_y=unit_y,
+                                      unit_values=unit_values)
+            return div_sf
+    elif isinstance(vf, TemporalVectorFields):
+        if raw:
+            div_tsf = np.empty((len(vf.fields), vf.shape[0], vf.shape[1]),
+                               dtype=float)
+            for i, field in enumerate(vf.fields):
+                div_tsf[i] = get_divergence(field, raw=True)
+        else:
+            div_tsf = TemporalScalarFields()
+            for i, field in enumerate(vf.fields):
+                tmp_div = get_divergence(field, raw=False)
+                div_tsf.add_field(tmp_div, time=vf.times[i],
+                                  unit_times=vf.unit_times)
+        return div_tsf
+    else:
+        raise TypeError()
+
 def get_vorticity(vf, raw=False):
     """
     Return a scalar field with the z component of the vorticity.
