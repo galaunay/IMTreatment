@@ -8760,7 +8760,7 @@ class TemporalFields(Fields, Field):
                                  xlabel="X " + self.unit_x.strUnit(),
                                  ylabel="Y " + self.unit_y.strUnit(),
                                  sharecb=sharecb, normcb=normcb)
-        return win
+        return db
 
     def display_animate(self, compo=None, interval=500, fields_inds=None,
                         repeat=True,
