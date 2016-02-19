@@ -16,6 +16,7 @@ from ..tools import ProgressCounter
 from ..vortex_criterions import get_kappa, get_gamma, get_iota, get_vorticity,\
     get_residual_vorticity, get_NL_residual_vorticity
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import numpy as np
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline
 from scipy.integrate import simps
@@ -23,6 +24,7 @@ import warnings
 import scipy.ndimage.measurements as msr
 import unum
 import copy
+import Plotlib as pplt
 try:
     from multiprocess import Pool
     MULTIPROC = True
@@ -1762,9 +1764,8 @@ class CritPoints(object):
         pts = PF.get_trajectories()
         return pts
 
-
     ### Displayers ###
-    def display(self, indice=None, time=None, field=None, cpkw={}, lnkw={}):
+    def display_arch(self, indice=None, time=None, field=None, cpkw={}, lnkw={}):
         """
         Display some critical points.
 
@@ -1821,6 +1822,91 @@ class CritPoints(object):
                 continue
             pt[indice].display(kind='plot', color=colors[i],
                                linestyle='none', axe_x='x', axe_y='y', **cpkw)
+
+    def display(self, field=None, cpkw={}, lnkw={}, display_traj=False):
+        """
+        Display some critical points.
+
+        Parameters
+        ----------
+        field : VectorField object, optional
+            If specified, critical points are displayed on the given field.
+            critical lines are also computed and displayed
+        """
+        # check parameters
+        if field is not None:
+            if not isinstance(field, VectorField):
+                raise TypeError()
+        # Set default params
+        if 'color' in cpkw.keys():
+            colors = [cpkw.pop('color')]*len(self.colors)
+        else:
+            colors = self.colors
+        if "marker" in cpkw.keys():
+            pass
+        else:
+            cpkw['marker'] = 'o'
+        dbs = []
+        # If trajectories are also asked
+        if display_traj:
+            # TODO : Absolutely not optimized
+            times = self.times
+            for i, kind in enumerate(self.iter_traj):
+                color = np.array(mpl.colors.colorConverter.to_rgb(colors[i]))
+                color = color + (1 - color)*.5
+                args = {'color': color, 'kind': 'plot', 'marker': None,
+                        'lw': 3}
+                for traj in kind:
+                    if len(traj.xy) == 0:
+                        print('pb here')
+                        continue
+                    xs = []
+                    ys = []
+                    x = traj.xy[:, 0]
+                    y = traj.xy[:, 1]
+                    for time in times:
+                        if time in traj.v:
+                            xs.append(x)
+                            ys.append(y)
+                        else:
+                            xs.append([])
+                            ys.append([])
+                    dbs.append(pplt.Displayer(xs, ys, **args))
+        # display points
+        for i, pt in enumerate(self.iter):
+            # get data
+            color = colors[i]
+            x = [list(tmp_pt.xy[:, 0]) for tmp_pt in pt]
+            y = [list(tmp_pt.xy[:, 1]) for tmp_pt in pt]
+            # check if there is data
+            if len(np.concatenate(x)) == 0:
+                continue
+            # default args
+            args = {'mfc': color , 'kind': 'plot', 'mec': 'k',
+                    'ls': 'none'}
+            args.update(cpkw)
+            dbs.append(pplt.Displayer(x, y, **args))
+        bm = pplt.ButtonManager(dbs)
+        return dbs
+
+#        # create lines if necessary
+#        if field is not None:
+#            streams = []
+#            if not isinstance(self.sadd[0], OrientedPoints):
+#                continue
+#            # getting the streamlines
+#            for opts in self.sadd:
+#                if len(opts.xy) == 0:
+#                    streams.append([])
+#                    continue
+#                tmp_stream = opts.get_streamlines_from_orientations(field,
+#                     reverse_direction=[True, False], interp='cubic')
+#                streams.append(tmp_stream)
+#            # getting streamline data
+#            for ...
+#            tmp_db = pplt.Displayer(tmp_stream.xy[:, 0], tmp_stream[:, 1],
+#                                    color=colors[3], kind='plot', **lnkw)
+#            return dbs
 
     def display_traj(self, data='default', filt=None, **kw):
         """

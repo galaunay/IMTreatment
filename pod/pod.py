@@ -14,6 +14,7 @@ import numpy as np
 import pdb
 import modred
 import matplotlib.pyplot as plt
+import Plotlib as pplt
 import scipy.integrate as spint
 import scipy.interpolate as spinter
 
@@ -785,10 +786,51 @@ class ModalFields(Field):
                            unit_y='', name="")
             return prof
 
-    def display(self, figsize=(15, 10)):
+    def display(self):
+        # modes
+        fig1 = plt.figure()
+        modes = self.modes_as_tf
+        plot0 = modes.display('magnitude')
+        plot1 = modes.display(kind='stream', color='w')
+        # temporal evolutions
+        fig2 = plt.figure()
+        tmp_x = [prof.x for prof in self.temp_evo]
+        tmp_y = [prof.y for prof in self.temp_evo]
+        plot2 = pplt.Displayer(tmp_x, tmp_y, data_type='profile', color='k')
+        bm = pplt.ButtonManager(plot2)
+        plot2.button_manager.link_to_other_graph(plot1)
+        # temporal evolution spectrum
+        fig3 = plt.figure()
+        specs = [prof.get_spectrum() for prof in self.temp_evo]
+        tmp_x = [prof.x[1::] for prof in specs]
+        tmp_y = [prof.y[1::] for prof in specs]
+        plot3 = pplt.Displayer(tmp_x, tmp_y, data_type='profile',
+                               kind='loglog', color='k')
+        bm = pplt.ButtonManager(plot3)
+        plot3.button_manager.link_to_other_graph(plot2)
+        # cum nrj
+        fig4 = plt.figure()
+        cum_nrj = self.get_modes_energy(cum=True)
+        tmp_x = [[x] for x in cum_nrj.x]
+        tmp_y = [[y] for y in cum_nrj.y]
+        plot4 = pplt.Displayer(tmp_x, tmp_y, data_type='profile', kind='plot',
+                               marker='o', mfc='k', ls='none')
+        bm = pplt.ButtonManager(plot4)
+        cum_nrj.display(color='k', ls='-', marker=None)
+        plot4.button_manager.link_to_other_graph(plot2)
+#        # tile these plots
+#        pplt.move_figure(fig=fig1, position="top-right")
+#        pplt.move_figure(fig=fig2, position="top-left")
+#        pplt.move_figure(fig=fig3, position="bottom-right")
+#        pplt.move_figure(fig=fig4, position="bottom-left")
+        return plot0, plot1, plot2, plot3, plot4
+
+
+    def display_recap(self, figsize=(15, 10)):
         """
         Display some important diagram for the decomposition.
         """
+        print("Obsolete !")
         if self.decomp_type in ['pod', 'bpod']:
             plt.figure(figsize=figsize)
             plt.subplot(2, 3, 1)
