@@ -6094,6 +6094,7 @@ class ScalarField(Field):
         dp = pplt.Displayer(x=axe_x, y=axe_y, values=values, kind=kind,
                             **plotargs)
         plot = dp.draw()
+        pplt.DataCursorTextDisplayer(dp)
         # setting labels
         plt.xlabel("X " + unit_x.strUnit())
         plt.ylabel("Y " + unit_y.strUnit())
@@ -7173,6 +7174,7 @@ class VectorField(Field):
         dp = pplt.Displayer(x=self.axe_x, y=self.axe_y, values=values,
                             kind=kind, **plotargs)
         plot = dp.draw(cb=False)
+        pplt.DataCursorTextDisplayer(dp)
         unit_x, unit_y = self.unit_x, self.unit_y
         plt.xlabel("X " + unit_x.strUnit())
         plt.ylabel("Y " + unit_y.strUnit())
@@ -8691,9 +8693,9 @@ class TemporalFields(Fields, Field):
         self.fields = self.fields[ind_sort]
 
     ### Displayers ###
-    def display_multiple(self, component=None, kind=None,  inds=None,
+    def display_multiple(self, component=None, kind=None, inds=None,
                          sharecb=False, sharex=False, sharey=False,
-                         **plotargs):
+                         ncol=None, nrow=None, **plotargs):
         """
         Display a component of the velocity fields.
 
@@ -8708,6 +8710,9 @@ class TemporalFields(Fields, Field):
         samecb : boolean, optional
             If 'True', the same color system is used for all the fields.
             You have to pass 'vmin' and 'vmax', to have correct results.
+        ncol, nrow : int, optional
+            Wanted number of columns and rows. If not specified, these values
+            are computed so that ncol ~ nrow.
         plotargs : dict, optional
             Arguments passed to the function used to display the vector field.
         """
@@ -8718,16 +8723,18 @@ class TemporalFields(Fields, Field):
                 values = [[self.fields[ind].comp_x, self.fields[ind].comp_y]
                           for ind in inds]
             except AttributeError:
-                values = [self.fields[inds].values for ind in inds]
+                values = [self.fields[ind].values for ind in inds]
         else:
-            values = [self.fields[inds].__getattribute__(component)
+            values = [self.fields[ind].__getattribute__(component)
                       for ind in inds]
         # display
+        if sharex or sharey:
+            plotargs['adjustable'] = 'datalim'
         db = pplt.Displayer(x=[self.axe_x]*nmb_fields,
                             y=[self.axe_y]*nmb_fields,
                             values=values, kind=kind, **plotargs)
-        plot = db.draw_multiple(inds=inds, sharecb=sharecb, sharex=sharex,
-                                sharey=sharey)
+        plot = db.draw_multiple(inds=range(len(inds)), sharecb=sharecb, sharex=sharex,
+                                sharey=sharey, ncol=ncol, nrow=nrow)
         return plot
 
     def display(self, compo=None, kind=None, sharecb=True, **plotargs):
@@ -8760,6 +8767,7 @@ class TemporalFields(Fields, Field):
                                  xlabel="X " + self.unit_x.strUnit(),
                                  ylabel="Y " + self.unit_y.strUnit(),
                                  sharecb=sharecb, normcb=normcb)
+        pplt.DataCursorTextDisplayer(db)
         return db
 
     def display_animate(self, compo=None, interval=500, fields_inds=None,
