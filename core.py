@@ -4470,7 +4470,7 @@ class ScalarField(Field):
     def values(self, new_values):
         if not isinstance(new_values, ARRAYTYPES):
             raise TypeError()
-        new_values = np.array(new_values)
+        new_values = np.asarray(new_values)
         if self.shape == new_values.shape:
             # adapting mask to 'nan' values
             self.__mask = np.isnan(new_values)
@@ -4497,7 +4497,7 @@ class ScalarField(Field):
             new_mask = np.empty(self.shape, dtype=bool)
             new_mask.fill(fill_value)
         elif isinstance(new_mask, ARRAYTYPES):
-            new_mask = np.array(new_mask, dtype=bool)
+            new_mask = np.asarray(new_mask, dtype=bool)
         else:
             raise TypeError("'mask' should be an array or a boolean,"
                             " not a {}".format(type(new_mask)))
@@ -4558,7 +4558,7 @@ class ScalarField(Field):
         return np.mean(self.values[np.logical_not(self.mask)])
 
     ### Field maker ###
-    def import_from_arrays(self, axe_x, axe_y, values, mask=None,
+    def import_from_arrays(self, axe_x, axe_y, values, mask=False,
                            unit_x="", unit_y="", unit_values=""):
         """
         Set the field from a set of arrays.
@@ -4578,21 +4578,11 @@ class ScalarField(Field):
         unit_values : String unit, optionnal
             Unit for the scalar field
         """
-        axe_x = np.array(axe_x, dtype=float)
-        axe_y = np.array(axe_y, dtype=float)
-        values = np.array(values, dtype=float)
-        # checking parameters coherence
-        if (values.shape[0] != axe_x.shape[0] or
-                values.shape[1] != axe_y.shape[0]):
-            raise ValueError("Dimensions of 'axe_x', 'axe_y' and 'values' must"
-                             " be consistents")
         # storing datas
         self.axe_x = axe_x
         self.axe_y = axe_y
         self.values = values
-        if mask is not None:
-            mask = np.logical_or(mask, np.isnan(self.values))
-            self.mask = mask
+        self.mask = mask
         self.unit_x = unit_x
         self.unit_y = unit_y
         self.unit_values = unit_values
@@ -5892,7 +5882,7 @@ class ScalarField(Field):
             self.mask = False
         else:
             sf = ScalarField()
-            sf.import_from_arrays(x, y, values, mask=None, unit_x=self.unit_x,
+            sf.import_from_arrays(x, y, values, mask=False, unit_x=self.unit_x,
                                   unit_y=self.unit_y,
                                   unit_values=self.unit_values)
             return sf
@@ -5928,7 +5918,6 @@ class ScalarField(Field):
         plt.figure()
         plt.imshow(surr_zone, interpolation='nearest')
         plt.colorbar()
-        print(nmb_zones)
         # TODO : not finisehd
 
     def smooth(self, tos='uniform', size=None, inplace=False, **kw):
@@ -8283,7 +8272,7 @@ class TemporalFields(Fields, Field):
             self.unit_x = field.unit_x
             self.unit_y = field.unit_y
             self.unit_times = unit_times
-            self.__times = np.array([time])
+            self.__times = np.asarray([time], dtype=float)
             self.field_type = field.__class__
         # if not
         else:
@@ -8759,10 +8748,16 @@ class TemporalFields(Fields, Field):
             normcb = plotargs['norm']
         else:
             normcb = None
+        if 'use_buffer' in plotargs.keys():
+            use_buffer = plotargs.pop('use_buffer')
+        else:
+            use_buffer = True
+
         # display
         db = pplt.Displayer(x=[self.axe_x]*nmb_fields,
                             y=[self.axe_y]*nmb_fields,
-                            values=values, kind=kind, **plotargs)
+                            values=values, kind=kind,
+                            use_buffer=use_buffer, **plotargs)
         win = pplt.ButtonManager(db,
                                  xlabel="X " + self.unit_x.strUnit(),
                                  ylabel="Y " + self.unit_y.strUnit(),

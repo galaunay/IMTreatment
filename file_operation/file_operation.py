@@ -68,12 +68,12 @@ def check_path(filepath, newfile=False):
     if newfile:
         filepath = path.join(filepath, filename)
     return filepath
-    
+
 def find_file_in_path(regs, dirpath, ask=False):
     """
     Search recursively for a folder containing files matching a regular
     expression, in the given root folder.
-    
+
     Parameters
     ----------
     exts : list of string
@@ -82,7 +82,7 @@ def find_file_in_path(regs, dirpath, ask=False):
         Root path to search from
     ask : bool
         If 'True', ask for the wanted folder and return only this one.
-        
+
     Returns
     -------
     folders : list of string
@@ -94,7 +94,7 @@ def find_file_in_path(regs, dirpath, ask=False):
     if not isinstance(regs, ARRAYTYPES):
         raise TypeError()
     regs = np.array(regs, dtype=unicode)
-    # 
+    #
     dir_paths = []
     # recursive loop on folders
     for root, dirs, files in os.walk(dirpath):
@@ -121,7 +121,7 @@ def find_file_in_path(regs, dirpath, ask=False):
     return dir_paths
 
 
-    
+
 ### Parsers ###
 def matlab_parser(obj, name):
     classic_types = (int, float, str, unicode)
@@ -489,14 +489,14 @@ def _get_imx_buffers(filename):
     import platform
     syst = platform.system()
     if syst == 'Linux':
-        import libim7
-        vbuff, vatts = libim7.readim7(filename)
+        from libim7 import readim7, del_buffer, del_attributelist
+        vbuff, vatts = readim7(filename)
         atts = vatts.as_dict()
         vectorGrid = vbuff.vectorGrid
         arrays = np.array(vbuff.blocks.transpose((0, 2, 1)))
         fmt = vbuff.header.buffer_format
-        libim7.del_buffer(vbuff)
-        libim7.del_attributelist(vatts)
+        del_buffer(vbuff)
+        del_attributelist(vatts)
         return fmt, vectorGrid, arrays, atts
     elif syst == 'Windows':
         import ReadIM
@@ -525,8 +525,6 @@ def import_from_IM7(filename, infos=False):
     """
     if not isinstance(filename, STRINGTYPES):
         raise TypeError("'filename' must be a string")
-    if isinstance(filename, unicode):
-        raise TypeError("Unfortunately, ReadIM don't support unicode paths...")
     if not os.path.exists(filename):
         raise ValueError("I did not find your file, boy")
     _, ext = os.path.splitext(filename)
@@ -536,18 +534,22 @@ def import_from_IM7(filename, infos=False):
     # Importing from buffer
     fmt, vectorGrid, v_array, atts =  _get_imx_buffers(filename)
     if v_array.shape[0] == 2:
-        mask = v_array[0]
-        values = v_array[1]
+        mask = v_array[0][:, ::-1]
+        values = v_array[1][:, ::-1]
     elif v_array.shape[0] == 1:
-        values = v_array[0]
+        values = v_array[0][:, ::-1]
         mask = np.zeros(values.shape, dtype=bool)
     # Values and Mask
     scale_i = atts['_SCALE_I']
     scale_i = scale_i.split("\n")
     scale_val = scale_i[0].split(' ')
     unit_values = scale_i[1]
-    values *= float(scale_val[0])
-    values += float(scale_val[1])
+    try:
+        values *= int(scale_val[0])
+        values += int(scale_val[1])
+    except ValueError:
+        values *= float(scale_val[0])
+        values += float(scale_val[1])
     # X
     scale_x = atts['_SCALE_X']
     scale_x = scale_x.split("\n")
@@ -612,23 +614,25 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
         if not isinstance(fieldspath[0], STRINGTYPES):
             raise TypeError("'fieldspath' must be a string or a tuple of"
                             " string")
-        fieldspaths = np.array(fieldspath)
+        fieldspaths = np.asarray(fieldspath, dtype=unicode)
     elif isinstance(fieldspath, STRINGTYPES):
         fieldspath = check_path(fieldspath)
-        paths = np.array([f for f in glob(os.path.join(fieldspath, '*'))
-                          if os.path.splitext(f)[-1] in ['.im7', '.IM7']])
+        paths = np.asarray([f for f in glob(os.path.join(fieldspath, '*'))
+                            if os.path.splitext(f)[-1] in ['.im7', '.IM7']],
+                           dtype=unicode)
         # if no file found, search recursively
         if len(paths) == 0:
             poss_paths = find_file_in_path(['.*.im7', '.*.IM7'], fieldspath,
                                            ask=True)
             if len(poss_paths) == 0:
                 raise ValueError()
-            paths = np.array([f for f in glob(os.path.join(poss_paths[0], '*'))
-                              if os.path.splitext(f)[-1] in ['.im7', '.IM7']])
+            paths = np.asarray([f for f in glob(os.path.join(poss_paths[0], '*'))
+                                if os.path.splitext(f)[-1] in ['.im7', '.IM7']],
+                               dtype=unicode)
         # Sort path by numbers
         filenames = [os.path.basename(p) for p in paths]
         ind_sort = np.argsort(filenames)
-        paths = paths[ind_sort]
+        fieldspaths = paths[ind_sort]
     else:
         raise TypeError()
     if fieldnumbers is not None:
@@ -715,10 +719,16 @@ def import_from_VC7(filename, infos=False, add_fields=False):
     scale_i = scale_i.split("\n")
     unit_values = scale_i[1]
     scale_val = scale_i[0].split(' ')
-    Vx *= float(scale_val[0])
-    Vx += float(scale_val[1])
-    Vy *= float(scale_val[0])
-    Vy += float(scale_val[1])
+    try:
+        Vx *= int(scale_val[0])
+        Vx += int(scale_val[1])
+        Vy *= int(scale_val[0])
+        Vy += int(scale_val[1])
+    except ValueError:
+        Vx *= float(scale_val[0])
+        Vx += float(scale_val[1])
+        Vy *= float(scale_val[0])
+        Vy += float(scale_val[1])
     # Get and apply scale on X
     scale_x = atts['_SCALE_X']
     scale_x = scale_x.split("\n")
