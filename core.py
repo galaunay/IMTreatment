@@ -6072,11 +6072,11 @@ class ScalarField(Field):
         X, Y = np.meshgrid(self.axe_y, self.axe_x)
         # getting wanted component
         if component is None or component == 'values':
-            values = np.transpose(self.values).astype(dtype=float)
-            mask = np.transpose(self.mask)
+            values = self.values.astype(dtype=float)
+            mask = self.mask
             values[mask] = np.nan
         elif component == 'mask':
-            values = np.transpose(self.mask)
+            values = self.mask
         else:
             raise ValueError("unknown value of 'component' parameter : {}"
                              .format(component))
@@ -8726,7 +8726,8 @@ class TemporalFields(Fields, Field):
                                 sharey=sharey, ncol=ncol, nrow=nrow)
         return plot
 
-    def display(self, compo=None, kind=None, sharecb=True, **plotargs):
+    def display(self, compo=None, kind=None, sharecb=True, use_buffer=True,
+                buffer_size=100, **plotargs):
         """
         Create a windows to display temporals field, controlled by buttons.
         http://matplotlib.org/1.3.1/examples/widgets/buttons.html
@@ -8748,16 +8749,13 @@ class TemporalFields(Fields, Field):
             normcb = plotargs['norm']
         else:
             normcb = None
-        if 'use_buffer' in plotargs.keys():
-            use_buffer = plotargs.pop('use_buffer')
-        else:
-            use_buffer = True
 
         # display
         db = pplt.Displayer(x=[self.axe_x]*nmb_fields,
                             y=[self.axe_y]*nmb_fields,
                             values=values, kind=kind,
-                            use_buffer=use_buffer, **plotargs)
+                            use_buffer=use_buffer, buffer_size=buffer_size,
+                            **plotargs)
         win = pplt.ButtonManager(db,
                                  xlabel="X " + self.unit_x.strUnit(),
                                  ylabel="Y " + self.unit_y.strUnit(),

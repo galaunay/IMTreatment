@@ -1823,7 +1823,8 @@ class CritPoints(object):
             pt[indice].display(kind='plot', color=colors[i],
                                linestyle='none', axe_x='x', axe_y='y', **cpkw)
 
-    def display(self, field=None, cpkw={}, lnkw={}, display_traj=False):
+    def display(self, field=None, cpkw={}, lnkw={}, display_traj=False,
+                use_buffer=True, buffer_size=100, **kwargs):
         """
         Display some critical points.
 
@@ -1884,8 +1885,12 @@ class CritPoints(object):
             # default args
             args = {'mfc': color , 'kind': 'plot', 'mec': 'k',
                     'ls': 'none'}
+            if 'kind' in cpkw.keys():
+                if cpkw['kind'] != 'plot':
+                    args = {}
             args.update(cpkw)
-            dbs.append(pplt.Displayer(x, y, **args))
+            dbs.append(pplt.Displayer(x, y, use_buffer=use_buffer,
+                                      buffer_size=buffer_size, **args))
         bm = pplt.ButtonManager(dbs)
         return dbs
 
