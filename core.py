@@ -4507,6 +4507,8 @@ class ScalarField(Field):
         if np.any(np.logical_not(new_mask[self.mask])):
             raise Warning("This mask reveal masked values, maybe you should"
                           "use the 'fill' function instead")
+        # nanify masked values
+        self.values[new_mask] = np.nan
         # store mask
         self.__mask = new_mask
 
@@ -6463,6 +6465,9 @@ class VectorField(Field):
         if np.any(np.logical_not(new_mask[self.mask])):
             raise Warning("This mask reveal masked values, maybe you should"
                           "use the 'fill' function instead")
+        # nanify masked values
+        self.comp_x[new_mask] = np.nan
+        self.comp_y[new_mask] = np.nan
         # store mask
         self.__mask = new_mask
 
@@ -8736,20 +8741,19 @@ class TemporalFields(Fields, Field):
         # getting values
         if compo is None or compo == 'V':
             try:
-                values = [[field.comp_x, field.comp_y]
-                          for field in self.fields]
+                values = np.asarray([[field.comp_x, field.comp_y]
+                                      for field in self.fields])
             except AttributeError:
-                values = [field.values for field in self.fields]
+                values = np.asarray([field.values for field in self.fields])
         else:
-            values = [field.__getattribute__(compo)
-                      for field in self.fields]
+            values = np.asarray([field.__getattribute__(compo)
+                                 for field in self.fields])
         # check arguments for colorbar drawning
         if 'norm' in plotargs.keys():
             sharecb = True
             normcb = plotargs['norm']
         else:
             normcb = None
-
         # display
         db = pplt.Displayer(x=[self.axe_x]*nmb_fields,
                             y=[self.axe_y]*nmb_fields,
@@ -9212,6 +9216,11 @@ class TemporalVectorFields(TemporalFields):
     def get_reynolds_stress(self, nmb_val_min=1):
         """
         Calculate the reynolds stress.
+
+        Returns
+        -------
+        Re_xx, Re_yy, Re_xy : ScalarField objects
+            Reynolds shear stress
         """
         # getting fluctuating velocities
         turb_vf = self.get_fluctuant_fields()

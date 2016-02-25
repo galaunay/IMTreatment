@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+from functools import wraps
+import re
 
 ARRAYTYPES = (np.ndarray, list, tuple)
 INTEGERTYPES = (int, np.int, np.int16, np.int32, np.int64, np.int8)
@@ -9,6 +11,7 @@ STRINGTYPES = (str, unicode)
 
 
 class TypeTest(object):
+    enabled = True
 
     def __init__(self, *arg_types, **kwargs_types):
         self.arg_types = arg_types
@@ -17,6 +20,8 @@ class TypeTest(object):
         self.is_method = False
 
     def __call__(self, function):
+        if not self.enabled:
+            return function
         self.extract_var_info(function)
         return self.decorator(function)
 
@@ -41,6 +46,7 @@ class TypeTest(object):
         self.w_vartypes = w_vartypes
 
     def decorator(self, function):
+        @wraps(function)
         def new_function(*args, **kwargs):
             # get given argument types
             given_vartypes = {}
@@ -64,10 +70,35 @@ class TypeTest(object):
                 except TypeError:
                     ok = g_type == w_type
                 if not ok:
-                    text = ("'{}' should be {}, not {}"
-                            .format(varname, w_type, g_type))
+                    w_type_txt = re.findall("'.+'", str(w_type))[0]
+                    g_type_txt = re.findall("'.+'", str(g_type))[0]
+                    text = ("'{}' should be {}, not {}."
+                            .format(varname, w_type_txt, g_type_txt))
                     raise TypeError(text)
             return function(*args, **kwargs)
-        new_function.__doc__ = function.__doc__
-        new_function.__name__ = function.__name__
+        return new_function
+
+
+class ReturnTest(object):
+    enabled = True
+
+    def __init__(self, typ):
+        self.typ = typ
+
+    def __call__(self, function):
+        if not self.enabled:
+            return function
+        return self.decorator(function)
+
+    def decorator(self, function):
+        @wraps(function)
+        def new_function(*args, **kwargs):
+            res = function(*args, **kwargs)
+            if not type(res) == self.typ:
+                w_type_txt = re.findall("'.+'", str(self.typ))[0]
+                g_type_txt = re.findall("'.+'", str(type(res)))[0]
+                text = ("Returned value should be {}, not {}."
+                        .format(w_type_txt, g_type_txt))
+                raise TypeError(text)
+            return res
         return new_function
