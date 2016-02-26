@@ -1678,7 +1678,7 @@ class CritPoints(object):
                 # create the first lines
                 self.get_first_lines()
                 # make times steps
-                for i in range(len(self.times) - 2):
+                for i in range(len(self.times) - 1):
                     self.make_one_step()
                 # close all remaining Lines
                 for line in self.open_lines:
@@ -1823,21 +1823,31 @@ class CritPoints(object):
             pt[indice].display(kind='plot', color=colors[i],
                                linestyle='none', axe_x='x', axe_y='y', **cpkw)
 
-    def display(self, field=None, cpkw={}, lnkw={}, display_traj=False,
+    def display(self, fields=None, cpkw={}, lnkw={}, display_traj=False,
                 use_buffer=True, buffer_size=100, **kwargs):
         """
         Display some critical points.
 
         Parameters
         ----------
-        field : VectorField object, optional
+        fields : TemporalVectorFields object, optional
             If specified, critical points are displayed on the given field.
             critical lines are also computed and displayed
         """
         # check parameters
-        if field is not None:
-            if not isinstance(field, VectorField):
-                raise TypeError()
+        if fields is not None:
+            if len(self.times) == 1:
+                if isinstance(fields, TemporalVectorFields):
+                    if len(fields.fields) != 1:
+                        raise ValueError()
+                else:
+                    if not isinstance(fields, VectorField):
+                        raise TypeError()
+                fields = [fields]
+            else:
+                if not isinstance(fields, TemporalVectorFields):
+                    raise TypeError()
+                fields = fields.fields
         # Set default params
         if 'color' in cpkw.keys():
             colors = [cpkw.pop('color')]*len(self.colors)
@@ -1883,7 +1893,7 @@ class CritPoints(object):
             if len(np.concatenate(x)) == 0:
                 continue
             # default args
-            args = {'mfc': color , 'kind': 'plot', 'mec': 'k',
+            args = {'mfc': color, 'kind': 'plot', 'mec': 'k',
                     'ls': 'none'}
             if 'kind' in cpkw.keys():
                 if cpkw['kind'] != 'plot':
@@ -1891,27 +1901,35 @@ class CritPoints(object):
             args.update(cpkw)
             dbs.append(pplt.Displayer(x, y, use_buffer=use_buffer,
                                       buffer_size=buffer_size, **args))
-        bm = pplt.ButtonManager(dbs)
-        return dbs
 
-#        # create lines if necessary
-#        if field is not None:
-#            streams = []
-#            if not isinstance(self.sadd[0], OrientedPoints):
-#                continue
-#            # getting the streamlines
-#            for opts in self.sadd:
-#                if len(opts.xy) == 0:
-#                    streams.append([])
-#                    continue
-#                tmp_stream = opts.get_streamlines_from_orientations(field,
-#                     reverse_direction=[True, False], interp='cubic')
-#                streams.append(tmp_stream)
-#            # getting streamline data
-#            for ...
-#            tmp_db = pplt.Displayer(tmp_stream.xy[:, 0], tmp_stream[:, 1],
-#                                    color=colors[3], kind='plot', **lnkw)
-#            return dbs
+        # create lines if necessary
+        if fields is not None and isinstance(self.sadd[0], OrientedPoints):
+            streams = []
+            # getting the streamlines
+            for field, opts in zip(fields, self.sadd):
+                if len(opts.xy) == 0:
+                    continue
+                v = opts.v[0]
+                tmp_stream = opts.get_streamlines_from_orientations(field,
+                     reverse_direction=[False, True], interp='cubic')
+                for st in tmp_stream:
+                    data_streamx = [[]]*len(fields)
+                    data_streamy = [[]]*len(fields)
+                    ind_time = np.where(v == self.times)[0][0]
+                    data_streamx[ind_time] = st.xy[:, 0]
+                    data_streamy[ind_time] = st.xy[:, 1]
+                    tmp_db = pplt.Displayer(data_streamx,
+                                            data_streamy,
+                                            color=colors[3], kind='plot',
+                                            **lnkw)
+                    dbs.append(tmp_db)
+        # plot
+        if len(self) == 1:
+            for db in dbs:
+                plot = db.draw(0)
+        else:
+            bm = pplt.ButtonManager(dbs)
+        return dbs
 
     def display_traj(self, data='default', filt=None, **kw):
         """
@@ -2307,7 +2325,8 @@ class MeanTrajectory(Points):
     def used_pts_number(self):
         return float(np.sum([len(tr) for tr in self.base_trajs]))
 
-    def crop(self, intervx=None, intervy=None, intervt=None, inplace=True):
+    def crop(self, intervx=None, intervy=None, intervt=None, inplace=True,
+             ind=False):
             """
             Crop the points cloud.
 
@@ -2329,20 +2348,27 @@ class MeanTrajectory(Points):
                 tmp_pts = self
             else:
                 tmp_pts = self.copy()
-            # crop associated values
-            mask = np.zeros(len(self.xy), dtype=bool)
-            if intervx is not None:
-                out_zone = np.logical_or(tmp_pts.xy[:, 0] < intervx[0],
-                                         tmp_pts.xy[:, 0] > intervx[1])
-                mask = np.logical_or(mask, out_zone)
-            if intervy is not None:
-                out_zone = np.logical_or(tmp_pts.xy[:, 1] < intervy[0],
-                                         tmp_pts.xy[:, 1] > intervy[1])
-                mask = np.logical_or(mask, out_zone)
-            if intervt is not None and len(tmp_pts.v) != 0:
-                out_zone = np.logical_or(tmp_pts.v < intervt[0],
-                                         tmp_pts.v > intervt[1])
-                mask = np.logical_or(mask, out_zone)
+            # Getting cropping mask
+            if ind:
+                if intervx is not None or intervy is not None:
+                    raise ValueError()
+                mask = np.ones(len(self.xy), dtype=bool)
+                mask[intervt[0]:intervt[1]] = False
+            else:
+                mask = np.zeros(len(self.xy), dtype=bool)
+                if intervx is not None:
+                    out_zone = np.logical_or(tmp_pts.xy[:, 0] < intervx[0],
+                                             tmp_pts.xy[:, 0] > intervx[1])
+                    mask = np.logical_or(mask, out_zone)
+                if intervy is not None:
+                    out_zone = np.logical_or(tmp_pts.xy[:, 1] < intervy[0],
+                                             tmp_pts.xy[:, 1] > intervy[1])
+                    mask = np.logical_or(mask, out_zone)
+                if intervt is not None and len(tmp_pts.v) != 0:
+                    out_zone = np.logical_or(tmp_pts.v < intervt[0],
+                                             tmp_pts.v > intervt[1])
+                    mask = np.logical_or(mask, out_zone)
+            # crop
             tmp_pts.assoc_real_times = [tmp_pts.assoc_real_times[i]
                                         for i in range(len(tmp_pts.assoc_real_times))
                                         if not mask[i]]
@@ -2350,7 +2376,8 @@ class MeanTrajectory(Points):
             tmp_pts.assoc_std_y = tmp_pts.assoc_std_y[~mask]
             # crop mean_traj
             super(MeanTrajectory, tmp_pts).crop(intervx=intervx, intervy=intervy,
-                                                intervv=intervt, inplace=True)
+                                                intervv=intervt, inplace=True,
+                                                ind=ind)
             # DO NOT crop base fields
             # return
             if not inplace:
@@ -2542,9 +2569,6 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     -----
     If the fields have masked values, saddle streamlines ar not computed.
     """
-#    # buggity bug, 'verbose = False' seems to interfer with multiprocess...
-#    verb = verbose
-#    verbose = True
     # check parameters
     if not isinstance(time, NUMBERTYPES):
         raise TypeError()
@@ -2580,9 +2604,9 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     if not isinstance(thread, int):
         if thread not in ['all']:
             raise ValueError()
-#    # check if mask (not fully supported yet)
-#    if np.any(obj.mask):
-#        raise ValueError("Should not have masked values")
+    # check if mask (not fully supported yet)
+    if np.any(obj.mask):
+        raise ValueError("Should not have masked values")
     # if obj is a vector field
     if isinstance(obj, VectorField):
         # mirroring if necessary
@@ -3239,6 +3263,8 @@ def _get_saddle_orientations(vectorfield, pt):
     """
     Return the orientation of a saddle point.
     """
+    # smooth to avoid wrong orientations
+    vectorfield = vectorfield.smooth(tos='gaussian', size=1, inplace=False)
     # get data
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     dx = vectorfield.axe_x[1] - vectorfield.axe_x[0]

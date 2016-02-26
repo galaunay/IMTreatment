@@ -1085,7 +1085,8 @@ class Points(object):
         else:
             raise ValueError()
 
-    def crop(self, intervx=None, intervy=None, intervv=None, inplace=True):
+    def crop(self, intervx=None, intervy=None, intervv=None, inplace=True,
+             ind=False):
         """
         Crop the points cloud.
 
@@ -1103,23 +1104,32 @@ class Points(object):
         tmp_pts : Points object
             croped version of the point cloud.
         """
+        #
         if inplace:
             tmp_pts = self
         else:
             tmp_pts = self.copy()
-        mask = np.zeros(len(self.xy), dtype=bool)
-        if intervx is not None:
-            out_zone = np.logical_or(self.xy[:, 0] < intervx[0],
-                                     self.xy[:, 0] > intervx[1])
-            mask = np.logical_or(mask, out_zone)
-        if intervy is not None:
-            out_zone = np.logical_or(self.xy[:, 1] < intervy[0],
-                                     self.xy[:, 1] > intervy[1])
-            mask = np.logical_or(mask, out_zone)
-        if intervv is not None and len(self.v) != 0:
-            out_zone = np.logical_or(self.v < intervv[0],
-                                     self.v > intervv[1])
-            mask = np.logical_or(mask, out_zone)
+        # Getting cropping mask
+        if ind:
+            if intervx is not None or intervy is not None:
+                raise ValueError()
+            mask = np.ones(len(self.xy), dtype=bool)
+            mask[intervv[0]:intervv[1]] = False
+        else:
+            mask = np.zeros(len(self.xy), dtype=bool)
+            if intervx is not None:
+                out_zone = np.logical_or(self.xy[:, 0] < intervx[0],
+                                         self.xy[:, 0] > intervx[1])
+                mask = np.logical_or(mask, out_zone)
+            if intervy is not None:
+                out_zone = np.logical_or(self.xy[:, 1] < intervy[0],
+                                         self.xy[:, 1] > intervy[1])
+                mask = np.logical_or(mask, out_zone)
+            if intervv is not None and len(self.v) != 0:
+                out_zone = np.logical_or(self.v < intervv[0],
+                                         self.v > intervv[1])
+                mask = np.logical_or(mask, out_zone)
+        # Cropping values
         tmp_pts.__xy = tmp_pts.xy[~mask, :]
         if tmp_pts.v is not None:
             tmp_pts.__v = tmp_pts.v[~mask]
@@ -1604,7 +1614,12 @@ class OrientedPoints(Points):
 
     def __iter__(self):
         for i in np.arange(len(self.xy)):
-            yield Points.__iter__(self)[i], self.orientations[i]
+            pts_iter = Points.__iter__(self)
+            pts_value = pts_iter.next()
+            if type(pts_value) is tuple:
+                yield pts_value + (self.orientations[i],)
+            else:
+                yield (pts_value,) + (self.orientations[i],)
 
     def __add__(self, obj):
         if isinstance(obj, Points):
@@ -1714,8 +1729,7 @@ class OrientedPoints(Points):
         if reverse_direction.shape != (nmb_dir,):
             raise ShapeError()
         # get coef
-        coef = np.max([vf.axe_x[1] - vf.axe_x[0],
-                       vf.axe_y[1] - vf.axe_y[0]])
+        coef = [vf.axe_x[1] - vf.axe_x[0], vf.axe_y[1] - vf.axe_y[0]]
         # get streamlines
         streams = []
         # for each points and each directions
@@ -1730,14 +1744,18 @@ class OrientedPoints(Points):
                 tmp_stream = get_streamlines(vf, [pt1, pt2],
                                              reverse=reverse)
                 # if we are out of field
-                if tmp_stream is None:
+                if tmp_stream in [[], None]:
                     continue
+                if not isinstance(tmp_stream, ARRAYTYPES):
+                    tmp_stream = [tmp_stream]
                 # add the first point
                 for st in tmp_stream:
                     st.xy = np.append([pt], st.xy, axis=0)
+                # store
                 streams += tmp_stream
         # returning
         return streams
+
 
     ### Modifiers ###
     def import_from_Points(self, pts, orientations):
@@ -2047,7 +2065,7 @@ class Profile(object):
                 mask = np.logical_or(self.mask, otherone.mask)
                 tmp_unit = self.unit_y/otherone.unit_y
                 y_tmp = self.y.copy()
-                y_tmp[otherone.y == 0] = np.nan
+                y_tmp[otherone.y == 0] = np.NaN
                 otherone.y[otherone.y == 0] = 1
                 y = y_tmp/otherone.y*tmp_unit.asNumber()
                 name = ""
@@ -2111,7 +2129,7 @@ class Profile(object):
 
     @property
     def y(self):
-        self.__y[self.__mask] = np.nan
+        self.__y[self.__mask] = np.NaN
         return self.__y
 
     @y.setter
@@ -2142,7 +2160,7 @@ class Profile(object):
             self.__mask = np.array(mask, dtype=bool)
         else:
             raise Exception()
-        self.__y[self.__mask] = np.nan
+        self.__y[self.__mask] = np.NaN
 
     @mask.deleter
     def mask(self):
@@ -3029,7 +3047,7 @@ class Profile(object):
             tmp_filter = np.logical_not(np.logical_or(tmp_y_long_mask,
                                                       tmp_y_short_mask))
             if not np.any(tmp_filter):
-                diffs.append(np.nan)
+                diffs.append(np.NaN)
                 continue
             tmp_y_short = y_short[tmp_filter]
             tmp_y_long = y_long[i:i+len_min][tmp_filter]
@@ -3038,7 +3056,7 @@ class Profile(object):
             if normalized:
                 norm = np.sum(np.abs(tmp_y_long))/len(tmp_y_long)
                 if norm == 0:
-                    diff = np.nan
+                    diff = np.NaN
                 else:
                     diff /= norm
             diffs.append(diff)
@@ -4508,7 +4526,7 @@ class ScalarField(Field):
             raise Warning("This mask reveal masked values, maybe you should"
                           "use the 'fill' function instead")
         # nanify masked values
-        self.values[new_mask] = np.nan
+        self.values[new_mask] = np.NaN
         # store mask
         self.__mask = new_mask
 
@@ -4625,7 +4643,7 @@ class ScalarField(Field):
             inds_y = self.get_indice_on_axe(2, y)
             # if something masked
             if np.sum(self.mask[inds_x, inds_y]) != 0:
-                res = np.nan
+                res = np.NaN
             # if we are on a grid point
             elif inds_x[0] == inds_x[1] and inds_y[0] == inds_y[1]:
                 res = self.values[inds_x[0], inds_y[0]]*unit
@@ -4927,7 +4945,7 @@ class ScalarField(Field):
                 if pos < axe.min():
                     pos = axe.min()
         elif isinstance(position, ARRAYTYPES) and ind:
-            if np.min(position) < 0 or np.max(position) > len(axe) - 1:
+            if np.min(position) < -len(axe) + 1 or np.max(position) > len(axe) - 1:
                 raise ValueError("'position' must be included in"
                                  " the choosen axis values")
         elif isinstance(position, NUMBERTYPES) and not ind:
@@ -4975,23 +4993,19 @@ class ScalarField(Field):
                 prof_mask = self.mask[finalindice, :]
                 profile = self.values[finalindice, :]
                 axe = self.axe_y
-                cutposition = self.axe_x[finalindice]
             else:
                 prof_mask = self.mask[:, finalindice]
                 profile = self.values[:, finalindice]
                 axe = self.axe_x
-                cutposition = self.axe_y[finalindice]
         elif isinstance(position, NUMBERTYPES) and ind:
             if direction == 1:
                 prof_mask = self.mask[position, :]
                 profile = self.values[position, :]
                 axe = self.axe_y
-                cutposition = self.axe_x[position]
             else:
                 prof_mask = self.mask[:, position]
                 profile = self.values[:, position]
                 axe = self.axe_x
-                cutposition = self.axe_y[position]
         # Calculation of the profile for an interval of position
         elif isinstance(position, ARRAYTYPES) and not ind:
             axe_mask = np.logical_and(axe >= position[0], axe <= position[1])
@@ -4999,23 +5013,19 @@ class ScalarField(Field):
                 prof_mask = self.mask[axe_mask, :].mean(0)
                 profile = self.values[axe_mask, :].mean(0)
                 axe = self.axe_y
-                cutposition = self.axe_x[axe_mask]
             else:
                 prof_mask = self.mask[:, axe_mask].mean(1)
                 profile = self.values[:, axe_mask].mean(1)
                 axe = self.axe_x
-                cutposition = self.axe_y[axe_mask]
         elif isinstance(position, ARRAYTYPES) and ind:
             if direction == 1:
-                prof_mask = self.mask[position[0]:position[1] + 1, :].mean(0)
-                profile = self.values[position[0]:position[1] + 1, :].mean(0)
+                prof_mask = self.mask[position[0]:position[1], :].mean(0)
+                profile = self.values[position[0]:position[1], :].mean(0)
                 axe = self.axe_y
-                cutposition = self.axe_x[position[0]:position[1] + 1].mean()
             else:
-                prof_mask = self.mask[:, position[0]:position[1] + 1].mean(1)
-                profile = self.values[:, position[0]:position[1] + 1].mean(1)
+                prof_mask = self.mask[:, position[0]:position[1]].mean(1)
+                profile = self.values[:, position[0]:position[1]].mean(1)
                 axe = self.axe_x
-                cutposition = self.axe_y[position[0]:position[1] + 1].mean()
         return Profile(axe, profile, prof_mask, unit_x, unit_y, "Profile")
 
     def get_spatial_autocorrelation(self, direction, window_len=None):
@@ -6076,7 +6086,7 @@ class ScalarField(Field):
         if component is None or component == 'values':
             values = self.values.astype(dtype=float)
             mask = self.mask
-            values[mask] = np.nan
+            values[mask] = np.NaN
         elif component == 'mask':
             values = self.mask
         else:
@@ -6466,8 +6476,8 @@ class VectorField(Field):
             raise Warning("This mask reveal masked values, maybe you should"
                           "use the 'fill' function instead")
         # nanify masked values
-        self.comp_x[new_mask] = np.nan
-        self.comp_y[new_mask] = np.nan
+        self.comp_x[new_mask] = np.NaN
+        self.comp_y[new_mask] = np.NaN
         # store mask
         self.__mask = new_mask
 
@@ -6522,7 +6532,7 @@ class VectorField(Field):
         comp_x, comp_y = self.comp_x, self.comp_y
         mask = self.mask
         values = (comp_x**2 + comp_y**2)**(.5)
-        values[mask] = np.nan
+        values[mask] = np.NaN
         return values
 
     @property
@@ -6556,14 +6566,16 @@ class VectorField(Field):
         # get data
         comp_x, comp_y = self.comp_x, self.comp_y
         not_mask = np.logical_not(self.mask)
-
         theta = np.zeros(self.shape)
         # getting angle
         norm = self.magnitude
         not_mask = np.logical_and(not_mask, norm != 0)
         theta[not_mask] = comp_x[not_mask]/norm[not_mask]
         theta[not_mask] = np.arccos(theta[not_mask])
-        theta[comp_y < 0] = 2*np.pi - theta[comp_y < 0]
+        tmp_comp_y = comp_y.copy()
+        tmp_comp_y[~not_mask] = 0
+        sup_not_mask = tmp_comp_y < 0
+        theta[sup_not_mask] = 2*np.pi - theta[sup_not_mask]
         return theta
 
     @property
@@ -6822,29 +6834,25 @@ class VectorField(Field):
             size = 3
         elif size is None and tos == 'gaussian':
             size = 1
+        # getting field
+        if inplace:
+            tmp_vf = self
+        else:
+            tmp_vf = self.copy()
         # filling up the field before smoothing
-        self.fill()
-        # getting data
-        Vx, Vy = self.comp_x, self.comp_y
+        tmp_vf.fill(inplace=True)
         # smoothing
         if tos == "uniform":
-            Vx = ndimage.uniform_filter(Vx, size, **kw)
-            Vy = ndimage.uniform_filter(Vy, size, **kw)
+            tmp_vf.comp_x = ndimage.uniform_filter(tmp_vf.comp_x, size, **kw)
+            tmp_vf.comp_y = ndimage.uniform_filter(tmp_vf.comp_y, size, **kw)
         elif tos == "gaussian":
-            Vx = ndimage.gaussian_filter(Vx, size, **kw)
-            Vy = ndimage.gaussian_filter(Vy, size, **kw)
+            tmp_vf.comp_x = ndimage.gaussian_filter(tmp_vf.comp_x, size, **kw)
+            tmp_vf.comp_y = ndimage.gaussian_filter(tmp_vf.comp_y, size, **kw)
         else:
             raise ValueError("'tos' must be 'uniform' or 'gaussian'")
         # storing
-        if inplace:
-            self.comp_x = Vx
-            self.comp_y = Vy
-        else:
-            vf = VectorField()
-            vf.import_from_arrays(self.axe_x, self.axe_y, Vx, Vy,
-                                  unit_x=self.unit_x, unit_y=self.unit_y,
-                                  unit_values=self.unit_values)
-            return vf
+        if not inplace:
+            return tmp_vf
 
     def fill(self, kind='linear', value=[0., 0.], inplace=False,
              reduce_tri=True, crop=False):
@@ -8250,7 +8258,7 @@ class TemporalFields(Fields, Field):
         unit_time : Unum object
             time unit.
         """
-        # TODO : pas de vérification de la cohérence des unitées !
+        # TODO : pas de vérification de la cohérence des unités !
         # checking parameters
         if not isinstance(field, (VectorField, ScalarField)):
             raise TypeError()
