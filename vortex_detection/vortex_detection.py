@@ -1904,7 +1904,6 @@ class CritPoints(object):
 
         # create lines if necessary
         if fields is not None and isinstance(self.sadd[0], OrientedPoints):
-            streams = []
             # getting the streamlines
             for field, opts in zip(fields, self.sadd):
                 if len(opts.xy) == 0:
@@ -1924,7 +1923,7 @@ class CritPoints(object):
                                             **lnkw)
                     dbs.append(tmp_db)
         # plot
-        if len(self) == 1:
+        if len(self.times) == 1:
             for db in dbs:
                 plot = db.draw(0)
         else:

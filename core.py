@@ -1603,10 +1603,10 @@ class OrientedPoints(Points):
             raise TypeError()
         orientations = np.array(orientations)
         if len(xy) != 0 and not orientations.ndim == 3:
-            raise ShapeError("'orientations' must have 3 dimensions, not {}"
+            raise ValueError("'orientations' must have 3 dimensions, not {}"
                              .format(orientations.ndim))
         if not orientations.shape[0:3:2] != [len(xy), 2]:
-            raise ShapeError()
+            raise ValueError()
         # initialize data
         Points.__init__(self, xy=xy, v=v, unit_x=unit_x, unit_y=unit_y,
                         unit_v=unit_v, name=name)
@@ -1648,7 +1648,7 @@ class OrientedPoints(Points):
         if new_ori.dtype not in NUMBERTYPES:
             raise TypeError()
         if len(self.xy) != 0 and new_ori.shape[0:3:2] != (len(self.xy), 2):
-            raise ShapeError("'orientations' shape must be (n, d, 2)  (with n"
+            raise ValueError("'orientations' shape must be (n, d, 2)  (with n"
                              " the number of points ({}) and d the number of "
                              "directions), not {}"
                              .format(len(self.xy), new_ori.shape))
@@ -1727,7 +1727,7 @@ class OrientedPoints(Points):
         else:
             raise TypeError()
         if reverse_direction.shape != (nmb_dir,):
-            raise ShapeError()
+            raise ValueError()
         # get coef
         coef = [vf.axe_x[1] - vf.axe_x[0], vf.axe_y[1] - vf.axe_y[0]]
         # get streamlines
@@ -6887,7 +6887,7 @@ class VectorField(Field):
             raise TypeError()
         value = np.array(value)
         if not value.shape == (2,):
-            raise ShapeError()
+            raise ValueError()
         if crop:
             self.crop_masked_border(hard=False, inplace=True)
         # filling components

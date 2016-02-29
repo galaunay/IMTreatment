@@ -10,6 +10,7 @@ submodule_names = ['boundary_layer',
                    'field_treatment',
                    'file_operation',
                    'pod',
+                   'protocols',
                    'tools',
                    'vortex_creation',
                    'vortex_detection',
@@ -30,6 +31,6 @@ setup(
 )
 
 
-## move *.pyd to the good folder
+# move *.pyd to the good folder
 #for name in submodule_names:
-#    shutil.move('./{0}.pyd'.format(name), r"./{0}")
+#    shutil.move('./{0}.so'.format(name), r"./{0}")
