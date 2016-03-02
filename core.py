@@ -1729,7 +1729,8 @@ class OrientedPoints(Points):
         if reverse_direction.shape != (nmb_dir,):
             raise ValueError()
         # get coef
-        coef = [vf.axe_x[1] - vf.axe_x[0], vf.axe_y[1] - vf.axe_y[0]]
+        coef = np.mean([vf.axe_x[1] - vf.axe_x[0], vf.axe_y[1] - vf.axe_y[0]])
+        coef *= .5
         # get streamlines
         streams = []
         # for each points and each directions
@@ -1738,8 +1739,9 @@ class OrientedPoints(Points):
                 if np.all(self.orientations[i, n] == [0, 0]):
                     continue
                 # get streamlines
-                pt1 = pt - self.orientations[i, n]*coef
-                pt2 = pt + self.orientations[i, n]*coef
+                ev = self.orientations[i, n]
+                pt1 = [pt[0] - ev[0]*coef, pt[1] - ev[1]*coef]
+                pt2 = [pt[0] + ev[0]*coef, pt[1] + ev[1]*coef]
                 reverse = reverse_direction[n]
                 tmp_stream = get_streamlines(vf, [pt1, pt2],
                                              reverse=reverse)
@@ -1885,7 +1887,7 @@ class OrientedPoints(Points):
         Dx = x_range[1] - x_range[0]
         y_range = plt.ylim()
         Dy = y_range[1] - y_range[0]
-        coef = np.min([Dx, Dy])/60.
+        coef = np.min([Dx, Dy])/10.
         for i in np.arange(len(self.xy)):
             loc_oris = self.orientations[i]
             if np.all(loc_oris == [[0, 0], [0, 0]]):

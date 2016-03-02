@@ -1925,7 +1925,7 @@ class CritPoints(object):
         # plot
         if len(self.times) == 1:
             for db in dbs:
-                plot = db.draw(0)
+                plot = db.draw(0, rescale=False)
         else:
             bm = pplt.ButtonManager(dbs)
         return dbs
@@ -3263,7 +3263,7 @@ def _get_saddle_orientations(vectorfield, pt):
     Return the orientation of a saddle point.
     """
     # smooth to avoid wrong orientations
-    vectorfield = vectorfield.smooth(tos='gaussian', size=1, inplace=False)
+    # vectorfield = vectorfield.smooth(tos='gaussian', size=1, inplace=False)
     # get data
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     dx = vectorfield.axe_x[1] - vectorfield.axe_x[0]
@@ -3284,18 +3284,18 @@ def _get_saddle_orientations(vectorfield, pt):
     local_Vx = Vx[inds_X_2, inds_Y_2]
     local_Vy = Vy[inds_X_2, inds_Y_2]
     # get jacobian eignevalues
-    jac = _get_jacobian_matrix(local_Vx, local_Vy, dx, dy)
+    jac = _get_jacobian_matrix(local_Vx, local_Vy, dx, dy, pt)
     eigvals, eigvects = np.linalg.eig(jac)
     if eigvals[1] < eigvals[0]:
-        orient1 = np.abs(eigvects[:, 0])
-        orient2 = np.abs(eigvects[:, 1])
+        orient1 = np.real(eigvects[:, 0])
+        orient2 = np.real(eigvects[:, 1])
     else:
-        orient1 = np.abs(eigvects[:, 1])
-        orient2 = np.abs(eigvects[:, 0])
+        orient1 = np.real(eigvects[:, 1])
+        orient2 = np.real(eigvects[:, 0])
     return np.real(orient1), np.real(orient2)
 
 
-def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1.):
+def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1, pt=None):
     """
     Return the jacobian matrix at the center of 4 points.
     """
@@ -3317,15 +3317,17 @@ def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1.):
     Vy_dx, Vy_dy = np.gradient(Vy.transpose(), dx, dy)
     axe_x = np.arange(0, Vx.shape[0]*dx, dx)
     axe_y = np.arange(0, Vx.shape[1]*dy, dy)
+    if pt is None:
+        pt = [np.mean(axe_x), np.mean(axe_y)]
     # get interpolated gradient at the point
     Vx_dx2 = RectBivariateSpline(axe_x, axe_y, Vx_dx, kx=k, ky=k, s=0)
-    Vx_dx2 = Vx_dx2(np.mean(axe_x), np.mean(axe_y))[0][0]
+    Vx_dx2 = Vx_dx2(*pt)[0][0]
     Vx_dy2 = RectBivariateSpline(axe_x, axe_y, Vx_dy, kx=k, ky=k, s=0)
-    Vx_dy2 = Vx_dy2(np.mean(axe_x), np.mean(axe_y))[0][0]
+    Vx_dy2 = Vx_dy2(*pt)[0][0]
     Vy_dx2 = RectBivariateSpline(axe_x, axe_y, Vy_dx, kx=k, ky=k, s=0)
-    Vy_dx2 = Vy_dx2(np.mean(axe_x), np.mean(axe_y))[0][0]
+    Vy_dx2 = Vy_dx2(*pt)[0][0]
     Vy_dy2 = RectBivariateSpline(axe_x, axe_y, Vy_dy, kx=k, ky=k, s=0)
-    Vy_dy2 = Vy_dy2(np.mean(axe_x), np.mean(axe_y))[0][0]
+    Vy_dy2 = Vy_dy2(*pt)[0][0]
     # get jacobian eignevalues
     jac = np.array([[Vx_dx2, Vx_dy2], [Vy_dx2, Vy_dy2]], subok=True)
     return jac
