@@ -1,3 +1,4 @@
+#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
 IMTreatment module
@@ -1464,8 +1465,7 @@ class Points(object):
             axe_color = axes[0]
 
         # display the values
-        plot = self._display(kind, axe_x=axe_x, axe_y=axe_y,
-                             axe_color=axe_color, **plotargs)
+        plot = self._display(kind, axe_x=axe_x, axe_y=axe_y, axe_color=axe_color, **plotargs)
         if len(self.v) != 0 and kind is not 'plot':
             cb = plt.colorbar(plot)
             cb.set_label(self.unit_v.strUnit())
@@ -1729,8 +1729,8 @@ class OrientedPoints(Points):
         if reverse_direction.shape != (nmb_dir,):
             raise ValueError()
         # get coef
-        coef = np.mean([vf.axe_x[1] - vf.axe_x[0], vf.axe_y[1] - vf.axe_y[0]])
-        coef *= .5
+        coefx = (vf.axe_x[1] - vf.axe_x[0])*.25
+        coefy = (vf.axe_x[1] - vf.axe_x[0])*.25
         # get streamlines
         streams = []
         # for each points and each directions
@@ -1740,8 +1740,8 @@ class OrientedPoints(Points):
                     continue
                 # get streamlines
                 ev = self.orientations[i, n]
-                pt1 = [pt[0] - ev[0]*coef, pt[1] - ev[1]*coef]
-                pt2 = [pt[0] + ev[0]*coef, pt[1] + ev[1]*coef]
+                pt1 = [pt[0] - ev[0]*coefx, pt[1] - ev[1]*coefy]
+                pt2 = [pt[0] + ev[0]*coefx, pt[1] + ev[1]*coefy]
                 reverse = reverse_direction[n]
                 tmp_stream = get_streamlines(vf, [pt1, pt2],
                                              reverse=reverse)
@@ -1876,7 +1876,7 @@ class OrientedPoints(Points):
     ### Displayers ###
     def _display(self, kind=None, **plotargs):
         # display like a Points object
-        plot = Points._display(self, kind=kind, **plotargs)
+        plot = super(OrientedPoints, self)._display(kind=kind, **plotargs)
         # setting color
         if 'color' in plotargs.keys():
             colors = [plotargs.pop('color')]
@@ -2431,7 +2431,7 @@ class Profile(object):
             if ind:
                 return ind_0
             else:
-                pos_0 = [self.x[ind] for ind in ind_0]
+                pos_0 = [self.x[i] for i in ind_0]
                 return pos_0
         # search for positions
         y = self.y
@@ -4307,7 +4307,6 @@ class ScalarField(Field):
             try:
                 self.unit_values + otherone
             except:
-                pdb.set_trace()
                 raise ValueError("Given number have to be consistent with"
                                  "the scalar field (same units)")
             tmpsf = self.copy()
@@ -4555,7 +4554,6 @@ class ScalarField(Field):
             if (new_unit_values.asNumber() - 1.) < 1e-10:
                 self.__unit_values = new_unit_values
             else:
-                pdb.set_trace()
                 raise ValueError()
         elif isinstance(new_unit_values, STRINGTYPES):
             self.__unit_values = make_unit(new_unit_values)

@@ -1028,6 +1028,10 @@ class CritPoints(object):
                                        base_trajs=used_trajs,)
             mean_traj.sort(ref='v', inplace=True)
             mean_trajs.append(mean_traj)
+        # sort the mean_traj by decreasing number of used trajectories
+        ind_sort = np.argsort([traj.nmb_traj_used for traj in mean_trajs])
+        print(ind_sort)
+        mean_trajs = [mean_trajs[ind] for ind in ind_sort[::-1]]
         # echo some stats
         if verbose:
             pad = len("{}".format(len(trajs)))
@@ -1045,9 +1049,6 @@ class CritPoints(object):
                   .format(nmb_too_short + nmb_too_diff, pad=pad))
             print("+++     {:>{pad}} too short".format(nmb_too_short, pad=pad))
             print("+++     {:>{pad}} too different".format(nmb_too_diff, pad=pad))
-        #♠ sort the mean_traj by decreasing number of used trajectories
-        ind_sort = np.argsort([len(traj.base_trajs) for traj in mean_trajs])
-        mean_trajs = [mean_trajs[ind] for ind in ind_sort[::-1]]
         # return the set of mean trajectories
         return mean_trajs, skipped_trajs
 
@@ -2419,10 +2420,10 @@ class MeanTrajectory(Points):
             return tmp_mt
 
     def _display(self, *args, **kwargs):
-        super(MeanTrajectory, self)._display(*args, **kwargs)
+        return super(MeanTrajectory, self)._display(*args, **kwargs)
 
     def display(self, *args, **kwargs):
-        super(MeanTrajectory, self).display(*args, **kwargs)
+        return super(MeanTrajectory, self).display(*args, **kwargs)
 
     def display_error_bars(self, kind='bar', **kwargs):
         """
@@ -3320,14 +3321,20 @@ def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1, pt=None):
     if pt is None:
         pt = [np.mean(axe_x), np.mean(axe_y)]
     # get interpolated gradient at the point
-    Vx_dx2 = RectBivariateSpline(axe_x, axe_y, Vx_dx, kx=k, ky=k, s=0)
-    Vx_dx2 = Vx_dx2(*pt)[0][0]
-    Vx_dy2 = RectBivariateSpline(axe_x, axe_y, Vx_dy, kx=k, ky=k, s=0)
-    Vx_dy2 = Vx_dy2(*pt)[0][0]
-    Vy_dx2 = RectBivariateSpline(axe_x, axe_y, Vy_dx, kx=k, ky=k, s=0)
-    Vy_dx2 = Vy_dx2(*pt)[0][0]
-    Vy_dy2 = RectBivariateSpline(axe_x, axe_y, Vy_dy, kx=k, ky=k, s=0)
-    Vy_dy2 = Vy_dy2(*pt)[0][0]
+    Vx_dx2 = np.mean(Vx_dx)
+    Vx_dy2 = np.mean(Vx_dy)
+    Vy_dx2 = np.mean(Vy_dx)
+    Vy_dy2 = np.mean(Vy_dy)
+    ### More robust way of doing it ??? ###
+    # Vx_dx2 = RectBivariateSpline(axe_x, axe_y, Vx_dx, kx=k, ky=k, s=0)
+    # Vx_dx2 = Vx_dx2(*pt)[0][0]
+    # Vx_dy2 = RectBivariateSpline(axe_x, axe_y, Vx_dy, kx=k, ky=k, s=0)
+    # Vx_dy2 = Vx_dy2(*pt)[0][0]
+    # Vy_dx2 = RectBivariateSpline(axe_x, axe_y, Vy_dx, kx=k, ky=k, s=0)
+    # Vy_dx2 = Vy_dx2(*pt)[0][0]
+    # Vy_dy2 = RectBivariateSpline(axe_x, axe_y, Vy_dy, kx=k, ky=k, s=0)
+    # Vy_dy2 = Vy_dy2(*pt)[0][0]
+    ###
     # get jacobian eignevalues
     jac = np.array([[Vx_dx2, Vx_dy2], [Vy_dx2, Vy_dy2]], subok=True)
     return jac
