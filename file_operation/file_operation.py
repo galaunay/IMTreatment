@@ -147,6 +147,22 @@ def matlab_parser(obj, name):
         dic.update(matlab_parser(list(y), 'y'))
         dic.update(matlab_parser(list(obj.v), 'v'))
         return {name: dic}
+    elif isinstance(obj, VectorField):
+        x = obj.axe_x
+        y = obj.axe_y
+        X, Y = np.meshgrid(x, y, indexing='ij')
+        X = X.flatten()
+        Y = Y.flatten()
+        Vx = obj.comp_x.flatten()
+        Vy = obj.comp_y.flatten()
+        dic = matlab_parser(list(x), 'x')
+        dic.update(matlab_parser(list(y), 'y'))
+        dic.update(matlab_parser(list(y), 'y'))
+        dic.update(matlab_parser(list(X), 'X'))
+        dic.update(matlab_parser(list(Y), 'Y'))
+        dic.update(matlab_parser(list(Vx), 'Vx'))
+        dic.update(matlab_parser(list(Vy), 'Vy'))
+        return {name: dic}
     else:
         raise IOError("Can't parser that : \n {}".format(obj))
 
@@ -269,7 +285,7 @@ def imts_to_imt(imts_path, imt_path, kind):
 
 ### MATLAB ###
 def export_to_matlab(obj, name, filepath, **kw):
-    filepath = check_path(filepath)
+    filepath = check_path(filepath, newfile=True)
     dic = matlab_parser(obj, name)
     spio.savemat(filepath, dic, **kw)
 

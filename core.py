@@ -1950,8 +1950,8 @@ class Profile(object):
         if not len(x) == len(y):
             raise ValueError("'x' and 'y' must have the same length")
         order = np.argsort(x)
-        self.x = x[order]
-        self.y = y[order]
+        self.__x = x[order]
+        self.__y = y[order]
         self.mask = mask[order]
         self.mask = np.logical_or(self.mask, np.isnan(self.y))
         self.name = name
@@ -2120,10 +2120,13 @@ class Profile(object):
     @x.setter
     def x(self, values):
         if isinstance(values, ARRAYTYPES):
-            self.__x = np.array(values)*1.
+            self.__x = np.array(values, dtype=float)
         else:
             raise Exception("'x' should be an array, not {}"
                             .format(type(values)))
+        ind_sort = np.argsort(self.__x)
+        self.__x = self.__x[ind_sort]
+        self.__y = self.__y[ind_sort]
 
     @x.deleter
     def x(self):
@@ -3095,8 +3098,8 @@ class Profile(object):
             tmp_y = np.append(self.y ,prof.y)
             tmp_mask = np.append(self.mask, prof.mask)
             ind_sort = np.argsort(tmp_x)
-            self.x = tmp_x[ind_sort]
-            self.y = tmp_y[ind_sort]
+            self.__x = tmp_x[ind_sort]
+            self.__y = tmp_y[ind_sort]
             self.mask = tmp_mask[ind_sort]
 
     def remove_point(self, ind):
