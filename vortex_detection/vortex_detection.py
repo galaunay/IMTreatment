@@ -1049,6 +1049,29 @@ class CritPoints(object):
                   .format(nmb_too_short + nmb_too_diff, pad=pad))
             print("+++     {:>{pad}} too short".format(nmb_too_short, pad=pad))
             print("+++     {:>{pad}} too different".format(nmb_too_diff, pad=pad))
+            # plot
+            cycler = plt.rcParams['axes.prop_cycle']()
+            colors = [cycler.next()['color'] for i in range(20)]
+            fig, axs = plt.subplots(2, 1, sharex=True)
+            plt.sca(axs[0])
+            filt = [cp_type == 'foc', cp_type == 'foc_c', cp_type == 'node_i',
+                    cp_type == 'node_o', cp_type == 'sadd']
+            self.display_traj('x', filt=filt, color='k', marker=None)
+            for i, mtraj in enumerate(mean_trajs):
+                for traj in mtraj.base_trajs:
+                    traj.display(kind='plot', axe_x='x', axe_y='v',
+                                 color=colors[i])
+            plt.sca(axs[1])
+            for i, traj in enumerate(mean_trajs):
+                traj.display(kind='plot', color=colors[i], marker='o',
+                             label='{}'.format(i))
+            for i, mtraj in enumerate(mean_trajs):
+                for traj in mtraj.base_trajs:
+                    traj.display(kind='plot', ls='none', marker='o', mfc='w',
+                                 mec='k', zorder=0)
+            plt.legend(loc=0)
+            plt.tight_layout()
+            
         # return the set of mean trajectories
         return mean_trajs, skipped_trajs
 

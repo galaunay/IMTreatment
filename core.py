@@ -3686,6 +3686,10 @@ class Field(object):
         raise Exception("Nope, can't do that")
 
     @property
+    def dx(self):
+        return self.axe_x[1] - self.axe_x[0]
+
+    @property
     def axe_y(self):
         return self.__axe_y
 
@@ -3702,6 +3706,10 @@ class Field(object):
     @axe_y.deleter
     def axe_y(self):
         raise Exception("Nope, can't do that")
+
+    @property
+    def dy(self):
+        return self.axe_y[1] - self.axe_y[0]
 
     @property
     def unit_x(self):
@@ -7613,6 +7621,9 @@ class TemporalFields(Fields, Field):
     def times(self):
         raise Exception("Nope, can't do that")
 
+    @property
+    def dt(self):
+        return self.times[1] - self.times[0]
     @property
     def unit_times(self):
         return self.__unit_times
