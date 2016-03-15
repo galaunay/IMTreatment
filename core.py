@@ -2124,9 +2124,13 @@ class Profile(object):
         else:
             raise Exception("'x' should be an array, not {}"
                             .format(type(values)))
-        ind_sort = np.argsort(self.__x)
-        self.__x = self.__x[ind_sort]
-        self.__y = self.__y[ind_sort]
+        if len(values) != len(self.__y):
+            raise Exception("Please set 'y' before 'x'")
+        if len(self.__x) > 1:
+            ind_sort = np.argsort(self.__x)
+            self.__x = self.__x[ind_sort]
+            self.__y = self.__y[ind_sort]
+            self.__mask = self.__mask[ind_sort]
 
     @x.deleter
     def x(self):
@@ -2141,10 +2145,10 @@ class Profile(object):
     def y(self, values):
         if isinstance(values, np.ma.MaskedArray):
             self.__y = values.data
-            self.__mask = values.mask
+            self.mask = values.mask
         elif isinstance(values, ARRAYTYPES):
             self.__y = np.array(values)*1.
-            self.__mask = np.isnan(values)
+            self.mask = np.isnan(values)
         else:
             raise Exception()
 
@@ -2159,7 +2163,7 @@ class Profile(object):
     @mask.setter
     def mask(self, mask):
         if isinstance(mask, bool):
-            self.__mask = np.empty(self.x.shape, dtype=bool)
+            self.__mask = np.empty(self.y.shape, dtype=bool)
             self.__mask.fill(mask)
         elif isinstance(mask, ARRAYTYPES):
             self.__mask = np.array(mask, dtype=bool)
@@ -2449,6 +2453,7 @@ class Profile(object):
         # get interpolated 0-value position
         val_1 = np.abs(y[ind_0])
         val_2 = np.abs(y[ind_0 + 1])
+        ind_0 = np.asarray(ind_0, dtype=float)
         if ind:
             x_1 = ind_0
             x_2 = ind_0 + 1
@@ -2921,7 +2926,7 @@ class Profile(object):
         grad_max.mask = np.logical_or(np.logical_not(max_filt), grad.mask)
         grad_min = grad.copy()
         grad_min.mask = np.logical_or(max_filt, grad.mask)
-        # get 0-value positions
+        # get 0-value positions 
         pos_max = grad_max.get_value_position(0, ind=ind)
         pos_min = grad_min.get_value_position(0, ind=ind)
         # returning
@@ -3083,24 +3088,30 @@ class Profile(object):
         Add the given point to the profile.
         """
         pos_ind = np.searchsorted(self.x, x)
-        self.x = np.concatenate((self.x[0:pos_ind], [x], self.x[pos_ind::]))
         self.y = np.concatenate((self.y[0:pos_ind], [y], self.y[pos_ind::]))
+        self.x = np.concatenate((self.x[0:pos_ind], [x], self.x[pos_ind::]))
 
-    def add_points(self, prof=None):
+    def add_points(self, prof):
         """
         Add points from another profile.
         """
-        if prof is not None:
-            if (prof.unit_x != self.unit_x or
-                prof.unit_y != self.unit_y):
-                    raise ValueError()
-            tmp_x = np.append(self.x, prof.x)
-            tmp_y = np.append(self.y ,prof.y)
-            tmp_mask = np.append(self.mask, prof.mask)
-            ind_sort = np.argsort(tmp_x)
-            self.__x = tmp_x[ind_sort]
-            self.__y = tmp_y[ind_sort]
-            self.mask = tmp_mask[ind_sort]
+        # if self is an empty profile
+        if len(self) == 0:
+            self.unit_x = prof.unit_x
+            self.unit_y = prof.unit_y
+        # check unities
+        if (prof.unit_x != self.unit_x or
+            prof.unit_y != self.unit_y):
+                raise ValueError()
+        # append daa
+        tmp_x = np.append(self.x, prof.x)
+        tmp_y = np.append(self.y ,prof.y)
+        tmp_mask = np.append(self.mask, prof.mask)
+        # sort by time
+        ind_sort = np.argsort(tmp_x)
+        self.__x = tmp_x[ind_sort]
+        self.__y = tmp_y[ind_sort]
+        self.mask = tmp_mask[ind_sort]
 
     def remove_point(self, ind):
         """
@@ -3435,7 +3446,7 @@ class Profile(object):
         else:
             raise ValueError()
 
-    def evenly_space(self, kind_interpolation='linear'):
+    def evenly_space(self, kind_interpolation='linear', dx=None):
         """
         Return a profile with evenly spaced x values.
         Use interpolation to get missing values.
@@ -3459,7 +3470,10 @@ class Profile(object):
         filt = np.logical_not(mask)
         x = self.x[filt]
         y = self.y[filt]
-        mean_dx = np.average(dxs)
+        if dx is None:
+            mean_dx = np.average(dxs)
+        else:
+            mean_dx = dx
         min_x = np.min(self.x)
         max_x = np.max(self.x)
         nmb_interv = np.int((max_x - min_x)/mean_dx)
@@ -3546,18 +3560,30 @@ class Profile(object):
             tmp_prof.y = y
             return tmp_prof
 
-    def average_doublons(self, inplace=False):
+    def remove_doublons(self, method='average', inplace=False):
         """
         Replace values associated to the same 'x' by their average.
+
+        Parameters
+        ----------
+        method : string in {'average', 'max', 'min'}
+           Method used to remove the doublons.
         """
         if inplace:
             tmp_prof = self
         else:
             tmp_prof = self.copy()
         new_x = np.sort(list(set(tmp_prof.x)))
-        new_y = [np.mean(tmp_prof.y[tmp_prof.x == xi]) for xi in new_x]
-        tmp_prof.x = new_x
+        if method == 'average':
+            new_y = [np.mean(tmp_prof.y[tmp_prof.x == xi]) for xi in new_x]
+        elif method == 'min':
+            new_y = [np.min(tmp_prof.y[tmp_prof.x == xi]) for xi in new_x]
+        elif method == 'max':
+            new_y = [np.max(tmp_prof.y[tmp_prof.x == xi]) for xi in new_x]
+        else:
+            raise ValueError()
         tmp_prof.y = new_y
+        tmp_prof.x = new_x
         # returning
         if not inplace:
             return tmp_prof
@@ -3589,11 +3615,21 @@ class Profile(object):
             Reference to the displayed plot.
         """
         if not reverse:
-            x = self.x[~self.mask]
-            y = self.y[~self.mask]
+            x = self.x
+            x[self.mask] = np.nan
+            y = self.y
+            y[self.mask] = np.nan
         else:
-            x = self.y[~self.mask]
-            y = self.x[~self.mask]
+            x = self.y
+            x[self.mask] = np.nan
+            y = self.x
+            y[self.mask] = np.nan
+        # if not reverse:
+        #     x = self.x[~self.mask]
+        #     y = self.y[~self.mask]
+        # else:
+        #     x = self.y[~self.mask]
+        #     y = self.x[~self.mask]
         # check if color is an array
         if 'color_label' in plotargs.keys():
             color_label = plotargs.pop('color_label')

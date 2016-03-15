@@ -1977,9 +1977,7 @@ class CritPoints(object):
             filt = np.ones((5,), dtype=bool)
         if not isinstance(filt, ARRAYTYPES):
             raise TypeError()
-        filt = np.array(filt)
-        if not filt.dtype == bool:
-            raise TypeError()
+        filt = np.array(filt, dtype=bool)
         # display
         if 'color' in kw.keys():
             colors = [kw.pop('color')]*len(self.colors)
