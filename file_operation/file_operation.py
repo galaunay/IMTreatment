@@ -550,10 +550,10 @@ def import_from_IM7(filename, infos=False):
     # Importing from buffer
     fmt, vectorGrid, v_array, atts =  _get_imx_buffers(filename)
     if v_array.shape[0] == 2:
-        mask = v_array[0][:, ::-1]
-        values = v_array[1][:, ::-1]
+        mask = v_array[0][:, ::1]
+        values = v_array[1][:, ::1]
     elif v_array.shape[0] == 1:
-        values = v_array[0][:, ::-1]
+        values = v_array[0][:, ::1]
         mask = np.zeros(values.shape, dtype=bool)
     # Values and Mask
     scale_i = atts['_SCALE_I']

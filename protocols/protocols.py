@@ -1,4 +1,7 @@
 import numpy as np
+import sys
+import psutil
+import warnings
 import matplotlib.pyplot as plt
 from .. import file_operation as imtio
 from .. import pod as imtpod
@@ -12,7 +15,7 @@ class POD_CP_protocol(object):
                  crop_y=[-np.inf, np.inf], crop_t=[-np.inf, np.inf],
                  hard_crop=True,
                  pod_coh=0.05, mirroring=[[2, 0], [1, 0]], eps_traj=15.,
-                 temporal_scale=1., nmb_min_in_traj=1,
+                 red_fact=1., nmb_min_in_traj=1, det_fact=1,
                  thread='all', remove_weird=False) :
         self.name = name
         self.imtpath = imtpath
@@ -25,7 +28,12 @@ class POD_CP_protocol(object):
         self.pod_coh = pod_coh     
         self.mirroring = mirroring
         self.eps_traj = eps_traj
-        self.temporal_scale = temporal_scale
+        if det_fact > 1:
+            self.detailled = True
+        else:
+            self.detailled = False
+        self.det_fact = det_fact
+        self.red_fact = red_fact
         self.nmb_min_in_traj = nmb_min_in_traj
         self.len_data = None
         self.thread = thread
@@ -44,8 +52,8 @@ class POD_CP_protocol(object):
         tvf.crop(intervx=self.crop_x, intervy=self.crop_y, intervt=self.crop_t,
                  inplace=True)
         # adjust temporal resolution
-        if self.temporal_scale < 1:
-            tvf.reduce_temporal_resolution(int(np.round(1./self.temporal_scale)),
+        if self.red_fact < 1:
+            tvf.reduce_temporal_resolution(int(np.round(1./self.red_fact)),
                                            mean=False, inplace=True)
         # check for weird fields
         if self.remove_weird:
@@ -80,13 +88,16 @@ class POD_CP_protocol(object):
         imtio.export_to_file(pod, join(self.imtpath, "{}_pod.cimt".format(self.name)))
         del pod
     
-    def pod_reconstr(self):
-        print("    Making POD reconstruction    ")
+    def pod_reconstr(self, detailled=False):
+        if self.detailled:
+            print("    Making detailled POD reconstruction    ")
+        else:
+            print("    Making POD reconstruction    ")
         # improt data
         pod = imtio.import_from_file(join(self.imtpath, "{}_pod.cimt".format(self.name)))
         # make reconstruction
-        if self.temporal_scale > 1:
-            pod.augment_temporal_resolution(fact=self.temporal_scale,
+        if detailled:
+            pod.augment_temporal_resolution(fact=self.det_fact,
                                             interp='linear',
                                             inplace=True)
         wanted_modes = pod.modes_nmb[pod.get_spatial_coherence(raw=True)
@@ -102,16 +113,40 @@ class POD_CP_protocol(object):
         plt.xlim(0, np.max(wanted_modes)*2)
         plt.axhline(self.pod_coh, linestyle='--', color='r')
         plt.plot(wanted_modes, coh.y[wanted_modes], 'or')
-        plt.savefig(join(self.respath, "{}/rec.png".format(self.name)))
+        if detailled:
+            plt.savefig(join(self.respath, "{}/rec_det.png".format(self.name)))
+        else:
+            plt.savefig(join(self.respath, "{}/rec.png".format(self.name)))
         plt.close(plt.gcf())
         # save data
-        imtio.export_to_file(rec, join(self.imtpath, "{}_rec.cimt".format(self.name)))
+        if detailled:
+            imtio.export_to_file(rec, join(self.imtpath, "{}_rec_det.cimt".format(self.name)))
+        else:
+            imtio.export_to_file(rec, join(self.imtpath, "{}_rec.cimt".format(self.name)))
         del rec
         
-    def CP_detection(self):
+    def CP_detection(self, detailled=False):
         # improt data
-        print("    Making CP detection    ")
-        rec = imtio.import_from_file(join(self.imtpath, "{}_rec.cimt".format(self.name)))
+        if self.detailled:
+            print("    Making detailled CP detection")
+        else:
+            print("    Making CP detection")
+        mem_available = psutil.phymem_usage().free
+        if detailled:
+            rec = imtio.import_from_file(join(self.imtpath, "{}_rec_det.cimt".format(self.name)))
+        else:
+            rec = imtio.import_from_file(join(self.imtpath, "{}_rec.cimt".format(self.name)))
+        # Check if there is enough memory to use
+        filesize = mem_available - psutil.phymem_usage().free 
+        possible_nmb_of_copies = int(mem_available/(filesize*2))
+        if possible_nmb_of_copies < 1:
+            possible_nmb_of_copies = 1
+        if possible_nmb_of_copies < self.thread:
+            warnings.warn("Use {} instead of {} threads because of "
+                          "memory limitation"
+                          .format(possible_nmb_of_copies, self.thread))
+            self.thread = possible_nmb_of_copies
+        # getting cp positions
         traj = imtvod.get_critical_points(rec, kind='pbi',
                                           mirroring=self.mirroring,
                                           verbose=False, thread=self.thread)
@@ -121,15 +156,24 @@ class POD_CP_protocol(object):
         plt.figure()
         traj.display_traj('x', filt=[True, True, False, False, False],
                           marker=None)
-        plt.savefig(join(self.respath, "{}/traj_x_cln.png".format(self.name)))
+        if detailled:
+            plt.savefig(join(self.respath, "{}/traj_x_cln_det.png".format(self.name)))
+        else:
+            plt.savefig(join(self.respath, "{}/traj_x_cln.png".format(self.name)))
         plt.close(plt.gcf())
         plt.figure()
         traj.display_traj('y', filt=[True, True, False, False, False],
                           marker=None)
-        plt.savefig(join(self.respath, "{}/traj_y_cln.png".format(self.name)))
+        if detailled:
+            plt.savefig(join(self.respath, "{}/traj_y_cln_det.png".format(self.name)))
+        else:
+            plt.savefig(join(self.respath, "{}/traj_y_cln.png".format(self.name)))
         plt.close(plt.gcf())
         # save
-        imtio.export_to_file(traj, join(self.imtpath, "{}_traj.cimt".format(self.name)))
+        if detailled:
+            imtio.export_to_file(traj, join(self.imtpath, "{}_traj_det.cimt".format(self.name)))
+        else:
+            imtio.export_to_file(traj, join(self.imtpath, "{}_traj.cimt".format(self.name)))
         del traj
         
     def compute_everything(self):
@@ -153,6 +197,17 @@ class POD_CP_protocol(object):
         elif not os.path.exists(join(self.imtpath, "{}_traj.cimt".format(self.name))):
             self._display_heading()                
             self.CP_detection()
+        else:
+            pass
+        # detailled study
+        if self.detailled:
+            if not os.path.exists(join(self.imtpath, "{}_rec_det.cimt".format(self.name))):
+                self._display_heading()                
+                self.pod_reconstr(detailled=True)
+                self.CP_detection(detailled=True)
+            elif not os.path.exists(join(self.imtpath, "{}_traj_det.cimt".format(self.name))):
+                self._display_heading()                
+                self.CP_detection(detailled=True)
         else:
             pass
         

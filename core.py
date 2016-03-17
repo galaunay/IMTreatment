@@ -3407,8 +3407,8 @@ class Profile(object):
                                      kind=interp, assume_sorted=True)
         new_y = interp_y(new_inds)
         # return
-        tmp_prof.x = new_x
         tmp_prof.y = new_y
+        tmp_prof.x = new_x
         tmp_prof.mask = np.zeros(len(new_x), dtype=bool)
         if not inplace:
             return tmp_prof
@@ -3616,14 +3616,16 @@ class Profile(object):
         """
         if not reverse:
             x = self.x
-            x[self.mask] = np.nan
             y = self.y
-            y[self.mask] = np.nan
+            if any(self.mask):
+                x[self.mask] = np.nan
+                y[self.mask] = np.nan
         else:
             x = self.y
-            x[self.mask] = np.nan
             y = self.x
-            y[self.mask] = np.nan
+            if any(self.mask):
+                y[self.mask] = np.nan
+                x[self.mask] = np.nan
         # if not reverse:
         #     x = self.x[~self.mask]
         #     y = self.y[~self.mask]
