@@ -4627,7 +4627,7 @@ class ScalarField(Field):
         return np.mean(self.values[np.logical_not(self.mask)])
 
     ### Field maker ###
-    def import_from_arrays(self, axe_x, axe_y, values, mask=False,
+    def import_from_arrays(self, axe_x, axe_y, values, mask=None,
                            unit_x="", unit_y="", unit_values=""):
         """
         Set the field from a set of arrays.
@@ -4651,7 +4651,8 @@ class ScalarField(Field):
         self.axe_x = axe_x
         self.axe_y = axe_y
         self.values = values
-        self.mask = mask
+        if mask is not None:
+            self.mask = mask
         self.unit_x = unit_x
         self.unit_y = unit_y
         self.unit_values = unit_values
@@ -5223,6 +5224,16 @@ class ScalarField(Field):
                                           scaling=scaling, fill=fill)
             spec /= len(tmp_SF.axe_x)
         return spec
+
+    def get_norm(self, norm=2, normalized='perpoint'):
+        """
+        Return the field norm
+        """
+        values = self.values[~self.mask]
+        norm = (np.sum(np.abs(values)**norm))**(1./norm)
+        if normalized == 'perpoint':
+            norm /= np.sum(~self.mask)
+        return norm
 
     def integrate_over_line(self, direction, interval):
         """
@@ -6735,6 +6746,17 @@ class VectorField(Field):
         Return a copy of the vectorfield.
         """
         return copy.deepcopy(self)
+
+    def get_norm(self, norm=2, normalized='perpoint'):
+        """
+        Return the field norm
+        """
+        values = np.concatenate((self.comp_x[~self.mask],
+                                 self.comp_y[~self.mask]))
+        res = (np.sum(np.abs(values)**norm))**(1./norm)
+        if normalized == "perpoint":
+            res /= np.sum(~self.mask)
+        return res
 
     ### Modifiers ###
     def scale(self, scalex=None, scaley=None, scalev=None, inplace=False):

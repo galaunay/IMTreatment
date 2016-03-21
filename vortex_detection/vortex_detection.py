@@ -869,6 +869,18 @@ class CritPoints(object):
         if not inplace:
             return tmp_cp
 
+    def get_axes_lims(self):
+        xs = []
+        ys = []
+        for traj_typ in self.iter:
+            for traj in traj_typ:
+                if len(traj.xy) == 0:
+                    continue
+                tmp_x = traj.xy[:, 0]
+                tmp_y = traj.xy[:, 1]
+                xs += [np.min(tmp_x), np.max(tmp_x)]
+                ys += [np.min(tmp_y), np.max(tmp_y)]
+        return ((np.min(xs), np.max(xs)), (np.min(ys), np.max(ys)))
 
     def get_mean_trajectory(self, cp_type, min_len=20,
                             min_nmb_to_avg=10, rel_diff_epsilon=0.03,
