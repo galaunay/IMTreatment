@@ -8212,6 +8212,71 @@ class TemporalFields(Fields, Field):
         else:
             return maps_freq, maps_freq_quality
 
+    def get_recurrence_map(self, norm=2, verbose=False, bandwidth=None):
+        """
+        Return the recurrence map associated with the 2-norm.
+
+        Returns
+        -------
+        rec_map : ScalarField object
+            .
+        """
+        length = len(self.fields)
+        rec_map = np.zeros((length, length))
+        if verbose:
+            pc = imttls.ProgressCounter("Begin recurence map computation",
+                                        "Done", int(length**2/2. + length/2.),
+                                        name_things='norms', perc_interv=1)
+        if self.field_type == VectorField:
+            field_type = 0
+        elif self.field_type == ScalarField:
+            field_type = 1
+        else:
+            raise Exception()
+        inv_norm = 1./norm
+        if norm % 2 == 0:
+            need_abs = False
+        else:
+            need_abs = True
+        # double loop
+        for i in range(length):
+            for j in range(length):
+                if i > j:
+                    continue
+                if i == j:
+                    rec_map[i, j] = 0
+                    continue
+                if bandwidth is not None:
+                    if np.abs(i - j) > bandwidth:
+                        rec_map[i, j] = np.nan
+                        rec_map[j, i] = np.nan
+                        continue
+                if verbose:
+                    pc.print_progress()
+                # get difference fields
+                if field_type == 0:
+                    valuesx = self.fields[i].comp_x - self.fields[j].comp_x
+                    valuesy = self.fields[i].comp_y - self.fields[j].comp_y
+                    values = np.concatenate((valuesx, valuesy))
+                elif field_type == 1:
+                    values = self.fields[i].values - self.fields[j].values
+                # get norm
+                if need_abs:
+                    res = np.sum(np.abs(values)**norm)**inv_norm
+                else:
+                    res = np.sum(values**norm)**inv_norm
+                rec_map[i, j] = res
+                rec_map[j, i] = res
+        # return
+        rec_map_sf = ScalarField()
+        rec_map_sf.import_from_arrays(axe_x=self.times, axe_y=self.times,
+                                      values=rec_map,
+                                      unit_x=self.unit_times,
+                                      unit_y=self.unit_times,
+                                      unit_values=self.unit_values)
+        return rec_map_sf
+
+
 
     ### Modifiers ###
     def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
