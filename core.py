@@ -3947,7 +3947,8 @@ class Field(object):
         return np.array(inds, subok=True)
 
     ### Modifiers ###
-    def scale(self, scalex=None, scaley=None, inplace=False):
+    def scale(self, scalex=None, scaley=None, inplace=False,
+              output_reverse=False):
         """
         Scale the Field.
 
@@ -3963,34 +3964,56 @@ class Field(object):
         else:
             tmp_f = self.copy()
         # x
+        reversex = False
         if scalex is None:
             pass
         elif isinstance(scalex, NUMBERTYPES):
             tmp_f.axe_x *= scalex
+            if scalex < 0:
+                reversex = True
         elif isinstance(scalex, unum.Unum):
             new_unit = tmp_f.unit_x * scalex
             fact = new_unit.asNumber()
             new_unit /= fact
             tmp_f.unit_x = new_unit
             tmp_f.axe_x *= fact
+            if fact < 0:
+                reversex = True
         else:
             raise TypeError()
+        if reversex:
+            tmp_f.axe_x = tmp_f.axe_x[::-1]   
         # y
+        reversey = False
         if scaley is None:
             pass
         elif isinstance(scaley, NUMBERTYPES):
             tmp_f.axe_y *= scaley
+            if scaley < 0:
+                reversey = True
         elif isinstance(scaley, unum.Unum):
             new_unit = tmp_f.unit_y*scaley
             fact = new_unit.asNumber()
             new_unit /= fact
             tmp_f.unit_y = new_unit
             tmp_f.axe_y *= fact
+            if fact < 0:
+                reversey = True
         else:
             raise TypeError()
+        if reversey:
+            tmp_f.axe_y = tmp_f.axe_y[::-1]   
         # returning
-        if not inplace:
-            return tmp_f
+        if output_reverse:
+            if inplace:
+                return reversex, reversey
+            else:
+                return tmp_f, reversex, reversey
+        else:
+            if inplace:
+                pass
+            else:
+                return tmp_f
 
     def rotate(self, angle, inplace=False):
         """
@@ -5371,7 +5394,8 @@ class ScalarField(Field):
         else:
             tmp_f = self.copy()
         # xy
-        Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True)
+        revx, revy = Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True,
+                                 output_reverse=True)
         # v
         if scalev is None:
             pass
@@ -5385,6 +5409,12 @@ class ScalarField(Field):
             tmp_f.values *= fact
         else:
             raise TypeError()
+        if revx and revy:
+            tmp_f.values = tmp_f.values[::-1, ::-1]
+        elif revx:
+            tmp_f.values = tmp_f.values[::-1, :]
+        elif revy:
+            tmp_f.values = tmp_f.values[:, ::-1]
         # returning
         if not inplace:
             return tmp_f
@@ -6775,7 +6805,8 @@ class VectorField(Field):
         else:
             tmp_f = self.copy()
         # xy
-        Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True)
+        revx, revy = Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True,
+                                 output_reverse=True)
         # v
         if scalev is None:
             pass
@@ -6791,6 +6822,15 @@ class VectorField(Field):
             tmp_f.comp_y *= fact
         else:
             raise TypeError()
+        if revx and revy:
+            tmp_f.comp_x = -tmp_f.comp_x[::-1, ::-1]
+            tmp_f.comp_y = -tmp_f.comp_y[::-1, ::-1]
+        elif revx:
+            tmp_f.comp_x = -tmp_f.comp_x[::-1, :]
+            tmp_f.comp_y = tmp_f.comp_y[::-1, :]
+        elif revy:
+            tmp_f.comp_x = tmp_f.comp_x[:, ::-1]
+            tmp_f.comp_y = -tmp_f.comp_y[:, ::-1]
         # returning
         if not inplace:
             return tmp_f
