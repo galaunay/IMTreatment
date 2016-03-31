@@ -8813,9 +8813,7 @@ class TemporalFields(Fields, Field):
                 raise ValueError()
         # get wanted times
         if intervt is not None:
-            if ind:
-                intervt = np.arange(intervt[0], intervt[1] + 1)
-            else:
+            if not ind:
                 if intervt[0] < self.times[0]:
                     ind1 = 0
                 elif intervt[0] > self.times[-1]:
