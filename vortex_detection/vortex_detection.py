@@ -1297,14 +1297,17 @@ class CritPoints(object):
             tmp_cp.sadd = tmp_cp.sadd[filt]
             tmp_cp.node_i = tmp_cp.node_i[filt]
             tmp_cp.node_o = tmp_cp.node_o[filt]
+            for traj_type in self.iter_traj:
+                [traj.crop(intervv=intervt, ind=ind, inplace=True) for traj in traj_type]
+            self._remove_void_trajectories()
         # spatial cropping
         if intervx is not None or intervy is not None:
             for kind in tmp_cp.iter:
                 for pts in kind:
                     pts.crop(intervx=intervx, intervy=intervy,
                              inplace=True)
-        # make trajectories obsolete
-        tmp_cp._remove_trajectories()
+            # make trajectories obsolete
+            tmp_cp._remove_trajectories()
         # returning
         if not inplace:
             return tmp_cp
@@ -1517,6 +1520,14 @@ class CritPoints(object):
         self.current_epsilon = None
         for i in range(len(self.iter_traj)):
             self.iter_traj[i] = None
+
+    def _remove_void_trajectories(self):
+        """
+        Delete the empty trajectories.
+        """
+        for traj_type in self.iter_traj:
+            filt = [len(traj) == 0 for traj in traj_type]
+            traj_type = traj_type[filt]
 
     def _sort_by_time(self):
         """
@@ -2026,7 +2037,7 @@ class CritPoints(object):
                 if trajs is None or not filt[i]:
                     continue
                 for traj in trajs:
-                    plt.plot(traj.xy[:, 1], traj.v[:], color=color,
+                    plt.plot(traj.v[:], traj.xy[:, 1], color=color,
                              **kw)
             plt.ylabel('time {}'.format(self.unit_time.strUnit()))
             plt.xlabel('y {}'.format(self.unit_y.strUnit()))

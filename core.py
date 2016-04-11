@@ -3231,8 +3231,8 @@ class Profile(object):
             raise ValueError("Specifying 'intervy' with indices has no sens")
         # return
         if inplace:
-            self.x = new_x
             self.y = new_y
+            self.x = new_x
             self.mask = new_mask
             return None
         else:
