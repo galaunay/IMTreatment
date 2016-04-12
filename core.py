@@ -25,6 +25,7 @@ import scipy.interpolate as spinterp
 import scipy.ndimage.measurements as msr
 from scipy import ndimage
 import scipy.optimize as spopt
+import sklearn.cluster as clst
 try:
     units.counts = unum.Unum.unit('counts')
     units.pixel = unum.Unum.unit('pixel')
@@ -694,6 +695,38 @@ class Points(object):
                                   unit_x=self.unit_x, unit_y=self.unit_y,
                                   unit_values=unit_values)
             return sf
+
+    def get_clusters(self, eps, min_samples=5):
+        """
+        Perform DBSCAN clustering from vector array or distance matrix.
+        (see sklearn.cluster.DBSCAN)
+
+        Notes
+        ------
+        DBSCAN - Density-Based Spatial Clustering of Applications with Noise.
+        Finds core samples of high density and expands clusters from them.
+        Good for data which contains clusters of similar density.
+        """
+        X = self.xy
+        db = clst.DBSCAN(eps=eps, min_samples=min_samples).fit(X)
+        labels = db.labels_
+        uniq_labels = np.array(list(set(labels)))
+        print(uniq_labels)
+        nmb_cluster = len(uniq_labels)
+        if -1 in uniq_labels:
+            nmb_cluster -= 1
+        # create separated points objects
+        points = []
+        for lab in uniq_labels:
+            filt = labels == lab
+            if len(self.v) == len(self.xy):
+                new_v = self.v[filt]
+            else:
+                new_v = self.v
+            tmp_pts = Points(self.xy[filt], new_v, unit_x=self.unit_x,
+                             unit_y=self.unit_y, unit_v=self.unit_v)
+            points.append(tmp_pts)
+        return points
 
     def get_envelope(self, alpha=None):
         """

@@ -2008,7 +2008,7 @@ class CritPoints(object):
             colors = self.colors
         if 'marker' not in kw.keys():
             kw['marker'] = 'o'
-        if 'linestyle' not in kw.keys():
+        if 'linestyle' not in kw.keys() and "ls" not in kw.keys():
             kw['linestyle'] = '-'
         if data == 'default':
             for i, trajs in enumerate(self.iter_traj):
