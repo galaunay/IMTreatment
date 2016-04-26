@@ -6352,6 +6352,7 @@ class VectorField(Field):
         self.__comp_y = np.array([], dtype=float)
         self.__mask = np.array([], dtype=bool)
         self.__unit_values = make_unit('')
+        self.xy_scale = make_unit('')
 
     def __neg__(self):
         tmpvf = self.copy()
@@ -6885,6 +6886,16 @@ class VectorField(Field):
         # xy
         revx, revy = Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True,
                                  output_reverse=True)
+        # get xy_scale
+        # TODO : for compatibility purpose
+        if not hasattr(self, 'xy_scale'):
+            self.xy_scale = 1.
+        if scalex is not None and scaley is not None:
+            self.xy_scale *= scalex/scaley
+        elif scalex is not None:
+            self.xy_scale *= scalex
+        elif scaley is not None:
+            self.xy_scale *= 1/scaley
         # v
         if scalev is None:
             pass
@@ -7281,6 +7292,7 @@ class VectorField(Field):
         # getting components
         vx = self.comp_x_as_sf
         vy = self.comp_y_as_sf
+        xy_scale = self.xy_scale
         # treating sign changments
         if isinstance(mir_coef, NUMBERTYPES):
             if direction == 1:
@@ -7313,6 +7325,7 @@ class VectorField(Field):
                                   mask=mask, unit_x=vx.unit_x,
                                   unit_y=vy.unit_y,
                                   unit_values=vx.unit_values)
+        tmp_vf.xy_scale = xy_scale
         # returning
         if not inplace:
             return tmp_vf
@@ -7354,7 +7367,16 @@ class VectorField(Field):
 
     ### Displayers ###
     def _display(self, component=None, kind=None, axis='image', **plotargs):
-        if component in [None, 'V']:
+        # TODO : compatibility purpose
+        if not hasattr(self, "xy_scale"):
+            self.xy_scale = make_unit("")
+        # adapt xy scale if streamplot is needed
+        if kind == "stream" and self.xy_scale.asNumber() != 1.:
+            magn = self.magnitude
+            new_comp_x = self.comp_x*self.xy_scale.asNumber()
+            new_magn = (new_comp_x**2 + self.comp_y**2)**.5
+            values = [new_comp_x/new_magn*magn, self.comp_y/new_magn*magn]
+        elif component in [None, 'V']:
             values = [self.comp_x, self.comp_y]
         elif component in ['comp_x', 'x']:
             values = self.comp_x

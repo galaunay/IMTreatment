@@ -975,7 +975,8 @@ class CritPoints(object):
 #                        plt.plot(av_x.y, av_x.x, "b")
                         continue
                     # actualize reference
-                    tmp_x_base = av_x.average_doublons(inplace=False)
+                    tmp_x_base = av_x.remove_doublons(method="average",
+                                                      inplace=False)
                     # if trajectory is too different from the referential one, skip
                     tmp_conv = tmp_x.get_convolution_of_difference(tmp_x_base,
                                                                    normalized=True)
