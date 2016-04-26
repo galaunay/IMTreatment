@@ -1321,7 +1321,8 @@ class Points(object):
         else:
             tmp_pt = self.copy()
         tmp_pt.xy = tmp_pt.xy[order]
-        tmp_pt.v = tmp_pt.v[order]
+        if len(tmp_pt.v) == len(tmp_pt.xy):
+            tmp_pt.v = tmp_pt.v[order]
         # returning
         if not inplace:
             return tmp_pt
@@ -1345,6 +1346,49 @@ class Points(object):
         if not inplace:
             return tmp_pts
 
+    def augment_resolution(self, fact=2, interp='linear', inplace=False):
+        """
+        Augment the temporal resolution of the points.
+        Only have sense if points are sorted to set some kind of trajectory.
+
+        Parameters
+        ----------
+        fact : integer
+            Resolution augmentation needed (default is '2', for a result
+            profile with twice more points)
+        interp : string in ['linear', 'nearest', slinear', 'quadratic, 'cubic']
+            Specifies the kind of interpolation as a string
+            (Default is 'linear'). slinear', 'quadratic' and 'cubic' refer
+            to a spline interpolation of first, second or third order.
+        inplace bool
+            .
+
+        Note
+        ----
+        If masked values are present, they are interpolated as well, using the
+        surrounding values.
+        """
+        if inplace:
+            tmp_pts = self
+        else:
+            tmp_pts = self.copy()
+        is_v = len(self.v) == len(self.xy)
+        # get and interpolate
+        tmp_x = Profile(range(len(self.xy)), self.xy[:, 0])
+        tmp_x.augment_resolution(fact=fact, interp=interp, inplace=True)
+        tmp_y = Profile(range(len(self.xy)), self.xy[:, 1])
+        tmp_y.augment_resolution(fact=fact, interp=interp, inplace=True)
+        if is_v:
+            tmp_v = Profile(range(len(self.xy)), self.v)
+            tmp_v.augment_resolution(fact=fact, interp=interp, inplace=True)
+        # store
+        tmp_pts.xy = zip(tmp_x.y, tmp_y.y)
+        if is_v:
+            tmp_pts.v = tmp_v.y
+        if not inplace:
+            return tmp_pts
+                
+            
     def smooth(self, tos='uniform', size=None, inplace=False, **kw):
         """
         Return a smoothed points field.
@@ -2491,6 +2535,7 @@ class Profile(object):
             x_1 = ind_0
             x_2 = ind_0 + 1
         else:
+            ind_0 = np.asarray(ind_0, dtype=int)
             x_1 = x[ind_0]
             x_2 = x[ind_0 + 1]
         pos_0 = x_1 + val_1/(val_1 + val_2)*(x_2 - x_1)
