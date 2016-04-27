@@ -711,7 +711,6 @@ class Points(object):
         db = clst.DBSCAN(eps=eps, min_samples=min_samples).fit(X)
         labels = db.labels_
         uniq_labels = np.array(list(set(labels)))
-        print(uniq_labels)
         nmb_cluster = len(uniq_labels)
         if -1 in uniq_labels:
             nmb_cluster -= 1
@@ -3776,6 +3775,7 @@ class Field(object):
         self.__axe_y = np.array([], dtype=float)
         self.__unit_x = make_unit('')
         self.__unit_y = make_unit('')
+        self.xy_scale = make_unit("")
 
     def __iter__(self):
         for i, x in enumerate(self.axe_x):
@@ -4041,6 +4041,16 @@ class Field(object):
             tmp_f = self
         else:
             tmp_f = self.copy()
+        # TODO : for compatibility purpose
+        if not hasattr(tmp_f, "xy_scale"):
+            tmp_f.xy_scale = make_unit("")
+        # set xy_scale 
+        if scalex is not None and scaley is not None:
+            tmp_f.xy_scale *= scalex/scaley
+        elif scalex is not None:
+            tmp_f.xy_scale *= scalex
+        elif scaley is not None:
+            tmp_f.xy_scale *= 1/scaley
         # x
         reversex = False
         if scalex is None:
@@ -6352,7 +6362,6 @@ class VectorField(Field):
         self.__comp_y = np.array([], dtype=float)
         self.__mask = np.array([], dtype=bool)
         self.__unit_values = make_unit('')
-        self.xy_scale = make_unit('')
 
     def __neg__(self):
         tmpvf = self.copy()
@@ -6886,16 +6895,6 @@ class VectorField(Field):
         # xy
         revx, revy = Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True,
                                  output_reverse=True)
-        # get xy_scale
-        # TODO : for compatibility purpose
-        if not hasattr(self, 'xy_scale'):
-            self.xy_scale = 1.
-        if scalex is not None and scaley is not None:
-            self.xy_scale *= scalex/scaley
-        elif scalex is not None:
-            self.xy_scale *= scalex
-        elif scaley is not None:
-            self.xy_scale *= 1/scaley
         # v
         if scalev is None:
             pass
@@ -7753,12 +7752,14 @@ class TemporalFields(Fields, Field):
         Field.axe_x.fset(self, value)
         for field in self.fields:
             field.axe_x = value
+            field.xy_scale = self.xy_scale
 
     @Field.axe_y.setter
     def axe_y(self, value):
         Field.axe_y.fset(self, value)
         for field in self.fields:
             field.axe_y = value
+            field.xy_scale = self.xy_scale
 
     @Field.unit_x.setter
     def unit_x(self, value):
@@ -7883,6 +7884,11 @@ class TemporalFields(Fields, Field):
         fact = mask_cum
         fact[mask] = 1
         result_f /= fact
+        # TODO : for compatibility purpose
+        if not hasattr(self.fields[0], 'xy_scale'):
+            result_f.xy_scale = make_unit("")
+        else:
+            result_f.xy_scale = self.fields[0].xy_scale
         return result_f
 
     def get_interpolated_field(self, time):
@@ -8469,10 +8475,16 @@ class TemporalFields(Fields, Field):
         else:
             tmp_f = self.copy()
         # scale the field (automaticly scale the fields axis)
+        # for compatibility purpose
+        if not hasattr(self, "xy_scale"):
+            self.xy_scale = make_unit('')
+        for field in self.fields:
+            if not hasattr(field, "xy_scale"):
+                field.xy_scale = self.xy_scale
         Field.scale(tmp_f, scalex=scalex, scaley=scaley,
                     inplace=True)
         # scale the values
-        Fields.scale(tmp_f, scalex=1., scaley=1., scalev=scalev, inplace=True)
+        Fields.scale(tmp_f, scalev=scalev, inplace=True)
         # scale the time
         if scalet is None:
             pass
