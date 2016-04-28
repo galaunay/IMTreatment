@@ -1254,6 +1254,40 @@ class Points(object):
         if not inplace:
             return tmp_pt
 
+    def remove_doublons(self, method='average', inplace=False, eps_rel=1e-6):
+        """
+        Replace values associated to the same 'v' by their average.
+
+        Parameters
+        ----------
+        method : string in {'average', 'max', 'min'}
+           Method used to remove the doublons.
+        """
+        if len(self.v) == 0:
+            raise Exception()
+        if inplace:
+            tmp_pt = self
+        else:
+            tmp_pt = self.copy()
+        vs = tmp_pt.v
+        ord_magn = (np.sum(vs**2)/len(vs))**.5
+        nmb_dec = -int(round(np.log10(ord_magn*eps_rel)))
+        tmp_vs = np.round(vs, decimals=nmb_dec)
+        new_vs = np.sort(list(set(tmp_vs)))
+        if method == 'average':
+            new_xy = [np.mean(tmp_pt.xy[tmp_vs == vi], axis=0) for vi in new_vs]
+        elif method == 'min':
+            new_xy = [np.min(tmp_pt.xy[tmp_vs == vi], axis=0) for vi in new_vs]
+        elif method == 'max':
+            new_xy = [np.max(tmp_pt.xy[tmp_vs == vi], axis=0) for vi in new_vs]
+        else:
+            raise ValueError()
+        tmp_pt.xy = new_xy
+        tmp_pt.v = new_v
+        # returning
+        if not inplace:
+            return tmp_pt
+
     def reverse(self):
         """
         Return a Points object where x and y axis are swaped.
@@ -2083,7 +2117,7 @@ class Profile(object):
             y = self.y*new_unit_y.asNumber()
             new_unit_y = new_unit_y/new_unit_y.asNumber()
         elif isinstance(otherone, Profile):
-            if not np.any(otherone.x - self.x > 1e-6*np.mean(self.x)):
+            if np.any(otherone.x - self.x > 1e-6*np.mean(abs(self.x))):
                 raise ValueError("Given profiles does'nt share the same"
                                  " x axis")
             if not otherone.unit_x == self.unit_x:
@@ -3637,7 +3671,7 @@ class Profile(object):
             tmp_prof.y = y
             return tmp_prof
 
-    def remove_doublons(self, method='average', inplace=False):
+    def remove_doublons(self, method='average', inplace=False, eps_rel=1e-6):
         """
         Replace values associated to the same 'x' by their average.
 
@@ -3650,13 +3684,16 @@ class Profile(object):
             tmp_prof = self
         else:
             tmp_prof = self.copy()
-        new_x = np.sort(list(set(tmp_prof.x)))
+        ord_magn = (np.sum(tmp_prof.x**2)/len(tmp_prof.x))**.5
+        nmb_dec = -int(round(np.log10(ord_magn*eps_rel)))
+        tmp_x = np.round(tmp_prof.x, decimals=nmb_dec)
+        new_x = np.sort(list(set(tmp_x)))
         if method == 'average':
-            new_y = [np.mean(tmp_prof.y[tmp_prof.x == xi]) for xi in new_x]
+            new_y = [np.mean(tmp_prof.y[tmp_x == xi]) for xi in new_x]
         elif method == 'min':
-            new_y = [np.min(tmp_prof.y[tmp_prof.x == xi]) for xi in new_x]
+            new_y = [np.min(tmp_prof.y[tmp_x == xi]) for xi in new_x]
         elif method == 'max':
-            new_y = [np.max(tmp_prof.y[tmp_prof.x == xi]) for xi in new_x]
+            new_y = [np.max(tmp_prof.y[tmp_x == xi]) for xi in new_x]
         else:
             raise ValueError()
         tmp_prof.y = new_y

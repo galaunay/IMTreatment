@@ -972,23 +972,50 @@ class CritPoints(object):
                         used_traj_inds.append(i)
                         used_trajs.append(traj)
                         nmb_traj_used += 1
-#                        plt.plot(av_x.y, av_x.x, "b")
                         continue
                     # actualize reference
                     tmp_x_base = av_x.remove_doublons(method="average",
                                                       inplace=False)
-                    # if trajectory is too different from the referential one, skip
-                    tmp_conv = tmp_x.get_convolution_of_difference(tmp_x_base,
-                                                                   normalized=True)
-                    if tmp_conv.min > rel_diff_epsilon:
-                        continue
+                    tmp_y_base = av_y.remove_doublons(method="average",
+                                                      inplace=False)
                     # if trajectories length are too different, skip
                     len_min, len_max = np.sort([len(tmp_x_base), len(tmp_x)])
                     diff = (len_max - len_min)/float(len_max)
                     if diff > rel_len_epsilon:
                         continue
+                    # if trajectory is too different from the referential one, skip
+                    tmp_conv_x = tmp_x.get_convolution_of_difference(tmp_x_base,
+                                                                   normalized=True)
+                    tmp_conv_y = tmp_y.get_convolution_of_difference(tmp_y_base,
+                                                                    normalized=True)
+                    tmp_conv = (tmp_conv_x*tmp_conv_y)**.5
+                    if tmp_conv.min > rel_diff_epsilon:
+                        continue
                     # else, shift the trajectory and add it to the set
-                    shift = tmp_x.get_dephasage(tmp_x_base, conv='difference')
+                    shift = tmp_conv.x[min(range(len(tmp_conv)), key=lambda i: tmp_conv.y[i])]
+                    # # TMP
+                    # fig, axs = plt.subplots(3, 2)
+                    # axs = axs.flatten()
+                    # plt.sca(axs[0])
+                    # traj.display(kind='plot', color='r', marker="o")
+                    # plt.plot(av_x.y, av_y.y, 'o-k')
+                    # plt.sca(axs[1])
+                    # tmp_x_base.display(label="base")
+                    # tmp_x.display(label="comp")
+                    # plt.legend()
+                    # plt.sca(axs[2])
+                    # tmp_y_base.display(label="base")
+                    # tmp_y.display(label="comp")
+                    # plt.legend()
+                    # plt.sca(axs[3])
+                    # tmp_conv_x.display(label="convx")
+                    # tmp_conv_y.display(label="convy")
+                    # tmp_conv.display(label="conv")
+                    # plt.title("diff = {}\n shift = {}".format(tmp_conv.min,
+                    #                                                shift))
+                    # plt.ylim(0, 3*rel_diff_epsilon)
+                    # plt.legend()
+                    # # END : TMP
                     dx = tmp_x.x[1] - tmp_x.x[0]
                     shift = np.floor(shift/dx)*dx   # not allow quarter-dx
                     tmp_x.x += shift
@@ -1001,18 +1028,35 @@ class CritPoints(object):
                     used_traj_inds.append(i)
                     used_trajs.append(traj)
                     nmb_traj_used += 1
+                    # # TMP
+                    # tmp_x_base = av_x.remove_doublons(method="average",
+                    #                                   inplace=False)
+                    # tmp_y_base = av_y.remove_doublons(method="average",
+                    #                                   inplace=False)
+                    # plt.sca(axs[4])
+                    # plt.plot(av_x.y, av_y.y, 'o-k')
+                    # plt.sca(axs[5])
+                    # plt.plot(tmp_x_base.y, tmp_y_base.y, 'o-k')
+                    # plt.show()
+
+                    
+                    
             # if no remaining trajectories, end the While loop
             if av_x is None:
                 break
             # averaging the set of trajectories on each time step
+            tmp_av_x = av_x.remove_doublons(method="average",
+                                            inplace=False)
+            av_x_norm = (sum(av_x.x**2)/len(av_x))**.5
+            # Get std for each points
             new_x = []
             new_y = []
             new_t = []
             assoc_real_times = []
             assoc_std_x = []
             assoc_std_y = []
-            for t in np.array(list(set(av_t.x))):
-                filt = av_x.x == t
+            for t in tmp_av_x.x:
+                filt = abs(av_x.x - t)/av_x_norm < 1e-6
                 if np.sum(filt) < min_nmb_to_avg:
                     continue
                 new_x.append(np.mean(av_x.y[filt]))
@@ -1043,7 +1087,6 @@ class CritPoints(object):
             mean_trajs.append(mean_traj)
         # sort the mean_traj by decreasing number of used trajectories
         ind_sort = np.argsort([traj.nmb_traj_used for traj in mean_trajs])
-        print(ind_sort)
         mean_trajs = [mean_trajs[ind] for ind in ind_sort[::-1]]
         # echo some stats
         if verbose:
@@ -1064,7 +1107,7 @@ class CritPoints(object):
             print("+++     {:>{pad}} too different".format(nmb_too_diff, pad=pad))
             # plot
             cycler = plt.rcParams['axes.prop_cycle']()
-            colors = [cycler.next()['color'] for i in range(20)]
+            colors = [cycler.next()['color'] for i in range(40)]
             fig, axs = plt.subplots(2, 1, sharex=True)
             plt.sca(axs[0])
             filt = [cp_type == 'foc', cp_type == 'foc_c', cp_type == 'node_i',
