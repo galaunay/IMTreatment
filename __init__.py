@@ -1,3 +1,4 @@
+#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
 IMTreatment - A fields study package
@@ -38,12 +39,18 @@ Particular warnings
 -------------------
 It is strongly recommended not to use "import *" on this package.
 """
-from .core import make_unit,\
-    Profile, Points, OrientedPoints,\
-    ScalarField, VectorField, Fields, TemporalFields,\
-    TemporalScalarFields, TemporalVectorFields, SpatialVectorFields,\
-    SpatialScalarFields
-__all__ = ["ScalarField", "VectorField",
-           "Fields", "TemporalFields", "TemporalScalarFields",
-           "TemporalVectorFields", "Points", "OrientedPoints", "Profile",
-           "make_unit"]
+# from .core import make_unit,\
+#     Profile, Points, OrientedPoints,\
+#     ScalarField, VectorField, Fields, TemporalFields,\
+#     TemporalScalarFields, TemporalVectorFields, SpatialVectorFields,\
+#     SpatialScalarFields
+from .utils import make_unit
+from .core import Profile
+from .core import Points
+from .core import OrientedPoints
+from .core import ScalarField
+from .core import VectorField
+# __all__ = ["ScalarField", "VectorField",
+#            "Fields", "TemporalFields", "TemporalScalarFields",
+#            "TemporalVectorFields", "Points", "OrientedPoints", "Profile",
+#            "make_unit"]
