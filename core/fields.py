@@ -10,7 +10,7 @@ IMTreatment module
 import numpy as np
 import pdb
 import copy
-from ..types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 import field as field
 import scalarfield as sf
 import vectorfield as vf
@@ -119,7 +119,7 @@ class Fields(object):
         field : sf.VectorField or sf.ScalarField object
             The field to add.
         """
-        if not isinstance(field, (sf.VectorField, sf.ScalarField)):
+        if not isinstance(field, (vf.VectorField, sf.ScalarField)):
             raise TypeError("'vectorfield' must be a VelocityField object")
         self.fields = np.append(self.fields, field.copy())
 

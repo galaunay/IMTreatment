@@ -13,16 +13,14 @@ import numpy as np
 import pdb
 import unum
 import copy
-from ..tools import ProgressCounter
-from ..utils import make_unit
-from ..types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils import make_unit, ProgressCounter
+from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 import field as fld
 import fields as flds
 import scalarfield as sf
 import points as pts
 import profile as prof
 import vectorfield as vf
-import temporalscalarfields as tsf
 
 
 
@@ -256,7 +254,7 @@ class TemporalFields(flds.Fields, fld.Field):
         if len(self.fields) == 0:
             raise ValueError("There is no fields in this object")
         result_f = self.fields[0].copy()
-        if isinstance(self, tsf.TemporalScalarFields):
+        if self.field_type == sf.ScalarField:
             value = 0.
         else:
             value = [0., 0.]
@@ -945,11 +943,9 @@ class TemporalFields(flds.Fields, fld.Field):
         # checking parameters
         if not isinstance(field, (vf.VectorField, sf.ScalarField)):
             raise TypeError()
-        if isinstance(self, tsf.TemporalScalarFields) \
-                and not isinstance(field, sf.ScalarField):
-            raise TypeError()
-        if isinstance(self, tsf.TemporalVectorFields) \
-                and not isinstance(field, vf.VectorField):
+        if self.field_type is None:
+            self.field_type = field.__class__
+        if not isinstance(field, self.field_type):
             raise TypeError()
         if not isinstance(time, NUMBERTYPES):
             raise TypeError("'time' should be a number, not {}"
@@ -1478,7 +1474,7 @@ class TemporalFields(flds.Fields, fld.Field):
         if fields_inds is None:
             fields_inds = len(self.fields)
         # getting data
-        if isinstance(self, tsf.TemporalVectorFields):
+        if self.field_type == vf.VectorField:
             if compo == 'V' or compo is None:
                 comp = self.fields
             elif compo == 'magnitude':
@@ -1491,7 +1487,7 @@ class TemporalFields(flds.Fields, fld.Field):
                 comp = self.mask_as_sf
             else:
                 raise ValueError()
-        elif isinstance(self, tsf.TemporalScalarFields):
+        elif self.field_type == sf.ScalarField:
             if compo == 'values' or compo is None:
                 comp = self.values_as_sf
             elif compo == 'mask':

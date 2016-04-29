@@ -14,7 +14,8 @@ import pdb
 import unum
 import copy
 from scipy import ndimage
-from ..types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils import make_unit
+from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 import field as field
 import scalarfield as sf
 

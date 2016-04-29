@@ -9,11 +9,11 @@ import os
 import pdb
 import gzip
 from glob import glob
-from ..core import Points, ScalarField, VectorField, make_unit,\
-    ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
+from ..core import Points, ScalarField, VectorField, \
     TemporalVectorFields, SpatialVectorFields, TemporalScalarFields,\
     SpatialScalarFields, Profile
-from ..tools import ProgressCounter
+from ..utils import ProgressCounter, make_unit
+from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 import numpy as np
 try:
     import cPickle as pickle

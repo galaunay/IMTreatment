@@ -16,8 +16,8 @@ from scipy import stats
 import scipy.interpolate as spinterp
 from scipy import ndimage
 import scipy.optimize as spopt
-from ..types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from ..utils import make_unit
+from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 
 
 class Profile(object):

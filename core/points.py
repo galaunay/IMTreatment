@@ -15,7 +15,7 @@ import copy
 from scipy import stats
 from scipy import ndimage
 import sklearn.cluster as clst
-from ..types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from ..utils import make_unit
 from scalarfield import ScalarField
 from profile import Profile

@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from ..core import VectorField, make_unit, NUMBERTYPES, ARRAYTYPES,\
-    TemporalVectorFields, Points
+from ..core import VectorField, TemporalVectorFields, Points
+from ..utils import make_unit
+from ..utils.types import NUMBERTYPES, ARRAYTYPES
 import pdb
 import copy
 import matplotlib.pyplot as plt

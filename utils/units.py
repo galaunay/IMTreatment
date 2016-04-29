@@ -15,7 +15,7 @@ try:
     units.pixel = unum.Unum.unit('pixel')
 except:
     pass
-from ..types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 
 
 def make_unit(string):

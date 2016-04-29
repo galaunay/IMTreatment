@@ -12,13 +12,11 @@ import numpy as np
 import pdb
 import unum
 import copy
-from ..types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from ..utils import make_unit
 import fields as flds
-import spatialscalarfields as ssf
 import scalarfield as sf
 import vectorfield as vf
-import spatialvectorfield as svf
 import profile as prof
 
 
@@ -142,12 +140,8 @@ class SpatialFields(flds.Fields):
         """
         """
         # check
-        if isinstance(self, ssf.SpatialScalarFields):
-            if not isinstance(field, sf.ScalarField):
-                raise TypeError()
-        elif isinstance(self, svf.SpatialVectorFields):
-            if not isinstance(field, vf.VectorField):
-                raise TypeError()
+        if not isinstance(field, self.fields_type):
+            raise TypeError()
         # first field
         if len(self.fields) == 0:
             self.unit_x = field.unit_x
@@ -276,7 +270,7 @@ class SpatialFields(flds.Fields):
             Wanted profile
         """
         # getting data
-        if isinstance(self, svf.SpatialVectorFields):
+        if self.fields_type == vf.VectorField:
             if component is None:
                 component = 'magnitude'
             else:
@@ -284,7 +278,7 @@ class SpatialFields(flds.Fields):
                     comp = self.__getattribute__("{}_as_sf".format(component))
                 except AttributeError:
                     raise ValueError()
-        elif isinstance(self, ssf.SpatialScalarFields):
+        elif self.fields_type == sf.ScalarField:
             if component is None:
                 component = "values"
             try:
@@ -333,7 +327,7 @@ class SpatialFields(flds.Fields):
         if len(self.fields) == 0:
             raise Exception()
         # getting data
-        if isinstance(self, svf.SpatialVectorFields):
+        if self.fields_type == vf.VectorField:
             if compo == 'V' or compo is None:
                 comp = self.fields
             else:
@@ -341,7 +335,7 @@ class SpatialFields(flds.Fields):
                     comp = self.__getattribute__("{}_as_sf".format(compo))
                 except AttributeError:
                     raise ValueError()
-        elif isinstance(self, ssf.SpatialScalarFields):
+        elif self.fields_type == sf.ScalarField:
             if compo is None:
                 compo = "values"
             try:

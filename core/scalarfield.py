@@ -687,10 +687,10 @@ class ScalarField(Field):
         dy = tmp_sf.axe_y[1] - tmp_sf.axe_y[0]
         # get gradient field
         grad_x, grad_y = np.gradient(tmp_sf.values, dx, dy)
-        vf = vf.VectorField()
-        vf.import_from_arrays(tmp_sf.axe_x, tmp_sf.axe_y, grad_x, grad_y,
-                              unit_x=tmp_sf.unit_x, unit_y=tmp_sf.unit_y,
-                              unit_values=tmp_sf.unit_values)
+        tmp_vf = vf.VectorField()
+        tmp_vf.import_from_arrays(tmp_sf.axe_x, tmp_sf.axe_y, grad_x, grad_y,
+                                  unit_x=tmp_sf.unit_x, unit_y=tmp_sf.unit_y,
+                                  unit_values=tmp_sf.unit_values)
         # extract the streamline from the gradient field
         from field_treatment import get_streamlines
         if extrema == 'min':
@@ -803,16 +803,16 @@ class ScalarField(Field):
                 if ind:
                     position = self.axe_x[position]
                 vals = [self.get_value(position, axe_i) for axe_i in axe]
-                prof = prof.Profile(x=axe, y=vals, mask=False, unit_x=self.unit_y,
-                               unit_y=self.unit_values)
+                tmp_prof = prof.Profile(x=axe, y=vals, mask=False, unit_x=self.unit_y,
+                                        unit_y=self.unit_values)
             if direction == 2:
                 axe = self.axe_x
                 if ind:
                     position = self.axe_y[position]
                 vals = [self.get_value(axe_i, position) for axe_i in axe]
-                prof = prof.Profile(x=axe, y=vals, mask=False, unit_x=self.unit_x,
+                tmp_prof = prof.Profile(x=axe, y=vals, mask=False, unit_x=self.unit_x,
                                unit_y=self.unit_values)
-            return prof
+            return tmp_prof
         # if not
         if isinstance(position, NUMBERTYPES) and not ind:
             for i in np.arange(1, len(axe)):

@@ -8,7 +8,7 @@ IMTreatment module
 
 import numpy as np
 import scipy.interpolate as spinterp
-from ..types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from ..utils import make_unit
 import scalarfield as sf
 import profile as prof

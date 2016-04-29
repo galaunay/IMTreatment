@@ -9,10 +9,11 @@ For performance
 
 import pdb
 from ..core import Points, OrientedPoints, Profile, ScalarField, VectorField,\
-    make_unit, ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
+    TemporalScalarFields,\
     TemporalVectorFields
 from ..field_treatment import get_streamlines
-from ..tools import ProgressCounter
+from ..utils import ProgressCounter, make_unit
+from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 from ..vortex_criterions import get_kappa, get_gamma, get_iota, get_vorticity,\
     get_residual_vorticity, get_NL_residual_vorticity
 import matplotlib.pyplot as plt

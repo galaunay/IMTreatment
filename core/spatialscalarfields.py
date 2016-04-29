@@ -7,10 +7,11 @@ IMTreatment module
 """
 
 
-from ..types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 import scalarfield as sf
 import spatialfields as sfs
 import fields as flds
+
 
 class SpatialScalarFields(sfs.SpatialFields):
 

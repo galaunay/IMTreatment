@@ -5,18 +5,17 @@ Created on Thu Mar 06 13:29:17 2014
 @author: glaunay
 """
 
-from ..core import ScalarField, VectorField, make_unit,\
-    ARRAYTYPES, NUMBERTYPES, STRINGTYPES, \
+from ..core import ScalarField, VectorField, \
     TemporalVectorFields, TemporalScalarFields,\
-    Field
-from IMTreatment import *
+    Field, Profile
+from ..utils import make_unit
+from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 import numpy as np
 import pdb
 import modred
 import matplotlib.pyplot as plt
 import Plotlib as pplt
 import scipy.integrate as spint
-import scipy.interpolate as spinter
 
 
 class ModalFields(Field):

@@ -8,9 +8,10 @@ For performance
 """
 
 import pdb
-from ..core import ScalarField, VectorField,\
-    make_unit, ARRAYTYPES, NUMBERTYPES, STRINGTYPES, TemporalScalarFields,\
+from ..core import ScalarField, VectorField,TemporalScalarFields,\
     TemporalVectorFields
+from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils import make_unit
 from ..field_treatment import get_gradients
 import numpy as np
 from scipy import linalg

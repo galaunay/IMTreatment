@@ -12,9 +12,9 @@ import scipy.integrate as spinteg
 from scipy.optimize import leastsq
 import os
 from ..core import Points, ScalarField, VectorField, Profile, \
-    TemporalVectorFields, TemporalScalarFields, \
-    ARRAYTYPES, NUMBERTYPES, STRINGTYPES
-from ..tools import RemoveFortranOutput
+    TemporalVectorFields, TemporalScalarFields
+from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils import RemoveFortranOutput
 
 ### Gradients based operation
 def get_gradients(field, raw=False):

@@ -8,7 +8,7 @@ IMTreatment module
 
 
 import pdb
-from ..types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from ..core import SpatialFields, VectorField, Fields
 
 

@@ -17,7 +17,7 @@ try:
     units.pixel = unum.Unum.unit('pixel')
 except:
     pass
-from ..types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 import points as pts
 import vectorfield as vf
 

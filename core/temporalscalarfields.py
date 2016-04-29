@@ -11,7 +11,7 @@ IMTreatment module
 # arnings.filterwarnings('error')
 import numpy as np
 import scipy.interpolate as spinterp
-from ..types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 import temporalfields as tf
 
 class TemporalScalarFields(tf.TemporalFields):
