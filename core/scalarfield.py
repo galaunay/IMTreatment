@@ -17,13 +17,13 @@ import scipy.ndimage.measurements as msr
 from scipy import ndimage
 from ..utils import make_unit
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
-from field import Field
+import field as fld
 import points as pts
 import vectorfield as vf
 import profile as prof
 
 
-class ScalarField(Field):
+class ScalarField(fld.Field):
     """
     Class representing a scalar field (2D field, with one component on each
     point).
@@ -49,7 +49,7 @@ class ScalarField(Field):
 
     ### Operators ###
     def __init__(self):
-        Field.__init__(self)
+        fld.Field.__init__(self)
         self.__values = np.array([])
         self.__mask = np.array([], dtype=bool)
         self.__unit_values = make_unit("")
@@ -307,7 +307,7 @@ class ScalarField(Field):
     def __iter__(self):
         data = self.values
         mask = self.mask
-        for ij, xy in Field.__iter__(self):
+        for ij, xy in fld.Field.__iter__(self):
             i = ij[0]
             j = ij[1]
             if not mask[i, j]:
@@ -410,7 +410,7 @@ class ScalarField(Field):
     def mean(self):
         return np.mean(self.values[np.logical_not(self.mask)])
 
-    ### Field maker ###
+    ### fld.Field maker ###
     def import_from_arrays(self, axe_x, axe_y, values, mask=None,
                            unit_x="", unit_y="", unit_values=""):
         """
@@ -1155,7 +1155,7 @@ class ScalarField(Field):
         else:
             tmp_f = self.copy()
         # xy
-        revx, revy = Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True,
+        revx, revy = fld.Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True,
                                  output_reverse=True)
         # v
         if scalev is None:
@@ -1214,7 +1214,7 @@ class ScalarField(Field):
         # normalize angle
         angle = angle%360
         # rotate the parent
-        Field.rotate(tmp_field, angle, inplace=True)
+        fld.Field.rotate(tmp_field, angle, inplace=True)
         # rotate
         nmb_rot90 = int(angle/90)
         tmp_field.__values = np.rot90(tmp_field.values, nmb_rot90)
@@ -1243,9 +1243,9 @@ class ScalarField(Field):
         if not isinstance(axe, STRINGTYPES):
             raise TypeError()
         if axe == 'x':
-            Field.change_unit(self, axe, new_unit)
+            fld.Field.change_unit(self, axe, new_unit)
         elif axe == 'y':
-            Field.change_unit(self, axe, new_unit)
+            fld.Field.change_unit(self, axe, new_unit)
         elif axe =='values':
             old_unit = self.unit_values
             new_unit = old_unit.asUnit(new_unit)
@@ -1276,7 +1276,7 @@ class ScalarField(Field):
             values = self.values
             mask = self.mask
             indmin_x, indmax_x, indmin_y, indmax_y = \
-                Field.crop(self, intervx, intervy, full_output=True,
+                fld.Field.crop(self, intervx, intervy, full_output=True,
                            ind=ind, inplace=True)
             self.__values = values[indmin_x:indmax_x + 1,
                                    indmin_y:indmax_y + 1]
@@ -1284,7 +1284,7 @@ class ScalarField(Field):
                                indmin_y:indmax_y + 1]
         else:
             indmin_x, indmax_x, indmin_y, indmax_y, cropfield = \
-                Field.crop(self, intervx=intervx, intervy=intervy,
+                fld.Field.crop(self, intervx=intervx, intervy=intervy,
                            full_output=True, ind=ind, inplace=False)
             cropfield.__values = self.values[indmin_x:indmax_x + 1,
                                              indmin_y:indmax_y + 1]
@@ -1337,11 +1337,11 @@ class ScalarField(Field):
             raise ValueError()
         # used herited method to extend the field
         if inplace:
-            Field.extend(self, nmb_left=nmb_left, nmb_right=nmb_right,
+            fld.Field.extend(self, nmb_left=nmb_left, nmb_right=nmb_right,
                          nmb_up=nmb_up, nmb_down=nmb_down, inplace=True)
             new_shape = self.shape
         else:
-            new_field = Field.extend(self, nmb_left=nmb_left,
+            new_field = fld.Field.extend(self, nmb_left=nmb_left,
                                      nmb_right=nmb_right, nmb_up=nmb_up,
                                      nmb_down=nmb_down, inplace=False)
             new_shape = new_field.shape

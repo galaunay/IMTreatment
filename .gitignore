@@ -6,3 +6,5 @@ build
 *.py~
 .gitignore
 .spyderproject
+.ropeproject
+.fuse_hidden*

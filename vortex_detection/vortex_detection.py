@@ -1570,9 +1570,11 @@ class CritPoints(object):
         """
         Delete the empty trajectories.
         """
-        for traj_type in self.iter_traj:
-            filt = [len(traj) == 0 for traj in traj_type]
-            traj_type = traj_type[filt]
+        for traj_type in self.cp_types:
+            traj_type = "{}_traj".format(traj_type)
+            trajs = self.__getattribute__(traj_type)
+            filt = np.array([len(traj) != 0 for traj in trajs])
+            self.__setattr__(traj_type, trajs[filt])
 
     def _sort_by_time(self):
         """
