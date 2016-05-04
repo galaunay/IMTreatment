@@ -54,7 +54,7 @@ class BlasiusBL(object):
             print('Warning : Turbulent BL')
         return Re_x
 
-    def get_BL_properties(self, x, allTurbulent=False):
+    def get_BL_properties(self, x, allTurbulent=False, bl_perc="99"):
         """
         Return the boundary layer properties according to blasius theory.
 
@@ -69,6 +69,8 @@ class BlasiusBL(object):
         (can be a list).
         allTurbulent : bool, optional
             if True, the all boundary layer is considered turbulent.
+        bl_perc : string in ['95', '99']
+            Percentage of maximum velocity defining the BL thickness
 
         Returns
         -------
@@ -94,6 +96,12 @@ class BlasiusBL(object):
             x = np.array([x])
         if not isinstance(allTurbulent, bool):
             raise TypeError("'allTurbulent' has to be a boolean")
+        if bl_perc == "95":
+            perc_coef_lam = 3.92
+        elif bl_perc == "99":
+            perc_coef_lam = 4.91
+        else:
+            raise ValueError()
         # Loop on c position
         delta = []
         delta2 = []
@@ -113,12 +121,14 @@ class BlasiusBL(object):
             else:
                 Rex.append(self.Uinf*xpos/self.nu)
                 if Rex[-1] < 5e5 and not allTurbulent:
-                    delta.append(xpos*4.92/np.power(Rex[-1], 0.5)) 
+                    delta.append(xpos*perc_coef_lam/np.power(Rex[-1], 0.5)) 
                     delta2.append(0.664*(self.nu*xpos/self.Uinf)**.5)
                     delta_star.append(delta2[-1]*2.59)
                     Cf.append(0.664/np.power(Rex[-1], 0.5))
                     tau_w.append(Cf[-1]*1./2.*self.rho*self.Uinf**2)
                 else:
+                    if bl_perc == '95':
+                        raise NotImplementedError()
                     delta.append(xpos*0.3806/np.power(Rex[-1], 0.2))
                     delta2.append(0)
                     delta_star.append(delta2[-1]*2.59)
