@@ -1222,8 +1222,8 @@ class TemporalFields(flds.Fields, fld.Field):
                                        mir_coef=mir_coef, inplace=True,
                                        interp=interp, value=value)
         # update field
-        tmp_tf.__axe_x = self.fields[i].axe_x
-        tmp_tf.__axe_y = self.fields[i].axe_y
+        tmp_tf.__axe_x = self.fields[0].axe_x
+        tmp_tf.__axe_y = self.fields[0].axe_y
         # return
         if not inplace:
             return tmp_tf
@@ -1334,12 +1334,12 @@ class TemporalFields(flds.Fields, fld.Field):
             cropfield = self.copy()
         # temporal
         if intervt is not None:
-            cropfield = cropfield[intervt[0]:intervt[1] + 1]
+            cropfield.fields = cropfield.fields[intervt[0]:intervt[1] + 1]
             cropfield.times = cropfield.times[intervt[0]:intervt[1] + 1]
         # spatial
         fld.Field.crop(cropfield, intervx=intervx, intervy=intervy, ind=ind,
                    inplace=True)
-        for field in cropfield:
+        for field in cropfield.fields:
             field.crop(intervx=intervx, intervy=intervy, ind=ind,
                             inplace=True)
         # returning
