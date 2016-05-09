@@ -748,7 +748,8 @@ class TemporalFields(flds.Fields, fld.Field):
         else:
             return maps_freq, maps_freq_quality
 
-    def get_recurrence_map(self, norm=2, verbose=False, bandwidth=None):
+    def get_recurrence_map(self, norm=2, verbose=False, bandwidth=None,
+                           normalized=False):
         """
         Return the recurrence map associated with the 2-norm.
 
@@ -765,8 +766,10 @@ class TemporalFields(flds.Fields, fld.Field):
                                         name_things='norms', perc_interv=1)
         if self.field_type == vf.VectorField:
             field_type = 0
+            nmb_val = self.shape[0]*self.shape[1]*2
         elif self.field_type == sf.ScalarField:
             field_type = 1
+            nmb_val = self.shape[0]*self.shape[1]
         else:
             raise Exception()
         inv_norm = 1./norm
@@ -774,6 +777,12 @@ class TemporalFields(flds.Fields, fld.Field):
             need_abs = False
         else:
             need_abs = True
+        # norm
+        if normalized:
+            if field_type == 0:
+                normalizer = np.sum(np.abs(self.get_mean_field().magnitude)**norm)**inv_norm/nmb_val
+            else:
+                normalizer = np.sum(np.abs(self.get_mean_field().values)**norm)**inv_norm/nmb_val
         # double loop
         for i in range(length):
             for j in range(length):
@@ -798,11 +807,14 @@ class TemporalFields(flds.Fields, fld.Field):
                     values = self.fields[i].values - self.fields[j].values
                 # get norm
                 if need_abs:
-                    res = np.sum(np.abs(values)**norm)**inv_norm
+                    res = np.sum(np.abs(values)**norm)**inv_norm/nmb_val
                 else:
-                    res = np.sum(values**norm)**inv_norm
+                    res = np.sum(values**norm)**inv_norm/nmb_val
                 rec_map[i, j] = res
                 rec_map[j, i] = res
+        # normalize
+        if normalized:
+            rec_map /= normalizer
         # return
         rec_map_sf = sf.ScalarField()
         rec_map_sf.import_from_arrays(axe_x=self.times, axe_y=self.times,
