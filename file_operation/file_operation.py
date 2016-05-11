@@ -58,6 +58,8 @@ def check_path(filepath, newfile=False):
             if len(path_compos) == 0:
                 break
             new_dir = path_compos.pop()
+            if new_dir == "":
+                break
             new_tested_path = path.join(valid_path, new_dir)
             if not path.exists(new_tested_path):
                 err_mess = ur"No '{}' directory/file in '{}' path.".format(new_dir, valid_path)
@@ -1536,10 +1538,19 @@ def export_to_ascii(filepath, VF):
     """
     """
     # check
-    filepath = check_path(filepath)
+    filepath = check_path(filepath, newfile=True)
     if not isinstance(VF, VectorField):
         raise TypeError()
+    # open file
     f = open(filepath, 'w')
+    # write header
+    header = "X {}\tY {}\tVx {}\tVy {}\n"\
+             .format(VF.unit_x.strUnit(),
+                     VF.unit_y.strUnit(),
+                     VF.unit_values.strUnit(),
+                     VF.unit_values.strUnit())
+    f.write(header)
+    # write data
     for i, x in enumerate(VF.axe_x):
         for j, y in enumerate(VF.axe_y):
             f.write("{}\t{}\t{}\t{}\n".format(x, y, VF.comp_x[i, j],
