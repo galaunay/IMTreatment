@@ -19,7 +19,7 @@ except:
     pass
 from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 import points as pts
-import vectorfield as vf
+import vectorfield as vfp
 
 class OrientedPoints(pts.Points):
     """
@@ -132,7 +132,7 @@ class OrientedPoints(pts.Points):
         """
         # check parameters
         from .field_treatment import get_streamlines
-        if not isinstance(vf, vf.VectorField):
+        if not isinstance(vf, vfp.VectorField):
             raise TypeError()
         # getting streamlines
         streams = get_streamlines(vf, self.xy, delta=delta, interp=interp,
@@ -168,8 +168,8 @@ class OrientedPoints(pts.Points):
         """
         # check parameters
         nmb_dir = self.orientations.shape[1]
-        from .field_treatment import get_streamlines
-        if not isinstance(vf, vf.VectorField):
+        from ..field_treatment import get_streamlines
+        if not isinstance(vf, vfp.VectorField):
             raise TypeError()
         if isinstance(reverse_direction, bool):
             reverse_direction = np.array([reverse_direction]*nmb_dir)

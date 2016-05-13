@@ -1977,6 +1977,30 @@ class CritPoints(object):
                             xs.append([])
                             ys.append([])
                     dbs.append(pplt.Displayer(xs, ys, **args))
+        # create lines if necessary
+        if fields is not None and isinstance(self.sadd[0], OrientedPoints):
+            # getting the streamlines
+            for field, opts in zip(fields, self.sadd):
+                if len(opts.xy) == 0:
+                    continue
+                v = opts.v[0]
+                tmp_stream = opts.get_streamlines_from_orientations(field,
+                     reverse_direction=[False, True], interp='cubic')
+                if "color" in lnkw.keys():
+                    tmp_color = lnkw.pop('color')
+                else:
+                    tmp_color = colors[2]
+                for st in tmp_stream:
+                    data_streamx = [[]]*len(fields)
+                    data_streamy = [[]]*len(fields)
+                    ind_time = np.where(v == self.times)[0][0]
+                    data_streamx[ind_time] = st.xy[:, 0]
+                    data_streamy[ind_time] = st.xy[:, 1]
+                    tmp_db = pplt.Displayer(data_streamx,
+                                            data_streamy,
+                                            color=tmp_color, kind='plot',
+                                            **lnkw)
+                    dbs.append(tmp_db)
         # display points
         for i, pt in enumerate(self.iter):
             # get data
@@ -1995,27 +2019,6 @@ class CritPoints(object):
             args.update(cpkw)
             dbs.append(pplt.Displayer(x, y, use_buffer=use_buffer,
                                       buffer_size=buffer_size, **args))
-
-        # create lines if necessary
-        if fields is not None and isinstance(self.sadd[0], OrientedPoints):
-            # getting the streamlines
-            for field, opts in zip(fields, self.sadd):
-                if len(opts.xy) == 0:
-                    continue
-                v = opts.v[0]
-                tmp_stream = opts.get_streamlines_from_orientations(field,
-                     reverse_direction=[False, True], interp='cubic')
-                for st in tmp_stream:
-                    data_streamx = [[]]*len(fields)
-                    data_streamy = [[]]*len(fields)
-                    ind_time = np.where(v == self.times)[0][0]
-                    data_streamx[ind_time] = st.xy[:, 0]
-                    data_streamy[ind_time] = st.xy[:, 1]
-                    tmp_db = pplt.Displayer(data_streamx,
-                                            data_streamy,
-                                            color=colors[3], kind='plot',
-                                            **lnkw)
-                    dbs.append(tmp_db)
         # plot
         if len(self.times) == 1:
             for db in dbs:
