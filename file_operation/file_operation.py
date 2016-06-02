@@ -1534,28 +1534,45 @@ def import_vfs_from_ascii(filepath, kind='TVF', incr=1, interval=None,
     return fields
 
 
-def export_to_ascii(filepath, VF):
+def export_to_ascii(filepath, obj):
     """
     """
     # check
     filepath = check_path(filepath, newfile=True)
-    if not isinstance(VF, VectorField):
+    # obj type
+    if isinstance(obj, VectorField):
+        # open file
+        f = open(filepath, 'w')
+        # write header
+        header = "X {}\tY {}\tVx {}\tVy {}\n"\
+                .format(obj.unit_x.strUnit(),
+                        obj.unit_y.strUnit(),
+                        obj.unit_values.strUnit(),
+                        obj.unit_values.strUnit())
+        f.write(header)
+        # write data
+        for i, x in enumerate(obj.axe_x):
+            for j, y in enumerate(obj.axe_y):
+                f.write("{}\t{}\t{}\t{}\n".format(x, y, obj.comp_x[i, j],
+                                                obj.comp_y[i, j]))
+        f.close()
+    elif isinstance(obj, ScalarField):
+        # open file
+        f = open(filepath, 'w')
+        # write header
+        header = "X {}\tY {}\tValue {}\n"\
+                .format(obj.unit_x.strUnit(),
+                        obj.unit_y.strUnit(),
+                        obj.unit_values.strUnit())
+        f.write(header)
+        # write data
+        for i, x in enumerate(obj.axe_x):
+            for j, y in enumerate(obj.axe_y):
+                f.write("{}\t{}\t{}\n".format(x, y, obj.values[i, j]))
+        f.close()
+    else:
         raise TypeError()
-    # open file
-    f = open(filepath, 'w')
-    # write header
-    header = "X {}\tY {}\tVx {}\tVy {}\n"\
-             .format(VF.unit_x.strUnit(),
-                     VF.unit_y.strUnit(),
-                     VF.unit_values.strUnit(),
-                     VF.unit_values.strUnit())
-    f.write(header)
-    # write data
-    for i, x in enumerate(VF.axe_x):
-        for j, y in enumerate(VF.axe_y):
-            f.write("{}\t{}\t{}\t{}\n".format(x, y, VF.comp_x[i, j],
-                                            VF.comp_y[i, j]))
-    f.close()
+                
 
 ### VECTRINO ###
 def import_from_VNO(filepath, add_info=True):
