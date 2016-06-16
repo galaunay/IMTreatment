@@ -6,6 +6,7 @@ Created on Mon Mar 10 19:16:04 2014
 """
 
 import os
+import gc
 import pdb
 import gzip
 from glob import glob
@@ -25,10 +26,12 @@ from os import path
 import matplotlib.pyplot as plt
 import re
 
+
 ### Path adaptater ###
 def check_path(filepath, newfile=False):
     """
-    Normalize and check the validity of the given path to feed importation functions.
+    Normalize and check the validity of the given path to feed importation
+    functions.
     """
     # check
     if not isinstance(filepath, STRINGTYPES):
@@ -182,17 +185,25 @@ def import_from_file(filepath, **kw):
     ----------
     filepath : string
         Path specifiing the file to load.
+    full_import : boolean
+        If 'True', everything is charged in memory, else, data are loaded in
+        memory when they are needed.
     """
     # getting/guessing wanted files
     filepath = check_path(filepath)
     extension = os.path.splitext(filepath)[1]
     # importing file
     if extension == ".imt":
+        gc.disable()
         with open(filepath, 'rb') as f:
             obj = pickle.load(f)
+        gc.enable()
     elif extension == ".cimt":
+        gc.disable()
         with gzip.open(filepath, 'rb') as f:
+
             obj = pickle.load(f)
+        gc.enable()
     else:
         raise IOError("File is not readable "
                       "(unknown extension : {})".format(extension))
@@ -222,17 +233,21 @@ def export_to_file(obj, filepath, compressed=True, **kw):
         raise TypeError("'compressed' must be a boolean")
     # creating/filling up the file
     if compressed:
+        gc.disable()
         if os.path.splitext(filepath)[1] != ".cimt":
             filepath = filepath + ".cimt"
         f = gzip.open(filepath, 'wb')
         pickle.dump(obj, f, protocol=-1)
         f.close()
+        gc.enable()
     else:
+        gc.disable()
         if os.path.splitext(filepath)[1] != ".imt":
             filepath = filepath + ".imt"
         f = open(filepath, 'wb')
         pickle.dump(obj, f, protocol=-1)
         f.close()
+        gc.enable()
 
 
 def imts_to_imt(imts_path, imt_path, kind):

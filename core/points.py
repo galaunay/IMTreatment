@@ -944,6 +944,27 @@ class Points(object):
         else:
             raise ValueError()
 
+    def set_origin(self, x=None, y=None):
+        """
+        Set the given point (x, y) as the new referential.
+
+        Parameters:
+        -----------
+        x: number
+            .
+        y: number
+            .
+        """
+        # Check
+        if x is not None:
+            if not isinstance(x, NUMBERTYPES):
+                raise TypeError()
+            self.xy[:, 0] -= x
+        if y is not None:
+            if not isinstance(y, NUMBERTYPES):
+                raise TypeError()
+            self.xy[:, 1] -= y
+
     def crop(self, intervx=None, intervy=None, intervv=None, inplace=True,
              ind=False):
         """

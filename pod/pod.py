@@ -7,7 +7,7 @@ Created on Thu Mar 06 13:29:17 2014
 
 from ..core import ScalarField, VectorField, \
     TemporalVectorFields, TemporalScalarFields,\
-    Field, Profile
+    Field, Profile, TemporalFields
 from ..utils import make_unit
 from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 import numpy as np
@@ -971,7 +971,6 @@ def _tvf_to_POD(tvf):
     del tvf
     snaps = [modred.VecHandleInMemory(np.transpose(values[i], (1, 2, 0)))
              for i in ind_fields]
-    print(len(snaps))
     del values
     # return
     return snaps, props

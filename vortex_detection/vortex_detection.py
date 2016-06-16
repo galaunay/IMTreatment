@@ -1215,6 +1215,16 @@ class CritPoints(object):
         # trajectories are obsolete
         self._remove_trajectories()
 
+    def set_origin(self, x=None, y=None):
+        if x is None and y is None:
+            return None
+        for pts in self.iter:
+            for pt in pts:
+                pt.set_origin(x=x, y=y)
+        for trajs in self.iter_traj:
+            for traj in trajs:
+                traj.set_origin(x=x, y=y)
+    
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.

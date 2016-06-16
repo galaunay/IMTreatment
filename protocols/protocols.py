@@ -16,7 +16,7 @@ class POD_CP_protocol(object):
                  hard_crop=True,
                  pod_coh=0.05, mirroring=[[2, 0], [1, 0]], eps_traj=15.,
                  red_fact=1., nmb_min_in_traj=1, det_fact=1,
-                 thread='all', remove_weird=False) :
+                 thread='all', remove_weird=False):
         self.name = name
         self.imtpath = imtpath
         self.respath = respath
@@ -25,7 +25,7 @@ class POD_CP_protocol(object):
         self.crop_t = crop_t
         self.hard_crop = hard_crop
         self.pod = None
-        self.pod_coh = pod_coh     
+        self.pod_coh = pod_coh
         self.mirroring = mirroring
         self.eps_traj = eps_traj
         if det_fact > 1:
@@ -36,14 +36,17 @@ class POD_CP_protocol(object):
         self.red_fact = red_fact
         self.nmb_min_in_traj = nmb_min_in_traj
         self.len_data = None
-        self.thread = thread
+        if thread == "all":
+            self.thread = psutil.cpu_coun()
+        else:
+            self.thread = thread
         self.remove_weird = remove_weird
-        
+
     def prepare_data(self):
         print("    Preparing data    ")
         # import data
         tvf = imtio.import_from_file(join(self.imtpath,
-                                               "{}.cimt".format(self.name)))
+                                          "{}.cimt".format(self.name)))
         # crop
         if self.hard_crop:
             tvf.crop_masked_border(hard=True, inplace=True)
@@ -67,8 +70,12 @@ class POD_CP_protocol(object):
         plt.savefig(join(self.respath, "{}/mean_field.png".format(self.name)))
         plt.close(plt.gcf())
         # store
-        imtio.export_to_file(tvf, join(self.imtpath, "{}_cln.cimt".format(self.name)))
-        imtio.export_to_file(mean_field, join(self.imtpath, "{}_mean.cimt".format(self.name)))
+        imtio.export_to_file(tvf,
+                             join(self.imtpath,
+                                  "{}_cln.cimt".format(self.name)))
+        imtio.export_to_file(mean_field,
+                             join(self.imtpath,
+                                  "{}_mean.cimt".format(self.name)))
         del tvf
         
     def pod_decomp(self):
@@ -131,13 +138,19 @@ class POD_CP_protocol(object):
             print("    Making detailled CP detection")
         else:
             print("    Making CP detection")
-        mem_available = psutil.phymem_usage().free
+        mem_available = psutil.virtual_memory().free
         if detailled:
             rec = imtio.import_from_file(join(self.imtpath, "{}_rec_det.cimt".format(self.name)))
         else:
             rec = imtio.import_from_file(join(self.imtpath, "{}_rec.cimt".format(self.name)))
+        # TODO : too remove, just here for compatibility
+        from .. import make_unit
+        rec.xy_scale = make_unit("")
+        for i in range(len(rec)):
+            rec.fields[i].xy_scale = make_unit("")
+        # TODO :
         # Check if there is enough memory to use
-        filesize = mem_available - psutil.phymem_usage().free 
+        filesize = mem_available - psutil.virtual_memory().free 
         possible_nmb_of_copies = int(mem_available/(filesize*2))
         if possible_nmb_of_copies < 1:
             possible_nmb_of_copies = 1
