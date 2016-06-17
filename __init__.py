@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment - A fields study package
+IMTreatment3 - A fields study package
 ====================================
 
 Provides

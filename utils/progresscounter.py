@@ -1,13 +1,13 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
 
 
-from __future__ import print_function
+
 import time as modtime
 import numpy as np
 

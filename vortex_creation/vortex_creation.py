@@ -7,8 +7,8 @@ from ..utils.types import NUMBERTYPES, ARRAYTYPES
 import pdb
 import copy
 import matplotlib.pyplot as plt
-import IMTreatment.boundary_layer as imtbl
-import PotentialFlow as pf
+import IMTreatment3.boundary_layer as imtbl
+import PotentialFlow3 as pf
 import scipy.interpolate as spinterp
 
 

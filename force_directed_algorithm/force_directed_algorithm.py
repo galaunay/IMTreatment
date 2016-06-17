@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
@@ -35,7 +35,7 @@ def FDG_optimization(nodes, edges, edge_weights, node_values):
 
 if __name__ == '__main__':
     nmb_nodes = 100
-    nodes = range(nmb_nodes)
+    nodes = list(range(nmb_nodes))
     nodes_values = np.array([2]*40 + [6]*60) + np.random.rand(nmb_nodes)
     weights = []
     links = []

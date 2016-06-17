@@ -64,7 +64,7 @@ class POD_CP_protocol(object):
                                     inplace=True)
         # save a display
         mean_field = tvf.get_mean_field()
-        mean_field.crop_masked_border(hard=True, inplace=True)
+        mean_field.crop_masked_border(hard=False, inplace=True)
         plt.figure()
         mean_field.display(kind='stream', density=3)
         plt.savefig(join(self.respath, "{}/mean_field.png".format(self.name)))
@@ -234,7 +234,7 @@ class POD_CP_protocol(object):
         
     def _display_heading(self):
         title = "=   {}   =".format(self.name)
-        print("\n" + "="*len(title))
+        print(("\n" + "="*len(title)))
         print(title)
-        print("="*len(title))
+        print(("="*len(title)))
         

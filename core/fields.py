@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
@@ -11,9 +11,9 @@ import numpy as np
 import pdb
 import copy
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
-import field as field
-import scalarfield as sf
-import vectorfield as vf
+from . import field as field
+from . import scalarfield as sf
+from . import vectorfield as vf
 
 
 class Fields(object):

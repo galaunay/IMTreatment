@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
@@ -12,7 +12,7 @@ IMTreatment module
 import numpy as np
 import scipy.interpolate as spinterp
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
-import temporalfields as tf
+from . import temporalfields as tf
 
 class TemporalScalarFields(tf.TemporalFields):
     """

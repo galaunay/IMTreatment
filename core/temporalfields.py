@@ -1,26 +1,26 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
 
 
 import matplotlib.pyplot as plt
-import Plotlib as pplt
+import Plotlib3 as pplt
 import numpy as np
 import pdb
 import unum
 import copy
 from ..utils import make_unit, ProgressCounter
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
-import field as fld
-import fields as flds
-import scalarfield as sf
-import points as pts
-import profile as prof
-import vectorfield as vf
+from . import field as fld
+from . import fields as flds
+from . import scalarfield as sf
+from . import points as pts
+from . import profile as prof
+from . import vectorfield as vf
 
 
 
@@ -646,7 +646,7 @@ class TemporalFields(flds.Fields, fld.Field):
                 else:
                     magn = magn + tmp_m
         if real_nmb_fields == 0:
-            raise StandardError("I can't find a single non-masked time profile"
+            raise Exception("I can't find a single non-masked time profile"
                                 ", maybe you will want to try 'zero_fill' "
                                 "option")
         magn = magn/real_nmb_fields
@@ -1424,7 +1424,7 @@ class TemporalFields(flds.Fields, fld.Field):
         db = pplt.Displayer(x=[self.axe_x]*nmb_fields,
                             y=[self.axe_y]*nmb_fields,
                             values=values, kind=kind, **plotargs)
-        plot = db.draw_multiple(inds=range(len(inds)), sharecb=sharecb, sharex=sharex,
+        plot = db.draw_multiple(inds=list(range(len(inds))), sharecb=sharecb, sharex=sharex,
                                 sharey=sharey, ncol=ncol, nrow=nrow)
         return plot
 
@@ -1446,7 +1446,7 @@ class TemporalFields(flds.Fields, fld.Field):
             values = np.asarray([field.__getattribute__(compo)
                                  for field in self.fields])
         # check arguments for colorbar drawning
-        if 'norm' in plotargs.keys():
+        if 'norm' in list(plotargs.keys()):
             sharecb = True
             normcb = plotargs['norm']
         else:
@@ -1508,7 +1508,7 @@ class TemporalFields(flds.Fields, fld.Field):
                 raise ValueError()
         else:
             raise TypeError()
-        if 'kind' in plotargs.keys():
+        if 'kind' in list(plotargs.keys()):
             kind = plotargs['kind']
         else:
             kind = None

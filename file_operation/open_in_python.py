@@ -7,7 +7,7 @@ Created on Mon Jun 08 10:00:43 2015
 
 import matplotlib.pyplot as plt
 import numpy as np
-import IMTreatment.file_operation as imtio
+import IMTreatment3.file_operation as imtio
 import sys
 from os import path
 # check
@@ -35,7 +35,7 @@ del data
 
 # print information
 print("")
-print("Imported a {} object from '{}'".format(type(locals()[varname]),
-                                             path.basename(fp)))
-print("Data are accessible through the variable '{}'".format(varname))
+print(("Imported a {} object from '{}'".format(type(locals()[varname]),
+                                             path.basename(fp))))
+print(("Data are accessible through the variable '{}'".format(varname)))
 print("")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
@@ -18,8 +18,7 @@ try:
 except:
     pass
 from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
-import points as pts
-import vectorfield as vfp
+from . import points as pts
 
 class OrientedPoints(pts.Points):
     """
@@ -66,7 +65,7 @@ class OrientedPoints(pts.Points):
     def __iter__(self):
         for i in np.arange(len(self.xy)):
             pts_iter = pts.Points.__iter__(self)
-            pts_value = pts_iter.next()
+            pts_value = next(pts_iter)
             if type(pts_value) is tuple:
                 yield pts_value + (self.orientations[i],)
             else:
@@ -132,6 +131,7 @@ class OrientedPoints(pts.Points):
         """
         # check parameters
         from .field_treatment import get_streamlines
+        from . import vectorfield as vfp
         if not isinstance(vf, vfp.VectorField):
             raise TypeError()
         # getting streamlines
@@ -169,6 +169,7 @@ class OrientedPoints(pts.Points):
         # check parameters
         nmb_dir = self.orientations.shape[1]
         from ..field_treatment import get_streamlines
+        from . import vectorfield as vfp
         if not isinstance(vf, vfp.VectorField):
             raise TypeError()
         if isinstance(reverse_direction, bool):
@@ -314,7 +315,7 @@ class OrientedPoints(pts.Points):
         if len(self) == 1:
             return [self]
         if len(self) != len(self.v):
-            raise StandardError()
+            raise Exception()
         pts_tupl = []
         for i in np.arange(len(self)):
             pts_tupl.append(OrientedPoints([self.xy[i]],
@@ -329,7 +330,7 @@ class OrientedPoints(pts.Points):
         # display like a Points object
         plot = super(OrientedPoints, self)._display(kind=kind, **plotargs)
         # setting color
-        if 'color' in plotargs.keys():
+        if 'color' in list(plotargs.keys()):
             colors = [plotargs.pop('color')]
         else:
             colors = mpl.rcParams['axes.color_cycle']

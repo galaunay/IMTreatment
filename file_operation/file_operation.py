@@ -17,7 +17,7 @@ from ..utils import ProgressCounter, make_unit
 from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 import numpy as np
 try:
-    import cPickle as pickle
+    import pickle as pickle
 except:
     import pickle
 import scipy.io as spio
@@ -65,8 +65,8 @@ def check_path(filepath, newfile=False):
                 break
             new_tested_path = path.join(valid_path, new_dir)
             if not path.exists(new_tested_path):
-                err_mess = ur"No '{}' directory/file in '{}' path.".format(new_dir, valid_path)
-                err_mess = unicode(err_mess).encode("utf-8")
+                err_mess = r"No '{}' directory/file in '{}' path.".format(new_dir, valid_path)
+                err_mess = str(err_mess).encode("utf-8")
                 raise ValueError(err_mess)
             valid_path = new_tested_path
     # returning
@@ -98,7 +98,7 @@ def find_file_in_path(regs, dirpath, ask=False):
         raise ValueError()
     if not isinstance(regs, ARRAYTYPES):
         raise TypeError()
-    regs = np.array(regs, dtype=unicode)
+    regs = np.array(regs, dtype=str)
     #
     dir_paths = []
     # recursive loop on folders
@@ -111,12 +111,12 @@ def find_file_in_path(regs, dirpath, ask=False):
             dir_paths.append(root)
     # choose
     if ask and len(dir_paths) >  1:
-        print("{} folders found :".format(len(dir_paths)))
+        print(("{} folders found :".format(len(dir_paths))))
         for i, p in enumerate(dir_paths):
-            print("  {} :  {}".format(i + 1, p))
+            print(("  {} :  {}".format(i + 1, p)))
         rep = 0
         while rep not in np.arange(1, len(dir_paths)+1):
-            rep = raw_input("Want to go with wich one ?\n")
+            rep = input("Want to go with wich one ?\n")
             try:
                 rep = int(rep)
             except:
@@ -129,7 +129,7 @@ def find_file_in_path(regs, dirpath, ask=False):
 
 ### Parsers ###
 def matlab_parser(obj, name):
-    classic_types = (int, float, str, unicode)
+    classic_types = (int, float, str, str)
     array_types = (list, float)
     if isinstance(obj, classic_types):
         return {name: obj}
@@ -230,8 +230,8 @@ def export_to_file(obj, filepath, compressed=True, **kw):
     # checking parameters coherence
     filepath = check_path(filepath, newfile=True)
     if not isinstance(compressed, bool):
-        raise TypeError("'compressed' must be a boolean")
     # creating/filling up the file
+        raise TypeError("'compressed' must be a boolean")
     if compressed:
         gc.disable()
         if os.path.splitext(filepath)[1] != ".cimt":
@@ -389,7 +389,7 @@ def __export_pts_to_vtk(pts, filepath, axis=None, line=False):
         y_vtk = y
     else:
         z_vtk = y
-    pts = zip(x_vtk, y_vtk, z_vtk)
+    pts = list(zip(x_vtk, y_vtk, z_vtk))
     vertex = np.arange(x_vtk.shape[0])
     if line:
         grid = pyvtk.UnstructuredGrid(pts, line=vertex)
@@ -507,7 +507,7 @@ def __export_vf_to_vtk(obj, filepath, axis=None):
     else:
         z_vtk = y
         vz_vtk = Vy
-    vect = zip(vx_vtk, vy_vtk, vz_vtk)
+    vect = list(zip(vx_vtk, vy_vtk, vz_vtk))
     point_data = pyvtk.PointData(pyvtk.Vectors(vect, "Vector field"))
     grid = pyvtk.RectilinearGrid(x_vtk, y_vtk, z_vtk)
     data = pyvtk.VtkData(grid, 'Vector Field from python', point_data)
@@ -647,12 +647,12 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
         if not isinstance(fieldspath[0], STRINGTYPES):
             raise TypeError("'fieldspath' must be a string or a tuple of"
                             " string")
-        fieldspaths = np.asarray(fieldspath, dtype=unicode)
+        fieldspaths = np.asarray(fieldspath, dtype=str)
     elif isinstance(fieldspath, STRINGTYPES):
         fieldspath = check_path(fieldspath)
         paths = np.asarray([f for f in glob(os.path.join(fieldspath, '*'))
                             if os.path.splitext(f)[-1] in ['.im7', '.IM7']],
-                           dtype=unicode)
+                           dtype=str)
         # if no file found, search recursively
         if len(paths) == 0:
             poss_paths = find_file_in_path(['.*.im7', '.*.IM7'], fieldspath,
@@ -661,7 +661,7 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
                 raise ValueError()
             paths = np.asarray([f for f in glob(os.path.join(poss_paths[0], '*'))
                                 if os.path.splitext(f)[-1] in ['.im7', '.IM7']],
-                               dtype=unicode)
+                               dtype=str)
         # Sort path by numbers
         filenames = [os.path.basename(p) for p in paths]
         ind_sort = np.argsort(filenames)
@@ -1026,8 +1026,8 @@ def VC7_to_imt(vc7_path, imt_path, kind='VF', compressed=True, **kwargs):
 
 
 def davis_to_imt_gui():
-    from Tkinter import Tk
-    from tkFileDialog import askopenfilename, asksaveasfilename
+    from tkinter import Tk
+    from tkinter.filedialog import askopenfilename, asksaveasfilename
     # getting importing directory
     win = Tk()
     filetypes = [('Davis files', '.vc7 .im7'), ('other files', '.*')]
@@ -1295,12 +1295,12 @@ def import_pts_from_ascii(pts, filepath, x_col=1, y_col=2, v_col=None,
         # get axes
         x = data[:, x_col-1]
         y = data[:, y_col-1]
-        pts.xy = zip(x, y)
+        pts.xy = list(zip(x, y))
         if v_col != 0:
             v = data[:, v_col-1]
         else:
             v = None
-        pts.__init__(zip(x, y), v, unit_x, unit_y, unit_v)
+        pts.__init__(list(zip(x, y)), v, unit_x, unit_y, unit_v)
 
 
 def import_sf_from_ascii(filepath, x_col=1, y_col=2, vx_col=3,
@@ -1613,7 +1613,7 @@ def import_from_VNO(filepath, add_info=True):
     data = np.genfromtxt(filepath)
     # check data shape
     if data.shape[1] != 20:
-        print(data.shape)
+        print((data.shape))
         raise ValueError()
     # get profiles
     time = data[:, 1]
@@ -1637,32 +1637,32 @@ def import_from_VNO(filepath, add_info=True):
     if add_info:
         print()
         print("+++ ADV Measurement informations +++")
-        print("+++ Number of measure points : {}".format(len(time)))
+        print(("+++ Number of measure points : {}".format(len(time))))
         print("+++ Mean velocities :")
-        print("+++    Vx  = {}".format(np.mean(Vx)))
-        print("+++    Vy  = {}".format(np.mean(Vy)))
-        print("+++    Vz  = {}".format(np.mean(Vz)))
-        print("+++    Vz2 = {}".format(np.mean(Vz2)))
+        print(("+++    Vx  = {}".format(np.mean(Vx))))
+        print(("+++    Vy  = {}".format(np.mean(Vy))))
+        print(("+++    Vz  = {}".format(np.mean(Vz))))
+        print(("+++    Vz2 = {}".format(np.mean(Vz2))))
         print("+++ Mean velocities std :")
-        print("+++    Vx_var  = {}".format(np.mean(np.abs(Vx - np.mean(Vx)))))
-        print("+++    Vy_var  = {}".format(np.mean(np.abs(Vy - np.mean(Vy)))))
-        print("+++    Vz_var  = {}".format(np.mean(np.abs(Vz - np.mean(Vz)))))
-        print("+++    Vz2_var = {}".format(np.mean(np.abs(Vz2 - np.mean(Vz2)))))
+        print(("+++    Vx_var  = {}".format(np.mean(np.abs(Vx - np.mean(Vx))))))
+        print(("+++    Vy_var  = {}".format(np.mean(np.abs(Vy - np.mean(Vy))))))
+        print(("+++    Vz_var  = {}".format(np.mean(np.abs(Vz - np.mean(Vz))))))
+        print(("+++    Vz2_var = {}".format(np.mean(np.abs(Vz2 - np.mean(Vz2))))))
         print("+++ Mean strength :")
-        print("+++    S_x  = {:.0f}".format(np.mean(Sx)))
-        print("+++    S_y  = {:.0f}".format(np.mean(Sy)))
-        print("+++    S_z  = {:.0f}".format(np.mean(Sz)))
-        print("+++    S_z2 = {:.0f}".format(np.mean(Sz2)))
+        print(("+++    S_x  = {:.0f}".format(np.mean(Sx))))
+        print(("+++    S_y  = {:.0f}".format(np.mean(Sy))))
+        print(("+++    S_z  = {:.0f}".format(np.mean(Sz))))
+        print(("+++    S_z2 = {:.0f}".format(np.mean(Sz2))))
         print("+++ Mean SNR :")
-        print("+++    SNR_x  = {:.1f}".format(np.mean(SNRx)))
-        print("+++    SNR_y  = {:.1f}".format(np.mean(SNRy)))
-        print("+++    SNR_z  = {:.1f}".format(np.mean(SNRz)))
-        print("+++    SNR_z2 = {:.1f}".format(np.mean(SNRz2)))
+        print(("+++    SNR_x  = {:.1f}".format(np.mean(SNRx))))
+        print(("+++    SNR_y  = {:.1f}".format(np.mean(SNRy))))
+        print(("+++    SNR_z  = {:.1f}".format(np.mean(SNRz))))
+        print(("+++    SNR_z2 = {:.1f}".format(np.mean(SNRz2))))
         print("+++ Mean Correlation :")
-        print("+++    Corr_x  = {:.1f}".format(np.mean(Corrx)))
-        print("+++    Corr_y  = {:.1f}".format(np.mean(Corry)))
-        print("+++    Corr_z  = {:.1f}".format(np.mean(Corrz)))
-        print("+++    Corr_z2 = {:.1f}".format(np.mean(Corrz2)))
+        print(("+++    Corr_x  = {:.1f}".format(np.mean(Corrx))))
+        print(("+++    Corr_y  = {:.1f}".format(np.mean(Corry))))
+        print(("+++    Corr_z  = {:.1f}".format(np.mean(Corrz))))
+        print(("+++    Corr_z2 = {:.1f}".format(np.mean(Corrz2))))
     # print warnings if measure quality is not good enough
     if np.any(np.array([np.mean(Sx), np.mean(Sy), np.mean(Sz), np.mean(Sz2)])
               < 100):

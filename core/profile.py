@@ -1,13 +1,13 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
 
 import matplotlib.pyplot as plt
-import Plotlib as pplt
+import Plotlib3 as pplt
 import numpy as np
 import pdb
 import unum
@@ -918,7 +918,7 @@ class Profile(object):
         xdata = self.x
         ydata = self.y
         if p0 is None:
-            nmb_arg = func.func_code.co_argcount
+            nmb_arg = func.__code__.co_argcount
             p0 = [1]*nmb_arg
 
         # minimize function
@@ -1640,7 +1640,7 @@ class Profile(object):
         if direction not in ['x', 'y', 'xy']:
             raise ValueError()
         # default smoothing border mode to 'nearest'
-        if 'mode' not in kw.keys():
+        if 'mode' not in list(kw.keys()):
             kw.update({'mode': 'nearest'})
         # getting data
         if inplace:
@@ -1756,11 +1756,11 @@ class Profile(object):
         #     x = self.y[~self.mask]
         #     y = self.x[~self.mask]
         # check if color is an array
-        if 'color_label' in plotargs.keys():
+        if 'color_label' in list(plotargs.keys()):
             color_label = plotargs.pop('color_label')
         else:
             color_label = ''
-        if 'color' in plotargs.keys():
+        if 'color' in list(plotargs.keys()):
             if isinstance(plotargs['color'], ARRAYTYPES):
                 if len(plotargs['color']) == len(x):
                     color = plotargs.pop('color')

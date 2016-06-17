@@ -1,13 +1,13 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
 
 import matplotlib.pyplot as plt
-import Plotlib as pplt
+import Plotlib3 as pplt
 import numpy as np
 import pdb
 import unum
@@ -17,10 +17,9 @@ import scipy.ndimage.measurements as msr
 from scipy import ndimage
 from ..utils import make_unit
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
-import field as fld
-import points as pts
-import vectorfield as vf
-import profile as prof
+from . import field as fld
+from . import points as pts
+from . import profile as prof
 
 
 class ScalarField(fld.Field):
@@ -38,7 +37,7 @@ class ScalarField(fld.Field):
 
     Examples
     --------
-    >>> import IMTreatment as imt
+    >>> import IMTreatment3 as imt
     >>> SF = imt.ScalarField()
     >>> unit_axe = imt.make_unit('cm')
     >>> unit_K = imt.make_unit('K')
@@ -529,7 +528,7 @@ class ScalarField(fld.Field):
                 values = self.values[ind_x:ind_x + 2, ind_y:ind_y + 2]
                 a = a.flatten()
                 b = b.flatten()
-                pts = zip(a, b)
+                pts = list(zip(a, b))
                 interp_vx = spinterp.LinearNDInterpolator(pts,
                                                           values.flatten())
                 i_value = float(interp_vx(x, y))
@@ -687,6 +686,7 @@ class ScalarField(fld.Field):
         dy = tmp_sf.axe_y[1] - tmp_sf.axe_y[0]
         # get gradient field
         grad_x, grad_y = np.gradient(tmp_sf.values, dx, dy)
+        from . import vectorfield as vf
         tmp_vf = vf.VectorField()
         tmp_vf.import_from_arrays(tmp_sf.axe_x, tmp_sf.axe_y, grad_x, grad_y,
                                   unit_x=tmp_sf.unit_x, unit_y=tmp_sf.unit_y,
@@ -1560,10 +1560,10 @@ class ScalarField(fld.Field):
                 raise ValueError()
             # adding the value at the symetry plane
             if direction == 1:
-                addit_xy = zip([position]*len(tmp_vf.axe_y), tmp_vf.axe_y)
+                addit_xy = list(zip([position]*len(tmp_vf.axe_y), tmp_vf.axe_y))
                 addit_values = [value]*len(tmp_vf.axe_y)
             else:
-                addit_xy = zip(tmp_vf.axe_x, [position]*len(tmp_vf.axe_x))
+                addit_xy = list(zip(tmp_vf.axe_x, [position]*len(tmp_vf.axe_x)))
                 addit_values = [value]*len(tmp_vf.axe_x)
             xy_good = np.concatenate((xy_good, addit_xy))
             values_good = np.concatenate((values_good, addit_values))

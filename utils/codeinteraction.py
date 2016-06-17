@@ -1,13 +1,13 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
 
 
-from __future__ import print_function
+
 import os
 
 
@@ -24,7 +24,7 @@ class RemoveFortranOutput(object):
     """
 
     def __enter__(self):
-        self.null_fds = [os.open(os.devnull, os.O_RDWR) for x in xrange(2)]
+        self.null_fds = [os.open(os.devnull, os.O_RDWR) for x in range(2)]
         self.save = os.dup(1), os.dup(2)
         os.dup2(self.null_fds[0], 1)
         os.dup2(self.null_fds[1], 2)

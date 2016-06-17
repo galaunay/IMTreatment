@@ -5,9 +5,9 @@ import re
 
 ARRAYTYPES = (np.ndarray, list, tuple)
 INTEGERTYPES = (int, np.int, np.int16, np.int32, np.int64, np.int8)
-NUMBERTYPES = (long, float, complex, np.float, np.float16, np.float32,
+NUMBERTYPES = (int, float, complex, np.float, np.float16, np.float32,
                np.float64) + INTEGERTYPES
-STRINGTYPES = (str, unicode)
+STRINGTYPES = (str, str)
 
 
 class TypeTest(object):
@@ -26,8 +26,8 @@ class TypeTest(object):
         return self.decorator(function)
 
     def extract_var_info(self, function):
-        nmb_var = function.func_code.co_argcount
-        varnames = function.func_code.co_varnames
+        nmb_var = function.__code__.co_argcount
+        varnames = function.__code__.co_varnames
         if varnames[0] == 'self':
             self.is_method = True
         if self.is_method:
@@ -36,7 +36,7 @@ class TypeTest(object):
         w_vartypes = {}
         for i in range(len(varnames)):
             var = varnames[i]
-            if var in self.kwargs_types.keys():
+            if var in list(self.kwargs_types.keys()):
                 w_vartypes[var] = self.kwargs_types[var]
             elif i < len(self.arg_types):
                 w_vartypes[var] = self.arg_types[i]
@@ -57,11 +57,11 @@ class TypeTest(object):
             for i in range(len(tmp_args)):
                 varname = self.varnames[i]
                 given_vartypes[varname] = type(tmp_args[i])
-            for varname in kwargs.keys():
+            for varname in list(kwargs.keys()):
                 given_vartypes[varname] = type(kwargs[varname])
             # check args types
-            for varname in given_vartypes.keys():
-                if varname not in self.w_vartypes.keys():
+            for varname in list(given_vartypes.keys()):
+                if varname not in list(self.w_vartypes.keys()):
                     continue
                 w_type = self.w_vartypes[varname]
                 g_type = given_vartypes[varname]

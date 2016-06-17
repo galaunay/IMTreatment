@@ -8,3 +8,4 @@ build
 .spyderproject
 .ropeproject
 .fuse_hidden*
+*.bak

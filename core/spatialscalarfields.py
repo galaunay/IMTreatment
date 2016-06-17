@@ -1,16 +1,16 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
 
 
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
-import scalarfield as sf
-import spatialfields as sfs
-import fields as flds
+from . import scalarfield as sf
+from . import spatialfields as sfs
+from . import fields as flds
 
 
 class SpatialScalarFields(sfs.SpatialFields):

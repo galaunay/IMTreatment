@@ -1,13 +1,13 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
 
 import matplotlib.pyplot as plt
-import Plotlib as pplt
+import Plotlib3 as pplt
 import numpy as np
 import pdb
 import unum
@@ -17,9 +17,7 @@ from scipy import ndimage
 import sklearn.cluster as clst
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from ..utils import make_unit
-from scalarfield import ScalarField
-from profile import Profile
-import temporalscalarfields as tsf
+from .profile import Profile
 
 
 class Points(object):
@@ -132,7 +130,7 @@ class Points(object):
                               unit_x=self.unit_x,
                               unit_y=self.unit_y)
         else:
-            raise StandardError("You can't add {} to Points objects"
+            raise Exception("You can't add {} to Points objects"
                                 .format(type(another)))
 
     ### Attributes ###
@@ -409,6 +407,7 @@ class Points(object):
         if raw:
             return values
         else:
+            from .scalarfield import ScalarField
             sf = ScalarField()
             sf.import_from_arrays(axe_x, axe_y, values, mask=False,
                                   unit_x=self.unit_x, unit_y=self.unit_y,
@@ -513,6 +512,7 @@ class Points(object):
         if raw:
             return values
         else:
+            from .scalarfield import ScalarField
             sf = ScalarField()
             if ponderated:
                 unit_values = self.unit_v/self.unit_x/self.unit_y
@@ -670,7 +670,7 @@ class Points(object):
         dt = times[1::] - times[:-1]
         # smoothing if necessary
         if smooth != 0:
-            tmp_pts = Points(zip(x, y), times)
+            tmp_pts = Points(list(zip(x, y)), times)
             tmp_pts.smooth(tos='lowpass', size=smooth, inplace=True)
             x = tmp_pts.xy[:, 0]
             y = tmp_pts.xy[:, 1]
@@ -770,6 +770,7 @@ class Points(object):
         evol : Profile object
         """
         # check parameters
+        from . import temporalscalarfields as tsf
         if not isinstance(TSF, tsf.TemporalScalarFields):
             raise TypeError()
         if len(self.xy) == 0:
@@ -1153,7 +1154,7 @@ class Points(object):
         if len(self) == 1:
             return [self]
         if len(self) != len(self.v):
-            raise StandardError()
+            raise Exception()
         pts_tupl = []
         for i in np.arange(len(self)):
             pts_tupl.append(Points([self.xy[i]], [self.v[i]], self.unit_x,
@@ -1254,15 +1255,15 @@ class Points(object):
             tmp_pts = self.copy()
         is_v = len(self.v) == len(self.xy)
         # get and interpolate
-        tmp_x = Profile(range(len(self.xy)), self.xy[:, 0])
+        tmp_x = Profile(list(range(len(self.xy))), self.xy[:, 0])
         tmp_x.augment_resolution(fact=fact, interp=interp, inplace=True)
-        tmp_y = Profile(range(len(self.xy)), self.xy[:, 1])
+        tmp_y = Profile(list(range(len(self.xy))), self.xy[:, 1])
         tmp_y.augment_resolution(fact=fact, interp=interp, inplace=True)
         if is_v:
-            tmp_v = Profile(range(len(self.xy)), self.v)
+            tmp_v = Profile(list(range(len(self.xy))), self.v)
             tmp_v.augment_resolution(fact=fact, interp=interp, inplace=True)
         # store
-        tmp_pts.xy = zip(tmp_x.y, tmp_y.y)
+        tmp_pts.xy = list(zip(tmp_x.y, tmp_y.y))
         if is_v:
             tmp_pts.v = tmp_v.y
         if not inplace:
@@ -1300,7 +1301,7 @@ class Points(object):
         elif size is None and tos == 'lowpass':
             size = 0.1
         # default smoothing border mode to 'nearest'
-        if tos in ['uniform', 'gaussian'] and 'mode' not in kw.keys():
+        if tos in ['uniform', 'gaussian'] and 'mode' not in list(kw.keys()):
             kw.update({'mode': 'nearest'})
         # getting data
         if not inplace:

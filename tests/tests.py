@@ -5,7 +5,7 @@ Created on Fri May  9 01:22:13 2014
 @author: muahah
 """
 import unittest
-from IMTreatment import *
+from IMTreatment3 import *
 import numpy as np
 import pdb
 

@@ -25,7 +25,7 @@ import warnings
 import scipy.ndimage.measurements as msr
 import unum
 import copy
-import Plotlib as pplt
+import Plotlib3 as pplt
 try:
     from multiprocess import Pool
     MULTIPROC = True
@@ -205,7 +205,7 @@ class VF(object):
         real_dx = axe_x[1] - axe_x[0]
         real_dy = axe_y[1] - axe_y[0]
         # import linear interpolation levelset solutions (computed with sympy)
-        from levelset_data import get_sol
+        from .levelset_data import get_sol
         sol = get_sol()
 
         # function to get the position in a cell detected by
@@ -265,7 +265,7 @@ class VF(object):
                     y_sols.append(eval(sol[j][1], {"__builtins__": {}},
                                        tmp_dic))
                 except RuntimeWarning:
-                    print("bad point : \n ({}, {})".format(tmp_x, tmp_y))
+                    print(("bad point : \n ({}, {})".format(tmp_x, tmp_y)))
                     x_sols.append(real_dx/2.)
                     y_sols.append(real_dy/2.)
 
@@ -452,8 +452,8 @@ class CritPoints(object):
         self.unit_time = unit_time
         self.unit_x = make_unit('')
         self.unit_y = make_unit('')
-        self.colors = [u'#E24A33', u'#348ABD', u'#988ED5', u'#777777',
-                       u'#FBC15E', u'#8EBA42', u'#FFB5B8']
+        self.colors = ['#E24A33', '#348ABD', '#988ED5', '#777777',
+                       '#FBC15E', '#8EBA42', '#FFB5B8']
         self.cp_types = ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']
         self.current_epsilon = None
 
@@ -993,7 +993,7 @@ class CritPoints(object):
                     if tmp_conv.min > rel_diff_epsilon:
                         continue
                     # else, shift the trajectory and add it to the set
-                    shift = tmp_conv.x[min(range(len(tmp_conv)), key=lambda i: tmp_conv.y[i])]
+                    shift = tmp_conv.x[min(list(range(len(tmp_conv))), key=lambda i: tmp_conv.y[i])]
                     # # TMP
                     # fig, axs = plt.subplots(3, 2)
                     # axs = axs.flatten()
@@ -1074,7 +1074,7 @@ class CritPoints(object):
                 continue
             nmb_mean_traj += 1
             # storing the mean trajectory
-            xy = zip(new_x, new_y)
+            xy = list(zip(new_x, new_y))
             mean_traj = MeanTrajectory(xy=xy, time=new_t,
                                        assoc_real_times=assoc_real_times,
                                        assoc_std_x=assoc_std_x,
@@ -1095,17 +1095,17 @@ class CritPoints(object):
             print("+++++++++++++++++++++++++++++++++++++")
             print("+++ Mean trajectories computation +++")
             print("+++++++++++++++++++++++++++++++++++++")
-            print("+++ {:>{pad}} Trajectories in the set"
-                  .format(len(trajs), pad=pad))
-            print("+++ {:>{pad}} Mean Trajectories defined :"
-                  .format(nmb_mean_traj, pad=pad))
+            print(("+++ {:>{pad}} Trajectories in the set"
+                  .format(len(trajs), pad=pad)))
+            print(("+++ {:>{pad}} Mean Trajectories defined :"
+                  .format(nmb_mean_traj, pad=pad)))
             for i, traj in enumerate(mean_trajs):
-                print("+++     {:>{pad}} trajectories used for MT{}"
-                      .format(traj.nmb_traj_used, i, pad=pad))
-            print("+++ {:>{pad}} Trajectories skipped"
-                  .format(nmb_too_short + nmb_too_diff, pad=pad))
-            print("+++     {:>{pad}} too short".format(nmb_too_short, pad=pad))
-            print("+++     {:>{pad}} too different".format(nmb_too_diff, pad=pad))
+                print(("+++     {:>{pad}} trajectories used for MT{}"
+                      .format(traj.nmb_traj_used, i, pad=pad)))
+            print(("+++ {:>{pad}} Trajectories skipped"
+                  .format(nmb_too_short + nmb_too_diff, pad=pad)))
+            print(("+++     {:>{pad}} too short".format(nmb_too_short, pad=pad)))
+            print(("+++     {:>{pad}} too different".format(nmb_too_diff, pad=pad)))
             # plot
             cycler = plt.rcParams['axes.prop_cycle']()
             colors = [cycler.next()['color'] for i in range(40)]
@@ -1678,7 +1678,7 @@ class CritPoints(object):
                         raise TypeError("'pts' must be a tuple of Point"
                                         "objects")
                     if not len(pt) == len(pt.v):
-                        raise StandardError("v has not the same dimension as "
+                        raise Exception("v has not the same dimension as "
                                             "xy")
                 ### store the points in a more convenient way
                 uns_xs = []
@@ -1902,18 +1902,18 @@ class CritPoints(object):
             if not isinstance(field, VectorField):
                 raise TypeError()
         # Set default params
-        if 'color' in cpkw.keys():
+        if 'color' in list(cpkw.keys()):
             colors = [cpkw.pop('color')]*len(self.colors)
         else:
             colors = self.colors
-        if "marker" in cpkw.keys():
+        if "marker" in list(cpkw.keys()):
             pass
         else:
             cpkw['marker'] = 'o'
         # display the critical lines
         if (field is not None and len(self.sadd[indice].xy) != 0
                 and isinstance(self.sadd[indice], OrientedPoints)):
-            if 'color' not in lnkw.keys():
+            if 'color' not in list(lnkw.keys()):
                 lnkw['color'] = colors[4]
             streams = self.sadd[indice]\
                 .get_streamlines_from_orientations(field,
@@ -1953,11 +1953,11 @@ class CritPoints(object):
                     raise TypeError()
                 fields = fields.fields
         # Set default params
-        if 'color' in cpkw.keys():
+        if 'color' in list(cpkw.keys()):
             colors = [cpkw.pop('color')]*len(self.colors)
         else:
             colors = self.colors
-        if "marker" in cpkw.keys():
+        if "marker" in list(cpkw.keys()):
             pass
         else:
             cpkw['marker'] = 'o'
@@ -1996,7 +1996,7 @@ class CritPoints(object):
                 v = opts.v[0]
                 tmp_stream = opts.get_streamlines_from_orientations(field,
                      reverse_direction=[False, True], interp='cubic')
-                if "color" in lnkw.keys():
+                if "color" in list(lnkw.keys()):
                     tmp_color = lnkw.pop('color')
                 else:
                     tmp_color = colors[2]
@@ -2023,7 +2023,7 @@ class CritPoints(object):
             # default args
             args = {'mfc': color, 'kind': 'plot', 'mec': 'k',
                     'ls': 'none'}
-            if 'kind' in cpkw.keys():
+            if 'kind' in list(cpkw.keys()):
                 if cpkw['kind'] != 'plot':
                     args = {}
             args.update(cpkw)
@@ -2054,7 +2054,7 @@ class CritPoints(object):
         """
         # check if some trajectories are computed
         if self.current_epsilon is None:
-            raise StandardError("you must compute trajectories before "
+            raise Exception("you must compute trajectories before "
                                 "displaying them")
         if filt is None:
             filt = np.ones((5,), dtype=bool)
@@ -2062,20 +2062,20 @@ class CritPoints(object):
             raise TypeError()
         filt = np.array(filt, dtype=bool)
         # display
-        if 'color' in kw.keys():
+        if 'color' in list(kw.keys()):
             colors = [kw.pop('color')]*len(self.colors)
         else:
             colors = self.colors
-        if 'marker' not in kw.keys():
+        if 'marker' not in list(kw.keys()):
             kw['marker'] = 'o'
-        if 'linestyle' not in kw.keys() and "ls" not in kw.keys():
+        if 'linestyle' not in list(kw.keys()) and "ls" not in list(kw.keys()):
             kw['linestyle'] = '-'
         if data == 'default':
             for i, trajs in enumerate(self.iter_traj):
                 color = colors[i]
                 if trajs is None or not filt[i]:
                     continue
-                if 'kind' not in kw.keys():
+                if 'kind' not in list(kw.keys()):
                     kw['kind'] = 'plot'
                 for traj in trajs:
                     traj.display(color=color, **kw)
@@ -2102,7 +2102,7 @@ class CritPoints(object):
             plt.ylabel('time {}'.format(self.unit_time.strUnit()))
             plt.xlabel('y {}'.format(self.unit_y.strUnit()))
         else:
-            raise StandardError()
+            raise Exception()
 
     def display_3D(self, xlabel='', ylabel='', zlabel='', title='',
                    **plotargs):
@@ -2541,7 +2541,7 @@ class MeanTrajectory(Points):
             if 'envelope', display envelope around trajectory
         """
         # get data
-        if "axe_x" in kwargs.keys():
+        if "axe_x" in list(kwargs.keys()):
             axe = kwargs.pop("axe_x")
             if axe == "x":
                 axe_x = self.xy[:, 0]
@@ -2557,7 +2557,7 @@ class MeanTrajectory(Points):
         else:
             axe_x = self.xy[:, 0]
             axe_x_err = self.assoc_std_x
-        if "axe_y" in kwargs.keys():
+        if "axe_y" in list(kwargs.keys()):
             axe = kwargs.pop("axe_y")
             if axe == "x":
                 axe_y = self.xy[:, 0]
@@ -2575,16 +2575,16 @@ class MeanTrajectory(Points):
             axe_y_err = self.assoc_std_y
         # set default properties
         if kind == 'bar':
-            if 'fmt' not in kwargs.keys():
+            if 'fmt' not in list(kwargs.keys()):
                 kwargs['fmt'] = 'none'
-            if 'color' in kwargs.keys():
+            if 'color' in list(kwargs.keys()):
                 kwargs['ecolor'] = kwargs.pop('color')
-            if 'ecolor' not in kwargs.keys():
+            if 'ecolor' not in list(kwargs.keys()):
                 kwargs['ecolor'] = 'k'
             plt.errorbar(axe_x, axe_y, xerr=axe_x_err,
                          yerr=axe_y_err, **kwargs)
         elif kind == 'envelope':
-            if 'alpha'  in kwargs.keys():
+            if 'alpha'  in list(kwargs.keys()):
                 alpha = kwargs.pop('alpha')
             else:
                 alpha = np.inf
@@ -2800,8 +2800,8 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                 pool = Pool()
             else:
                 pool = Pool(thread)
-            res = pool.map_async(get_cp_on_one_field, zip(obj.fields,
-                                                          obj.times))
+            res = pool.map_async(get_cp_on_one_field, list(zip(obj.fields,
+                                                          obj.times)))
             pool.close()
             pool.join()
             res = res.get()
@@ -3966,7 +3966,7 @@ def get_separation_position(obj, wall_direction, wall_position,
         (default is 4)
     """
     # checking parameters coherence
-    if not isinstance(obj, (ScalarField, VectorField, VectorField,
+    if not isinstance(obj, (ScalarField, VectorField,
                             TemporalVectorFields)):
         raise TypeError("Unknown type for 'obj' : {}".format(type(obj)))
     if not isinstance(wall_direction, NUMBERTYPES):
@@ -4144,7 +4144,7 @@ def get_critical_line(VF, source_point, direction, kol='stream',
         xs = [x_pt]  # [x_pt - dx, x_pt, x_pt + dx]
         ys = [y_pt - dy*delta, y_pt + dy*delta]
     xs, ys = np.meshgrid(xs, ys)
-    pts = zip(xs.flatten(), ys.flatten())
+    pts = list(zip(xs.flatten(), ys.flatten()))
     # get stream or track lines on around positions
     if kol == 'stream':
         lines = get_streamlines(VF, pts)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
@@ -14,10 +14,10 @@ import unum
 import copy
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from ..utils import make_unit
-import fields as flds
-import scalarfield as sf
-import vectorfield as vf
-import profile as prof
+from . import fields as flds
+from . import scalarfield as sf
+from . import vectorfield as vf
+from . import profile as prof
 
 
 class SpatialFields(flds.Fields):
@@ -347,18 +347,18 @@ class SpatialFields(flds.Fields):
         # getting max and min
         v_min = np.min([field.min for field in comp])
         v_max = np.max([field.max for field in comp])
-        if 'vmin' in plotargs.keys():
+        if 'vmin' in list(plotargs.keys()):
             v_min = plotargs.pop('vmin')
-        if 'vmax' in plotargs.keys():
+        if 'vmax' in list(plotargs.keys()):
             v_max = plotargs.pop('vmax')
         norm = plt.Normalize(v_min, v_max)
-        if 'norm' not in plotargs.keys():
+        if 'norm' not in list(plotargs.keys()):
             plotargs['norm'] = norm
         # setting default kind of display
-        if 'kind' not in plotargs.keys():
+        if 'kind' not in list(plotargs.keys()):
             plotargs['kind'] = None
         if plotargs['kind'] == 'stream':
-            if 'density' not in plotargs.keys():
+            if 'density' not in list(plotargs.keys()):
                 plotargs['density'] = 1.
             plotargs['density'] = plotargs['density']/(len(self.fields))**.5
         # display

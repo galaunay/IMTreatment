@@ -1,14 +1,14 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
 
 
 import matplotlib.pyplot as plt
-import Plotlib as pplt
+import Plotlib3 as pplt
 import numpy as np
 import pdb
 import unum
@@ -16,8 +16,8 @@ import copy
 from scipy import ndimage
 from ..utils import make_unit
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
-import field as field
-import scalarfield as sf
+from . import field as field
+from . import scalarfield as sf
 
 
 class VectorField(field.Field):
@@ -35,7 +35,7 @@ class VectorField(field.Field):
 
     Examples
     --------
-    >>> import IMTreatment as imt
+    >>> import IMTreatment3 as imt
     >>> VF = imt.VectorField()
     >>> unit_axe = make_unit('cm')
     >>> unit_K = make_unit('K')
@@ -1117,7 +1117,7 @@ class VectorField(field.Field):
         Vx, Vy = self.comp_x, self.comp_y
         if component is None or component == 'V':
             if kind == 'quiver' or kind is None:
-                if 'C' not in plotargs.keys():
+                if 'C' not in list(plotargs.keys()):
                     cb = plt.colorbar(displ)
                     cb.set_label("Magnitude " + unit_values.strUnit())
                 legendarrow = round(np.max([Vx.max(), Vy.max()]))
@@ -1126,7 +1126,7 @@ class VectorField(field.Field):
                               + unit_values.strUnit() + "$",
                               labelpos='W', fontproperties={'weight': 'bold'})
             elif kind in ['stream', 'track']:
-                if not 'color' in plotargs.keys():
+                if not 'color' in list(plotargs.keys()):
                     cb = plt.colorbar(displ.lines)
                     cb.set_label("Magnitude " + unit_values.strUnit())
             plt.title("Values " + unit_values.strUnit())

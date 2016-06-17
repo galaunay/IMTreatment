@@ -1,13 +1,13 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
-IMTreatment module
+IMTreatment3 module
 
     Auteur : Gaby Launay
 """
 
 
-from __future__ import print_function
+
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -126,20 +126,20 @@ def colored_plot(x, y, z=None, log='plot', min_colors=1000, color_label=None,
     points = np.array([x, y]).T.reshape(-1, 1, 2)
     segments = np.concatenate([points[:-1], points[1:]], axis=1)
     # make norm
-    if 'norm' in kwargs.keys():
+    if 'norm' in list(kwargs.keys()):
         norm = kwargs.pop('norm')
     else:
-        if "vmin" in kwargs.keys():
+        if "vmin" in list(kwargs.keys()):
             mini = kwargs.pop('vmin')
         else:
             mini = np.min(z)
-        if "vmax" in kwargs.keys():
+        if "vmax" in list(kwargs.keys()):
             maxi = kwargs.pop('vmax')
         else:
             maxi = np.max(z)
         norm = plt.Normalize(mini, maxi)
     # make cmap
-    if 'cmap' in kwargs.keys():
+    if 'cmap' in list(kwargs.keys()):
         cmap = kwargs.pop('cmap')
     else:
         cmap = plt.cm.__dict__[mpl.rc_params()['image.cmap']]

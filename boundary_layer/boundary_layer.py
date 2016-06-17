@@ -12,7 +12,7 @@ from .. import Profile, make_unit, ScalarField
 import pdb
 import scipy.integrate as spinteg
 
-NUMBERTYPES = (int, float, long, np.float, np.float16, np.float32)
+NUMBERTYPES = (int, float, int, np.float, np.float16, np.float32)
 ARRAYTYPES = (list, np.ndarray)
 
 
@@ -435,7 +435,7 @@ class FalknerSkanBL(object):
                 break
             mid_Y3 = new_mid_Y3
             if verbose:
-                print("+++    ({})     new tested Y3 = {:.4f}".format(nmb_it, mid_Y3))
+                print(("+++    ({})     new tested Y3 = {:.4f}".format(nmb_it, mid_Y3)))
             # compute new Y1p at middle
             ODE.set_initial_value([0, 0, mid_Y3])
             prof = ODE.integrate(mu[-1])
@@ -449,7 +449,7 @@ class FalknerSkanBL(object):
                 interval_Y3[0] = mid_Y3
             err = np.abs((new_Y1p - aimed_Y1p)/np.mean([new_Y1p, aimed_Y1p]))
             if verbose:
-                print("+++             err = {:.4f}".format(err))
+                print(("+++             err = {:.4f}".format(err)))
             # stopping test
             if nmb_it > max_it:
                 if verbose:
@@ -457,7 +457,7 @@ class FalknerSkanBL(object):
                 break
             if err < relerr:
                 if verbose:
-                    print("+++    Converged in {} iterations !".format(nmb_it))
+                    print(("+++    Converged in {} iterations !".format(nmb_it)))
                     break
             # incr
             nmb_it += 1
@@ -488,11 +488,11 @@ class FalknerSkanBL(object):
         F2 = sol[:, 2]
         F3 = np.gradient(F2, dmu)
         print("+++ Equation +++")
-        print("+++     should be zero : {:.4f}".format(np.mean(F3 + (self.m + 1)/2*F0*F2 + self.m*(1 - F1**2))))
+        print(("+++     should be zero : {:.4f}".format(np.mean(F3 + (self.m + 1)/2*F0*F2 + self.m*(1 - F1**2)))))
         print("+++ Boundary conditions +++")
-        print("+++     f(0)={:.3f} (should be 0)".format(sol[0, 0]))
-        print("+++     f'(0)={:.3f} (should be 0)".format(sol[0, 1]))
-        print("+++     f'(inf)={:.3f} (should be 1)".format(sol[-1, 1]))
+        print(("+++     f(0)={:.3f} (should be 0)".format(sol[0, 0])))
+        print(("+++     f'(0)={:.3f} (should be 0)".format(sol[0, 1])))
+        print(("+++     f'(inf)={:.3f} (should be 1)".format(sol[-1, 1])))
 
         # get velocit from f
 #        phi = (self.get_u_e(x)*self.nu*x)**.5*sol[:, 0]
