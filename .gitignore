@@ -9,3 +9,4 @@ build
 .ropeproject
 .fuse_hidden*
 *.bak
+*.egg-info
