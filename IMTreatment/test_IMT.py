@@ -24,7 +24,7 @@ from IMTreatment3.utils.types import TypeTest, ReturnTest
 from IMTreatment3.utils import make_unit
 import IMTreatment3.pod as pod
 import IMTreatment3.utils as imtutls
-import Plotlib3 as pplt
+import Plotlib as pplt
 # import IMTreatment3.pod as pod
 import matplotlib.pyplot as plt
 plt.ion()
@@ -152,4 +152,3 @@ if __name__ == '__main__':
 
 TVF.display()
 plt.show()kill-buffers)
-

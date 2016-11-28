@@ -7,7 +7,7 @@ IMTreatment3 module
 """
 
 import matplotlib.pyplot as plt
-import Plotlib3 as pplt
+import Plotlib as pplt
 import numpy as np
 import pdb
 import unum

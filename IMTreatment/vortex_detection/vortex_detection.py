@@ -25,7 +25,7 @@ import warnings
 import scipy.ndimage.measurements as msr
 import unum
 import copy
-import Plotlib3 as pplt
+import Plotlib as pplt
 try:
     from multiprocess import Pool
     MULTIPROC = True
@@ -1040,8 +1040,8 @@ class CritPoints(object):
                     # plt.plot(tmp_x_base.y, tmp_y_base.y, 'o-k')
                     # plt.show()
 
-                    
-                    
+
+
             # if no remaining trajectories, end the While loop
             if av_x is None:
                 break
@@ -1128,7 +1128,7 @@ class CritPoints(object):
                                  mec='k', zorder=0)
             plt.legend(loc=0)
             plt.tight_layout()
-            
+
         # return the set of mean trajectories
         return mean_trajs, skipped_trajs
 
@@ -1224,7 +1224,7 @@ class CritPoints(object):
         for trajs in self.iter_traj:
             for traj in trajs:
                 traj.set_origin(x=x, y=y)
-    
+
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.

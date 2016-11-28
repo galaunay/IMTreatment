@@ -7,7 +7,7 @@ IMTreatment3 module
 """
 
 import matplotlib.pyplot as plt
-import Plotlib3 as pplt
+import Plotlib as pplt
 import numpy as np
 import pdb
 import unum
@@ -1046,7 +1046,7 @@ class Profile(object):
         grad_max.mask = np.logical_or(np.logical_not(max_filt), grad.mask)
         grad_min = grad.copy()
         grad_min.mask = np.logical_or(max_filt, grad.mask)
-        # get 0-value positions 
+        # get 0-value positions
         pos_max = grad_max.get_value_position(0, ind=ind)
         pos_min = grad_min.get_value_position(0, ind=ind)
         # returning

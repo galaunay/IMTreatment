@@ -7,7 +7,7 @@ IMTreatment3 module
 """
 
 import matplotlib.pyplot as plt
-import Plotlib3 as pplt
+import Plotlib as pplt
 import numpy as np
 import pdb
 import unum
@@ -1268,8 +1268,8 @@ class Points(object):
             tmp_pts.v = tmp_v.y
         if not inplace:
             return tmp_pts
-                
-            
+
+
     def smooth(self, tos='uniform', size=None, inplace=False, **kw):
         """
         Return a smoothed points field.
