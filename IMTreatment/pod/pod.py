@@ -197,13 +197,13 @@ class ModalFields(Field):
                 new_eigvects.append(tmp_vect)
             if self.decomp_type == "dmd":
                 new_growth_rate.add_point(tmp_pod.growth_rate.x[ind],
-                                      tmp_pod.growth_rate.y[ind])
+                                          tmp_pod.growth_rate.y[ind])
                 new_mode_norms.add_point(tmp_pod.mode_norms.x[ind],
-                                      tmp_pod.mode_norms.y[ind])
+                                         tmp_pod.mode_norms.y[ind])
                 new_pulsation.add_point(tmp_pod.pulsation.x[ind],
-                                      tmp_pod.pulsation.y[ind])
+                                        tmp_pod.pulsation.y[ind])
                 new_ritz_vals.add_point(tmp_pod.ritz_vals.x[ind],
-                                      tmp_pod.ritz_vals.y[ind])
+                                        tmp_pod.ritz_vals.y[ind])
         # store
         tmp_pod.modes_nmb = tmp_pod.modes_nmb[modes_to_keep]
         tmp_pod.modes = new_modes
@@ -277,7 +277,7 @@ class ModalFields(Field):
 #            return tmp_pod
 
     def crop(self, intervx=None, intervy=None, intervt=None, ind=False,
-                  inplace=False):
+             inplace=False):
         """
         Crop the POD modes and/or temporal evolutions, according to the given
         intervals.
@@ -824,7 +824,6 @@ class ModalFields(Field):
 #        pplt.move_figure(fig=fig4, position="bottom-left")
         return plot0, plot1, plot2, plot3, plot4
 
-
     def display_recap(self, figsize=(15, 10)):
         """
         Display some important diagram for the decomposition.
@@ -977,14 +976,15 @@ def _tvf_to_POD(tvf):
 
 
 def _POD_to_tsf(modes, props):
-    locals().update(props)
     modes_f = []
     for i in np.arange(len(modes)):
         tmp_field = ScalarField()
-        tmp_field.import_from_arrays(axe_x, axe_y, modes[i].get(),
-                                     mask=super_mask, unit_x=unit_x,
-                                     unit_y=unit_y,
-                                     unit_values=unit_values)
+        tmp_field.import_from_arrays(props['axe_x'], props['axe_y'],
+                                     modes[i].get(),
+                                     mask=props['super_mask'],
+                                     unit_x=props['unit_x'],
+                                     unit_y=props['unit_y'],
+                                     unit_values=props['unit_values'])
         modes[i] = 0
         modes_f.append(tmp_field)
     return modes_f
@@ -998,10 +998,12 @@ def _POD_to_tvf(modes, props):
         comp_x = modes[i].get()[:, :, 0]
         comp_y = modes[i].get()[:, :, 1]
         modes[i] = 0
-        tmp_field.import_from_arrays(axe_x, axe_y, comp_x, comp_y,
-                                     mask=super_mask, unit_x=unit_x,
-                                     unit_y=unit_y,
-                                     unit_values=unit_values)
+        tmp_field.import_from_arrays(props['axe_x'], props['axe_y'],
+                                     comp_x, comp_y,
+                                     mask=props['super_mask'],
+                                     unit_x=props['unit_x'],
+                                     unit_y=props['unit_y'],
+                                     unit_values=props['unit_values'])
         modes[i] = 0
         modes_f.append(tmp_field)
     return modes_f
@@ -1105,7 +1107,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
         eigvect = np.array(eigvect)
         eigvect = eigvect[:, wanted_modes]
         eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
-                          unit_x=unit_times, unit_y='')
+                          unit_x=props['unit_times'], unit_y='')
     elif kind == 'bpod':
         my_decomp = modred.BPODHandles(np.vdot,
                                        max_vecs_per_node=max_vecs_per_node,
@@ -1117,7 +1119,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
         eigvect = np.array(eigvect)
         eigvect = eigvect[:, wanted_modes]
         eigvals = Profile(wanted_modes, eigvals[wanted_modes], mask=False,
-                          unit_x=unit_times, unit_y='')
+                          unit_x=props['unit_times'], unit_y='')
     elif kind == 'dmd':
         my_decomp = modred.DMDHandles(np.vdot,
                                       max_vecs_per_node=max_vecs_per_node,
@@ -1126,7 +1128,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
         del snaps
         wanted_modes = wanted_modes[wanted_modes < len(ritz_vals)]
         # supplementary charac
-        delta_t = times[1] - times[0]
+        delta_t = props['times'][1] - props['times'][0]
         lambd_i = np.imag(ritz_vals)
         lambd_r = np.real(ritz_vals)
         lambd_mod = np.abs(ritz_vals)
@@ -1139,6 +1141,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
         sigma = np.log(lambd_mod)/delta_t
         omega = lambd_arg/delta_t
         # creating profiles
+        unit_times = props['unit_times']
         ritz_vals = Profile(wanted_modes, ritz_vals[wanted_modes], mask=False,
                             unit_x=unit_times, unit_y='')
         mode_norms = Profile(wanted_modes, mode_norms[wanted_modes],
@@ -1150,6 +1153,10 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
                             unit_y=make_unit('rad')/unit_times)
     else:
         raise ValueError("Unknown kind of decomposition : {}".format(kind))
+    f_shape = props['f_shape']
+    unit_values = props['unit_values']
+    times = props['times']
+    ind_fields = props['ind_fields']
     ### Decomposing and getting modes
     if kind in ['pod', 'dmd']:
         modes = [modred.VecHandleInMemory(np.zeros(f_shape))
@@ -1210,7 +1217,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
 #                                         unit_values=unit_values)
 #        modes_f.append(tmp_field)
     del modes
-    modal_field = ModalFields(kind, mean_field, modes_f, wanted_modes,
+    modal_field = ModalFields(kind, props['mean_field'], modes_f, wanted_modes,
                               temporal_prof,
                               eigvals=eigvals, eigvects=eigvect,
                               ritz_vals=ritz_vals, mode_norms=mode_norms,
