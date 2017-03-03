@@ -1101,7 +1101,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
         my_decomp = modred.PODHandles(np.vdot,
                                       max_vecs_per_node=max_vecs_per_node,
                                       verbosity=verbose)
-        eigvect, eigvals = my_decomp.compute_decomp(snaps)
+        eigvals, eigvect = my_decomp.compute_decomp(snaps)
         del snaps
         wanted_modes = wanted_modes[wanted_modes < len(eigvals)]
         eigvect = np.array(eigvect)
@@ -1155,6 +1155,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
         raise ValueError("Unknown kind of decomposition : {}".format(kind))
     f_shape = props['f_shape']
     unit_values = props['unit_values']
+    unit_times = props['unit_times']
     times = props['times']
     ind_fields = props['ind_fields']
     ### Decomposing and getting modes
