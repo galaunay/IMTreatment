@@ -288,9 +288,8 @@ class Points(object):
         bw_method : str, scalar or callable, optional
             The method used to calculate the estimator bandwidth.
             This can be 'scott', 'silverman', a scalar constant or
-            a callable. If a scalar, this will be used as std
-            (it should aproximately be the size of the density
-            node you want to see).
+            a callable. If a scalar, this will be used as percent of
+            the data std.
             If a callable, it should take a gaussian_kde instance as only
             parameter and return a scalar. If None (default), 'scott' is used.
         resolution : integer, optional
@@ -349,12 +348,13 @@ class Points(object):
                 np.all(self.xy[:, 1] == self.xy[0, 1])):
             return None
         # get kernel using scipy
+        std = np.mean([np.std(self.xy[:, 0]), np.std(self.xy[:, 1])])
         if isinstance(bw_method, NUMBERTYPES):
             if width_x > width_y:
                 ad_len = width_y
             else:
                 ad_len = width_x
-            ad_bw_method = bw_method/ad_len
+            ad_bw_method = bw_method*std/ad_len
         else:
             ad_bw_method = bw_method
         kernel = stats.gaussian_kde(self.xy.transpose(),
