@@ -6,20 +6,20 @@ IMTreatment3 module
     Auteur : Gaby Launay
 """
 
-import matplotlib.pyplot as plt
-import Plotlib as pplt
-import numpy as np
-import pdb
-import unum
 import copy
-import scipy.interpolate as spinterp
+import warnings
+
 import scipy.ndimage.measurements as msr
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy.interpolate as spinterp
+import unum
 from scipy import ndimage
+
+import Plotlib as pplt
+from . import field as fld, profile as prof, points as pts
 from ..utils import make_unit
-from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
-from . import field as fld
-from . import points as pts
-from . import profile as prof
+from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 
 
 class ScalarField(fld.Field):
@@ -430,6 +430,14 @@ class ScalarField(fld.Field):
         unit_values : String unit, optionnal
             Unit for the scalar field
         """
+        # overwrite previous
+        self.__clean()
+        # check if axis are evenly spaced
+        delta_x = axe_x[1:] - axe_x[:-1]
+        delta_y = axe_y[1:] - axe_y[:-1]
+        if np.any(delta_y != delta_y[0]) or \
+           np.any(delta_x != delta_x[0]):
+            warnings.warn("Axis are not evenly spaced")
         # storing datas
         self.axe_x = axe_x
         self.axe_y = axe_y
@@ -1018,6 +1026,18 @@ class ScalarField(fld.Field):
         if normalized == 'perpoint':
             norm /= np.sum(~self.mask)
         return norm
+
+    def get_interpolator(self, interp="linear"):
+        """
+        Return the field interpolator.
+
+        Parameters
+        ----------
+        kind : {‘linear’, ‘cubic’, ‘quintic’}, optional
+            The kind of spline interpolation to use. Default is ‘linear’.
+        """
+        return spinterp.interp2d(self.axe_x, self.axe_y, self.values,
+                                 kind=interp)
 
     def integrate_over_line(self, direction, interval):
         """
@@ -1831,6 +1851,35 @@ class ScalarField(fld.Field):
         else:
             tmp_sf.values = values
             return tmp_sf
+
+    def make_evenly_spaced(self, interp="linear", res=1):
+        """
+        Use interpolation to make the field evenly spaced
+
+        Parameters
+        ----------
+        kind : {‘linear’, ‘cubic’, ‘quintic’}, optional
+            The kind of spline interpolation to use. Default is ‘linear’.
+        res : number
+            Resolution of the resulting field.
+            A value of 1 meaning a spatial resolution equal to the smallest
+            space along the two axis for the initial field.
+        """
+        # get data
+        axex = self.axe_x
+        axey = self.axe_y
+        dx = np.min(axex[1:] - axex[:-1])/res
+        dy = np.min(axey[1:] - axey[:-1])/res
+        #
+        interp = self.get_interpolator(interp=interp)
+        new_x = np.arange(axex[0], axex[-1] + dx, dx)
+        new_y = np.arange(axey[0], axey[-1] + dy, dy)
+        new_values = interp(new_x, new_y)
+        # store
+        self.import_from_arrays(new_x, new_y, new_values,
+                                mask=False, unit_x=self.unit_x,
+                                unit_y=self.unit_y,
+                                unit_values=self.unit_values)
 
     def reduce_spatial_resolution(self, fact, inplace=False):
         """

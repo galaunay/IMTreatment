@@ -904,6 +904,21 @@ class TemporalFields(flds.Fields, fld.Field):
         if not inplace:
             return tmp_f
 
+    def make_evenly_spaced(self, interp='linear'):
+        """
+        Use interpolation to make the fields evenly spaced
+
+        Parameters
+        ----------
+        kind : {‘linear’, ‘cubic’, ‘quintic’}, optional
+            The kind of spline interpolation to use. Default is ‘linear’.
+        """
+        raise NotImplementedError('Not implemented yet')
+        for field in self.fields:
+            field.make_evenly_spaced(interp=interp)
+        self.__axe_x = self.fields[0].axe_x
+        self.__axe_y = self.fields[0].axe_y
+
     def change_unit(self, axe, new_unit):
         """
         Change the unit of an axe.
