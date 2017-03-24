@@ -12,18 +12,18 @@ import sys
 import os
 sys.path.append(r'/media/FREECOM HDD/These/Modules_Python')
 sys.path.append(r'/home/glaunay/Freecom/These/Modules_Python')
-from IMTreatment3 import TemporalVectorFields, TemporalScalarFields, \
+from IMTreatment import TemporalVectorFields, TemporalScalarFields, \
     VectorField, ScalarField, Profile, Points
-import IMTreatment3.vortex_detection as vod
-import IMTreatment3.vortex_criterions as imtcrit
-import IMTreatment3.file_operation as imtio
-import IMTreatment3.boundary_layer as imtbl
-import IMTreatment3.field_treatment as imtft
-import IMTreatment3.vortex_creation as imtvc
-from IMTreatment3.utils.types import TypeTest, ReturnTest
-from IMTreatment3.utils import make_unit
-import IMTreatment3.pod as pod
-import IMTreatment3.utils as imtutls
+import IMTreatment.vortex_detection as vod
+import IMTreatment.vortex_criterions as imtcrit
+import IMTreatment.file_operation as imtio
+import IMTreatment.boundary_layer as imtbl
+import IMTreatment.field_treatment as imtft
+import IMTreatment.vortex_creation as imtvc
+from IMTreatment.utils.types import TypeTest, ReturnTest
+from IMTreatment.utils import make_unit
+import IMTreatment.pod as pod
+import IMTreatment.utils as imtutls
 import Plotlib as pplt
 # import IMTreatment3.pod as pod
 import matplotlib.pyplot as plt
@@ -39,7 +39,7 @@ warnings.filterwarnings('error')
 
 
 
-if __name__ == '__main__':
+if True:
     ####################
     ### TEST POINTS  ###
     ####################
@@ -151,4 +151,4 @@ if __name__ == '__main__':
 
 
 TVF.display()
-plt.show()kill-buffers)
+plt.show()

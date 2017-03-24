@@ -435,8 +435,10 @@ class ScalarField(fld.Field):
         # check if axis are evenly spaced
         delta_x = axe_x[1:] - axe_x[:-1]
         delta_y = axe_y[1:] - axe_y[:-1]
-        if np.any(delta_y != delta_y[0]) or \
-           np.any(delta_x != delta_x[0]):
+        epsx_abs = delta_x*1e-6
+        epsy_abs = delta_y*1e-6
+        if np.any(delta_y - delta_y[0] > epsy_abs) or \
+           np.any(delta_x - delta_x[0] > epsx_abs):
             warnings.warn("Axis are not evenly spaced")
         # storing datas
         self.axe_x = axe_x
