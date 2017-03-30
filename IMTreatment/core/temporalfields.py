@@ -913,11 +913,12 @@ class TemporalFields(flds.Fields, fld.Field):
         kind : {‘linear’, ‘cubic’, ‘quintic’}, optional
             The kind of spline interpolation to use. Default is ‘linear’.
         """
-        raise NotImplementedError('Not implemented yet')
+        # raise NotImplementedError('Not implemented yet')
         for field in self.fields:
             field.make_evenly_spaced(interp=interp)
-        self.__axe_x = self.fields[0].axe_x
-        self.__axe_y = self.fields[0].axe_y
+        self._Field__axe_x = self.fields[0].axe_x
+        self._Field__axe_y = self.fields[0].axe_y
+        self.__mask = False
 
     def change_unit(self, axe, new_unit):
         """

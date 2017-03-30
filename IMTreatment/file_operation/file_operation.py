@@ -522,9 +522,12 @@ def _get_imx_buffers(filename):
     import platform
     syst = platform.system()
     if syst == 'Linux':
-        from libim7 import readim7, del_buffer, del_attributelist
+        from libim7.libim7 import readim7, del_buffer, del_attributelist
         vbuff, vatts = readim7(filename)
         atts = vatts.as_dict()
+        atts = {key.decode('ascii'): item.decode('ascii')
+                for key, item in atts.items()
+                if item is not None}
         vectorGrid = vbuff.vectorGrid
         arrays = np.array(vbuff.blocks.transpose((0, 2, 1)))
         fmt = vbuff.header.buffer_format
@@ -1587,7 +1590,7 @@ def export_to_ascii(filepath, obj):
         f.close()
     else:
         raise TypeError()
-                
+
 
 ### VECTRINO ###
 def import_from_VNO(filepath, add_info=True):
@@ -1680,4 +1683,3 @@ def import_from_VNO(filepath, add_info=True):
     Vz2_prof = Profile(time, Vz2, mask=False, unit_x="s", unit_y="m/s")
     # returning
     return Vx_prof, Vy_prof, Vz_prof, Vz2_prof
-
