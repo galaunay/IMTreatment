@@ -1874,8 +1874,8 @@ class ScalarField(fld.Field):
         dy = np.min(axey[1:] - axey[:-1])/res
         #
         interp = self.get_interpolator(interp=interp)
-        new_x = np.arange(axex[0], axex[-1] + dx, dx)
-        new_y = np.arange(axey[0], axey[-1] + dy, dy)
+        new_x = np.arange(axex[0], axex[-1] + .1*dx, dx)
+        new_y = np.arange(axey[0], axey[-1] + .1*dy, dy)
         new_values = interp(new_x, new_y)
         # store
         self.import_from_arrays(new_x, new_y, new_values,
