@@ -10,14 +10,15 @@ import gzip
 import os
 from glob import glob
 
-import h5py
 import numpy as np
+import h5py
 
 from ..core import (Points, Profile, ScalarField, SpatialScalarFields,
     SpatialVectorFields, TemporalScalarFields, TemporalVectorFields,
     VectorField)
 from ..utils import ProgressCounter, make_unit
 from ..utils.types import ARRAYTYPES, STRINGTYPES
+from IMTreatment import TemporalVectorFields
 
 
 try:
@@ -1210,6 +1211,48 @@ def import_vf_from_pivmat(filepath):
                           unit_values=unit_vx)
     f.close()
     return VF
+
+
+def import_tvf_from_pivmat(filepath):
+    """
+    Import a set of vectorfields from a .mat file created by PIVMAT
+
+    Parameters
+    ----------
+    filepath:
+        .
+
+    Returns
+    -------
+    TVF : TemporalVectorFields
+        .
+    """
+    TVF = TemporalVectorFields()
+    f = h5py.File(filepath, 'r')
+    data = f.get('Data')
+    unit_x = "".join([chr(n) for n in data[data.get('unitx').value[0][0]]
+                      .value.flatten()])
+    unit_y = "".join([chr(n) for n in data[data.get('unity').value[0][0]]
+                      .value.flatten()])
+    unit_vx = "".join([chr(n) for n in data[data.get('unitvx').value[0][0]]
+                       .value.flatten()])
+    unit_vy = "".join([chr(n) for n in data[data.get('unitvy').value[0][0]]
+                       .value.flatten()])
+    if unit_vx != unit_vy:
+        raise Exception()
+    x = np.array(data[data.get('x').value[0][0]].value, dtype=float).flatten()
+    y = np.array(data[data.get('y').value[0][0]].value, dtype=float).flatten()
+    nmb_fields = data.get('vx').value.shape[0]
+    for i in range(nmb_fields):
+        VF = VectorField()
+        vx = np.array(data[data.get('vx').value[i][0]].value, dtype=float).transpose()
+        vy = np.array(data[data.get('vy').value[i][0]].value, dtype=float).transpose()
+        VF.import_from_arrays(axe_x=x, axe_y=y, comp_x=vx, comp_y=vy,
+                              mask=False, unit_x=unit_x, unit_y=unit_y,
+                              unit_values=unit_vx)
+        TVF.add_field(VF)
+    f.close()
+    return TVF
 
 
 def export_to_picture(SF, filepath):
