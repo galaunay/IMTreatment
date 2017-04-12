@@ -5,17 +5,21 @@ Created on Mon Mar 10 19:16:04 2014
 @author: glaunay
 """
 
-import os
 import gc
-import pdb
 import gzip
+import os
 from glob import glob
-from ..core import Points, ScalarField, VectorField, \
-    TemporalVectorFields, SpatialVectorFields, TemporalScalarFields,\
-    SpatialScalarFields, Profile
-from ..utils import ProgressCounter, make_unit
-from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
+
+import h5py
 import numpy as np
+
+from ..core import (Points, Profile, ScalarField, SpatialScalarFields,
+    SpatialVectorFields, TemporalScalarFields, TemporalVectorFields,
+    VectorField)
+from ..utils import ProgressCounter, make_unit
+from ..utils.types import ARRAYTYPES, STRINGTYPES
+
+
 try:
     import pickle as pickle
 except:
@@ -1173,6 +1177,41 @@ def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
     # returning
     return tmp_tsf
 
+
+def import_vf_from_pivmat(filepath):
+    """
+    Import a vectorfield from a .mat file created by PIVMAT
+
+    Parameters
+    ----------
+    filepath:
+        .
+
+    Returns
+    -------
+    VF : VectorField
+        .
+    """
+    VF = VectorField()
+    f = h5py.File(filepath, 'r')
+    data = f.get('Data')
+    x = np.array(data.get('x').value, dtype=float).flatten()
+    y = np.array(data.get('y').value, dtype=float).flatten()
+    vx = np.array(data.get('vx').value, dtype=float).transpose()
+    vy = np.array(data.get('vy').value, dtype=float).transpose()
+    unit_x = "".join([chr(n) for n in data.get('unitx').value.flatten()])
+    unit_y = "".join([chr(n) for n in data.get('unity').value.flatten()])
+    unit_vx = "".join([chr(n) for n in data.get('unitvx').value.flatten()])
+    unit_vy = "".join([chr(n) for n in data.get('unitvy').value.flatten()])
+    if unit_vx != unit_vy:
+        raise Exception()
+    VF.import_from_arrays(axe_x=x, axe_y=y, comp_x=vx, comp_y=vy,
+                          mask=False, unit_x=unit_x, unit_y=unit_y,
+                          unit_values=unit_vx)
+    f.close()
+    return VF
+
+
 def export_to_picture(SF, filepath):
     """
     Export a scalar field to a picture file.
@@ -1187,6 +1226,7 @@ def export_to_picture(SF, filepath):
     filepath = check_path(filepath)
     values = SF.values[:, ::-1].transpose()
     spmisc.imsave(filepath, values)
+
 
 def export_to_pictures(SFs, filepath):
     """
