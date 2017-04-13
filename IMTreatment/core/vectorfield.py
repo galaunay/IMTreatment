@@ -1101,8 +1101,8 @@ class VectorField(field.Field):
         plot = dp.draw(cb=False)
         pplt.DataCursorTextDisplayer(dp)
         unit_x, unit_y = self.unit_x, self.unit_y
-        plt.xlabel("X " + unit_x.strUnit())
-        plt.ylabel("Y " + unit_y.strUnit())
+        plt.xlabel("x " + unit_x.strUnit())
+        plt.ylabel("y " + unit_y.strUnit())
         return plot
 
     def display(self, component=None, kind=None, **plotargs):

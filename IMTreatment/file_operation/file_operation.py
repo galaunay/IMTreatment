@@ -1213,7 +1213,7 @@ def import_vf_from_pivmat(filepath):
     return VF
 
 
-def import_tvf_from_pivmat(filepath):
+def import_tvf_from_pivmat(filepath, fieldnumbers=None, incr=1):
     """
     Import a set of vectorfields from a .mat file created by PIVMAT
 
@@ -1221,12 +1221,32 @@ def import_tvf_from_pivmat(filepath):
     ----------
     filepath:
         .
+    fieldnumbers : 2x1 tuple of int
+        Interval of fields to import, default is all.
+    incr : integer
+        Incrementation between fields to take. Default is 1, meaning all
+        fields are taken.
 
     Returns
     -------
     TVF : TemporalVectorFields
         .
     """
+    # check
+    if fieldnumbers is not None:
+        if not isinstance(fieldnumbers, ARRAYTYPES):
+            raise TypeError("'fieldnumbers' must be a 2x1 array")
+        if not len(fieldnumbers) == 2:
+            raise TypeError("'fieldnumbers' must be a 2x1 array")
+        if not isinstance(fieldnumbers[0], int) \
+                or not isinstance(fieldnumbers[1], int):
+            raise TypeError("'fieldnumbers' must be an array of integers")
+    # check and adpat 'incr'
+    if not isinstance(incr, int):
+        raise TypeError("'incr' must be an integer")
+    if incr <= 0:
+        raise ValueError("'incr' must be positive")
+    # import
     TVF = TemporalVectorFields()
     f = h5py.File(filepath, 'r')
     data = f.get('Data')
@@ -1238,19 +1258,31 @@ def import_tvf_from_pivmat(filepath):
                        .value.flatten()])
     unit_vy = "".join([chr(n) for n in data[data.get('unitvy').value[0][0]]
                        .value.flatten()])
+    atts = "".join([chr(n) for n in list(data[data.get('Attributes')[0][0]])]).split("\n")
+    atts = {att.split('=')[0]: att.split('=')[1]
+            for att in atts
+            if "=" in att}
+    dt = int(atts['FrameDt0'].split(" ")[0])
+    unit_times = atts['FrameDt0'].split(" ")[1]
     if unit_vx != unit_vy:
         raise Exception()
     x = np.array(data[data.get('x').value[0][0]].value, dtype=float).flatten()
     y = np.array(data[data.get('y').value[0][0]].value, dtype=float).flatten()
     nmb_fields = data.get('vx').value.shape[0]
-    for i in range(nmb_fields):
+    if fieldnumbers is None:
+        start = 0
+        end = nmb_fields
+    else:
+        start = fieldnumbers[0]
+        end = fieldnumbers[1]
+    for i in np.arange(start, end, incr):
         VF = VectorField()
         vx = np.array(data[data.get('vx').value[i][0]].value, dtype=float).transpose()
         vy = np.array(data[data.get('vy').value[i][0]].value, dtype=float).transpose()
         VF.import_from_arrays(axe_x=x, axe_y=y, comp_x=vx, comp_y=vy,
                               mask=False, unit_x=unit_x, unit_y=unit_y,
                               unit_values=unit_vx)
-        TVF.add_field(VF)
+        TVF.add_field(VF, time=i*dt, unit_times=unit_times)
     f.close()
     return TVF
 

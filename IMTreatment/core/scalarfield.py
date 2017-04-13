@@ -343,7 +343,7 @@ class ScalarField(fld.Field):
     @mask.setter
     def mask(self, new_mask):
         # check 'new_mask' coherence
-        if isinstance(new_mask, bool):
+        if isinstance(new_mask, (bool, np.bool_)):
             fill_value = new_mask
             new_mask = np.empty(self.shape, dtype=bool)
             new_mask.fill(fill_value)
@@ -354,12 +354,12 @@ class ScalarField(fld.Field):
                             " not a {}".format(type(new_mask)))
         if self.shape != new_mask.shape:
             raise ValueError()
-        # check if the new mask don'r reveal masked values
-        if np.any(np.logical_not(new_mask[self.mask])):
-            raise Warning("This mask reveal masked values, maybe you should"
-                          "use the 'fill' function instead")
-        # nanify masked values
-        self.values[new_mask] = np.NaN
+        # # check if the new mask don'r reveal masked values
+        # if np.any(np.logical_not(new_mask[self.mask])):
+        #     raise Warning("This mask reveal masked values, maybe you should"
+        #                   "use the 'fill' function instead")
+        # # nanify masked values
+        # self.values[new_mask] = np.NaN
         # store mask
         self.__mask = new_mask
 
@@ -1999,8 +1999,8 @@ class ScalarField(fld.Field):
         plot = dp.draw()
         pplt.DataCursorTextDisplayer(dp)
         # setting labels
-        plt.xlabel("X " + unit_x.strUnit())
-        plt.ylabel("Y " + unit_y.strUnit())
+        plt.xlabel("x " + unit_x.strUnit())
+        plt.ylabel("y " + unit_y.strUnit())
         return plot
 
     def display(self, component=None, kind=None, **plotargs):
