@@ -1038,7 +1038,7 @@ class ScalarField(fld.Field):
         kind : {‘linear’, ‘cubic’, ‘quintic’}, optional
             The kind of spline interpolation to use. Default is ‘linear’.
         """
-        return spinterp.interp2d(self.axe_x, self.axe_y, self.values,
+        return spinterp.interp2d(self.axe_x, self.axe_y, self.values.transpose(),
                                  kind=interp)
 
     def integrate_over_line(self, direction, interval):
@@ -1878,7 +1878,7 @@ class ScalarField(fld.Field):
         new_y = np.arange(axey[0], axey[-1] + .1*dy, dy)
         new_values = interp(new_x, new_y)
         # store
-        self.import_from_arrays(new_x, new_y, new_values,
+        self.import_from_arrays(new_x, new_y, new_values.transpose(),
                                 mask=False, unit_x=self.unit_x,
                                 unit_y=self.unit_y,
                                 unit_values=self.unit_values)
