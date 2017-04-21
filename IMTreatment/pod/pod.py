@@ -222,60 +222,6 @@ class ModalFields(Field):
         if not inplace:
             return tmp_pod
 
-#    def trim_time(self, interval, ind=False, inplace=False):
-#        """
-#        Remove some part of the temporal evolution
-#        (used to shorten the result of 'reconstruct')
-#
-#        Parameters
-#        ----------
-#        interval : 2x1 array of numbers
-#            Interval of time to keep.
-#        ind : bool
-#            If 'True', 'interval' is taken as indice, else, 'interval is take
-#            as time values.
-#        inplace : bool
-#            .
-#        """
-#        # check
-#        if not isinstance(interval, ARRAYTYPES):
-#            raise TypeError()
-#        if not isinstance(ind, bool):
-#            raise TypeError()
-#        if not isinstance(inplace, bool):
-#            raise TypeError()
-#        # get data
-#        if inplace:
-#            tmp_pod = self
-#        else:
-#            tmp_pod = self.copy()
-#        times = self.times
-#        # get time indices
-#        if not ind:
-#            interval = np.array(interval, dtype=float)
-#            if interval[0] <= times[0]:
-#                ind_1 = 0
-#            elif interval[0] >= times[-1]:
-#                raise ValueError()
-#            else:
-#                ind_1 = np.where(times > interval[0])[0][0]
-#            if interval[1] >= times[-1]:
-#                ind_2 = len(times)
-#            elif interval[1] <= times[0]:
-#                raise ValueError()
-#            else:
-#                ind_2 = np.where(times > interval[1])[0][0]
-#            interval = [ind_1, ind_2]
-#        interval = np.array(interval, dtype=int)
-#        # trim
-#        tmp_pod.times = tmp_pod.times[interval[0]:interval[1]]
-#        tmp_pod._ModalFields__temp_coh = None
-#        for prof in tmp_pod.temp_evo:
-#            prof.trim(interval, ind=True, inplace=True)
-#        # return
-#        if not inplace:
-#            return tmp_pod
-
     def crop(self, intervx=None, intervy=None, intervt=None, ind=False,
              inplace=False):
         """

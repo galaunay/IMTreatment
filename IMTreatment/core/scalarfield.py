@@ -1860,7 +1860,7 @@ class ScalarField(fld.Field):
 
         Parameters
         ----------
-        kind : {‘linear’, ‘cubic’, ‘quintic’}, optional
+        interp : {‘linear’, ‘cubic’, ‘quintic’}, optional
             The kind of spline interpolation to use. Default is ‘linear’.
         res : number
             Resolution of the resulting field.
@@ -1872,10 +1872,14 @@ class ScalarField(fld.Field):
         axey = self.axe_y
         dx = np.min(axex[1:] - axex[:-1])/res
         dy = np.min(axey[1:] - axey[:-1])/res
+        Dx = axex[-1] - axex[0]
+        Dy = axey[-1] - axey[0]
         #
         interp = self.get_interpolator(interp=interp)
-        new_x = np.arange(axex[0], axex[-1] + .1*dx, dx)
-        new_y = np.arange(axey[0], axey[-1] + .1*dy, dy)
+        # new_x = np.arange(axex[0], axex[-1] + .1*dx, dx)
+        new_x = np.linspace(axex[0], axex[-1], int(Dx/dx))
+        # new_y = np.arange(axey[0], axey[-1] + .1*dy, dy)
+        new_y = np.linspace(axey[0], axey[-1], int(Dy/dy))
         new_values = interp(new_x, new_y)
         # store
         self.import_from_arrays(new_x, new_y, new_values.transpose(),

@@ -744,21 +744,25 @@ class VectorField(field.Field):
         if not inplace:
             return tmp_vf
 
-    def make_evenly_spaced(self, interp="linear"):
+    def make_evenly_spaced(self, interp="linear", res=1):
         """
         Use interpolation to make the field evenly spaced
 
         Parameters
         ----------
-        kind : {‘linear’, ‘cubic’, ‘quintic’}, optional
+        interp : {‘linear’, ‘cubic’, ‘quintic’}, optional
             The kind of spline interpolation to use. Default is ‘linear’.
+        res : number
+            Resolution of the resulting field.
+            A value of 1 meaning a spatial resolution equal to the smallest
+            space along the two axis for the initial field.
         """
         # get data
         vx = self.comp_x_as_sf
         vy = self.comp_y_as_sf
         #
-        vx.make_evenly_spaced(interp=interp)
-        vy.make_evenly_spaced(interp=interp)
+        vx.make_evenly_spaced(interp=interp, res=res)
+        vy.make_evenly_spaced(interp=interp, res=res)
         # store
         self.import_from_arrays(vx.axe_x, vx.axe_y, vx.values,
                                 vy.values, mask=False,

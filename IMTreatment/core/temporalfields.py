@@ -824,8 +824,6 @@ class TemporalFields(flds.Fields, fld.Field):
                                       unit_values=self.unit_values)
         return rec_map_sf
 
-
-
     ### Modifiers ###
     def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
                inplace=False):
@@ -904,18 +902,22 @@ class TemporalFields(flds.Fields, fld.Field):
         if not inplace:
             return tmp_f
 
-    def make_evenly_spaced(self, interp='linear'):
+    def make_evenly_spaced(self, interp='linear', res=1):
         """
         Use interpolation to make the fields evenly spaced
 
         Parameters
         ----------
-        kind : {‘linear’, ‘cubic’, ‘quintic’}, optional
+        interp : {‘linear’, ‘cubic’, ‘quintic’}, optional
             The kind of spline interpolation to use. Default is ‘linear’.
+        res : number
+            Resolution of the resulting field.
+            A value of 1 meaning a spatial resolution equal to the smallest
+            space along the two axis for the initial field.
         """
         # raise NotImplementedError('Not implemented yet')
         for field in self.fields:
-            field.make_evenly_spaced(interp=interp)
+            field.make_evenly_spaced(interp=interp, res=res)
         self._Field__axe_x = self.fields[0].axe_x
         self._Field__axe_y = self.fields[0].axe_y
         self.__mask = False

@@ -11,8 +11,12 @@ IMTreatment3 module
 # arnings.filterwarnings('error')
 import numpy as np
 import scipy.interpolate as spinterp
+from matplotlib import pyplot as plt
+
+from . import scalarfield as sf, temporalfields as tf
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
-from . import temporalfields as tf
+from IMTreatment.utils import ProgressCounter
+
 
 class TemporalScalarFields(tf.TemporalFields):
     """
@@ -93,6 +97,88 @@ class TemporalScalarFields(tf.TemporalFields):
         mask = mask_cum <= nmb_min
         result_f.mask = mask
         return result_f
+
+    def get_phase_map(self, freq, tf=None, check_spec=None, verbose=True):
+        """
+        Return the phase map of the temporal scalar field for
+        the given frequency.
+
+        Parameters
+        ----------
+        freq: number
+            Wanted frequency
+        tf: Integer
+            Last time indice to use
+        check_spec: Integer
+            If not None, specify the number of spectrum to display
+            (useful to check if choosen frequencies are relevant).
+        verbose: Boolean
+            .
+
+        Returns
+        -------
+        phase_map: ScalarField object
+            .
+        """
+        #
+        phases = np.zeros(self.shape, dtype=float)
+        norms = np.zeros(self.shape, dtype=float)
+        compo = "values"
+        if tf is None:
+            tf = len(self.fields)
+        # select spectrum to display
+        if check_spec is not None:
+            check_spec_inds = np.random.choice(range(self.shape[0]*self.shape[1]),
+                                               check_spec)
+        # get phases
+        if verbose:
+            pg = ProgressCounter("Computing phase maps", "Done",
+                                 self.shape[0]*self.shape[1],
+                                 "profiles")
+        for i, x in enumerate(self.axe_x):
+            for j, y in enumerate(self.axe_y):
+                if verbose:
+                    pg.print_progress()
+                # get profile
+                profile = self.get_time_profile(compo, (x, y),
+                                                wanted_times=[0, tf])
+                prof = profile.y
+                dx = profile.x[1] - profile.x[0]
+                # get fft
+                fft = np.fft.fft(prof)
+                fft = fft[0:int(len(fft)/2)]
+                fft_norm = np.abs(fft)
+                fft_phase = np.angle(fft)
+                fft_f = np.fft.fftfreq(len(prof), dx)[0:len(fft)]
+                # get phase at the wanted frequency
+                ind = np.argmin(abs(fft_f - freq))
+                # store phases and norms
+                phases[i, j] = fft_phase[ind]
+                norms[i, j] = fft_norm[ind]
+                # display spectrum if asked
+                if check_spec:
+                    if i*len(self.axe_x)+j in check_spec_inds:
+                        plt.figure()
+                        plt.loglog(fft_f, fft_norm)
+                        plt.axvline(fft_f[ind], color="k", ls="--")
+                        plt.show()
+        # return
+        norm = sf.ScalarField()
+        norm.import_from_arrays(axe_x=self.axe_x,
+                                axe_y=self.axe_y,
+                                values=norms.transpose(),
+                                unit_x=self.unit_x,
+                                unit_y=self.unit_y,
+                                unit_values="")
+        phase = sf.ScalarField()
+        phase.import_from_arrays(axe_x=self.axe_x,
+                                 axe_y=self.axe_y,
+                                 values=phases.transpose(),
+                                 unit_x=self.unit_x,
+                                 unit_y=self.unit_y,
+                                 unit_values="rad")
+        return norm, phase
+
 
     ### Modifiers ###
     def fill(self, tof='spatial', kind='linear', value=0.,
