@@ -61,7 +61,7 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=['numpy', 'matplotlib', 'scipy', 'unum', 'Plotlib',
                       'sklearn', 'networkx', 'modred', 'colorama',
-                      'PotentialFlow'],
+                      'PotentialFlow', 'h5py']
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
     # for example:
