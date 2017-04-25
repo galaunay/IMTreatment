@@ -1105,8 +1105,14 @@ class VectorField(field.Field):
         plot = dp.draw(cb=False)
         pplt.DataCursorTextDisplayer(dp)
         unit_x, unit_y = self.unit_x, self.unit_y
-        plt.xlabel("x " + unit_x.strUnit())
-        plt.ylabel("y " + unit_y.strUnit())
+        if unit_x.strUnit() == "[]":
+            plt.xlabel("x")
+        else:
+            plt.xlabel("x " + unit_x.strUnit())
+        if unit_y.strUnit() == "[]":
+            plt.ylabel("y")
+        else:
+            plt.ylabel("y " + unit_y.strUnit())
         return plot
 
     def display(self, component=None, kind=None, **plotargs):
@@ -1145,33 +1151,44 @@ class VectorField(field.Field):
             if kind == 'quiver' or kind is None:
                 if 'C' not in list(plotargs.keys()):
                     cb = plt.colorbar(displ)
-                    cb.set_label("Magnitude " + unit_values.strUnit())
+                    if unit_values.strUnit() == "[]":
+                        cb.set_label("Magnitude")
+                    else:
+                        cb.set_label("Magnitude " + unit_values.strUnit())
                 legendarrow = round(np.max([Vx.max(), Vy.max()]))
-                plt.quiverkey(displ, 1.075, 1.075, legendarrow,
-                              "$" + str(legendarrow)
-                              + unit_values.strUnit() + "$",
-                              labelpos='W', fontproperties={'weight': 'bold'})
+                # plt.quiverkey(displ, 1.075, 1.075, legendarrow,
+                #               "$" + str(legendarrow)
+                #               + unit_values.strUnit() + "$",
+                #               labelpos='W', fontproperties={'weight': 'bold'})
             elif kind in ['stream', 'track']:
                 if not 'color' in list(plotargs.keys()):
                     cb = plt.colorbar(displ.lines)
-                    cb.set_label("Magnitude " + unit_values.strUnit())
-            plt.title("Values " + unit_values.strUnit())
+                    if unit_values.strUnit() == "[]":
+                        cb.set_label("Magnitude")
+                    else:
+                        cb.set_label("Magnitude " + unit_values.strUnit())
         elif component in ['x', 'comp_x']:
             cb = plt.colorbar(displ)
-            cb.set_label("Vx " + unit_values.strUnit())
-            plt.title("Vx " + unit_values.strUnit())
+            if unit_values.strUnit() == "[]":
+                cb.set_label("Vx")
+            else:
+                cb.set_label("Vx " + unit_values.strUnit())
         elif component in ['y', 'comp_y']:
             cb = plt.colorbar(displ)
-            cb.set_label("Vy " + unit_values.strUnit())
-            plt.title("Vy " + unit_values.strUnit())
+            if unit_values.strUnit() == "[]":
+                cb.set_label("Vy")
+            else:
+                cb.set_label("Vy " + unit_values.strUnit())
         elif component == 'mask':
             cb = plt.colorbar(displ)
-            cb.set_label("Mask ")
-            plt.title("Mask")
+            cb.set_label("Mask")
         elif component == 'magnitude':
             cb = plt.colorbar(displ)
-            cb.set_label("Magnitude")
-            plt.title("Magnitude")
+            if unit_values.strUnit() == "[]":
+                cb.set_label("Magnitude")
+            else:
+                cb.set_label("Magnitude " + unit_values.strUnit())
         else:
             raise ValueError("Unknown 'component' value")
+        plt.title("")
         return displ

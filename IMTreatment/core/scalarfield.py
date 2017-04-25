@@ -2003,8 +2003,14 @@ class ScalarField(fld.Field):
         plot = dp.draw()
         pplt.DataCursorTextDisplayer(dp)
         # setting labels
-        plt.xlabel("x " + unit_x.strUnit())
-        plt.ylabel("y " + unit_y.strUnit())
+        if unit_x.strUnit() == "[]":
+            plt.xlabel("x")
+        else:
+            plt.xlabel("x " + unit_x.strUnit())
+        if unit_y.strUnit() == "[]":
+            plt.ylabel("y")
+        else:
+            plt.ylabel("y " + unit_y.strUnit())
         return plot
 
     def display(self, component=None, kind=None, **plotargs):
@@ -2030,9 +2036,12 @@ class ScalarField(fld.Field):
             Reference to the displayed figure.
         """
         displ = self._display(component, kind,  **plotargs)
-        plt.title("Scalar field Values " + self.unit_values.strUnit())
+        plt.title("")
         cb = plt.colorbar(displ) #, shrink=1, aspect=5)
-        cb.set_label(self.unit_values.strUnit())
+        if self.unit_values.strUnit() == "[]":
+            cb.set_label("Values")
+        else:
+            cb.set_label("Values {}".format(self.unit_values.strUnit()))
         # search for limits in case of masked field
         if component != 'mask':
             mask = self.mask
