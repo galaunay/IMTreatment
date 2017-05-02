@@ -527,7 +527,8 @@ class TemporalFields(flds.Fields, fld.Field):
             pt = np.array(pt, dtype=float)
         if not pt.shape == (2,):
             raise ValueError("'pt' must be a 2x1 array")
-        if ind and (not isinstance(pt[0], int) or not isinstance(pt[1], int)):
+        if ind and (not isinstance(pt[0], INTEGERTYPES)
+                    or not isinstance(pt[1], INTEGERTYPES)):
             raise TypeError("If 'ind' is True, 'pt' must be an array of two"
                             " integers")
         if not isinstance(ind, bool):
@@ -535,7 +536,7 @@ class TemporalFields(flds.Fields, fld.Field):
         x = pt[0]
         y = pt[1]
         # getting time profile
-        time_prof = self.get_time_profile(component, x, y, ind=ind,
+        time_prof = self.get_time_profile(component, pt=[x, y], ind=ind,
                                           wanted_times=wanted_times)
         magn_prof = time_prof.get_spectrum(welch_seglen=welch_seglen,
                                            scaling=scaling, fill=fill,

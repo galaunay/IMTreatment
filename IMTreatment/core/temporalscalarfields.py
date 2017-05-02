@@ -158,10 +158,10 @@ class TemporalScalarFields(tf.TemporalFields):
                 # display spectrum if asked
                 if check_spec:
                     if i*len(self.axe_x)+j in check_spec_inds:
-                        plt.figure()
+                        fig = plt.figure()
                         plt.loglog(fft_f, fft_norm)
                         plt.axvline(fft_f[ind], color="k", ls="--")
-                        plt.show()
+                        plt.show(block=True)
         # return
         norm = sf.ScalarField()
         norm.import_from_arrays(axe_x=self.axe_x,
