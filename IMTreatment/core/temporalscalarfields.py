@@ -159,7 +159,11 @@ class TemporalScalarFields(tf.TemporalFields):
                 if check_spec:
                     if i*len(self.axe_x)+j in check_spec_inds:
                         fig = plt.figure()
-                        plt.loglog(fft_f, fft_norm)
+                        ax = fig.add_subplot(1, 1, 1)
+                        ax.loglog(fft_f, fft_norm)
+                        ax2 = ax.twinx()
+                        ax2.plot([], [])
+                        ax2.semilogx(fft_f, fft_phase)
                         plt.axvline(fft_f[ind], color="k", ls="--")
                         plt.show(block=True)
         # return
