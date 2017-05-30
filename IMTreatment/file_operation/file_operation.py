@@ -524,34 +524,16 @@ def _get_imx_buffers(filename):
     """
     Return the buffers stored in the given file.
     """
-    import platform
-    syst = platform.system()
-    if syst == 'Linux':
-        from libim7.libim7 import readim7, del_buffer, del_attributelist
-        vbuff, vatts = readim7(filename)
-        atts = vatts.as_dict()
-        atts = {key.decode('ascii'): item.decode('ascii')
-                for key, item in atts.items()
-                if item is not None}
-        vectorGrid = vbuff.vectorGrid
-        arrays = np.array(vbuff.blocks.transpose((0, 2, 1)))
-        fmt = vbuff.header.buffer_format
-        del_buffer(vbuff)
-        del_attributelist(vatts)
-        return fmt, vectorGrid, arrays, atts
-    elif syst == 'Windows':
-        import ReadIM
-        vbuff, vatts = ReadIM.extra.get_Buffer_andAttributeList(filename)
-        arrays, vbuff2 = ReadIM.extra.buffer_as_array(vbuff)
-        arrays = np.array(arrays.transpose((0, 2, 1)))
-        atts = ReadIM.extra.att2dict(vatts)
-        fmt = vbuff.image_sub_type
-        vectorGrid = vbuff.vectorGrid
-        ReadIM.DestroyBuffer(vbuff)
-        ReadIM.DestroyBuffer(vbuff2)
-        return fmt, vectorGrid, arrays, atts
-    else:
-        raise Exception()
+    import ReadIM
+    vbuff, vatts = ReadIM.extra.get_Buffer_andAttributeList(filename)
+    arrays, vbuff2 = ReadIM.extra.buffer_as_array(vbuff)
+    arrays = np.array(arrays.transpose((0, 2, 1)))
+    atts = ReadIM.extra.att2dict(vatts)
+    fmt = vbuff.image_sub_type
+    vectorGrid = vbuff.vectorGrid
+    ReadIM.DestroyBuffer(vbuff)
+    ReadIM.DestroyBuffer(vbuff2)
+    return fmt, vectorGrid, arrays, atts
 
 def import_from_IM7(filename, infos=False):
     """
