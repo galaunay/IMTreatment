@@ -126,13 +126,22 @@ class VectorField(field.Field):
                 return tmpvf
         elif isinstance(other, ARRAYTYPES):
             other = np.array(other, subok=True)
-            if other.shape != self.shape:
+            # Same shape
+            if other.shape == self.shape:
+                tmpvf = self.copy()
+                tmpvf.comp_x = self.comp_x + other
+                tmpvf.comp_y = self.comp_y + other
+                tmpvf.mask = self.mask
+                return tmpvf
+            # signle vector
+            elif other.shape == (2,):
+                tmpvf = self.copy()
+                tmpvf.comp_x += other[0]
+                tmpvf.comp_y += other[1]
+                tmpvf.mask = self.mask
+                return tmpvf
+            else:
                 raise ValueError()
-            tmpvf = self.copy()
-            tmpvf.comp_x = self.comp_x + other
-            tmpvf.comp_y = self.comp_y + other
-            tmpvf.mask = self.mask
-            return tmpvf
         elif isinstance(other, unum.Unum):
             tmpvf = self.copy()
             fact = (other / self.unit_values).asNumber()

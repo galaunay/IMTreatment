@@ -1118,14 +1118,15 @@ def import_from_picture(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
 
 
 def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
-                         unit_values='', times=None, unit_times=''):
+                         unit_values='', times=None, unit_times='',
+                         fieldnumbers=None):
     """
     Import scalar fields from a bunch of picture files.
 
     Parameters
     ----------
     filepath : string
-        Path to the files.
+        regex matching the files.
     axe_x :
         .
     axe_y :
@@ -1136,6 +1137,8 @@ def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
         .
     unit_values :
         .
+    fieldnumbers: 2x1 array
+        Interval of fields to import, default is all.
 
     Returns
     -------
@@ -1143,7 +1146,7 @@ def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
         .
     """
     # get paths
-    filepath = check_path(filepath)
+    # filepath = check_path(filepath)
     paths = glob(filepath)
     tmp_tsf = TemporalScalarFields()
     # check times
@@ -1151,9 +1154,18 @@ def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
         times = np.arange(len(paths))
     elif len(times) != len(paths):
         raise ValueError()
+    # filter by field number
+    if fieldnumbers is None:
+        start = 0
+        end = len(paths)
+    else:
+        if fieldnumbers[0] < 0 or fieldnumbers[1] > len(paths):
+            raise ValueError()
+        start = fieldnumbers[0]
+        end = fieldnumbers[1]
     # loop on paths
-    for i, p in enumerate(paths):
-        tmp_sf = import_from_picture(p, axe_x=axe_x, axe_y=axe_y,
+    for i in np.arange(start, end):
+        tmp_sf = import_from_picture(paths[i], axe_x=axe_x, axe_y=axe_y,
                                      unit_x=unit_x, unit_y=unit_y,
                                      unit_values=unit_values)
         tmp_tsf.add_field(tmp_sf, times[i], unit_times=unit_times)
