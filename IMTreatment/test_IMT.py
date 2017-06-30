@@ -31,6 +31,7 @@ plt.ion()
 #import guiqwt.pyplot as plt
 import scipy.interpolate as spinterp
 import scipy.spatial as spspat
+import scipy.signal as spsign
 import time
 from pprint import pprint
 import timeit
@@ -82,10 +83,10 @@ if True:
     ####################
     ### TEST PROFILE ###
     ####################
-    dim = 1000
-    x = np.arange(0, dim/3., 1/3.)
-    f = 0.001
-    f2 = 0.0025
+    dim = 100000
+    x = np.arange(0, dim, 1)
+    f = 0.01
+    f2 = 0.001
     y = np.sin(x*np.pi*2*f) + np.sin(x*np.pi*2*f2) + np.random.rand(dim)*.5
     prof = Profile(x, y, unit_x=make_unit('m'), unit_y=make_unit('mm'),
                    name="test")
@@ -114,8 +115,8 @@ if True:
     #########################
     ### TEST VECTORFIELD ###
     #########################
-    dim1 = 50
-    dim2 = 100
+    dim1 = 10
+    dim2 = 20
     axe_x = np.arange(dim1)*2. + 2.87236
     axe_y = np.arange(dim2)*.7 + 1.68765
     Vx = (np.random.rand(dim1, dim2) - .5)*23.
@@ -134,7 +135,7 @@ if True:
     ### TEST TEMPORAL VELOCITYFIELD ###.
     ###################################
     TVF = TemporalVectorFields()
-    for i in np.arange(1, 50):
+    for i in np.arange(1, 200):
         freq = 0.1
         freq2 = 0.3
         Ts = .5
@@ -150,5 +151,56 @@ if True:
 
 
 
-TVF.display()
-plt.show()
+# # signal and spectrum
+# plt.close('all')
+# colors = pplt.get_color_cycles()
+# f = 0.01
+# f2 = 0.001
+# cfreq = [0.009, 0.011]
+# order = 2
+# fig, axs = plt.subplots(2, 2)
+# plt.sca(axs[0, 0])
+# prof.display()
+# plt.xlim(0, 30/f)
+# plt.sca(axs[1, 0])
+# spec = prof.get_spectrum()
+# spec.display('loglog')
+# plt.axvspan(cfreq[0], cfreq[1], color=colors[1], alpha=.2)
+# for cf in cfreq:
+#     plt.axvline(cf, color=colors[1])
+# # make spectral filtering
+# plt.sca(axs[0, 1])
+# fprof = prof.spectral_filtering(*cfreq, order=order)
+# fprof.display()
+# plt.xlim(0, 30/f)
+# plt.sca(axs[1, 1])
+# fspec = fprof.get_spectrum()
+# fspec.display('loglog')
+# plt.axvspan(cfreq[0], cfreq[1], color=colors[1], alpha=.2)
+# for cf in cfreq:
+#     plt.axvline(cf, color=colors[1])
+
+
+# Test on TVF
+fmin = 0.25
+fmax = 0.35
+spec = TVF.get_temporal_spectrum_over_area('comp_x',
+                                           [TVF.axe_x[0], TVF.axe_x[-1]],
+                                           [TVF.axe_y[0], TVF.axe_y[-1]])
+
+# make filtering
+# tsf = TVF._get_comp_spectral_filtering("Vx", fmin, fmax, order=2)
+tvf = TVF.get_spectral_filtering(fmin, fmax, order=2)
+
+# Check
+fspec = tvf.get_temporal_spectrum_over_area('comp_x',
+                                            [TVF.axe_x[0], TVF.axe_x[-1]],
+                                            [TVF.axe_y[0], TVF.axe_y[-1]])
+
+plt.figure()
+colors = pplt.get_color_cycles()
+spec.display()
+fspec.display()
+plt.axvspan(fmin, fmax, color=colors[1], alpha=.2)
+for bwi in [fmin, fmax]:
+    plt.axvline(bwi, color=colors[1])

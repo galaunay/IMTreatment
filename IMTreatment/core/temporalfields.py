@@ -473,6 +473,52 @@ class TemporalFields(flds.Fields, fld.Field):
         return prof.Profile(time, compo, masks, unit_x=unit_time,
                        unit_y=unit_values)
 
+    def inject_time_profile(self, comp, pt, prof, ind=False):
+        """
+        Overwrite the value at the given points with data from the time profile.
+
+        Parameters
+        ----------
+        comp : string
+            Should be an attribute name of the stored fields.
+        pt : 2x1 array of numbers, or pts.Points object
+            Wanted position for the time profile, in axis units.
+        prof : Profile object
+            Profile used to overwrite data at point
+        ind : boolean, optional
+            If 'True', values are understood as indices.
+        """
+        # check
+        if not isinstance(comp, STRINGTYPES):
+            raise TypeError("'comp' must be a string")
+        if isinstance(pt, ARRAYTYPES):
+            if ind:
+                if pt[0] % 1 != 0 or pt[1] % 1 !=0:
+                    raise ValueError()
+                ind_x = int(pt[0])
+                ind_y = int(pt[1])
+            else:
+                ind_x = self.get_indice_on_axe(1, pt[0], kind='nearest')
+                ind_y = self.get_indice_on_axe(2, pt[1], kind='nearest')
+            axe_x, axe_y = self.axe_x, self.axe_y
+            if not (0 <= ind_x < len(axe_x) and 0 <= ind_y < len(axe_y)):
+                raise ValueError("'x' ans 'y' values out of bounds")
+            pt = np.array([[ind_x, ind_y]]*len(self.times), dtype=int)
+            mask_times = np.zeros(len(self.times), dtype=bool)
+        if isinstance(pt, pts.Points):
+            mask_times = [time not in pt.v for time in self.times]
+            mask_times = np.array(mask_times, dtype=bool)
+            pt = [[self.get_indice_on_axe(1, pt.xy[i, 0], kind='nearest'),
+                   self.get_indice_on_axe(2, pt.xy[i, 1], kind='nearest')]
+                  for i in range(len(pt.xy))]
+            pt = np.array(pt, dtype=int)
+        if len(prof) != len(self):
+            raise ValueError()
+        # do it
+        for i in range(len(prof)):
+            self.fields[i].__getattribute__(comp)[ind_x, ind_y] = prof.y[i]
+
+
     def get_temporal_spectrum(self, component, pt, ind=False,
                               wanted_times=None, welch_seglen=None,
                               scaling='base', fill='linear', mask_error=True,
@@ -748,6 +794,37 @@ class TemporalFields(flds.Fields, fld.Field):
             return maps_freq[0], maps_freq_quality[0]
         else:
             return maps_freq, maps_freq_quality
+
+    def _get_comp_spectral_filtering(self, comp, fmin, fmax, order=2):
+        """
+        Perform a temporal spectral filtering on the wanted component
+
+        Parameters:
+        -----------
+        fmin, fmax : numbers
+            Minimal and maximal frequencies
+        order : integer, optional
+            Butterworth filter order
+
+        Returns:
+        --------
+        filt_tf : TemporalFields
+            Filtered temporal field
+        """
+        # check
+        try:
+            tf = self.__getattribute__("{}_as_sf".format(comp))
+        except AttributeError():
+            raise ValueError()
+        # loop on space
+        xys = [[x, y]
+               for x in tf.axe_x
+               for y in tf.axe_y]
+        for x, y in xys:
+            tmp_prof = tf.get_time_profile('values', [x, y])
+            filt_tmp_prof = tmp_prof.spectral_filtering(fmin, fmax, order=order)
+            tf.inject_time_profile('values', [x, y], filt_tmp_prof)
+        return tf
 
     def get_recurrence_map(self, norm=2, verbose=False, bandwidth=None,
                            normalized=False):
@@ -1451,7 +1528,6 @@ class TemporalFields(flds.Fields, fld.Field):
                 buffer_size=100, **plotargs):
         """
         Create a windows to display temporals field, controlled by buttons.
-        http://matplotlib.org/1.3.1/examples/widgets/buttons.html
         """
         nmb_fields = len(self.fields)
         # getting values

@@ -762,12 +762,8 @@ class ModalFields(Field):
                                marker='o', mfc='k', ls='none')
         bm = pplt.ButtonManager(plot4)
         cum_nrj.display(color='k', ls='-', marker=None)
+        plt.xlim(xmin=0)
         plot4.button_manager.link_to_other_graph(plot2)
-#        # tile these plots
-#        pplt.move_figure(fig=fig1, position="top-right")
-#        pplt.move_figure(fig=fig2, position="top-left")
-#        pplt.move_figure(fig=fig3, position="bottom-right")
-#        pplt.move_figure(fig=fig4, position="bottom-left")
         return plot0, plot1, plot2, plot3, plot4
 
     def display_recap(self, figsize=(15, 10)):

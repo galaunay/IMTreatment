@@ -183,6 +183,35 @@ class TemporalScalarFields(tf.TemporalFields):
                                  unit_values="rad")
         return norm, phase
 
+    def get_spectral_filtering(self, fmin, fmax, order=2, inplace=False):
+        """
+        Perform a temporal spectral filtering
+
+        Parameters:
+        -----------
+        fmin, fmax : numbers
+            Minimal and maximal frequencies
+        order : integer, optional
+            Butterworth filter order
+
+        Returns:
+        --------
+        filt_tsf : TemporalScalarFields
+            Filtered temporal field
+        """
+        # prepare
+        if inplace:
+            tsf = self
+        else:
+            tsf = self.copy()
+        # make spectral filtering on values
+        ftsf = self._get_comp_spectral_filtering('values', fmin=fmin,
+                                                 fmax=fmax, order=order)
+        tsf.fields = ftsf.fields
+        # return
+        if not inplace:
+            return tsf
+
 
     ### Modifiers ###
     def fill(self, tof='spatial', kind='linear', value=0.,

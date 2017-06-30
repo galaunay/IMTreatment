@@ -213,6 +213,39 @@ class TemporalVectorFields(tf.TemporalFields):
                                     unit_x, unit_y, unit_values**2)
         return (rs_xx_sf, rs_yy_sf, rs_xy_sf)
 
+    def get_spectral_filtering(self, fmin, fmax, order=2, inplace=False):
+        """
+        Perform a temporal spectral filtering
+
+        Parameters:
+        -----------
+        fmin, fmax : numbers
+            Minimal and maximal frequencies
+        order : integer, optional
+            Butterworth filter order
+
+        Returns:
+        --------
+        filt_tvf : TemporalVectorFields
+            Filtered temporal field
+        """
+        # prepare
+        if inplace:
+            tvf = self
+        else:
+            tvf = self.copy()
+        # make spectral filtering on Vx and Vy
+        ftsfx = self._get_comp_spectral_filtering('Vx', fmin=fmin,
+                                                 fmax=fmax, order=order)
+        ftsfy = self._get_comp_spectral_filtering('Vy', fmin=fmin,
+                                                 fmax=fmax, order=order)
+        for i in range(len(self)):
+            tvf.fields[i].comp_x = ftsfx.fields[i].values
+            tvf.fields[i].comp_y = ftsfy.fields[i].values
+        # return
+        if not inplace:
+            return tvf
+
     ### Modifiers ###
     def fill(self, tof='spatial', kind='linear', value=[0., 0.],
              inplace=False, crop=False):

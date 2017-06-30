@@ -1211,7 +1211,7 @@ class Profile(object):
         fmin, fmax : numbers
             Minimal and maximal frequencies
         order : integer, optional
-           Butterworth filter order
+            Butterworth filter order
 
         Returns:
         --------
@@ -1220,6 +1220,9 @@ class Profile(object):
         """
         # Interpolate missing values
         tmp_prof = self.fill("linear", inplace=False)
+        # remove trend
+        mean_y = np.mean(tmp_prof.y)
+        tmp_prof.y -= mean_y
         # define butterworth filter
         fs = len(tmp_prof.x)/(tmp_prof.x[-1] - tmp_prof.x[0])
         nyq = 0.5 * fs
@@ -1228,6 +1231,8 @@ class Profile(object):
         b, a = spsign.butter(order, [low, high], btype='band')
         # Apply filter to data
         y = spsign.lfilter(b, a, tmp_prof.y)
+        # Readd average
+        y += mean_y
         # return
         return Profile(tmp_prof.x, y, mask=tmp_prof.mask, unit_x=tmp_prof.unit_x,
                        unit_y=tmp_prof.unit_y)
