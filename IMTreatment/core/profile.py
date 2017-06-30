@@ -16,6 +16,7 @@ from scipy import stats
 import scipy.interpolate as spinterp
 from scipy import ndimage
 import scipy.optimize as spopt
+import scipy.signal as spsign
 from ..utils import make_unit
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 
@@ -1201,6 +1202,36 @@ class Profile(object):
         return Profile(x, diffs, mask=np.isnan(diffs), unit_x=self.unit_x,
                        unit_y=self.unit_y)
 
+    def spectral_filtering(self, fmin=None, fmax=None, order=2):
+        """
+        Perform a spectral filtering (highpass, lowpass, bandpass).
+
+        Parameters:
+        -----------
+        fmin, fmax : numbers
+            Minimal and maximal frequencies
+        order : integer, optional
+           Butterworth filter order
+
+        Returns:
+        --------
+        filt_prof : Profile object
+            Filtered profile
+        """
+        # Interpolate missing values
+        tmp_prof = self.fill("linear", inplace=False)
+        # define butterworth filter
+        fs = len(tmp_prof.x)/(tmp_prof.x[-1] - tmp_prof.x[0])
+        nyq = 0.5 * fs
+        low = fmin / nyq
+        high = fmax / nyq
+        b, a = spsign.butter(order, [low, high], btype='band')
+        # Apply filter to data
+        y = spsign.lfilter(b, a, tmp_prof.y)
+        # return
+        return Profile(tmp_prof.x, y, mask=tmp_prof.mask, unit_x=tmp_prof.unit_x,
+                       unit_y=tmp_prof.unit_y)
+
 
     ### Modifiers ###
     def add_point(self, x, y):
@@ -1738,16 +1769,14 @@ class Profile(object):
             Reference to the displayed plot.
         """
         if not reverse:
-            x = self.x
-            y = self.y
+            x = self.x.copy()
+            y = self.y.copy()
             if any(self.mask):
-                x[self.mask] = np.nan
                 y[self.mask] = np.nan
         else:
-            x = self.y
-            y = self.x
+            x = self.y.copy()
+            y = self.x.copy()
             if any(self.mask):
-                y[self.mask] = np.nan
                 x[self.mask] = np.nan
         # if not reverse:
         #     x = self.x[~self.mask]
