@@ -400,7 +400,8 @@ class Profile(object):
         """
         return copy.deepcopy(self)
 
-    def get_interpolator(self, kind='linear'):
+    def get_interpolator(self, kind='linear', bounds_error=True,
+                         fill_value=np.nan):
         """
         Return an interpolator of the profile
 
@@ -412,6 +413,24 @@ class Profile(object):
             ‘quadratic’ and ‘cubic’ refer to a spline interpolation of first,
             second or third order) or as an integer specifying the order of
             the spline interpolator to use. Default is ‘linear’.
+        bounds_error : bool, optional
+            If True, a ValueError is raised any time interpolation is attempted on
+            a value outside of the range of x (where extrapolation is
+            necessary). If False, out of bounds values are assigned `fill_value`.
+            By default, an error is raised unless `fill_value="extrapolate"`.
+        fill_value : array-like or (array-like, array_like) or "extrapolate", optional
+            - if a ndarray (or float), this value will be used to fill in for
+            requested points outside of the data range. If not provided, then
+            the default is NaN. The array-like must broadcast properly to the
+            dimensions of the non-interpolation axes.
+            - If a two-element tuple, then the first element is used as a
+            fill value for ``x_new < x[0]`` and the second element is used for
+            ``x_new > x[-1]``. Anything that is not a 2-element tuple (e.g.,
+            list or ndarray, regardless of shape) is taken to be a single
+            array-like argument meant to be used for both bounds as
+            ``below, above = fill_value, fill_value``.
+            - If "extrapolate", then points outside the data range will be
+            extrapolated.
 
         Returns
         -------
@@ -423,7 +442,9 @@ class Profile(object):
         """
         valid_x = self.x[~self.mask]
         valid_y = self.y[~self.mask]
-        interpo = spinterp.interp1d(valid_x, valid_y, kind=kind)
+        interpo = spinterp.interp1d(valid_x, valid_y, kind=kind,
+                                    bounds_error=bounds_error,
+                                    fill_value=fill_value)
         return interpo
 
     def get_interpolated_values(self, x=None, y=None, ind=False):
@@ -459,8 +480,11 @@ class Profile(object):
             else:
                 res = []
                 for xi in x:
-                    res.append(self._get_interpolated_single_value(x=xi,
-                                                                   ind=ind)[0])
+                    val = self._get_interpolated_single_value(x=xi, ind=ind)
+                    if len(val) == 0:
+                        res.append(np.nan)
+                    else:
+                        res.append(val[0])
                 return np.array(res, dtype=float)
         if y is not None:
             if isinstance(y,  NUMBERTYPES):
@@ -468,8 +492,10 @@ class Profile(object):
             else:
                 res = []
                 for yi in y:
-                    res.append(self._get_interpolated_single_value(y=yi,
-                                                                   ind=ind)[0])
+                    val = self._get_interpolated_single_value(y=yi, ind=ind)
+                    if len(val) == 0:
+                        res.append(np.nan)
+                    res.append(val[0])
                 return np.array(res, dtype=float)
 
     def _get_interpolated_single_value(self, x=None, y=None, ind=False):
