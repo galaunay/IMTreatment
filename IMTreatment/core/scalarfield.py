@@ -1916,32 +1916,32 @@ class ScalarField(fld.Field):
         axe_y = self.axe_y
         if pair:
             new_axe_x = (axe_x[np.arange(fact/2 - 1, len(axe_x) - fact/2,
-                                         fact)]
+                                         fact, dtype=int)]
                          + axe_x[np.arange(fact/2, len(axe_x) - fact/2 + 1,
-                                           fact)])/2.
+                                           fact, dtype=int)])/2.
             new_axe_y = (axe_y[np.arange(fact/2 - 1, len(axe_y) - fact/2,
-                                         fact)]
+                                         fact, dtype=int)]
                          + axe_y[np.arange(fact/2, len(axe_y) - fact/2 + 1,
-                                           fact)])/2.
+                                           fact, dtype=int)])/2.
         else:
             new_axe_x = axe_x[np.arange((fact - 1)/2,
                                         len(axe_x) - (fact - 1)/2,
-                                        fact)]
+                                        fact, dtype=int)]
             new_axe_y = axe_y[np.arange((fact - 1)/2,
                                         len(axe_y) - (fact - 1)/2,
-                                        fact)]
+                                        fact, dtype=int)]
         # get new values
         values = self.values
         mask = self.mask
         if pair:
-            inds_x = np.arange(fact/2, len(axe_x) - fact/2 + 1, fact)
-            inds_y = np.arange(fact/2, len(axe_y) - fact/2 + 1, fact)
+            inds_x = np.arange(fact/2, len(axe_x) - fact/2 + 1, fact, dtype=int)
+            inds_y = np.arange(fact/2, len(axe_y) - fact/2 + 1, fact, dtype=int)
             new_values = np.zeros((len(inds_x), len(inds_y)))
             new_mask = np.zeros((len(inds_x), len(inds_y)))
             for i in np.arange(len(inds_x)):
-                intervx = slice(inds_x[i] - fact/2, inds_x[i] + fact/2)
+                intervx = slice(inds_x[i] - int(fact/2), inds_x[i] + int(fact/2))
                 for j in np.arange(len(inds_y)):
-                    intervy = slice(inds_y[j] - fact/2, inds_y[j] + fact/2)
+                    intervy = slice(inds_y[j] - int(fact/2), inds_y[j] + int(fact/2))
                     if np.all(mask[intervx, intervy]):
                         new_mask[i, j] = True
                         new_values[i, j] = 0.
