@@ -494,6 +494,14 @@ class VectorField(field.Field):
             Unit for the field components.
         """
         self.__clean()
+        if axe_x[0] > axe_x[-1]:
+            axe_x = axe_x[::-1]
+            comp_x = comp_x[::-1]
+            comp_y = comp_y[::-1]
+        if axe_y[0] > axe_y[-1]:
+            axe_y = axe_y[::-1]
+            comp_x = comp_x[:, ::-1]
+            comp_y = comp_y[:, ::-1]
         self.axe_x = axe_x
         self.axe_y = axe_y
         self.comp_x = comp_x

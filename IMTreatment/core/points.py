@@ -1353,6 +1353,8 @@ class Points(object):
     ### Displayers ###
     def _display(self, kind=None, axe_x=None, axe_y=None, axe_color=None,
                  **plotargs):
+        if len(self.xy) == 0:
+            return None
         # x values
         if axe_x == 'x' or axe_x is None:
             x_values = self.xy[:, 0]
