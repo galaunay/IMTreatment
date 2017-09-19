@@ -23,7 +23,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import matplotlib.pyplot as plt
-import Plotlib as pplt
+from .. import plotlib as pplt
 import numpy as np
 import unum
 import copy

@@ -39,7 +39,8 @@ import warnings
 import scipy.ndimage.measurements as msr
 import unum
 import copy
-import Plotlib as pplt
+from .. import plotlib as pplt
+
 try:
     from multiprocess import Pool
     MULTIPROC = True

@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import ndimage
 
-import Plotlib as pplt
+from .. import plotlib as pplt
 import unum
 from . import field, scalarfield as sf
 from ..utils import make_unit

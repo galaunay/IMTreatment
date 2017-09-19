@@ -23,7 +23,7 @@ from IMTreatment.utils.types import TypeTest, ReturnTest
 from IMTreatment.utils import make_unit
 import IMTreatment.pod as pod
 import IMTreatment.utils as imtutls
-import Plotlib as pplt
+import IMTreatment.plotlib as pplt
 # import IMTreatment3.pod as pod
 import matplotlib.pyplot as plt
 plt.ion()

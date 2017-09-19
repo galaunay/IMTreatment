@@ -22,7 +22,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from .plotlib import colored_plot, use_perso_style, DataCursorPoints, Displayer,\
-    ButtonManager, move_figure, DataCursorTextDisplayer, tile_figures,\
+from .plotlib import colored_plot, use_perso_style, DataCursorPoints,\
+    Displayer, ButtonManager, DataCursorTextDisplayer, \
     mark_axe, save_animation, annotate_multiple, make_discrete_cmap, \
     get_color_cycles

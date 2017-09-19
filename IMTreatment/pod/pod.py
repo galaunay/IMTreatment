@@ -30,7 +30,7 @@ from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 import numpy as np
 import modred
 import matplotlib.pyplot as plt
-import Plotlib as pplt
+from .. import plotlib as pplt
 import scipy.integrate as spint
 
 

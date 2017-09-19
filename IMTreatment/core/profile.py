@@ -23,7 +23,6 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import matplotlib.pyplot as plt
-import Plotlib as pplt
 import numpy as np
 import unum
 import copy
@@ -33,6 +32,7 @@ from scipy import ndimage
 import scipy.optimize as spopt
 import scipy.signal as spsign
 from ..utils import make_unit
+from .. import plotlib as pplt
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from .scalarfield import ScalarField
 
