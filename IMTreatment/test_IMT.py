@@ -6,7 +6,6 @@ Created on Tue Feb 25 00:19:30 2014
 @author: muahah
 """
 
-import pdb
 import numpy as np
 import sys
 import os

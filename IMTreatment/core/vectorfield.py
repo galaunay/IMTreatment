@@ -1,23 +1,39 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
 
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import copy
+import warnings
 
 import matplotlib.pyplot as plt
-import Plotlib as pplt
 import numpy as np
-import pdb
-import unum
-import copy
 from scipy import ndimage
+
+import Plotlib as pplt
+import unum
+from . import field, scalarfield as sf
 from ..utils import make_unit
-from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
-from . import field as field
-from . import scalarfield as sf
+from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 
 
 class VectorField(field.Field):
@@ -46,7 +62,6 @@ class VectorField(field.Field):
     >>> VF.display()
     """
 
-    ### Operators ###
     def __init__(self):
         super(VectorField, self).__init__()
         self.__comp_x = np.array([], dtype=float)
@@ -81,17 +96,17 @@ class VectorField(field.Field):
             # different shape, partially same axis
             else:
                 # getting shared points
-                new_ind_x = np.array([np.any(np.abs(val - other.axe_x)
-                                      < np.abs(val)*1e-4)
+                new_ind_x = np.array([np.any(np.abs(val - other.axe_x) <
+                                      np.abs(val)*1e-4)
                                       for val in self.axe_x])
-                new_ind_y = np.array([np.any(np.abs(val - other.axe_y)
-                                      < np.abs(val)*1e-4)
+                new_ind_y = np.array([np.any(np.abs(val - other.axe_y) <
+                                      np.abs(val)*1e-4)
                                       for val in self.axe_y])
-                new_ind_xo = np.array([np.any(np.abs(val - self.axe_x)
-                                       < np.abs(val)*1e-4)
+                new_ind_xo = np.array([np.any(np.abs(val - self.axe_x) <
+                                       np.abs(val)*1e-4)
                                        for val in other.axe_x])
-                new_ind_yo = np.array([np.any(np.abs(val - self.axe_y)
-                                       < np.abs(val)*1e-4)
+                new_ind_yo = np.array([np.any(np.abs(val - self.axe_y) <
+                                       np.abs(val)*1e-4)
                                        for val in other.axe_y])
                 if not np.any(new_ind_x) or not np.any(new_ind_y):
                     raise ValueError("Incompatible shapes")
@@ -103,12 +118,12 @@ class VectorField(field.Field):
                 new_axe_x = self.axe_x[new_ind_x]
                 new_axe_y = self.axe_y[new_ind_y]
                 fact = other.unit_values/self.unit_values
-                new_comp_x = (self.comp_x[new_ind_value]
-                              + other.comp_x[new_ind_valueo]
-                              * fact.asNumber())
-                new_comp_y = (self.comp_y[new_ind_value]
-                              + other.comp_y[new_ind_valueo]
-                              * fact.asNumber())
+                new_comp_x = (self.comp_x[new_ind_value] +
+                              other.comp_x[new_ind_valueo] *
+                              fact.asNumber())
+                new_comp_y = (self.comp_y[new_ind_value] +
+                              other.comp_y[new_ind_valueo] *
+                              fact.asNumber())
                 new_comp_x = new_comp_x.reshape((len(new_axe_x),
                                                  len(new_axe_y)))
                 new_comp_y = new_comp_y.reshape((len(new_axe_x),
@@ -274,7 +289,6 @@ class VectorField(field.Field):
             if not mask[i, j]:
                 yield ij, xy, [datax[i, j], datay[i, j]]
 
-    ### Attributes ###
     @property
     def comp_x(self):
         return self.__comp_x
@@ -392,8 +406,6 @@ class VectorField(field.Field):
     def unit_values(self):
         raise Exception("Nope, can't do that")
 
-    ### Properties ###
-
     @property
     def min(self):
         return np.min(self.magnitude)
@@ -468,7 +480,6 @@ class VectorField(field.Field):
                                   unit_values=self.unit_values)
         return tmp_sf
 
-    ### Field Maker ###
     def import_from_arrays(self, axe_x, axe_y, comp_x, comp_y, mask=False,
                            unit_x="", unit_y="", unit_values=""):
         """
@@ -493,7 +504,44 @@ class VectorField(field.Field):
         unit_values : string, optionnal
             Unit for the field components.
         """
+        # overwrite previous
         self.__clean()
+        # Use numpy arrays
+        axe_x = np.array(axe_x, dtype=float)
+        axe_y = np.array(axe_y, dtype=float)
+        comp_x = np.array(comp_x, dtype=float)
+        comp_y = np.array(comp_y, dtype=float)
+        if mask is not None and not isinstance(mask, bool):
+            mask = np.array(mask, dtype=bool)
+        # Be sure axes are one-dimensional
+        if axe_x.ndim >= 2:
+            if np.all(axe_x[0, 0] == axe_x[:, 0]):
+                axe_x = axe_x[0]
+            else:
+                axe_x = axe_x[:, 0]
+        if axe_y.ndim >= 2:
+            if np.all(axe_y[0, 0] == axe_y[:, 0]):
+                axe_y = axe_y[0]
+            else:
+                axe_y = axe_y[:, 0]
+        # Check if axis are evenly spaced
+        delta_x = axe_x[1:] - axe_x[:-1]
+        delta_y = axe_y[1:] - axe_y[:-1]
+        epsx_abs = delta_x*1e-6
+        epsy_abs = delta_y*1e-6
+        if np.any(delta_y - delta_y[0] > epsy_abs) or \
+           np.any(delta_x - delta_x[0] > epsx_abs):
+            warnings.warn("Axis are not evenly spaced")
+        # Be sure comp_x and comp_y are of the good shape
+        if len(axe_x) == comp_x.shape[1] and \
+           len(axe_y) == comp_x.shape[0]:
+            comp_x = comp_x.transpose()
+            comp_y = comp_y.transpose()
+            try:
+                mask = mask.transpose()
+            except:
+                pass
+        # Be sure axes are crescent
         if axe_x[0] > axe_x[-1]:
             axe_x = axe_x[::-1]
             comp_x = comp_x[::-1]
@@ -502,6 +550,7 @@ class VectorField(field.Field):
             axe_y = axe_y[::-1]
             comp_x = comp_x[:, ::-1]
             comp_y = comp_y[:, ::-1]
+        # Store data
         self.axe_x = axe_x
         self.axe_y = axe_y
         self.comp_x = comp_x
@@ -511,15 +560,16 @@ class VectorField(field.Field):
         self.unit_y = unit_y
         self.unit_values = unit_values
 
-    ### Watchers ###
     def get_value(self, x, y, ind=False, unit=False):
         """
-        Return the vectir field compoenents on the point (x, y).
+        Return the vector field components on the point (x, y).
         If ind is true, x and y are indices,
         else, x and y are value on axes (interpolated if necessary).
         """
-        return np.array([self.comp_x_as_sf.get_value(x, y, ind=ind, unit=unit),
-                         self.comp_y_as_sf.get_value(x, y, ind=ind, unit=unit)])
+        return np.array([self.comp_x_as_sf.get_value(x, y,
+                                                     ind=ind, unit=unit),
+                         self.comp_y_as_sf.get_value(x, y,
+                                                     ind=ind, unit=unit)])
 
     def get_profile(self, component, direction, position, ind=False,
                     interp='linear'):
@@ -584,7 +634,6 @@ class VectorField(field.Field):
             res /= np.sum(~self.mask)
         return res
 
-    ### Modifiers ###
     def scale(self, scalex=None, scaley=None, scalev=None, inplace=False):
         """
         Scale the VectorField.
@@ -601,8 +650,8 @@ class VectorField(field.Field):
         else:
             tmp_f = self.copy()
         # xy
-        revx, revy = field.Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True,
-                                 output_reverse=True)
+        revx, revy = field.Field.scale(tmp_f, scalex=scalex, scaley=scaley,
+                                       inplace=True, output_reverse=True)
         # v
         if scalev is None:
             pass
@@ -653,7 +702,7 @@ class VectorField(field.Field):
         # check params
         if not isinstance(angle, NUMBERTYPES):
             raise TypeError()
-        if angle%90 != 0:
+        if angle % 90 != 0:
             raise ValueError()
         if not isinstance(inplace, bool):
             raise TypeError()
@@ -663,7 +712,7 @@ class VectorField(field.Field):
         else:
             tmp_field = self.copy()
         # normalize angle
-        angle = angle%360
+        angle = angle % 360
         # rotate the parent
         field.Field.rotate(tmp_field, angle, inplace=True)
         # rotate
@@ -671,8 +720,10 @@ class VectorField(field.Field):
         comp_x = np.rot90(tmp_field.comp_x, nmb_rot90)
         comp_y = np.rot90(tmp_field.comp_y, nmb_rot90)
         mask = np.rot90(tmp_field.mask, nmb_rot90)
-        comp_x2 = np.cos(angle/180.*np.pi)*comp_x - np.sin(angle/180.*np.pi)*comp_y
-        comp_y2 = np.cos(angle/180.*np.pi)*comp_y + np.sin(angle/180.*np.pi)*comp_x
+        comp_x2 = np.cos(angle/180.*np.pi)*comp_x - \
+                  np.sin(angle/180.*np.pi)*comp_y
+        comp_y2 = np.cos(angle/180.*np.pi)*comp_y + \
+                  np.sin(angle/180.*np.pi)*comp_x
         tmp_field.__comp_x, tmp_field.__comp_y = comp_x, comp_y
         tmp_field.__comp_x = comp_x2
         tmp_field.__comp_y = comp_y2
@@ -704,7 +755,7 @@ class VectorField(field.Field):
             field.Field.change_unit(self, axe, new_unit)
         elif axe == 'y':
             field.Field.change_unit(self, axe, new_unit)
-        elif axe =='values':
+        elif axe == 'values':
             old_unit = self.unit_values
             new_unit = old_unit.asUnit(new_unit)
             fact = new_unit.asNumber()
@@ -865,7 +916,7 @@ class VectorField(field.Field):
         if inplace:
             indmin_x, indmax_x, indmin_y, indmax_y = \
                 field.Field.crop(self, intervx, intervy, full_output=True,
-                           ind=ind, inplace=True)
+                                 ind=ind, inplace=True)
             self.__comp_x = self.comp_x[indmin_x:indmax_x + 1,
                                         indmin_y:indmax_y + 1]
             self.__comp_y = self.comp_y[indmin_x:indmax_x + 1,
@@ -875,7 +926,7 @@ class VectorField(field.Field):
         else:
             indmin_x, indmax_x, indmin_y, indmax_y, cropfield = \
                 field.Field.crop(self, intervx=intervx, intervy=intervy,
-                           full_output=True, ind=ind)
+                                 full_output=True, ind=ind)
             cropfield.__comp_x = self.comp_x[indmin_x:indmax_x + 1,
                                              indmin_y:indmax_y + 1]
             cropfield.__comp_y = self.comp_y[indmin_x:indmax_x + 1,
@@ -962,12 +1013,12 @@ class VectorField(field.Field):
         """
         if inplace:
             field.Field.extend(self, nmb_left=nmb_left, nmb_right=nmb_right,
-                         nmb_up=nmb_up, nmb_down=nmb_down, inplace=True)
+                               nmb_up=nmb_up, nmb_down=nmb_down, inplace=True)
             new_shape = self.shape
         else:
             new_field = field.Field.extend(self, nmb_left=nmb_left,
-                                     nmb_right=nmb_right, nmb_up=nmb_up,
-                                     nmb_down=nmb_down, inplace=False)
+                                           nmb_right=nmb_right, nmb_up=nmb_up,
+                                           nmb_down=nmb_down, inplace=False)
             new_shape = new_field.shape
         new_Vx = np.zeros(new_shape, dtype=float)
         new_Vy = np.zeros(new_shape, dtype=float)
@@ -1098,11 +1149,7 @@ class VectorField(field.Field):
     def __clean(self):
         self.__init__()
 
-    ### Displayers ###
     def _display(self, component=None, kind=None, axis='image', **plotargs):
-        # TODO : compatibility purpose
-        if not hasattr(self, "xy_scale"):
-            self.xy_scale = make_unit("")
         # adapt xy scale if streamplot is needed
         if kind == "stream" and self.xy_scale.asNumber() != 1.:
             magn = self.magnitude
@@ -1163,7 +1210,7 @@ class VectorField(field.Field):
         """
         displ = self._display(component, kind, **plotargs)
         unit_values = self.unit_values
-        Vx, Vy = self.comp_x, self.comp_y
+        # Vx, Vy = self.comp_x, self.comp_y
         if component is None or component == 'V':
             if kind == 'quiver' or kind is None:
                 if 'C' not in list(plotargs.keys()):
@@ -1172,13 +1219,13 @@ class VectorField(field.Field):
                         cb.set_label("Magnitude")
                     else:
                         cb.set_label("Magnitude " + unit_values.strUnit())
-                legendarrow = round(np.max([Vx.max(), Vy.max()]))
+                # legendarrow = round(np.max([Vx.max(), Vy.max()]))
                 # plt.quiverkey(displ, 1.075, 1.075, legendarrow,
                 #               "$" + str(legendarrow)
                 #               + unit_values.strUnit() + "$",
                 #               labelpos='W', fontproperties={'weight': 'bold'})
             elif kind in ['stream', 'track']:
-                if not 'color' in list(plotargs.keys()):
+                if 'color' not in list(plotargs.keys()):
                     cb = plt.colorbar(displ.lines)
                     if unit_values.strUnit() == "[]":
                         cb.set_label("Magnitude")

@@ -1,13 +1,27 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Feb 23 18:07:07 2014
+#!/bin/env python3
 
-@author: muahah
+# Copyright (C) 2003-2007 Gaby Launay
 
-For performance
-"""
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
 
-import pdb
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from ..core import Points, OrientedPoints, Profile, ScalarField, VectorField,\
     TemporalScalarFields,\
     TemporalVectorFields
@@ -31,6 +45,7 @@ try:
     MULTIPROC = True
 except:
     MULTIPROC = False
+
 
 def velocityfield_to_vf(vectorfield, time):
     """
@@ -112,10 +127,10 @@ class VF(object):
         else:
             mask = np.zeros((self.mask.shape[0] - 1, self.mask.shape[1] - 1))
         # fast first check to see where 0-levelset pass
-        signx = (vx_sup_0[0:-1, 0:-1] + vx_sup_0[1::, 0:-1]
-                 + vx_sup_0[0:-1, 1::] + vx_sup_0[1::, 1::])
-        signy = (vy_sup_0[0:-1, 0:-1] + vy_sup_0[1::, 0:-1]
-                 + vy_sup_0[0:-1, 1::] + vy_sup_0[1::, 1::])
+        signx = (vx_sup_0[0:-1, 0:-1] + vx_sup_0[1::, 0:-1] +
+                 vx_sup_0[0:-1, 1::] + vx_sup_0[1::, 1::])
+        signy = (vy_sup_0[0:-1, 0:-1] + vy_sup_0[1::, 0:-1] +
+                 vy_sup_0[0:-1, 1::] + vy_sup_0[1::, 1::])
         lsx = np.logical_and(signx != 0, signx != 4)
         lsy = np.logical_and(signy != 0, signy != 4)
         filt_0ls = np.logical_and(lsx, lsy)
@@ -276,8 +291,8 @@ class VF(object):
                     x_sols[j] = x_sols[j].as_real_imag()[0]
                 if np.iscomplex(y_sols[j]):
                     y_sols[j] = y_sols[j].as_real_imag()[0]
-                if (x_sols[j] < 0 or x_sols[j] > real_dx
-                        or y_sols[j] < 0 or y_sols[j] > real_dy):
+                if (x_sols[j] < 0 or x_sols[j] > real_dx or
+                        y_sols[j] < 0 or y_sols[j] > real_dy):
                     continue
                 tmp_sol.append([x_sols[j], y_sols[j]])
             # if no more points
@@ -333,10 +348,10 @@ class VF(object):
                                             theta[:, i],
                                             theta[-1, i:0:-1]),
                                            axis=0)
-            delta_thetas = np.concatenate((thetas_border[1::]
-                                           - thetas_border[0:-1],
-                                           thetas_border[0:1]
-                                           - thetas_border[-1::]), axis=0)
+            delta_thetas = np.concatenate((thetas_border[1::] -
+                                           thetas_border[0:-1],
+                                           thetas_border[0:1] -
+                                           thetas_border[-1::]), axis=0)
             # particular points treatment
             delta_thetas[delta_thetas > np.pi] -= 2*np.pi
             delta_thetas[delta_thetas < -np.pi] += 2*np.pi
@@ -435,8 +450,7 @@ class CritPoints(object):
     unit_time : string or Unit object
         Unity for the time.
     """
-    ### Operators ###
-    def __init__(self,  unit_time='s'):
+    def __init__(self, unit_time='s'):
         # check parameters
         self.foc = np.array([])
         self.foc_traj = None
@@ -489,7 +503,6 @@ class CritPoints(object):
         else:
             raise TypeError()
 
-    ### Attributes ###
     @property
     def unit_x(self):
         return self.__unit_x
@@ -550,7 +563,6 @@ class CritPoints(object):
 #            for i in np.arange(len(kind)):
 #                kind[i].unit_v = new_unit_time
 
-    ### Properties ###
     @property
     def iter(self):
         return [self.foc, self.foc_c, self.node_i, self.node_o, self.sadd]
@@ -560,7 +572,6 @@ class CritPoints(object):
         return [self.foc_traj, self.foc_c_traj, self.node_i_traj,
                 self.node_o_traj, self.sadd_traj]
 
-    ### Watchers ###
     def copy(self):
         """
         Return a copy of the CritPoints object.
@@ -851,7 +862,8 @@ class CritPoints(object):
                 else:
                     x_prof = traj.export_to_profile(axe_x='v', axe_y='x')
                     dv = x_prof.x[1] - x_prof.x[0]
-                    ind_brk, _ = x_prof.get_extrema_position(smoothing=smooth_size)
+                    ind_brk, _ = x_prof.get_extrema_position(
+                        smoothing=smooth_size)
                     # if nothing in ind_min
                     if len(ind_brk) == 0:
                         tmp_trajs.append(traj)
@@ -984,39 +996,20 @@ class CritPoints(object):
                     diff = (len_max - len_min)/float(len_max)
                     if diff > rel_len_epsilon:
                         continue
-                    # if trajectory is too different from the referential one, skip
-                    tmp_conv_x = tmp_x.get_convolution_of_difference(tmp_x_base,
-                                                                   normalized=True)
-                    tmp_conv_y = tmp_y.get_convolution_of_difference(tmp_y_base,
-                                                                    normalized=True)
+                    # if trajectory is too different from the referential one,
+                    # skip
+                    tmp_conv_x = tmp_x.get_convolution_of_difference(
+                        tmp_x_base,
+                        normalized=True)
+                    tmp_conv_y = tmp_y.get_convolution_of_difference(
+                        tmp_y_base,
+                        normalized=True)
                     tmp_conv = (tmp_conv_x*tmp_conv_y)**.5
                     if tmp_conv.min > rel_diff_epsilon:
                         continue
                     # else, shift the trajectory and add it to the set
-                    shift = tmp_conv.x[min(list(range(len(tmp_conv))), key=lambda i: tmp_conv.y[i])]
-                    # # TMP
-                    # fig, axs = plt.subplots(3, 2)
-                    # axs = axs.flatten()
-                    # plt.sca(axs[0])
-                    # traj.display(kind='plot', color='r', marker="o")
-                    # plt.plot(av_x.y, av_y.y, 'o-k')
-                    # plt.sca(axs[1])
-                    # tmp_x_base.display(label="base")
-                    # tmp_x.display(label="comp")
-                    # plt.legend()
-                    # plt.sca(axs[2])
-                    # tmp_y_base.display(label="base")
-                    # tmp_y.display(label="comp")
-                    # plt.legend()
-                    # plt.sca(axs[3])
-                    # tmp_conv_x.display(label="convx")
-                    # tmp_conv_y.display(label="convy")
-                    # tmp_conv.display(label="conv")
-                    # plt.title("diff = {}\n shift = {}".format(tmp_conv.min,
-                    #                                                shift))
-                    # plt.ylim(0, 3*rel_diff_epsilon)
-                    # plt.legend()
-                    # # END : TMP
+                    shift = tmp_conv.x[min(list(range(len(tmp_conv))),
+                                           key=lambda i: tmp_conv.y[i])]
                     dx = tmp_x.x[1] - tmp_x.x[0]
                     shift = np.floor(shift/dx)*dx   # not allow quarter-dx
                     tmp_x.x += shift
@@ -1029,19 +1022,6 @@ class CritPoints(object):
                     used_traj_inds.append(i)
                     used_trajs.append(traj)
                     nmb_traj_used += 1
-                    # # TMP
-                    # tmp_x_base = av_x.remove_doublons(method="average",
-                    #                                   inplace=False)
-                    # tmp_y_base = av_y.remove_doublons(method="average",
-                    #                                   inplace=False)
-                    # plt.sca(axs[4])
-                    # plt.plot(av_x.y, av_y.y, 'o-k')
-                    # plt.sca(axs[5])
-                    # plt.plot(tmp_x_base.y, tmp_y_base.y, 'o-k')
-                    # plt.show()
-
-
-
             # if no remaining trajectories, end the While loop
             if av_x is None:
                 break
@@ -1104,8 +1084,10 @@ class CritPoints(object):
                       .format(traj.nmb_traj_used, i, pad=pad)))
             print(("+++ {:>{pad}} Trajectories skipped"
                   .format(nmb_too_short + nmb_too_diff, pad=pad)))
-            print(("+++     {:>{pad}} too short".format(nmb_too_short, pad=pad)))
-            print(("+++     {:>{pad}} too different".format(nmb_too_diff, pad=pad)))
+            print(("+++     {:>{pad}} too short"
+                   .format(nmb_too_short, pad=pad)))
+            print(("+++     {:>{pad}} too different"
+                   .format(nmb_too_diff, pad=pad)))
             # plot
             cycler = plt.rcParams['axes.prop_cycle']()
             colors = [cycler.next()['color'] for i in range(40)]
@@ -1132,7 +1114,6 @@ class CritPoints(object):
         # return the set of mean trajectories
         return mean_trajs, skipped_trajs
 
-    ### Modifiers ###
     def add_point(self, foc=None, foc_c=None, node_i=None,
                   node_o=None, sadd=None, time=None):
         """
@@ -1353,7 +1334,8 @@ class CritPoints(object):
             tmp_cp.node_i = tmp_cp.node_i[filt]
             tmp_cp.node_o = tmp_cp.node_o[filt]
             for traj_type in self.iter_traj:
-                [traj.crop(intervv=intervt, ind=ind, inplace=True) for traj in traj_type]
+                [traj.crop(intervv=intervt, ind=ind, inplace=True)
+                 for traj in traj_type]
             self._remove_void_trajectories()
         # spatial cropping
         if intervx is not None or intervy is not None:
@@ -1566,7 +1548,6 @@ class CritPoints(object):
         if not inplace:
             return tmp_traj
 
-    ### Private ###
     def _remove_trajectories(self):
         """
         Delete the computed trajectories.
@@ -1679,8 +1660,8 @@ class CritPoints(object):
                                         "objects")
                     if not len(pt) == len(pt.v):
                         raise Exception("v has not the same dimension as "
-                                            "xy")
-                ### store the points in a more convenient way
+                                        "xy")
+                # store the points in a more convenient way
                 uns_xs = []
                 uns_ys = []
                 uns_times = []
@@ -1753,8 +1734,8 @@ class CritPoints(object):
                         = np.unravel_index(np.argmin(dist2_mat),
                                            dist2_mat.shape)
                     # if dist to big or nothing remaining, we stop
-                    if (dist2_mat[indmin_pt, indmin_line] > epsilon
-                            or dist2_mat[indmin_pt, indmin_line] == np.inf):
+                    if (dist2_mat[indmin_pt, indmin_line] > epsilon or
+                            dist2_mat[indmin_pt, indmin_line] == np.inf):
                         break
                     # append pt to Line
                     self.open_lines[indmin_line].add_point(new_pts[indmin_pt])
@@ -1858,8 +1839,6 @@ class CritPoints(object):
 
             def __repr__(self):
                 return "{}, {}".format(self.x, self.y)
-#            def norm2(self):
-#                return self.x**2 + self.y**2
 
             def dist2(self, pt):
                 return (self.x - pt.x)**2 + (self.y - pt.y)**2
@@ -1868,8 +1847,8 @@ class CritPoints(object):
         pts = PF.get_trajectories()
         return pts
 
-    ### Displayers ###
-    def display_arch(self, indice=None, time=None, field=None, cpkw={}, lnkw={}):
+    def display_arch(self, indice=None, time=None, field=None,
+                     cpkw={}, lnkw={}):
         """
         Display some critical points.
 
@@ -1911,13 +1890,14 @@ class CritPoints(object):
         else:
             cpkw['marker'] = 'o'
         # display the critical lines
-        if (field is not None and len(self.sadd[indice].xy) != 0
-                and isinstance(self.sadd[indice], OrientedPoints)):
+        if (field is not None and len(self.sadd[indice].xy) != 0 and
+                isinstance(self.sadd[indice], OrientedPoints)):
             if 'color' not in list(lnkw.keys()):
                 lnkw['color'] = colors[4]
             streams = self.sadd[indice]\
-                .get_streamlines_from_orientations(field,
-                    reverse_direction=[True, False], interp='cubic')
+                .get_streamlines_from_orientations(
+                    field, reverse_direction=[True, False],
+                    interp='cubic')
             for stream in streams:
                 stream._display(kind='plot', **lnkw)
         # loop on the points types
@@ -1994,8 +1974,8 @@ class CritPoints(object):
                 if len(opts.xy) == 0:
                     continue
                 v = opts.v[0]
-                tmp_stream = opts.get_streamlines_from_orientations(field,
-                     reverse_direction=[False, True], interp='cubic')
+                tmp_stream = opts.get_streamlines_from_orientations(
+                    field, reverse_direction=[False, True], interp='cubic')
                 if "color" in list(lnkw.keys()):
                     tmp_color = lnkw.pop('color')
                 else:
@@ -2055,7 +2035,7 @@ class CritPoints(object):
         # check if some trajectories are computed
         if self.current_epsilon is None:
             raise Exception("you must compute trajectories before "
-                                "displaying them")
+                            "displaying them")
         if filt is None:
             filt = np.ones((5,), dtype=bool)
         if not isinstance(filt, ARRAYTYPES):
@@ -2281,9 +2261,9 @@ class TopoPoints(object):
                     dist2[ind_2, ind_1] = np.inf
             # add a new point at the center of the two else
             elif kind == 'replacement':
-                new_coord = ((xy[ind_1]*weight[ind_1]
-                              + xy[ind_2]*weight[ind_2])
-                             / (weight[ind_1] + weight[ind_2]))
+                new_coord = ((xy[ind_1]*weight[ind_1] +
+                              xy[ind_2]*weight[ind_2]) /
+                             (weight[ind_1] + weight[ind_2]))
                 # remove the pooints
                 filt[ind_1] = False
                 filt[ind_2] = False
@@ -2360,7 +2340,7 @@ class MeanTrajectory(Points):
 
     def __init__(self, xy=np.empty((0, 2), dtype=float), time=[],
                  assoc_real_times=[], assoc_std_x=[], assoc_std_y=[],
-                 nmb_traj_used=0, base_trajs = [],
+                 nmb_traj_used=0, base_trajs=[],
                  unit_x='', unit_y='',
                  unit_times='', name=''):
         """
@@ -2474,13 +2454,16 @@ class MeanTrajectory(Points):
                     mask = np.logical_or(mask, out_zone)
             # crop
             tmp_pts.assoc_real_times = [tmp_pts.assoc_real_times[i]
-                                        for i in range(len(tmp_pts.assoc_real_times))
+                                        for i in range(len(tmp_pts.
+                                                           assoc_real_times))
                                         if not mask[i]]
             tmp_pts.assoc_std_x = tmp_pts.assoc_std_x[~mask]
             tmp_pts.assoc_std_y = tmp_pts.assoc_std_y[~mask]
             # crop mean_traj
-            super(MeanTrajectory, tmp_pts).crop(intervx=intervx, intervy=intervy,
-                                                intervv=intervt, inplace=True,
+            super(MeanTrajectory, tmp_pts).crop(intervx=intervx,
+                                                intervy=intervy,
+                                                intervv=intervt,
+                                                inplace=True,
                                                 ind=ind)
             # DO NOT crop base fields
             # return
@@ -2584,7 +2567,7 @@ class MeanTrajectory(Points):
             plt.errorbar(axe_x, axe_y, xerr=axe_x_err,
                          yerr=axe_y_err, **kwargs)
         elif kind == 'envelope':
-            if 'alpha'  in list(kwargs.keys()):
+            if 'alpha' in list(kwargs.keys()):
                 alpha = kwargs.pop('alpha')
             else:
                 alpha = np.inf
@@ -2625,7 +2608,6 @@ class MeanTrajectory(Points):
         return fin_tf
 
 
-### CP and vortex positions ###
 def get_critical_points(obj, time=0, unit_time='', window_size=4,
                         kind='pbi', mirroring=None, mirror_interp='linear',
                         smoothing_size=0, verbose=False, thread=1):
@@ -2678,7 +2660,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         raise TypeError()
     if not isinstance(unit_time, STRINGTYPES + (unum.Unum,)):
         raise TypeError()
-    if not isinstance(window_size,  NUMBERTYPES):
+    if not isinstance(window_size, NUMBERTYPES):
         raise TypeError()
     window_size = int(window_size)
     if not isinstance(kind, STRINGTYPES):
@@ -2801,7 +2783,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
             else:
                 pool = Pool(thread)
             res = pool.map_async(get_cp_on_one_field, list(zip(obj.fields,
-                                                          obj.times)))
+                                                               obj.times)))
             pool.close()
             pool.join()
             res = res.get()
@@ -2837,10 +2819,11 @@ def get_vortex_position(obj, criterion=get_residual_vorticity,
     """
     # vectorfield
     if isinstance(obj, VectorField):
-        vort_c, vort = _get_vortex_position_on_VF(obj, criterion=criterion,
-                                                  criterion_args=criterion_args,
-                                                  threshold=threshold,
-                                                  rel=rel)
+        vort_c, vort = _get_vortex_position_on_VF(
+            obj, criterion=criterion,
+            criterion_args=criterion_args,
+            threshold=threshold,
+            rel=rel)
         cp = CritPoints(unit_time='')
         cp.add_point(foc=vort, foc_c=vort_c, time=0)
         return cp
@@ -3117,7 +3100,7 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         sadd_ori = False
     else:
         sadd_ori = True
-    ### Getting pbi cp position and fields around ###
+    # Getting pbi cp position and fields around ###
     VF_field = velocityfield_to_vf(vectorfield, time)
     cp_positions, cp_types = VF_field.get_cp_cell_position()
     radius = window_size/4.
@@ -3129,14 +3112,14 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         tmp_vf = tmp_vf.export_to_velocityfield()
         # treating small fields
         axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
-        if (len(axe_x) <= window_size + 1 or len(axe_y) <= window_size + 1
-                or np.any(tmp_vf.mask)):
+        if (len(axe_x) <= window_size + 1 or len(axe_y) <= window_size + 1 or
+                np.any(tmp_vf.mask)):
             pass
         else:
             tmp_vf.PBI = int(cp_types[i] != 0)
             tmp_vf.assoc_ind = i
             VF_tupl.append(tmp_vf)
-    ### Sorting by critical points type ###
+    # Sorting by critical points type ###
     VF_focus = []
     VF_nodes = []
     VF_saddle = []
@@ -3157,7 +3140,7 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
         # saddle point
         elif VF.PBI == -1:
             VF_saddle.append(VF)
-    ### Computing focus positions (rotatives and contrarotatives) ###
+    # Computing focus positions (rotatives and contrarotatives) ###
     if len(VF_focus) != 0:
         for VF in VF_focus:
             tmp_gam = VF.gamma1
@@ -3177,7 +3160,7 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                     if pts.xy[0][0] is not None and len(pts) == 1:
                         cp_positions[VF.assoc_ind] = pts.xy[0]
                         cp_types[VF.assoc_ind] = 1
-    ### Computing nodes points positions (in or out) ###
+    # Computing nodes points positions (in or out) ###
     if len(VF_nodes) != 0:
         for VF in VF_nodes:
             tmp_kap = VF.kappa1
@@ -3197,7 +3180,7 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                     if pts.xy[0][0] is not None and len(pts) == 1:
                         cp_positions[VF.assoc_ind] = pts.xy[0]
                         cp_types[VF.assoc_ind] = 4
-    ### Computing saddle points positions and direction ###
+    # Computing saddle points positions and direction ###
     if len(VF_saddle) != 0:
         for VF in VF_saddle:
             tmp_iot = get_iota(VF, radius=radius, ind=True)
@@ -3206,7 +3189,7 @@ def _get_cp_crit_on_VF(vectorfield, time=0, unit_time=make_unit(""),
                 if pts.xy[0][0] is not None and len(pts) == 1:
                         cp_positions[VF.assoc_ind] = pts.xy[0]
                         cp_types[VF.assoc_ind] = 0
-    ### creating the CritPoints object for returning
+    # creating the CritPoints object for returning
     focus = Points(unit_x=vectorfield.unit_x,
                    unit_y=vectorfield.unit_y,
                    unit_v=unit_time)
@@ -3413,10 +3396,6 @@ def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1, pt=None):
     Vy = np.array(Vy)
     if not Vx.shape == Vy.shape:
         raise ValueError()
-    if Vx.shape[0] == 2 or Vx.shape[1] == 2:
-        k = 1
-    else:
-        k = 2
     # compute gradients
     Vx_dx, Vx_dy = np.gradient(Vx.transpose(), dx, dy)
     Vy_dx, Vy_dy = np.gradient(Vy.transpose(), dx, dy)
@@ -3429,7 +3408,11 @@ def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1, pt=None):
     Vx_dy2 = np.mean(Vx_dy)
     Vy_dx2 = np.mean(Vy_dx)
     Vy_dy2 = np.mean(Vy_dy)
-    ### More robust way of doing it ??? ###
+    # # More robust way of doing it ??? ###
+    # if Vx.shape[0] == 2 or Vx.shape[1] == 2:
+    #     k = 1
+    # else:
+    #     k = 2
     # Vx_dx2 = RectBivariateSpline(axe_x, axe_y, Vx_dx, kx=k, ky=k, s=0)
     # Vx_dx2 = Vx_dx2(*pt)[0][0]
     # Vx_dy2 = RectBivariateSpline(axe_x, axe_y, Vx_dy, kx=k, ky=k, s=0)
@@ -3444,7 +3427,6 @@ def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1, pt=None):
     return jac
 
 
-### Vortex properties ###
 def get_vortex_radius(VF, vort_center, NL_radius=None, eps_detection=0.1,
                       output_center=False, output_unit=False):
     """
@@ -3521,7 +3503,7 @@ def get_vortex_radius(VF, vort_center, NL_radius=None, eps_detection=0.1,
         return radius, center, unit_radius
 
 
-def get_vortex_radius_time_evolution(TVFS, traj,  NL_radius=None,
+def get_vortex_radius_time_evolution(TVFS, traj, NL_radius=None,
                                      eps_detection=0.1,
                                      output_center=False, verbose=False):
     """
@@ -3796,62 +3778,6 @@ def get_vortex_property_time_evolution(TVFs, vort_center_traj, size_crit=None,
     return prof_prop
 
 
-#
-#
-#
-#TVFS, traj, crit=None,
-#                                        use_gamma2=True, verbose=False):
-#    """
-#    Return the radius evolution in time for the given vortex center trajectory.
-#
-#    Use the criterion |gamma2| > 2/pi. The returned radius is an average value
-#    if the vortex zone is not circular.
-#
-#    Parameters:
-#    -----------
-#    TVFS : TemporalField object
-#        Velocity field on which compute gamma2.
-#    traj : Points object
-#        Trajectory of the vortex.
-#    crit : function
-#        Function to inegrate on the vortex zone. should take a VectorField as
-#        argument and return a ScalarField. Default is 'get_residual_vorticity'.
-#    use_gamma2 : boolean, optional
-#        If 'True' (default), gamma2 is used to get the vortex area, and the
-#        criterion is integrated on this area. If 'False', returned intensity is
-#        directly the criterion intensity at the wanted point.
-#    verbose : boolean
-#        .
-#
-#    Returns :
-#    ---------
-#    intensity : Profile object
-#        Average intensity of the vortex. If no vortex is found, 0 is returned.
-#    """
-#    intens = np.empty((len(traj.xy),))
-#    if verbose:
-#        pg = ProgressCounter("Begin vortex intensity detection",
-#                             "Done", len(traj.xy), 'fields', perc_interv=1)
-#    # loop on traj times
-#    for i, _ in enumerate(traj):
-#        if verbose:
-#            pg.print_progress()
-#        # getting time and associated velocity field
-#        time = traj.v[i]
-#        field = TVFS.fields[TVFS.times == time][0]
-#        # getting the wanted point
-#        wanted_xy = traj.xy[i, :]
-#        tmp_int, unit_int = get_vortex_intensity(field, wanted_xy, crit=crit,
-#                                                 output_unit=True,
-#                                                 use_gamma2=use_gamma2)
-#        intens[i] = tmp_int
-#    # returning
-#    mask = intens == 0.
-#    radii_prof = Profile(traj.v, intens, mask=mask, unit_x=TVFS.unit_times,
-#                         unit_y=unit_int)
-#    return radii_prof
-#
-
 def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False,
                            verbose=False):
     """
@@ -3904,7 +3830,7 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False,
         vort.display()
         plt.plot(vort_center[0], vort_center[1], 'ok')
         plt.figure()
-        plt.imshow(vort_zone==lab)
+        plt.imshow(vort_zone == lab)
     # else, we compute the circulation
     circ = np.sum(vort.values[vort_zone == lab])*dx*dy
     # if necessary, we compute the unit
@@ -3918,25 +3844,6 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False,
         return circ
 
 
-
-
-
-#def _format_time(second):
-#    second = int(second)
-#    m, s = divmod(second, 60)
-#    h, m = divmod(m, 60)
-#    j, h = divmod(h, 24)
-#    repr_time = '{:d}s'.format(s)
-#    if m != 0:
-#        repr_time = '{:d}mn'.format(m) + repr_time
-#    if h != 0:
-#        repr_time = '{:d}h'.format(h) + repr_time
-#    if j != 0:
-#        repr_time = '{:d}j'.format(m) + repr_time
-#    return repr_time
-
-
-### Separation point ###
 def get_separation_position(obj, wall_direction, wall_position,
                             interval=None, nmb_lines=4):
     """
@@ -4022,7 +3929,7 @@ def get_separation_position(obj, wall_direction, wall_position,
     else:
         raise ValueError("Unknown type for 'obj'")
 
-    ### Getting separation position
+    # Getting separation position
     # Getting lines around wall
     if wall_position < axe[0]:
         lines_pos = axe[0:nmb_lines]
@@ -4070,7 +3977,6 @@ def get_separation_position(obj, wall_direction, wall_position,
     return float(interp(wall_position))
 
 
-### Critical lines ###
 def get_critical_line(VF, source_point, direction, kol='stream',
                       delta=1, fit='none', order=2):
     """

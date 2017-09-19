@@ -1,11 +1,27 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Fri May 16 22:37:21 2014
+#!/bin/env python3
 
-@author: muahah
-"""
+# Copyright (C) 2003-2007 Gaby Launay
 
-import pdb
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import numpy as np
 import scipy.interpolate as spinterp
 import scipy.integrate as spinteg
@@ -62,8 +78,6 @@ def get_gradients(field, raw=False):
             facty = unit_values_y.asNumber()
             unit_values_y = unit_values_y/facty
             grad_y *= facty
-            #pdb.set_trace()
-
             # returning
             gradx.import_from_arrays(field.axe_x, field.axe_y, grad_x.data,
                                      mask=mask, unit_x=field.unit_x,
@@ -862,8 +876,8 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
             outside = True
         else:
             outside = False
-        return outside    
-            
+        return outside
+
 
     ########################
     ### Loop on points   ###
@@ -903,7 +917,7 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
                 if resolution_kind == "time":
                     min_dxy = (dxy/40)**2
                     if (tmp_xy[0] - res[-1][0])**2 + (tmp_xy[1] - res[-1][1])**2 < min_dxy:
-                        break 
+                        break
                 # store
                 res.append(tmp_xy)
             new_xys = res
@@ -1091,7 +1105,7 @@ def get_swirling_vector(vf, raw=False):
         return (comp_x, comp_y)
     else:
         unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
-        # TODO: implémenter unité
+        # TODO: Implement unities
         unit_values = ""
         tmp_vf = VectorField()
         tmp_vf.import_from_arrays(axe_x, axe_y, comp_x, comp_y, mask=False,
@@ -1207,4 +1221,3 @@ def extrapolate_until_wall(field, direction='x', position=0.,
         return ext_field
     else:
         raise TypeError()
-

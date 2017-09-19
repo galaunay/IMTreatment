@@ -1,15 +1,30 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import matplotlib.pyplot as plt
 import Plotlib as pplt
 import numpy as np
-import pdb
 import unum
 import copy
 from scipy import stats
@@ -19,6 +34,7 @@ import scipy.optimize as spopt
 import scipy.signal as spsign
 from ..utils import make_unit
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from .scalarfield import ScalarField
 
 
 class Profile(object):
@@ -36,7 +52,6 @@ class Profile(object):
         A name for the profile.
     """
 
-    ### Operators ###
     def __init__(self, x=[], y=[], mask=False, unit_x="",
                  unit_y="", name=""):
         """
@@ -231,8 +246,6 @@ class Profile(object):
         else:
             raise TypeError()
 
-
-    ### Attributes ###
     @property
     def x(self):
         return self.__x
@@ -335,7 +348,6 @@ class Profile(object):
     def unit_y(self):
         raise Exception("Nope, can't delete 'unit_y'")
 
-    ### Properties ###
     @property
     def max(self):
         """
@@ -393,7 +405,6 @@ class Profile(object):
             return None
         return np.mean(self.y[np.logical_not(self.mask)])
 
-    ### Watchers ###
     def copy(self):
         """
         Return a copy of the Profile object.
@@ -414,11 +425,12 @@ class Profile(object):
             second or third order) or as an integer specifying the order of
             the spline interpolator to use. Default is ‘linear’.
         bounds_error : bool, optional
-            If True, a ValueError is raised any time interpolation is attempted on
-            a value outside of the range of x (where extrapolation is
-            necessary). If False, out of bounds values are assigned `fill_value`.
-            By default, an error is raised unless `fill_value="extrapolate"`.
-        fill_value : array-like or (array-like, array_like) or "extrapolate", optional
+            If True, a ValueError is raised any time interpolation is
+            attempted on a value outside of the range of x (where
+            extrapolation is necessary). If False, out of bounds
+            values are assigned `fill_value`. By default, an error is
+            raised unless `fill_value="extrapolate"`.
+        fill_value : array-like or (array-like, array_like) or "extrapolate"
             - if a ndarray (or float), this value will be used to fill in for
             requested points outside of the data range. If not provided, then
             the default is NaN. The array-like must broadcast properly to the
@@ -487,7 +499,7 @@ class Profile(object):
                         res.append(val[0])
                 return np.array(res, dtype=float)
         if y is not None:
-            if isinstance(y,  NUMBERTYPES):
+            if isinstance(y, NUMBERTYPES):
                 return self._get_interpolated_single_value(y=y, ind=ind)
             else:
                 res = []
@@ -1118,8 +1130,8 @@ class Profile(object):
             raise TypeError()
         if mode not in ['full', 'same', 'valid']:
             raise ValueError()
-        if not np.all(self.x[1:] - self.x[0:-1] - (self.x[1] - self.x[0])
-                      < self.x[-1]*1e-10) :
+        if not np.all(self.x[1:] - self.x[0:-1] - (self.x[1] - self.x[0]) <
+                      self.x[-1]*1e-10):
             raise Exception("Profiles should have orthogonal x axis")
         if not np.all(other_prof.x[1:] - other_prof.x[0:-1] ==
                       other_prof.x[1] - other_prof.x[0]):
@@ -1221,8 +1233,8 @@ class Profile(object):
         dx = x[1] - x[0]
         x = np.arange(0, len(diffs)*dx, dx)[0:len(diffs)]
         x -= (x[-1] + x[0])/2.
-        delta_x = ((other_profile.x[0] + other_profile.x[-1])/2.
-                   - (self.x[0] + self.x[-1])/2.)
+        delta_x = ((other_profile.x[0] + other_profile.x[-1])/2. -
+                   (self.x[0] + self.x[-1])/2.)
         x += delta_x
         # returning
         return Profile(x, diffs, mask=np.isnan(diffs), unit_x=self.unit_x,
@@ -1260,11 +1272,10 @@ class Profile(object):
         # Readd average
         y += mean_y
         # return
-        return Profile(tmp_prof.x, y, mask=tmp_prof.mask, unit_x=tmp_prof.unit_x,
+        return Profile(tmp_prof.x, y, mask=tmp_prof.mask,
+                       unit_x=tmp_prof.unit_x,
                        unit_y=tmp_prof.unit_y)
 
-
-    ### Modifiers ###
     def add_point(self, x, y):
         """
         Add the given point to the profile.
@@ -1282,12 +1293,11 @@ class Profile(object):
             self.unit_x = prof.unit_x
             self.unit_y = prof.unit_y
         # check unities
-        if (prof.unit_x != self.unit_x or
-            prof.unit_y != self.unit_y):
+        if (prof.unit_x != self.unit_x or prof.unit_y != self.unit_y):
                 raise ValueError()
         # append daa
         tmp_x = np.append(self.x, prof.x)
-        tmp_y = np.append(self.y ,prof.y)
+        tmp_y = np.append(self.y, prof.y)
         tmp_mask = np.append(self.mask, prof.mask)
         # sort by time
         ind_sort = np.argsort(tmp_x)
@@ -1567,7 +1577,7 @@ class Profile(object):
             raise TypeError()
         if not isinstance(interp, STRINGTYPES):
             raise TypeError()
-        if not interp in ['linear', 'nearest', 'zero', 'slinear', 'quadratic',
+        if interp not in ['linear', 'nearest', 'zero', 'slinear', 'quadratic',
                           'cubic']:
             raise ValueError()
         if not isinstance(inplace, bool):
@@ -1773,8 +1783,6 @@ class Profile(object):
         if not inplace:
             return tmp_prof
 
-
-    ### Displayers ###
     def _display(self, kind='plot', reverse=False, **plotargs):
         """
         Private Displayer.
@@ -1843,7 +1851,7 @@ class Profile(object):
         plot = dp.draw()
         return plot
 
-    def display(self, kind='plot', reverse=False,  **plotargs):
+    def display(self, kind='plot', reverse=False, **plotargs):
         """
         Display the profile.
 

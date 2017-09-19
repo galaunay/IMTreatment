@@ -1,10 +1,26 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import copy
 import warnings
@@ -46,7 +62,6 @@ class ScalarField(fld.Field):
     >>> SF.display()
     """
 
-    ### Operators ###
     def __init__(self):
         fld.Field.__init__(self)
         self.__values = np.array([])
@@ -312,7 +327,6 @@ class ScalarField(fld.Field):
             if not mask[i, j]:
                 yield ij, xy, data[i, j]
 
-    ### Attributes ###
     @property
     def values(self):
         return self.__values
@@ -396,7 +410,6 @@ class ScalarField(fld.Field):
     def unit_values(self):
         raise Exception("Nope, can't do that")
 
-    ### Properties ###
     @property
     def min(self):
         return np.min(self.values[np.logical_not(self.mask)])
@@ -409,7 +422,6 @@ class ScalarField(fld.Field):
     def mean(self):
         return np.mean(self.values[np.logical_not(self.mask)])
 
-    ### fld.Field maker ###
     def import_from_arrays(self, axe_x, axe_y, values, mask=None,
                            unit_x="", unit_y="", unit_values=""):
         """
@@ -432,7 +444,24 @@ class ScalarField(fld.Field):
         """
         # overwrite previous
         self.__clean()
-        # check if axis are evenly spaced
+        # Use numpy arrays
+        axe_x = np.array(axe_x, dtype=float)
+        axe_y = np.array(axe_y, dtype=float)
+        values = np.array(values, dtype=float)
+        if mask is not None and not isinstance(mask, bool):
+            mask = np.array(mask, dtype=bool)
+        # Be sure axes are one-dimensional
+        if axe_x.ndim >= 2:
+            if np.all(axe_x[0, 0] == axe_x[:, 0]):
+                axe_x = axe_x[0]
+            else:
+                axe_x = axe_x[:, 0]
+        if axe_y.ndim >= 2:
+            if np.all(axe_y[0, 0] == axe_y[:, 0]):
+                axe_y = axe_y[0]
+            else:
+                axe_y = axe_y[:, 0]
+        # Check if axis are evenly spaced
         delta_x = axe_x[1:] - axe_x[:-1]
         delta_y = axe_y[1:] - axe_y[:-1]
         epsx_abs = delta_x*1e-6
@@ -440,17 +469,30 @@ class ScalarField(fld.Field):
         if np.any(delta_y - delta_y[0] > epsy_abs) or \
            np.any(delta_x - delta_x[0] > epsx_abs):
             warnings.warn("Axis are not evenly spaced")
+        # Be sure values is of the good shape
+        if len(axe_x) == values.shape[1] and \
+           len(axe_y) == values.shape[0]:
+            values = values.transpose()
+            try:
+                mask = mask.transpose()
+            except:
+                pass
+        # Be sure axes are crescent
+        if axe_x[0] > axe_x[-1]:
+            axe_x = axe_x[::-1]
+            values = values[::-1]
+        if axe_y[0] > axe_y[-1]:
+            axe_y = axe_y[::-1]
+            values = values[:, ::-1]
         # storing datas
         self.axe_x = axe_x
         self.axe_y = axe_y
         self.values = values
-        if mask is not None:
-            self.mask = mask
+        self.mask = mask
         self.unit_x = unit_x
         self.unit_y = unit_y
         self.unit_values = unit_values
 
-    ### Watchers ###
     def get_value(self, x, y, ind=False, unit=False):
         """
         Return the scalar field value on the point (x, y).
@@ -510,27 +552,10 @@ class ScalarField(fld.Field):
                 value2 = self.values[inds_x[1], ind_y]
                 i_value = ((value2*np.abs(pos_x1 - x) +
                             value1*np.abs(pos_x2 - x)) /
-                            np.abs(pos_x1 - pos_x2))
+                           np.abs(pos_x1 - pos_x2))
                 return i_value*unit
             # if we are in the middle of nowhere (linear interpolation)
             else:
-##           Faster but untested !
-#                ind_x = inds_x[0]
-#                ind_y = inds_y[0]
-#                Va = self.values[ind_x, ind_y + 1]
-#                Vb = self.values[ind_x + 1, ind_y + 1]
-#                Vc = self.values[ind_x + 1, ind_y]
-#                Vd = self.values[ind_x, ind_y]
-#                dx = self.axe_x[1] - self.axe_x[0]
-#                dy = self.axe_y[1] - self.axe_y[0]
-#                a = (Vc - Vd)/dx
-#                b = (Va - Vd)/dy
-#                c = (-Va + Vb - Vc + Vd)/(dx*dy)
-#                d = Vd
-#                x0 = self.axe_x[inds_x[0]]
-#                y0 = self.axe_x[inds_y[0]]
-#                i_value = a*(x - x0) + b*(y - y0) + c*(x - x0)*(y - y0) + d
-#                res = i_value*unit
                 ind_x = inds_x[0]
                 ind_y = inds_y[0]
                 a, b = np.meshgrid(self.axe_x[ind_x:ind_x + 2],
@@ -623,7 +648,7 @@ class ScalarField(fld.Field):
             x = self.axe_x[inds[0][0]]
             y = self.axe_y[inds[1][0]]
             return pts.Points([[x, y]], unit_x=self.unit_x,
-                          unit_y=self.unit_y)
+                              unit_y=self.unit_y)
         zones = np.logical_and(np.logical_and(values >= bornes[0],
                                               values <= bornes[1]),
                                np.logical_not(mask))
@@ -789,7 +814,8 @@ class ScalarField(fld.Field):
                 if pos < axe.min():
                     pos = axe.min()
         elif isinstance(position, ARRAYTYPES) and ind:
-            if np.min(position) < -len(axe) + 1 or np.max(position) > len(axe) - 1:
+            if np.min(position) < -len(axe) + 1 or \
+               np.max(position) > len(axe) - 1:
                 raise ValueError("'position' must be included in"
                                  " the choosen axis values")
         elif isinstance(position, NUMBERTYPES) and not ind:
@@ -813,15 +839,17 @@ class ScalarField(fld.Field):
                 if ind:
                     position = self.axe_x[position]
                 vals = [self.get_value(position, axe_i) for axe_i in axe]
-                tmp_prof = prof.Profile(x=axe, y=vals, mask=False, unit_x=self.unit_y,
+                tmp_prof = prof.Profile(x=axe, y=vals, mask=False,
+                                        unit_x=self.unit_y,
                                         unit_y=self.unit_values)
             if direction == 2:
                 axe = self.axe_x
                 if ind:
                     position = self.axe_y[position]
                 vals = [self.get_value(axe_i, position) for axe_i in axe]
-                tmp_prof = prof.Profile(x=axe, y=vals, mask=False, unit_x=self.unit_x,
-                               unit_y=self.unit_values)
+                tmp_prof = prof.Profile(x=axe, y=vals, mask=False,
+                                        unit_x=self.unit_x,
+                                        unit_y=self.unit_values)
             return tmp_prof
         # if not
         if isinstance(position, NUMBERTYPES) and not ind:
@@ -870,7 +898,7 @@ class ScalarField(fld.Field):
                 prof_mask = self.mask[:, position[0]:position[1]].mean(1)
                 profile = self.values[:, position[0]:position[1]].mean(1)
                 axe = self.axe_x
-        return prof.Profile(axe, profile, prof_mask, unit_x, unit_y, "prof.Profile")
+        return prof.Profile(axe, profile, prof_mask, unit_x, unit_y)
 
     def get_spatial_autocorrelation(self, direction, window_len=None):
         """
@@ -905,7 +933,7 @@ class ScalarField(fld.Field):
             dx = self.axe_x[1] - self.axe_x[0]
             x = np.arange(0, len(cor)*dx, dx)
             return prof.Profile(x=x, y=cor, unit_x=self.unit_x,
-                           unit_y=make_unit(''))
+                                unit_y=make_unit(''))
         elif direction == 'y':
             # loop on profiles
             cor = np.zeros(np.floor(window_len/2.)*2 + 1)
@@ -919,7 +947,7 @@ class ScalarField(fld.Field):
             dy = self.axe_y[1] - self.axe_y[0]
             y = np.arange(0, len(cor)*dy, dy)
             return prof.Profile(x=y, y=cor, unit_x=self.unit_y,
-                           unit_y=make_unit(''))
+                                unit_y=make_unit(''))
         else:
             raise ValueError()
 
@@ -1038,7 +1066,8 @@ class ScalarField(fld.Field):
         kind : {‘linear’, ‘cubic’, ‘quintic’}, optional
             The kind of spline interpolation to use. Default is ‘linear’.
         """
-        return spinterp.interp2d(self.axe_x, self.axe_y, self.values.transpose(),
+        return spinterp.interp2d(self.axe_x, self.axe_y,
+                                 self.values.transpose(),
                                  kind=interp)
 
     def integrate_over_line(self, direction, interval):
@@ -1108,11 +1137,11 @@ class ScalarField(fld.Field):
         cropfield = self.crop(intervx=intervx, intervy=intervy, inplace=False)
         axe2_x, axe2_y = cropfield.axe_x, cropfield.axe_y
         unit_x, unit_y = cropfield.unit_x, cropfield.unit_y
-        integral = (cropfield.values.sum()
-                    * np.abs(axe2_x[-1] - axe2_x[0])
-                    * np.abs(axe2_y[-1] - axe2_y[0])
-                    / len(axe2_x)
-                    / len(axe2_y))
+        integral = (cropfield.values.sum() *
+                    np.abs(axe2_x[-1] - axe2_x[0]) *
+                    np.abs(axe2_y[-1] - axe2_y[0]) /
+                    len(axe2_x) /
+                    len(axe2_y))
         unit = cropfield.unit_values*unit_x*unit_y
         return integral*unit
 
@@ -1160,7 +1189,6 @@ class ScalarField(fld.Field):
             v = np.append(v, value)
         return pts.Points(pts, v, self.unit_x, self.unit_y, self.unit_values)
 
-    ### Modifiers ###
     def scale(self, scalex=None, scaley=None, scalev=None, inplace=False):
         """
         Scale the ScalarField.
@@ -1177,8 +1205,9 @@ class ScalarField(fld.Field):
         else:
             tmp_f = self.copy()
         # xy
-        revx, revy = fld.Field.scale(tmp_f, scalex=scalex, scaley=scaley, inplace=True,
-                                 output_reverse=True)
+        revx, revy = fld.Field.scale(tmp_f, scalex=scalex, scaley=scaley,
+                                     inplace=True,
+                                     output_reverse=True)
         # v
         if scalev is None:
             pass
@@ -1224,7 +1253,7 @@ class ScalarField(fld.Field):
         # check params
         if not isinstance(angle, NUMBERTYPES):
             raise TypeError()
-        if angle%90 != 0:
+        if angle % 90 != 0:
             raise ValueError()
         if not isinstance(inplace, bool):
             raise TypeError()
@@ -1234,7 +1263,7 @@ class ScalarField(fld.Field):
         else:
             tmp_field = self.copy()
         # normalize angle
-        angle = angle%360
+        angle = angle % 360
         # rotate the parent
         fld.Field.rotate(tmp_field, angle, inplace=True)
         # rotate
@@ -1268,7 +1297,7 @@ class ScalarField(fld.Field):
             fld.Field.change_unit(self, axe, new_unit)
         elif axe == 'y':
             fld.Field.change_unit(self, axe, new_unit)
-        elif axe =='values':
+        elif axe == 'values':
             old_unit = self.unit_values
             new_unit = old_unit.asUnit(new_unit)
             fact = new_unit.asNumber()
@@ -1299,7 +1328,7 @@ class ScalarField(fld.Field):
             mask = self.mask
             indmin_x, indmax_x, indmin_y, indmax_y = \
                 fld.Field.crop(self, intervx, intervy, full_output=True,
-                           ind=ind, inplace=True)
+                               ind=ind, inplace=True)
             self.__values = values[indmin_x:indmax_x + 1,
                                    indmin_y:indmax_y + 1]
             self.__mask = mask[indmin_x:indmax_x + 1,
@@ -1307,7 +1336,7 @@ class ScalarField(fld.Field):
         else:
             indmin_x, indmax_x, indmin_y, indmax_y, cropfield = \
                 fld.Field.crop(self, intervx=intervx, intervy=intervy,
-                           full_output=True, ind=ind, inplace=False)
+                               full_output=True, ind=ind, inplace=False)
             cropfield.__values = self.values[indmin_x:indmax_x + 1,
                                              indmin_y:indmax_y + 1]
             cropfield.__mask = self.mask[indmin_x:indmax_x + 1,
@@ -1343,13 +1372,13 @@ class ScalarField(fld.Field):
             nmb_down = np.ceil(nmb_down/dy)
             ind = True
         # check params
-        if not (isinstance(nmb_left, int) or nmb_left%1 == 0):
+        if not (isinstance(nmb_left, int) or nmb_left % 1 == 0):
             raise TypeError()
-        if not (isinstance(nmb_right, int) or nmb_right%1 == 0):
+        if not (isinstance(nmb_right, int) or nmb_right % 1 == 0):
             raise TypeError()
-        if not (isinstance(nmb_up, int) or nmb_up%1 == 0):
+        if not (isinstance(nmb_up, int) or nmb_up % 1 == 0):
             raise TypeError()
-        if not (isinstance(nmb_down, int) or nmb_down%1 == 0):
+        if not (isinstance(nmb_down, int) or nmb_down % 1 == 0):
             raise TypeError()
         nmb_left = int(nmb_left)
         nmb_right = int(nmb_right)
@@ -1360,12 +1389,12 @@ class ScalarField(fld.Field):
         # used herited method to extend the field
         if inplace:
             fld.Field.extend(self, nmb_left=nmb_left, nmb_right=nmb_right,
-                         nmb_up=nmb_up, nmb_down=nmb_down, inplace=True)
+                             nmb_up=nmb_up, nmb_down=nmb_down, inplace=True)
             new_shape = self.shape
         else:
             new_field = fld.Field.extend(self, nmb_left=nmb_left,
-                                     nmb_right=nmb_right, nmb_up=nmb_up,
-                                     nmb_down=nmb_down, inplace=False)
+                                         nmb_right=nmb_right, nmb_up=nmb_up,
+                                         nmb_down=nmb_down, inplace=False)
             new_shape = new_field.shape
         # extend the value ans mask
         if value is None:
@@ -1582,10 +1611,12 @@ class ScalarField(fld.Field):
                 raise ValueError()
             # adding the value at the symetry plane
             if direction == 1:
-                addit_xy = list(zip([position]*len(tmp_vf.axe_y), tmp_vf.axe_y))
+                addit_xy = list(zip([position]*len(tmp_vf.axe_y),
+                                    tmp_vf.axe_y))
                 addit_values = [value]*len(tmp_vf.axe_y)
             else:
-                addit_xy = list(zip(tmp_vf.axe_x, [position]*len(tmp_vf.axe_x)))
+                addit_xy = list(zip(tmp_vf.axe_x,
+                                    [position]*len(tmp_vf.axe_x)))
                 addit_values = [value]*len(tmp_vf.axe_x)
             xy_good = np.concatenate((xy_good, addit_xy))
             values_good = np.concatenate((values_good, addit_values))
@@ -1600,14 +1631,17 @@ class ScalarField(fld.Field):
                 values[mask] = linear(xy_masked)
                 new_mask = np.isnan(values)
                 if np.any(new_mask):
-                    nearest = spinterp.NearestNDInterpolator(xy_good, values_good)
+                    nearest = spinterp.NearestNDInterpolator(xy_good,
+                                                             values_good)
                     values[new_mask] = nearest(xy[new_mask.flatten()])
             elif interp == 'cubic':
-                cubic = spinterp.CloughTocher2DInterpolator(xy_good, values_good)
+                cubic = spinterp.CloughTocher2DInterpolator(xy_good,
+                                                            values_good)
                 values[mask] = cubic(xy_masked)
                 new_mask = np.isnan(values)
                 if np.any(new_mask):
-                    nearest = spinterp.NearestNDInterpolator(xy_good, values_good)
+                    nearest = spinterp.NearestNDInterpolator(xy_good,
+                                                             values_good)
                     values[new_mask] = nearest(xy[new_mask.flatten()])
             else:
                 raise ValueError("unknown 'tof' value")
@@ -1674,7 +1708,7 @@ class ScalarField(fld.Field):
             axe_y_max = np.where(axe_y_m)[0][-1]
             tmp_vf.crop([axe_x_min, axe_x_max],
                         [axe_y_min, axe_y_max],
-                         ind=True, inplace=True)
+                        ind=True, inplace=True)
         # returning
         if not inplace:
             return tmp_vf
@@ -1795,7 +1829,8 @@ class ScalarField(fld.Field):
             # get local zone
             zone = zones == ind_zone
             # get surrounding zone (known values)
-            surr_zone = ndimage.binary_dilation(zone, structure=zone_connection)
+            surr_zone = ndimage.binary_dilation(zone,
+                                                structure=zone_connection)
             surr_zone = np.logical_xor(surr_zone, zone)
             #
         plt.figure()
@@ -1916,13 +1951,13 @@ class ScalarField(fld.Field):
         axe_y = self.axe_y
         if pair:
             new_axe_x = (axe_x[np.arange(fact/2 - 1, len(axe_x) - fact/2,
-                                         fact, dtype=int)]
-                         + axe_x[np.arange(fact/2, len(axe_x) - fact/2 + 1,
-                                           fact, dtype=int)])/2.
+                                         fact, dtype=int)] +
+                         axe_x[np.arange(fact/2, len(axe_x) - fact/2 + 1,
+                                         fact, dtype=int)])/2.
             new_axe_y = (axe_y[np.arange(fact/2 - 1, len(axe_y) - fact/2,
-                                         fact, dtype=int)]
-                         + axe_y[np.arange(fact/2, len(axe_y) - fact/2 + 1,
-                                           fact, dtype=int)])/2.
+                                         fact, dtype=int)] +
+                         axe_y[np.arange(fact/2, len(axe_y) - fact/2 + 1,
+                                         fact, dtype=int)])/2.
         else:
             new_axe_x = axe_x[np.arange((fact - 1)/2,
                                         len(axe_x) - (fact - 1)/2,
@@ -1934,14 +1969,18 @@ class ScalarField(fld.Field):
         values = self.values
         mask = self.mask
         if pair:
-            inds_x = np.arange(fact/2, len(axe_x) - fact/2 + 1, fact, dtype=int)
-            inds_y = np.arange(fact/2, len(axe_y) - fact/2 + 1, fact, dtype=int)
+            inds_x = np.arange(fact/2, len(axe_x) - fact/2 + 1,
+                               fact, dtype=int)
+            inds_y = np.arange(fact/2, len(axe_y) - fact/2 + 1,
+                               fact, dtype=int)
             new_values = np.zeros((len(inds_x), len(inds_y)))
             new_mask = np.zeros((len(inds_x), len(inds_y)))
             for i in np.arange(len(inds_x)):
-                intervx = slice(inds_x[i] - int(fact/2), inds_x[i] + int(fact/2))
+                intervx = slice(inds_x[i] - int(fact/2),
+                                inds_x[i] + int(fact/2))
                 for j in np.arange(len(inds_y)):
-                    intervy = slice(inds_y[j] - int(fact/2), inds_y[j] + int(fact/2))
+                    intervy = slice(inds_y[j] - int(fact/2),
+                                    inds_y[j] + int(fact/2))
                     if np.all(mask[intervx, intervy]):
                         new_mask[i, j] = True
                         new_values[i, j] = 0.
@@ -1955,10 +1994,10 @@ class ScalarField(fld.Field):
             new_mask = np.zeros((len(inds_x), len(inds_y)))
             for i in np.arange(len(inds_x)):
                 intervx = slice(inds_x[i] - (fact - 1)/2,
-                                 inds_x[i] + (fact - 1)/2 + 1)
+                                inds_x[i] + (fact - 1)/2 + 1)
                 for j in np.arange(len(inds_y)):
                     intervy = slice(inds_y[j] - (fact - 1)/2,
-                                     inds_y[j] + (fact - 1)/2 + 1)
+                                    inds_y[j] + (fact - 1)/2 + 1)
                     if np.all(mask[intervx, intervy]):
                         new_mask[i, j] = True
                         new_values[i, j] = 0.
@@ -1982,7 +2021,6 @@ class ScalarField(fld.Field):
     def __clean(self):
         self.__init__()
 
-    ### Displayers ###
     def _display(self, component=None, kind=None, **plotargs):
         # getting datas
         axe_x, axe_y = self.axe_x, self.axe_y
@@ -2035,9 +2073,9 @@ class ScalarField(fld.Field):
         fig : figure reference
             Reference to the displayed figure.
         """
-        displ = self._display(component, kind,  **plotargs)
+        displ = self._display(component, kind, **plotargs)
         plt.title("")
-        cb = plt.colorbar(displ) #, shrink=1, aspect=5)
+        cb = plt.colorbar(displ)
         if self.unit_values.strUnit() == "[]":
             cb.set_label("Values")
         else:

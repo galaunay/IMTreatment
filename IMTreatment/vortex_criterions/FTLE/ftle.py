@@ -1,15 +1,30 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Apr 20 12:20:14 2015
+#!/bin/env python3
 
-@author: glaunay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from ...core import VectorField, ScalarField, NUMBERTYPES, ARRAYTYPES
-from ...field_treatment import get_gradients
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
-import matplotlib.pyplot as plt
 
 
 class FTLE(object):
@@ -118,23 +133,24 @@ class FTLE(object):
             def fun(xy):
                 return np.array([self.Vx_tor(*xy)[0][0],
                                  self.Vy_tor(*xy)[0][0]])
+
         #rk algo
         def rkf45(xy_init, t, rk_dt):
             k1 = fun(xy_init)*rk_dt
             k2 = fun(xy_init + k1/4.)*rk_dt
             k3 = fun(xy_init + 3./32.*k1 + 9./32.*k2)*rk_dt
-            k4 = fun(xy_init + 1932./2197.*k1 - 7200./2197.*k2
-                     + 7296./2197.*k3)*rk_dt
-            k5 = fun(xy_init + 439./216.*k1 - 8*k2 + 3680./513.*k3
-                     - 845./4104.*k4)*rk_dt
-            k6 = fun(xy_init - 8./27.*k1 + 2.*k2 - 3544./2565.*k3
-                     + 1859./4104.*k4 - 11./40.*k5)*rk_dt
-            new_xy = (xy_init + 25./216.*k1 + 1408./2565.*k3
-                      + 2197./4104.*k4 - 1./5.*k5)
-            best_xy = (xy_init + 16./135.*k1 + 6656./12825.*k3
-                       + 28561./56430.*k4 - 9./50.*k5 + 2./55.*k6)
-            err = (np.linalg.norm(best_xy - new_xy)
-                   / np.linalg.norm(new_xy - xy_init))
+            k4 = fun(xy_init + 1932./2197.*k1 - 7200./2197.*k2 +
+                     7296./2197.*k3)*rk_dt
+            k5 = fun(xy_init + 439./216.*k1 - 8*k2 + 3680./513.*k3 -
+                     845./4104.*k4)*rk_dt
+            k6 = fun(xy_init - 8./27.*k1 + 2.*k2 - 3544./2565.*k3 +
+                     1859./4104.*k4 - 11./40.*k5)*rk_dt
+            new_xy = (xy_init + 25./216.*k1 + 1408./2565.*k3 +
+                      2197./4104.*k4 - 1./5.*k5)
+            best_xy = (xy_init + 16./135.*k1 + 6656./12825.*k3 +
+                       28561./56430.*k4 - 9./50.*k5 + 2./55.*k6)
+            err = (np.linalg.norm(best_xy - new_xy) /
+                   np.linalg.norm(new_xy - xy_init))
             # compute new adaptative rk_dt and return
             new_rk_dt = ((rel_err*rk_dt)/(2.*err))**.25
             new_rk_dt = (dampl*rk_dt + (1 - dampl)*new_rk_dt)
@@ -257,4 +273,3 @@ class FTLE(object):
                               mask=mask,
                               unit_x=self.vf.unit_x, unit_y=self.vf.unit_y)
         return SF
-

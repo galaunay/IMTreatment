@@ -1,10 +1,26 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
 import scipy.interpolate as spinterp
@@ -14,7 +30,6 @@ from . import scalarfield as sf
 from . import profile as prof
 from . import temporalscalarfields as tsf
 from . import temporalfields as tf
-
 
 
 class TemporalVectorFields(tf.TemporalFields):
@@ -35,7 +50,6 @@ class TemporalVectorFields(tf.TemporalFields):
     "calc_*" : give access to a bunch of derived statistical fields.
     """
 
-    ### Attributes ###
     @property
     def Vx_as_sf(self):
         values = tsf.TemporalScalarFields()
@@ -100,7 +114,6 @@ class TemporalVectorFields(tf.TemporalFields):
             values[i, :, :] = field.theta[:, :]
         return values
 
-    ### Watchers ###
     def get_time_auto_correlation(self):
         """
         Return auto correlation based on Vx and Vy.
@@ -113,8 +126,9 @@ class TemporalVectorFields(tf.TemporalFields):
             Vxi = self.fields[i].comp_x
             Vyi = self.fields[i].comp_y
             corr[i] = np.mean(Vx0*Vxi + Vy0*Vyi)/norm
-        return prof.Profile(self.times, corr, mask=False, unit_x=self.unit_times,
-                       unit_y=make_unit(''))
+        return prof.Profile(self.times, corr, mask=False,
+                            unit_x=self.unit_times,
+                            unit_y=make_unit(''))
 
     def get_mean_kinetic_energy(self):
         """
@@ -236,9 +250,9 @@ class TemporalVectorFields(tf.TemporalFields):
             tvf = self.copy()
         # make spectral filtering on Vx and Vy
         ftsfx = self._get_comp_spectral_filtering('Vx', fmin=fmin,
-                                                 fmax=fmax, order=order)
+                                                  fmax=fmax, order=order)
         ftsfy = self._get_comp_spectral_filtering('Vy', fmin=fmin,
-                                                 fmax=fmax, order=order)
+                                                  fmax=fmax, order=order)
         for i in range(len(self)):
             tvf.fields[i].comp_x = ftsfx.fields[i].values
             tvf.fields[i].comp_y = ftsfy.fields[i].values
@@ -246,7 +260,6 @@ class TemporalVectorFields(tf.TemporalFields):
         if not inplace:
             return tvf
 
-    ### Modifiers ###
     def fill(self, tof='spatial', kind='linear', value=[0., 0.],
              inplace=False, crop=False):
         """
@@ -270,7 +283,8 @@ class TemporalVectorFields(tf.TemporalFields):
         crop : boolean, optional
             If 'True', TVF borders are croped before filling.
         """
-        # TODO : utiliser prof.Profile.fill au lieu d'une nouvelle méthode de filling
+        # TODO : utiliser prof.Profile.fill au lieu d'une nouvelle méthode de
+        #        filling
         # checking parameters coherence
         if len(self.fields) < 3 and tof == 'temporal':
             raise ValueError("Not enough fields to fill with temporal"

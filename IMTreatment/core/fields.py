@@ -1,14 +1,28 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
 
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
-import pdb
 import copy
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from . import field as field
@@ -24,7 +38,6 @@ class Fields(object):
     instead of this one.
     """
 
-    ### Operators ###
     def __init__(self):
         self.fields = np.array([], dtype=object)
 
@@ -37,14 +50,12 @@ class Fields(object):
     def __getitem__(self, fieldnumber):
         return self.fields[fieldnumber]
 
-    ### Watchers ###
     def copy(self):
         """
         Return a copy of the velocityfields
         """
         return copy.deepcopy(self)
 
-    ### Modifiers ###
     def scale(self, scalex=None, scaley=None, scalev=None, inplace=False):
         """
         Scale the Fields.
@@ -90,7 +101,7 @@ class Fields(object):
         # check params
         if not isinstance(angle, NUMBERTYPES):
             raise TypeError()
-        if angle%90 != 0:
+        if angle % 90 != 0:
             raise ValueError()
         if not isinstance(inplace, bool):
             raise TypeError()
@@ -100,7 +111,7 @@ class Fields(object):
         else:
             tmp_field = self.copy()
         # normalize angle
-        angle = angle%360
+        angle = angle % 360
         # rotate the parent
         field.Field.rotate(tmp_field, angle, inplace=True)
         # rotate fields
@@ -149,13 +160,13 @@ class Fields(object):
         if x is not None:
             if not isinstance(x, NUMBERTYPES):
                 raise TypeError("'x' must be a number")
-            for field in self.fields:
-                field.set_origin(x, None)
+            for tmp_field in self.fields:
+                tmp_field.set_origin(x, None)
         if y is not None:
             if not isinstance(y, NUMBERTYPES):
                 raise TypeError("'y' must be a number")
-            for field in self.fields:
-                field.set_origin(None, y)
+            for tmp_field in self.fields:
+                tmp_field.set_origin(None, y)
 
     def smooth(self, tos='uniform', size=None, inplace=False, **kw):
         """

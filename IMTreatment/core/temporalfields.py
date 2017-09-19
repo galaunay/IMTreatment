@@ -1,16 +1,30 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
 
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import matplotlib.pyplot as plt
 import Plotlib as pplt
 import numpy as np
-import pdb
 import unum
 import copy
 from ..utils import make_unit, ProgressCounter
@@ -23,14 +37,12 @@ from . import profile as prof
 from . import vectorfield as vf
 
 
-
 class TemporalFields(flds.Fields, fld.Field):
     """
     Class representing a set of time evolving fields.
     All fields added to this object has to have the same axis system.
     """
 
-    ### Operators ###
     def __init__(self):
         fld.Field.__init__(self)
         flds.Fields.__init__(self)
@@ -116,7 +128,7 @@ class TemporalFields(flds.Fields, fld.Field):
             final_vfs = self.__class__()
             for i, field in enumerate(self.fields):
                 final_vfs.add_field(other, time=self.times[i],
-                unit_times=self.unit_times)
+                                    unit_times=self.unit_times)
             return final_vfs
         else:
             raise TypeError("")
@@ -136,7 +148,6 @@ class TemporalFields(flds.Fields, fld.Field):
         for i in np.arange(len(self.fields)):
             yield self.times[i], self.fields[i]
 
-    ### Attributes ###
     @fld.Field.axe_x.setter
     def axe_x(self, value):
         fld.Field.axe_x.fset(self, value)
@@ -215,6 +226,7 @@ class TemporalFields(flds.Fields, fld.Field):
     @property
     def dt(self):
         return self.times[1] - self.times[0]
+
     @property
     def unit_times(self):
         return self.__unit_times
@@ -240,7 +252,6 @@ class TemporalFields(flds.Fields, fld.Field):
         if len(self.fields) != 0:
             return self[0].unit_values
 
-    ### Watchers ###
     def get_mean_field(self, nmb_min=1):
         """
         Calculate the mean velocity field, from all the fields.
@@ -274,11 +285,7 @@ class TemporalFields(flds.Fields, fld.Field):
         fact = mask_cum
         fact[mask] = 1
         result_f /= fact
-        # TODO : for compatibility purpose
-        if not hasattr(self.fields[0], 'xy_scale'):
-            result_f.xy_scale = make_unit("")
-        else:
-            result_f.xy_scale = self.fields[0].xy_scale
+        result_f.xy_scale = self.fields[0].xy_scale
         return result_f
 
     def get_interpolated_field(self, time):
@@ -297,7 +304,8 @@ class TemporalFields(flds.Fields, fld.Field):
         denom = self.times[ind_time] - self.times[ind_time - 1]
         coef1 = (self.times[ind_time] - time)/denom
         coef2 = (time - self.times[ind_time - 1])/denom
-        new_field = self.fields[ind_time]*coef2 + self.fields[ind_time - 1]*coef1
+        new_field = self.fields[ind_time]*coef2 + \
+                    self.fields[ind_time - 1]*coef1
         new_field.time = time
         # returning
         assert isinstance(new_field, self.fields[0].__class__)
@@ -314,7 +322,7 @@ class TemporalFields(flds.Fields, fld.Field):
 
         Returns
         -------
-        fluct_fields : Temporalsf.ScalarFields or Temporalvf.VectorFields object
+        fluct_fields : TemporalScalarFields or TemporalVectorFields object
             Contening fluctuant fields.
         """
         fluct_fields = self.__class__()
@@ -368,7 +376,7 @@ class TemporalFields(flds.Fields, fld.Field):
             raise ValueError()
         if not isinstance(direction, STRINGTYPES):
             raise TypeError()
-        if not direction in ['x', 'y']:
+        if direction not in ['x', 'y']:
             raise ValueError()
         if intervtime is None:
             intervtime = [self.times[0], self.times[-1]]
@@ -430,7 +438,7 @@ class TemporalFields(flds.Fields, fld.Field):
             raise TypeError("'component' must be a string")
         if isinstance(pt, ARRAYTYPES):
             if ind:
-                if pt[0] % 1 != 0 or pt[1] % 1 !=0:
+                if pt[0] % 1 != 0 or pt[1] % 1 != 0:
                     raise ValueError()
                 ind_x = int(pt[0])
                 ind_y = int(pt[1])
@@ -452,8 +460,10 @@ class TemporalFields(flds.Fields, fld.Field):
         if wanted_times is not None:
             if wanted_times[-1] <= wanted_times[0]:
                 raise ValueError()
-            mask_times = np.logical_or(self.times < wanted_times[0], mask_times)
-            mask_times = np.logical_or(self.times > wanted_times[1], mask_times)
+            mask_times = np.logical_or(self.times < wanted_times[0],
+                                       mask_times)
+            mask_times = np.logical_or(self.times > wanted_times[1],
+                                       mask_times)
         # getting wanted time if necessary
         w_times_ind = np.arange(len(self.times))[~mask_times]
         # getting component values
@@ -471,11 +481,12 @@ class TemporalFields(flds.Fields, fld.Field):
         unit_values = self.unit_values
         # getting position indices
         return prof.Profile(time, compo, masks, unit_x=unit_time,
-                       unit_y=unit_values)
+                            unit_y=unit_values)
 
     def inject_time_profile(self, comp, pt, prof, ind=False):
         """
-        Overwrite the value at the given points with data from the time profile.
+        Overwrite the value at the given points with data from the time
+        profile.
 
         Parameters
         ----------
@@ -493,7 +504,7 @@ class TemporalFields(flds.Fields, fld.Field):
             raise TypeError("'comp' must be a string")
         if isinstance(pt, ARRAYTYPES):
             if ind:
-                if pt[0] % 1 != 0 or pt[1] % 1 !=0:
+                if pt[0] % 1 != 0 or pt[1] % 1 != 0:
                     raise ValueError()
                 ind_x = int(pt[0])
                 ind_y = int(pt[1])
@@ -518,14 +529,13 @@ class TemporalFields(flds.Fields, fld.Field):
         for i in range(len(prof)):
             self.fields[i].__getattribute__(comp)[ind_x, ind_y] = prof.y[i]
 
-
     def get_temporal_spectrum(self, component, pt, ind=False,
                               wanted_times=None, welch_seglen=None,
                               scaling='base', fill='linear', mask_error=True,
                               detrend='constant'):
         """
-        Return a prof.Profile object, with the temporal spectrum of 'component',
-        on the point 'pt'.
+        Return a Profile object, with the temporal spectrum of
+        'component' on the point 'pt'.
 
         Parameters
         ----------
@@ -573,8 +583,8 @@ class TemporalFields(flds.Fields, fld.Field):
             pt = np.array(pt, dtype=float)
         if not pt.shape == (2,):
             raise ValueError("'pt' must be a 2x1 array")
-        if ind and (not isinstance(pt[0], INTEGERTYPES)
-                    or not isinstance(pt[1], INTEGERTYPES)):
+        if ind and (not isinstance(pt[0], INTEGERTYPES) or
+                    not isinstance(pt[1], INTEGERTYPES)):
             raise TypeError("If 'ind' is True, 'pt' must be an array of two"
                             " integers")
         if not isinstance(ind, bool):
@@ -694,8 +704,8 @@ class TemporalFields(flds.Fields, fld.Field):
                     magn = magn + tmp_m
         if real_nmb_fields == 0:
             raise Exception("I can't find a single non-masked time profile"
-                                ", maybe you will want to try 'zero_fill' "
-                                "option")
+                            ", maybe you will want to try 'zero_fill' "
+                            "option")
         magn = magn/real_nmb_fields
         return magn
 
@@ -739,9 +749,9 @@ class TemporalFields(flds.Fields, fld.Field):
             map_freq_quality.append(np.zeros(self.shape, dtype=float))
         if verbose:
             PG = ProgressCounter("Begin spectrum map computation on {}"
-                                        .format(comp),
-                                        "Done", self.shape[0]*self.shape[1],
-                                        "points")
+                                 .format(comp),
+                                 "Done", self.shape[0]*self.shape[1],
+                                 "points")
         # loop on field points
         for i, x in enumerate(self.axe_x):
             for j, y in enumerate(self.axe_y):
@@ -760,12 +770,13 @@ class TemporalFields(flds.Fields, fld.Field):
                 # get maximale frequences
                 for n in range(nmb_pic):
                     spec_max = spec.max
-                    max_pos_ind = spec.get_value_position(spec_max, ind=True)[0]
+                    max_pos_ind = spec.get_value_position(spec_max,
+                                                          ind=True)[0]
                     map_freq[n][i, j] = spec.x[max_pos_ind]
                     # get spectrum 'quality'
                     filt = np.logical_not(spec.mask)
-                    spec_var = np.mean((spec.y[filt]
-                                       - np.mean(spec.y[filt]))**2)**.5
+                    spec_var = np.mean((spec.y[filt] -
+                                       np.mean(spec.y[filt]))**2)**.5
                     map_freq_quality[n][i, j] = (spec_max - spec.mean)/spec_var
                     # remove this particular pic
                     spec.mask[max_pos_ind] = True
@@ -775,7 +786,8 @@ class TemporalFields(flds.Fields, fld.Field):
         for i in range(nmb_pic):
             map_freq_sf = sf.ScalarField()
             map_freq_sf.import_from_arrays(axe_x=self.axe_x, axe_y=self.axe_y,
-                                           values=map_freq[i], mask=map_freq_mask,
+                                           values=map_freq[i],
+                                           mask=map_freq_mask,
                                            unit_x=self.unit_x,
                                            unit_y=self.unit_y,
                                            unit_values=spec.unit_y)
@@ -822,7 +834,8 @@ class TemporalFields(flds.Fields, fld.Field):
                for y in tf.axe_y]
         for x, y in xys:
             tmp_prof = tf.get_time_profile('values', [x, y])
-            filt_tmp_prof = tmp_prof.spectral_filtering(fmin, fmax, order=order)
+            filt_tmp_prof = tmp_prof.spectral_filtering(fmin, fmax,
+                                                        order=order)
             tf.inject_time_profile('values', [x, y], filt_tmp_prof)
         return tf
 
@@ -840,8 +853,8 @@ class TemporalFields(flds.Fields, fld.Field):
         rec_map = np.zeros((length, length))
         if verbose:
             pc = ProgressCounter("Begin recurence map computation",
-                                        "Done", int(length**2/2. + length/2.),
-                                        name_things='norms', perc_interv=1)
+                                 "Done", int(length**2/2. + length/2.),
+                                 name_things='norms', perc_interv=1)
         if self.field_type == vf.VectorField:
             field_type = 0
             nmb_val = self.shape[0]*self.shape[1]*2
@@ -858,9 +871,11 @@ class TemporalFields(flds.Fields, fld.Field):
         # norm
         if normalized:
             if field_type == 0:
-                normalizer = np.sum(np.abs(self.get_mean_field().magnitude)**norm)**inv_norm/nmb_val
+                magnitude = self.get_mean_field().magnitude
+                normalizer = np.sum(magnitude**norm)**inv_norm/nmb_val
             else:
-                normalizer = np.sum(np.abs(self.get_mean_field().values)**norm)**inv_norm/nmb_val
+                magnitude = self.get_mean_field().values
+                normalizer = np.sum(magnitude**norm)**inv_norm/nmb_val
         # double loop
         for i in range(length):
             for j in range(length):
@@ -902,7 +917,6 @@ class TemporalFields(flds.Fields, fld.Field):
                                       unit_values=self.unit_values)
         return rec_map_sf
 
-    ### Modifiers ###
     def extend(self, nmb_left=0, nmb_right=0, nmb_up=0, nmb_down=0,
                inplace=False):
         """
@@ -926,7 +940,7 @@ class TemporalFields(flds.Fields, fld.Field):
             tmp_tf = self.copy()
         # scale axis
         fld.Field.extend(tmp_tf, nmb_left=nmb_left, nmb_right=nmb_right,
-                     nmb_up=nmb_up, nmb_down=nmb_down, inplace=True)
+                         nmb_up=nmb_up, nmb_down=nmb_down, inplace=True)
         # scale fields
         for i, _ in enumerate(tmp_tf.fields):
             tmp_tf.fields[i].extend(nmb_left=nmb_left, nmb_right=nmb_right,
@@ -960,7 +974,7 @@ class TemporalFields(flds.Fields, fld.Field):
             if not hasattr(field, "xy_scale"):
                 field.xy_scale = self.xy_scale
         fld.Field.scale(tmp_f, scalex=scalex, scaley=scaley,
-                    inplace=True)
+                        inplace=True)
         # scale the values
         flds.Fields.scale(tmp_f, scalev=scalev, inplace=True)
         # scale the time
@@ -1379,13 +1393,13 @@ class TemporalFields(flds.Fields, fld.Field):
             for weird_ind in weird_inds:
                 eps = 1
                 while True:
-                    if (weird_ind + eps in weird_inds
-                        or weird_ind - eps in weird_inds):
+                    if (weird_ind + eps in weird_inds or
+                            weird_ind - eps in weird_inds):
                         eps += 1
                     else:
                         break
-                tmp_tf.fields[weird_ind] = (tmp_tf.fields[weird_ind + eps]
-                                            + tmp_tf.fields[weird_ind - eps])/2.
+                tmp_tf.fields[weird_ind] = (tmp_tf.fields[weird_ind + eps] +
+                                            tmp_tf.fields[weird_ind - eps])/2
         elif treatment == 'remove':
             tmp_tf.remove_fields(weird_inds)
         else:
@@ -1435,7 +1449,7 @@ class TemporalFields(flds.Fields, fld.Field):
                 else:
                     ind2 = np.where(intervt[1] >= self.times)[0][-1]
                 intervt = [ind1, ind2]
-        ### crop
+        # crop
         if inplace:
             cropfield = self
         else:
@@ -1446,14 +1460,13 @@ class TemporalFields(flds.Fields, fld.Field):
             cropfield.times = cropfield.times[intervt[0]:intervt[1] + 1]
         # spatial
         fld.Field.crop(cropfield, intervx=intervx, intervy=intervy, ind=ind,
-                   inplace=True)
+                       inplace=True)
         for field in cropfield.fields:
             field.crop(intervx=intervx, intervy=intervy, ind=ind,
-                            inplace=True)
+                       inplace=True)
         # returning
         if not inplace:
             return cropfield
-
 
     def set_origin(self, x=None, y=None):
         """
@@ -1479,7 +1492,6 @@ class TemporalFields(flds.Fields, fld.Field):
         self.times = self.times[ind_sort]
         self.fields = self.fields[ind_sort]
 
-    ### Displayers ###
     def display_multiple(self, component=None, kind=None, inds=None,
                          sharecb=False, sharex=False, sharey=False,
                          ncol=None, nrow=None, **plotargs):
@@ -1520,7 +1532,8 @@ class TemporalFields(flds.Fields, fld.Field):
         db = pplt.Displayer(x=[self.axe_x]*nmb_fields,
                             y=[self.axe_y]*nmb_fields,
                             values=values, kind=kind, **plotargs)
-        plot = db.draw_multiple(inds=list(range(len(inds))), sharecb=sharecb, sharex=sharex,
+        plot = db.draw_multiple(inds=list(range(len(inds))), sharecb=sharecb,
+                                sharex=sharex,
                                 sharey=sharey, ncol=ncol, nrow=nrow)
         return plot
 
@@ -1534,7 +1547,7 @@ class TemporalFields(flds.Fields, fld.Field):
         if compo is None or compo == 'V':
             try:
                 values = np.asarray([[field.comp_x, field.comp_y]
-                                      for field in self.fields])
+                                     for field in self.fields])
             except AttributeError:
                 values = np.asarray([field.values for field in self.fields])
         else:

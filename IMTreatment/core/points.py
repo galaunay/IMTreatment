@@ -1,15 +1,30 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import matplotlib.pyplot as plt
 import Plotlib as pplt
 import numpy as np
-import pdb
 import unum
 import copy
 from scipy import stats
@@ -17,12 +32,10 @@ from scipy import ndimage
 import sklearn.cluster as clst
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from ..utils import make_unit
-from .profile import Profile
 
 
 class Points(object):
 
-    ### Operators ###
     def __init__(self, xy=np.empty((0, 2), dtype=float), v=[],
                  unit_x='', unit_y='', unit_v='', name=''):
         """
@@ -131,17 +144,11 @@ class Points(object):
                               unit_y=self.unit_y)
         else:
             raise Exception("You can't add {} to Points objects"
-                                .format(type(another)))
+                            .format(type(another)))
 
-    ### Attributes ###
     @property
     def xy(self):
-#        return self.__xy
-        # TODO : to remove (for compatibility)
-        try:
-            return self.__xy
-        except AttributeError:
-            return self.__dict__['xy']
+        return self.__xy
 
     @xy.setter
     def xy(self, values):
@@ -162,12 +169,8 @@ class Points(object):
 
     @property
     def v(self):
-#        return self.__v
-        # TODO : to remove (for compatibility)
-        try:
-            return self.__v
-        except AttributeError:
-            return self.__dict__['v']
+        return self.__v
+
     @v.setter
     def v(self, values):
         values = np.array(values, subok=True)
@@ -183,12 +186,8 @@ class Points(object):
 
     @property
     def unit_x(self):
-#        return self.__unit_x
-        # TODO : to remove (for compatibility)
-        try:
-            return self.__unit_x
-        except AttributeError:
-            return self.__dict__['unit_x']
+        return self.__unit_x
+
     @unit_x.setter
     def unit_x(self, unit):
         if isinstance(unit, unum.Unum):
@@ -207,12 +206,8 @@ class Points(object):
 
     @property
     def unit_y(self):
-#        return self.__unit_y
-        # TODO : to remove (for compatibility)
-        try:
-            return self.__unit_y
-        except AttributeError:
-            return self.__dict__['unit_y']
+        return self.__unit_y
+
     @unit_y.setter
     def unit_y(self, unit):
         if isinstance(unit, unum.Unum):
@@ -231,12 +226,7 @@ class Points(object):
 
     @property
     def unit_v(self):
-#        return self.__unit_v
-        # TODO : to remove (for compatibility)
-        try:
-            return self.__unit_v
-        except AttributeError:
-            return self.__dict__['unit_v']
+        return self.__unit_v
 
     @unit_v.setter
     def unit_v(self, unit):
@@ -269,9 +259,6 @@ class Points(object):
     def name(self):
         raise Exception("Nope, can't delete 'name'")
 
-    ### Properties ###
-
-    ### Watchers ###
     def copy(self):
         """
         Return a copy of the Points object.
@@ -625,7 +612,6 @@ class Points(object):
                     unit_y=self.unit_y)
         return pt
 
-
     def get_velocity(self, incr=1, smooth=0, xaxis='time'):
         """
         Assuming that associated 'v' values are times for each points,
@@ -687,6 +673,7 @@ class Points(object):
         elif xaxis == 'y':
             x_prof = y[:-1] + dy/2.
         # returning profiles
+        from .profile import Profile
         unit_Vx = self.unit_x/self.unit_v
         Vx *= unit_Vx.asNumber()
         unit_Vx /= unit_Vx.asNumber()
@@ -716,9 +703,11 @@ class Points(object):
         evol : Profile object
         """
         # check parameters
+        from .scalarfield import ScalarField
         if not isinstance(SF, ScalarField):
             raise TypeError()
         if len(self.xy) == 0:
+            from .profile import Profile
             return Profile()
         if axe_x is None:
             if len(self.v) == len(self.xy):
@@ -771,6 +760,7 @@ class Points(object):
         """
         # check parameters
         from . import temporalscalarfields as tsf
+        from .profile import Profile
         if not isinstance(TSF, tsf.TemporalScalarFields):
             raise TypeError()
         if len(self.xy) == 0:
@@ -852,7 +842,6 @@ class Points(object):
             radii, center, alpha = fte.get_parameters(res)
             return radii, center, alpha
 
-    ### Modifiers ###
     def add(self, pt, v=None):
         """
         Add a new point.
@@ -1123,11 +1112,14 @@ class Points(object):
         tmp_vs = np.round(vs, decimals=nmb_dec)
         new_vs = np.sort(list(set(tmp_vs)))
         if method == 'average':
-            new_xy = [np.mean(tmp_pt.xy[tmp_vs == vi], axis=0) for vi in new_vs]
+            new_xy = [np.mean(tmp_pt.xy[tmp_vs == vi], axis=0)
+                      for vi in new_vs]
         elif method == 'min':
-            new_xy = [np.min(tmp_pt.xy[tmp_vs == vi], axis=0) for vi in new_vs]
+            new_xy = [np.min(tmp_pt.xy[tmp_vs == vi], axis=0)
+                      for vi in new_vs]
         elif method == 'max':
-            new_xy = [np.max(tmp_pt.xy[tmp_vs == vi], axis=0) for vi in new_vs]
+            new_xy = [np.max(tmp_pt.xy[tmp_vs == vi], axis=0)
+                      for vi in new_vs]
         else:
             raise ValueError()
         tmp_pt.xy = new_xy
@@ -1255,6 +1247,7 @@ class Points(object):
             tmp_pts = self.copy()
         is_v = len(self.v) == len(self.xy)
         # get and interpolate
+        from .profile import Profile
         tmp_x = Profile(list(range(len(self.xy))), self.xy[:, 0])
         tmp_x.augment_resolution(fact=fact, interp=interp, inplace=True)
         tmp_y = Profile(list(range(len(self.xy))), self.xy[:, 1])
@@ -1268,7 +1261,6 @@ class Points(object):
             tmp_pts.v = tmp_v.y
         if not inplace:
             return tmp_pts
-
 
     def smooth(self, tos='uniform', size=None, inplace=False, **kw):
         """
@@ -1349,8 +1341,6 @@ class Points(object):
                 tmp_pts.v = v
             return tmp_pts
 
-
-    ### Displayers ###
     def _display(self, kind=None, axe_x=None, axe_y=None, axe_color=None,
                  **plotargs):
         if len(self.xy) == 0:
@@ -1425,7 +1415,8 @@ class Points(object):
             axe_color = axes[0]
 
         # display the values
-        plot = self._display(kind, axe_x=axe_x, axe_y=axe_y, axe_color=axe_color, **plotargs)
+        plot = self._display(kind, axe_x=axe_x, axe_y=axe_y,
+                             axe_color=axe_color, **plotargs)
         if len(self.v) != 0 and kind is not 'plot':
             cb = plt.colorbar(plot)
             cb.set_label(self.unit_v.strUnit())
@@ -1491,7 +1482,6 @@ class Points(object):
         plt.tight_layout()
         return ax
 
-    ### Exporters ###
     def export_to_profile(self, axe_x='x', axe_y='y'):
         """
         Export the unsorted point object to a sorted Profile object.
@@ -1526,5 +1516,6 @@ class Points(object):
             y = self.v
             unit_y = self.unit_v
         # construct profile
+        from .profile import Profile
         prof = Profile(x=x, y=y, mask=False, unit_x=unit_x, unit_y=unit_y)
         return prof

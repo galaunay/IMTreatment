@@ -1,9 +1,26 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Fri May 29 19:20:00 2015
+#!/bin/env python3
 
-@author: glaunay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
 import sympy
@@ -11,11 +28,61 @@ import sympy
 
 def get_sol():
     # Computed with 'compute_coefs()'
-    sol00 = '-dx*(-Vx_1*Vy_2*dy - Vx_1*Vy_3*dy + Vx_1*Vy_4*dy + Vx_2*Vy_1*dy + Vx_3*Vy_1*dy - Vx_4*Vy_1*dy + (dy*(2*Vx_1*Vy_2 - Vx_1*Vy_4 - 2*Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_4*Vy_1)/(2*(Vx_1*Vy_2 - Vx_1*Vy_4 - Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_3*Vy_4 + Vx_4*Vy_1 - Vx_4*Vy_3)) - sqrt(dy**2*(Vx_1**2*Vy_4**2 - 2*Vx_1*Vx_2*Vy_3*Vy_4 - 2*Vx_1*Vx_3*Vy_2*Vy_4 - 2*Vx_1*Vx_4*Vy_1*Vy_4 + 4*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 + 4*Vx_2*Vx_3*Vy_1*Vy_4 - 2*Vx_2*Vx_3*Vy_2*Vy_3 - 2*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 - 2*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))/(2*Vx_1*Vy_2 - 2*Vx_1*Vy_4 - 2*Vx_2*Vy_1 + 2*Vx_2*Vy_3 - 2*Vx_3*Vy_2 + 2*Vx_3*Vy_4 + 2*Vx_4*Vy_1 - 2*Vx_4*Vy_3))*(Vx_1*Vy_2 - Vx_1*Vy_4 - Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_3*Vy_4 + Vx_4*Vy_1 - Vx_4*Vy_3))/(dy*(Vx_1*Vy_3 - Vx_1*Vy_4 - Vx_2*Vy_3 + Vx_2*Vy_4 - Vx_3*Vy_1 + Vx_3*Vy_2 + Vx_4*Vy_1 - Vx_4*Vy_2))'
-    sol01 = 'dy*(2*Vx_1*Vy_2 - Vx_1*Vy_4 - 2*Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_4*Vy_1)/(2*(Vx_1*Vy_2 - Vx_1*Vy_4 - Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_3*Vy_4 + Vx_4*Vy_1 - Vx_4*Vy_3)) - sqrt(dy**2*(Vx_1**2*Vy_4**2 - 2*Vx_1*Vx_2*Vy_3*Vy_4 - 2*Vx_1*Vx_3*Vy_2*Vy_4 - 2*Vx_1*Vx_4*Vy_1*Vy_4 + 4*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 + 4*Vx_2*Vx_3*Vy_1*Vy_4 - 2*Vx_2*Vx_3*Vy_2*Vy_3 - 2*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 - 2*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))/(2*Vx_1*Vy_2 - 2*Vx_1*Vy_4 - 2*Vx_2*Vy_1 + 2*Vx_2*Vy_3 - 2*Vx_3*Vy_2 + 2*Vx_3*Vy_4 + 2*Vx_4*Vy_1 - 2*Vx_4*Vy_3)'
-    sol10 = '-dx*(-Vx_1*Vy_2*dy - Vx_1*Vy_3*dy + Vx_1*Vy_4*dy + Vx_2*Vy_1*dy + Vx_3*Vy_1*dy - Vx_4*Vy_1*dy + (dy*(2*Vx_1*Vy_2 - Vx_1*Vy_4 - 2*Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_4*Vy_1)/(2*(Vx_1*Vy_2 - Vx_1*Vy_4 - Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_3*Vy_4 + Vx_4*Vy_1 - Vx_4*Vy_3)) + sqrt(dy**2*(Vx_1**2*Vy_4**2 - 2*Vx_1*Vx_2*Vy_3*Vy_4 - 2*Vx_1*Vx_3*Vy_2*Vy_4 - 2*Vx_1*Vx_4*Vy_1*Vy_4 + 4*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 + 4*Vx_2*Vx_3*Vy_1*Vy_4 - 2*Vx_2*Vx_3*Vy_2*Vy_3 - 2*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 - 2*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))/(2*Vx_1*Vy_2 - 2*Vx_1*Vy_4 - 2*Vx_2*Vy_1 + 2*Vx_2*Vy_3 - 2*Vx_3*Vy_2 + 2*Vx_3*Vy_4 + 2*Vx_4*Vy_1 - 2*Vx_4*Vy_3))*(Vx_1*Vy_2 - Vx_1*Vy_4 - Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_3*Vy_4 + Vx_4*Vy_1 - Vx_4*Vy_3))/(dy*(Vx_1*Vy_3 - Vx_1*Vy_4 - Vx_2*Vy_3 + Vx_2*Vy_4 - Vx_3*Vy_1 + Vx_3*Vy_2 + Vx_4*Vy_1 - Vx_4*Vy_2))'
-    sol11 = 'dy*(2*Vx_1*Vy_2 - Vx_1*Vy_4 - 2*Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_4*Vy_1)/(2*(Vx_1*Vy_2 - Vx_1*Vy_4 - Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_3*Vy_4 + Vx_4*Vy_1 - Vx_4*Vy_3)) + sqrt(dy**2*(Vx_1**2*Vy_4**2 - 2*Vx_1*Vx_2*Vy_3*Vy_4 - 2*Vx_1*Vx_3*Vy_2*Vy_4 - 2*Vx_1*Vx_4*Vy_1*Vy_4 + 4*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 + 4*Vx_2*Vx_3*Vy_1*Vy_4 - 2*Vx_2*Vx_3*Vy_2*Vy_3 - 2*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 - 2*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))/(2*Vx_1*Vy_2 - 2*Vx_1*Vy_4 - 2*Vx_2*Vy_1 + 2*Vx_2*Vy_3 - 2*Vx_3*Vy_2 + 2*Vx_3*Vy_4 + 2*Vx_4*Vy_1 - 2*Vx_4*Vy_3)'
-    sol = np.array([[sol00, sol01], [sol10, sol11]])
+    s00 = ('-dx*(-Vx_1*Vy_2*dy - Vx_1*Vy_3*dy + Vx_1*Vy_4*dy + Vx_2*Vy_1*dy +'
+           ' Vx_3*Vy_1*dy - Vx_4*Vy_1*dy + (dy*(2*Vx_1*Vy_2 - Vx_1*Vy_4 -'
+           ' 2*Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_4*Vy_1)/(2*(Vx_1*Vy_2 -'
+           ' Vx_1*Vy_4 - Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_3*Vy_4 '
+           '+ Vx_4*Vy_1 -'
+           ' Vx_4*Vy_3)) - sqrt(dy**2*(Vx_1**2*Vy_4**2 - 2*Vx_1*Vx_2*Vy_3*Vy_4 -'
+           ' - 2*Vx_1*Vx_3*Vy_2*Vy_4 - 2*Vx_1*Vx_4*Vy_1*Vy_4 + '
+           '4*Vx_1*Vx_4*Vy_2*Vy_3 +'
+           ' Vx_2**2*Vy_3**2 + 4*Vx_2*Vx_3*Vy_1*Vy_4 - 2*Vx_2*Vx_3*Vy_2*Vy_3 -'
+           ' 2*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 - 2*Vx_3*Vx_4*Vy_1*Vy_2 +'
+           ' Vx_4**2*Vy_1**2))/(2*Vx_1*Vy_2 - 2*Vx_1*Vy_4 - 2*Vx_2*Vy_1'
+           ' + 2*Vx_2*Vy_3'
+           ' - 2*Vx_3*Vy_2 + 2*Vx_3*Vy_4 + 2*Vx_4*Vy_1 -'
+           ' 2*Vx_4*Vy_3))*(Vx_1*Vy_2 -'
+           ' Vx_1*Vy_4 - Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_3*Vy_4 +'
+           ' Vx_4*Vy_1'
+           ' - Vx_4*Vy_3))/(dy*(Vx_1*Vy_3 - Vx_1*Vy_4 - Vx_2*Vy_3 +'
+           ' Vx_2*Vy_4 -'
+           ' Vx_3*Vy_1 + Vx_3*Vy_2 + Vx_4*Vy_1 - Vx_4*Vy_2))')
+    s01 = ('dy*(2*Vx_1*Vy_2 - Vx_1*Vy_4 - 2*Vx_2*Vy_1 + Vx_2*Vy_3 - '
+           'Vx_3*Vy_2 + Vx_4*Vy_1)/(2*(Vx_1*Vy_2 - Vx_1*Vy_4 - Vx_2*Vy_1 + '
+           'Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_3*Vy_4 + Vx_4*Vy_1 - Vx_4*Vy_3)) - '
+           'sqrt(dy**2*(Vx_1**2*Vy_4**2 - 2*Vx_1*Vx_2*Vy_3*Vy_4 - '
+           '2*Vx_1*Vx_3*Vy_2*Vy_4 - 2*Vx_1*Vx_4*Vy_1*Vy_4 + '
+           '4*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 + 4*Vx_2*Vx_3*Vy_1*Vy_4 - '
+           '2*Vx_2*Vx_3*Vy_2*Vy_3 - 2*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 - '
+           '2*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))/(2*Vx_1*Vy_2 - '
+           '2*Vx_1*Vy_4 - 2*Vx_2*Vy_1 + 2*Vx_2*Vy_3 - 2*Vx_3*Vy_2 + '
+           '2*Vx_3*Vy_4 + 2*Vx_4*Vy_1 - 2*Vx_4*Vy_3)')
+    s10 = ('-dx*(-Vx_1*Vy_2*dy - Vx_1*Vy_3*dy + Vx_1*Vy_4*dy + Vx_2*Vy_1*dy + '
+           'Vx_3*Vy_1*dy - Vx_4*Vy_1*dy + (dy*(2*Vx_1*Vy_2 - Vx_1*Vy_4 - '
+           '2*Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_4*Vy_1)/(2*(Vx_1*Vy_2 - '
+           'Vx_1*Vy_4 - Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 + Vx_3*Vy_4 + '
+           'Vx_4*Vy_1 - Vx_4*Vy_3)) + sqrt(dy**2*(Vx_1**2*Vy_4**2 - '
+           '2*Vx_1*Vx_2*Vy_3*Vy_4 - 2*Vx_1*Vx_3*Vy_2*Vy_4 - '
+           '2*Vx_1*Vx_4*Vy_1*Vy_4 + 4*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 + '
+           '4*Vx_2*Vx_3*Vy_1*Vy_4 - 2*Vx_2*Vx_3*Vy_2*Vy_3 - '
+           '2*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 - 2*Vx_3*Vx_4*Vy_1*Vy_2 + '
+           'Vx_4**2*Vy_1**2))/(2*Vx_1*Vy_2 - 2*Vx_1*Vy_4 - 2*Vx_2*Vy_1 + '
+           '2*Vx_2*Vy_3 - 2*Vx_3*Vy_2 + 2*Vx_3*Vy_4 + 2*Vx_4*Vy_1 - '
+           '2*Vx_4*Vy_3))*(Vx_1*Vy_2 - Vx_1*Vy_4 - Vx_2*Vy_1 + Vx_2*Vy_3 - '
+           'Vx_3*Vy_2 + Vx_3*Vy_4 + Vx_4*Vy_1 - Vx_4*Vy_3))/(dy*(Vx_1*Vy_3 - '
+           'Vx_1*Vy_4 - Vx_2*Vy_3 + Vx_2*Vy_4 - Vx_3*Vy_1 + Vx_3*Vy_2 + '
+           'Vx_4*Vy_1 - Vx_4*Vy_2))')
+    s11 = ('dy*(2*Vx_1*Vy_2 - Vx_1*Vy_4 - 2*Vx_2*Vy_1 + Vx_2*Vy_3 - Vx_3*Vy_2 '
+           '+ Vx_4*Vy_1)/(2*(Vx_1*Vy_2 - Vx_1*Vy_4 - Vx_2*Vy_1 + Vx_2*Vy_3 - '
+           'Vx_3*Vy_2 + Vx_3*Vy_4 + Vx_4*Vy_1 - Vx_4*Vy_3)) + '
+           'sqrt(dy**2*(Vx_1**2*Vy_4**2 - 2*Vx_1*Vx_2*Vy_3*Vy_4 - '
+           '2*Vx_1*Vx_3*Vy_2*Vy_4 - 2*Vx_1*Vx_4*Vy_1*Vy_4 + '
+           '4*Vx_1*Vx_4*Vy_2*Vy_3 + Vx_2**2*Vy_3**2 + 4*Vx_2*Vx_3*Vy_1*Vy_4 - '
+           '2*Vx_2*Vx_3*Vy_2*Vy_3 - 2*Vx_2*Vx_4*Vy_1*Vy_3 + Vx_3**2*Vy_2**2 - '
+           '2*Vx_3*Vx_4*Vy_1*Vy_2 + Vx_4**2*Vy_1**2))/(2*Vx_1*Vy_2 - '
+           '2*Vx_1*Vy_4 - 2*Vx_2*Vy_1 + 2*Vx_2*Vy_3 - 2*Vx_3*Vy_2 + '
+           '2*Vx_3*Vy_4 + 2*Vx_4*Vy_1 - 2*Vx_4*Vy_3)')
+    sol = np.array([[s00, s01], [s10, s11]])
     return sol
 
 

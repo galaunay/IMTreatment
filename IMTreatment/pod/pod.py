@@ -1,9 +1,26 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Thu Mar 06 13:29:17 2014
+#!/bin/env python3
 
-@author: glaunay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from ..core import ScalarField, VectorField, \
     TemporalVectorFields, TemporalScalarFields,\
@@ -11,7 +28,6 @@ from ..core import ScalarField, VectorField, \
 from ..utils import make_unit
 from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 import numpy as np
-import pdb
 import modred
 import matplotlib.pyplot as plt
 import Plotlib as pplt
@@ -32,7 +48,7 @@ class ModalFields(Field):
         """
         Field.__init__(self)
         # check parameters
-        if not decomp_type in ['pod', 'dmd', 'bpod']:
+        if decomp_type not in ['pod', 'dmd', 'bpod']:
             raise ValueError()
         self.field_class = mean_field.__class__
         if not isinstance(modes, ARRAYTYPES):
@@ -381,7 +397,8 @@ class ModalFields(Field):
         fact : integer
             Resolution augmentation needed (default is '2', for a result
             profile with twice more points)
-        interp : string in ['linear', 'nearest', 'slinear', 'quadratic', 'cubic']
+        interp : string in ['linear', 'nearest', 'slinear', 'quadratic',
+                            'cubic']
             Specifies the kind of interpolation as a string
             (Default is 'linear'). slinear', 'quadratic' and 'cubic' refer
             to a spline interpolation of first, second or third order.
@@ -400,7 +417,8 @@ class ModalFields(Field):
             raise TypeError()
         if not isinstance(interp, STRINGTYPES):
             raise TypeError()
-        if not interp in ['linear', 'nearest', 'slinear', 'quadratic', 'cubic']:
+        if interp not in ['linear', 'nearest', 'slinear', 'quadratic',
+                          'cubic']:
             raise ValueError()
         if not isinstance(inplace, bool):
             raise TypeError()
@@ -467,8 +485,8 @@ class ModalFields(Field):
         if times.ndim != 1:
             raise ValueError()
         if self.decomp_type in ['pod', 'bpod']:
-            if (times.max() > self.times.max()
-                    or times.min() < self.times.min()):
+            if (times.max() > self.times.max() or
+                    times.min() < self.times.min()):
                 raise ValueError()
         # getting datas
         ind_times = np.arange(len(times))
@@ -560,8 +578,8 @@ class ModalFields(Field):
             if isinstance(self.modes[0], ScalarField):
                 magnitude = 1./2.*np.real(self.modes[n].values)**2
             elif isinstance(self.modes[0], VectorField):
-                magnitude = 1./2.*(np.real(self.modes[n].comp_x)**2
-                                   + np.real(self.modes[n].comp_y)**2)
+                magnitude = 1./2.*(np.real(self.modes[n].comp_x)**2 +
+                                   np.real(self.modes[n].comp_y)**2)
             coef_temp = np.mean(np.real(self.temp_evo[n].y)**2)
             modes_nrj[n] = np.mean(magnitude)*coef_temp
         # cum or not
@@ -804,7 +822,8 @@ class ModalFields(Field):
             self.growth_rate.change_unit('y', '1/s')
             plt.figure(figsize=figsize)
             plt.subplot(2, 3, 1)
-            plt.plot(np.real(self.ritz_vals.y), np.imag(self.ritz_vals.y), 'ko')
+            plt.plot(np.real(self.ritz_vals.y), np.imag(self.ritz_vals.y),
+                     'ko')
             plt.title("Ritz eigenvalues in the complexe plane")
             plt.xlabel("Real part of Ritz eigenvalue")
             plt.ylabel("Imaginary part of Ritz eigenvalue")
@@ -819,8 +838,8 @@ class ModalFields(Field):
             plt.xlim(-x_max, x_max)
             plt.subplot(2, 3, 3)
             sorted_omega = np.sort(self.pulsation.y)
-            delta_omega = np.mean(np.abs(sorted_omega[1::]
-                                  - sorted_omega[0:-1:]))
+            delta_omega = np.mean(np.abs(sorted_omega[1::] -
+                                  sorted_omega[0:-1:]))
             width = delta_omega/2.
             plt.bar(self.pulsation.y - width/2., self.mode_norms.y,
                     width=width)
@@ -863,7 +882,7 @@ class ModalFields(Field):
 
 
 def _tsf_to_POD(tsf):
-    ### getting datas
+    # getting datas
     props = {}
     tsf = tsf.copy()
     tsf.crop_masked_border(inplace=True)
@@ -879,7 +898,7 @@ def _tsf_to_POD(tsf):
     props['unit_x'], props['unit_y'] = tsf.unit_x, tsf.unit_y
     props['unit_values'] = tsf.unit_values
     props['unit_times'] = tsf.unit_times
-    ### Link data
+    # Link data
     values = [tsf.fields[t].values for t in ind_fields]
     del tsf
     snaps = [modred.VecHandleInMemory(values[t])
@@ -985,7 +1004,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
     If so, the asked values are lineary interpolated before doing the
     decomposition.
     """
-    ### Test parameters
+    # Test parameters
     if not isinstance(obj, (TemporalFields)):
         raise TypeError()
     if kind == "bpod":
@@ -995,11 +1014,9 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
             raise TypeError()
         if not obj2.shape == obj.shape:
             raise ValueError()
-#        if not len(obj2) == len(obj):
-#            raise ValueError()
     if not isinstance(kind, STRINGTYPES):
         raise TypeError()
-    if not kind in ['pod', 'bpod', 'dmd']:
+    if kind not in ['pod', 'bpod', 'dmd']:
         raise ValueError()
     if isinstance(wanted_modes, STRINGTYPES):
         if not wanted_modes == 'all':
@@ -1017,7 +1034,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
         max_vecs_per_node = int(max_vecs_per_node)
     except:
         raise TypeError()
-    ### getting datas
+    # getting datas
     if isinstance(obj, TemporalScalarFields):
         obj_type = 'TSF'
         snaps, props = _tsf_to_POD(obj)
@@ -1031,8 +1048,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
     else:
         raise TypeError()
     globals().update(props)
-
-    ### Setting the decomposition mode
+    # Setting the decomposition mode
     eigvals = None
     eigvect = None
     ritz_vals = None
@@ -1100,7 +1116,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
     unit_times = props['unit_times']
     times = props['times']
     ind_fields = props['ind_fields']
-    ### Decomposing and getting modes
+    # Decomposing and getting modes
     if kind in ['pod', 'dmd']:
         modes = [modred.VecHandleInMemory(np.zeros(f_shape))
                  for i in np.arange(len(wanted_modes))]
@@ -1112,7 +1128,7 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
                      for i in np.arange(len(wanted_modes))]
         my_decomp.compute_direct_modes(wanted_modes, modes)
         my_decomp.compute_adjoint_modes(wanted_modes, adj_modes)
-    ### Getting temporal evolution
+    # Getting temporal evolution
     temporal_prof = []
     if kind in ['pod']:
         for n in np.arange(len(modes)):
@@ -1135,30 +1151,11 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
             tmp_prof = Profile(times, tmp_prof, mask=False, unit_x=unit_times,
                                unit_y=obj.unit_values)
             temporal_prof.append(tmp_prof)
-    ### Returning
+    # Returning
     if obj_type == "TSF":
         modes_f = _POD_to_tsf(modes, props)
     elif obj_type == "TVF":
         modes_f = _POD_to_tvf(modes, props)
-#    modes_f = []
-#    for i in np.arange(len(modes)):
-#        if isinstance(mean_field, ScalarField):
-#            tmp_field = ScalarField()
-#            tmp_field.import_from_arrays(axe_x, axe_y, modes[i].get(),
-#                                         mask=super_mask, unit_x=unit_x,
-#                                         unit_y=unit_y,
-#                                         unit_values=unit_values)
-#            modes[i] = 0
-#        else:
-#            tmp_field = VectorField()
-#            comp_x = modes[i].get()[:, :, 0]
-#            comp_y = modes[i].get()[:, :, 1]
-#            modes[i] = 0
-#            tmp_field.import_from_arrays(axe_x, axe_y, comp_x, comp_y,
-#                                         mask=super_mask, unit_x=unit_x,
-#                                         unit_y=unit_y,
-#                                         unit_values=unit_values)
-#        modes_f.append(tmp_field)
     del modes
     modal_field = ModalFields(kind, props['mean_field'], modes_f, wanted_modes,
                               temporal_prof,

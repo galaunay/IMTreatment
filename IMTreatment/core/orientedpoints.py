@@ -1,15 +1,30 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-import pdb
 import unum
 import unum.units as units
 try:
@@ -19,6 +34,7 @@ except:
     pass
 from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 from . import points as pts
+
 
 class OrientedPoints(pts.Points):
     """
@@ -45,7 +61,6 @@ class OrientedPoints(pts.Points):
         Name of the points set
     """
 
-    ### Operators ###
     def __init__(self, xy=np.empty((0, 2), dtype=float), orientations=[], v=[],
                  unit_x='', unit_y='', unit_v='', name=''):
         # check parameters
@@ -59,7 +74,7 @@ class OrientedPoints(pts.Points):
             raise ValueError()
         # initialize data
         pts.Points.__init__(self, xy=xy, v=v, unit_x=unit_x, unit_y=unit_y,
-                        unit_v=unit_v, name=name)
+                            unit_v=unit_v, name=name)
         self.orientations = orientations
 
     def __iter__(self):
@@ -85,7 +100,6 @@ class OrientedPoints(pts.Points):
             tmp_opts.import_from_Points(tmp_pts, tmp_ori)
             return tmp_opts
 
-    ### Attributes ###
     @property
     def orientations(self):
         return self.__orientations
@@ -104,7 +118,6 @@ class OrientedPoints(pts.Points):
                              .format(len(self.xy), new_ori.shape))
         self.__orientations = new_ori
 
-    ### Watchers ###
     def get_streamlines(self, vf, delta=.25, interp='linear',
                         reverse_direction=False):
         """
@@ -210,8 +223,6 @@ class OrientedPoints(pts.Points):
         # returning
         return streams
 
-
-    ### Modifiers ###
     def import_from_Points(self, pts, orientations):
         """
         Import data from a Points object
@@ -285,7 +296,7 @@ class OrientedPoints(pts.Points):
             else:
                 return None
         # crop orientations
-        ### TODO : not efficient at all
+        # TODO : not efficient at all
         mask = np.zeros(len(self.xy), dtype=bool)
         if intervx is not None:
             out_zone = np.logical_or(self.xy[:, 0] < intervx[0],
@@ -325,7 +336,6 @@ class OrientedPoints(pts.Points):
                                            self.name))
         return pts_tupl
 
-    ### Displayers ###
     def _display(self, kind=None, **plotargs):
         # display like a Points object
         plot = super(OrientedPoints, self)._display(kind=kind, **plotargs)

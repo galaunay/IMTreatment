@@ -1,13 +1,30 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Fri May  9 01:22:13 2014
+#!/bin/env python3
 
-@author: muahah
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import unittest
-from IMTreatment3 import *
+from IMTreatment3 import make_unit, ScalarField
 import numpy as np
-import pdb
 
 
 ### FIELD TEST ###
@@ -18,7 +35,7 @@ class FieldTest(unittest.TestCase):
 ### SCALARFIELD TEST ###
 class SFTest(unittest.TestCase):
 
-    def setUp(self):
+    def setup(self):
         axe_x = np.arange(23)
         unit_x = make_unit('m')
         unit_y = make_unit('km')
@@ -84,14 +101,14 @@ class SFTest(unittest.TestCase):
         # add
         nmb = 5
         unt = 500*make_unit('mm/s')
-        values_f = (nmb + values + unt.asNumber()/1000. + values2
-            + unt.asNumber()/1000. + values + nmb)
+        values_f = (nmb + values + unt.asNumber()/1000. + values2 +
+                    unt.asNumber()/1000. + values + nmb)
         mask_f = np.logical_or(mask, mask2)
         sf = nmb + self.SF1 + unt + self.SF2 + unt + self.SF1 + nmb
         self.assertEqual(np.all(sf.get_axes()[0] == axe_x), True)
         self.assertEqual(np.all(sf.get_axes()[1] == axe_y), True)
-        self.assertEqual(np.all(sf.get_values().data[~mask_f]
-                                == values_f[~mask_f]), True)
+        self.assertEqual(np.all(sf.get_values().data[~mask_f] ==
+                                values_f[~mask_f]), True)
         self.assertEqual(np.all(sf.get_values().mask == mask_f), True)
         self.assertEqual(sf.get_axe_units()[0], unit_x)
         self.assertEqual(sf.get_axe_units()[1], unit_y)
@@ -99,14 +116,14 @@ class SFTest(unittest.TestCase):
         # sub
         nmb = 5
         unt = 500*make_unit('mm/s')
-        values_f = (nmb - values - unt.asNumber()/1000. - values2
-            - unt.asNumber()/1000. - values - nmb)
+        values_f = (nmb - values - unt.asNumber()/1000. - values2 -
+                    unt.asNumber()/1000. - values - nmb)
         mask_f = np.logical_or(mask, mask2)
         sf = nmb - self.SF1 - unt - self.SF2 - unt - self.SF1 - nmb
         self.assertEqual(np.all(sf.get_axes()[0] == axe_x), True)
         self.assertEqual(np.all(sf.get_axes()[1] == axe_y), True)
-        self.assertEqual(np.all(sf.get_values().data[~mask_f]
-                                == values_f[~mask_f]), True)
+        self.assertEqual(np.all(sf.get_values().data[~mask_f] ==
+                                values_f[~mask_f]), True)
         self.assertEqual(np.all(sf.get_values().mask == mask_f), True)
         self.assertEqual(sf.get_axe_units()[0], unit_x)
         self.assertEqual(sf.get_axe_units()[1], unit_y)
@@ -115,8 +132,8 @@ class SFTest(unittest.TestCase):
         nmb = 5.23
         unt = 500.*make_unit('mm/s')
         unt_n = 500./1000.
-        values_f = (nmb * values * unt_n * values2
-            * unt_n * values * nmb)
+        values_f = (nmb * values * unt_n * values2 *
+                    unt_n * values * nmb)
         unit_values = make_unit('mm/s')**2*make_unit('m/s')**3*1e6
         mask_f = np.logical_or(mask, mask2)
         sf = nmb * self.SF1 * unt * self.SF2 * unt * self.SF1 * nmb
@@ -133,8 +150,8 @@ class SFTest(unittest.TestCase):
         nmb = 5.23
         unt = 500.*make_unit('mm/s')
         unt_n = 500./1000.
-        values_f = (nmb / values / unt_n / values2
-            / unt_n / values / nmb)
+        values_f = (nmb / values / unt_n / values2 /
+                    unt_n / values / nmb)
         unit_values = 1./(make_unit('mm/s')**2*make_unit('m/s')**3*1e6)
         mask_f = np.logical_or(mask, mask2)
         sf = nmb / self.SF1 / unt / self.SF2 / unt / self.SF1 / nmb
@@ -162,9 +179,9 @@ class SFTest(unittest.TestCase):
         sf = self.SF1**3.544186
         self.assertEqual(np.all(sf.get_axes()[0] == axe_x), True)
         self.assertEqual(np.all(sf.get_axes()[1] == axe_y), True)
-        self.assertEqual(np.all(sf.get_values().data == np.power(values,
-                                                                 3.544186)),
-                                True)
+        self.assertEqual(np.all(sf.get_values().data ==
+                                np.power(values, 3.544186)),
+                         True)
         self.assertEqual(np.all(sf.get_values().mask == mask), True)
         self.assertEqual(sf.get_axe_units()[0], unit_x)
         self.assertEqual(sf.get_axe_units()[1], unit_y)

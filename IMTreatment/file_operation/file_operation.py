@@ -1,9 +1,26 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Mar 10 19:16:04 2014
+#!/bin/env python3
 
-@author: glaunay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import gc
 import gzip
@@ -14,11 +31,11 @@ import numpy as np
 import h5py
 
 from ..core import (Points, Profile, ScalarField, SpatialScalarFields,
-    SpatialVectorFields, TemporalScalarFields, TemporalVectorFields,
-    VectorField)
+                    SpatialVectorFields, TemporalScalarFields,
+                    TemporalVectorFields,
+                    VectorField)
 from ..utils import ProgressCounter, make_unit
 from ..utils.types import ARRAYTYPES, STRINGTYPES
-from IMTreatment import TemporalVectorFields
 
 
 try:
@@ -28,11 +45,9 @@ except:
 import scipy.io as spio
 import scipy.misc as spmisc
 from os import path
-import matplotlib.pyplot as plt
 import re
 
 
-### Path adaptater ###
 def check_path(filepath, newfile=False):
     """
     Normalize and check the validity of the given path to feed importation
@@ -70,7 +85,8 @@ def check_path(filepath, newfile=False):
                 break
             new_tested_path = path.join(valid_path, new_dir)
             if not path.exists(new_tested_path):
-                err_mess = r"No '{}' directory/file in '{}' path.".format(new_dir, valid_path)
+                err_mess = r"No '{}' directory/file in '{}' path." \
+                           .format(new_dir, valid_path)
                 err_mess = str(err_mess).encode("utf-8")
                 raise ValueError(err_mess)
             valid_path = new_tested_path
@@ -78,6 +94,7 @@ def check_path(filepath, newfile=False):
     if newfile:
         filepath = path.join(filepath, filename)
     return filepath
+
 
 def find_file_in_path(regs, dirpath, ask=False):
     """
@@ -99,7 +116,7 @@ def find_file_in_path(regs, dirpath, ask=False):
         List of folder containings wanted files.
     """
     # check
-    if not os.path.isdir(dirpath):
+    if not path.isdir(dirpath):
         raise ValueError()
     if not isinstance(regs, ARRAYTYPES):
         raise TypeError()
@@ -115,7 +132,7 @@ def find_file_in_path(regs, dirpath, ask=False):
         if match:
             dir_paths.append(root)
     # choose
-    if ask and len(dir_paths) >  1:
+    if ask and len(dir_paths) > 1:
         print(("{} folders found :".format(len(dir_paths))))
         for i, p in enumerate(dir_paths):
             print(("  {} :  {}".format(i + 1, p)))
@@ -131,8 +148,6 @@ def find_file_in_path(regs, dirpath, ask=False):
     return dir_paths
 
 
-
-### Parsers ###
 def matlab_parser(obj, name):
     classic_types = (int, float, str, str)
     array_types = (list, float)
@@ -177,7 +192,6 @@ def matlab_parser(obj, name):
         raise IOError("Can't parser that : \n {}".format(obj))
 
 
-### IMT ###
 def import_from_file(filepath, **kw):
     """
     Load and return an object from the specified file using the JSON
@@ -196,7 +210,7 @@ def import_from_file(filepath, **kw):
     """
     # getting/guessing wanted files
     filepath = check_path(filepath)
-    extension = os.path.splitext(filepath)[1]
+    extension = path.splitext(filepath)[1]
     # importing file
     if extension == ".imt":
         gc.disable()
@@ -235,11 +249,11 @@ def export_to_file(obj, filepath, compressed=True, **kw):
     # checking parameters coherence
     filepath = check_path(filepath, newfile=True)
     if not isinstance(compressed, bool):
-    # creating/filling up the file
+        # creating/filling up the file
         raise TypeError("'compressed' must be a boolean")
     if compressed:
         gc.disable()
-        if os.path.splitext(filepath)[1] != ".cimt":
+        if path.splitext(filepath)[1] != ".cimt":
             filepath = filepath + ".cimt"
         f = gzip.open(filepath, 'wb')
         pickle.dump(obj, f, protocol=-1)
@@ -247,7 +261,7 @@ def export_to_file(obj, filepath, compressed=True, **kw):
         gc.enable()
     else:
         gc.disable()
-        if os.path.splitext(filepath)[1] != ".imt":
+        if path.splitext(filepath)[1] != ".imt":
             filepath = filepath + ".imt"
         f = open(filepath, 'wb')
         pickle.dump(obj, f, protocol=-1)
@@ -291,11 +305,11 @@ def imts_to_imt(imts_path, imt_path, kind):
         imts_type = 'VF'
         fields = SpatialVectorFields()
     # importing data
-    for path in paths:
-        basename = os.path.basename(path)
-        name, ext = os.path.splitext(basename)
+    for tmp_path in paths:
+        basename = path.basename(tmp_path)
+        name, ext = path.splitext(basename)
         if ext in ['.imt', '.cimt']:
-            field = import_from_file(path)
+            field = import_from_file(tmp_path)
             if imts_type == 'SF' and not isinstance(field, ScalarField):
                 continue
             elif imts_type == 'VF' and not isinstance(field, VectorField):
@@ -305,14 +319,59 @@ def imts_to_imt(imts_path, imt_path, kind):
     export_to_file(fields, imt_path)
 
 
-### MATLAB ###
+def import_from_matlab(filepath, obj, **kwargs):
+    """
+    Import data from a matlab (.m) file.
+
+    Data should be a dictionnary.
+
+    Parameters
+    ----------
+    filepath : string
+        Path of the matlab file
+    obj : string in ['ScalarField', 'VectorField', 'Profile',
+                     'Points']
+        Kind of object to import to.
+    kwargs :
+       Rest of the keyword arguments should indicate where to find
+       the necessary information in the matlab dictionnary.
+
+    Example
+    -------
+    With a matlab file containing a dictionnary with the
+    following entries: 'x', 'x_unit', 'y', 'y_unit', 'u', 'v'
+    >>> vf = import_from_matlab('data.m', 'VectorField',
+    ...                         axe_x='x', axe_y='y',
+    ...                         unit_x='x_unit', unit_y='y_unit',
+    ...                         comp_x='u', comp_y='v')
+    """
+    filepath = check_path(filepath)
+    # Get matlab dictionnary
+    data = spio.loadmat(filepath)
+    # Create object
+    if obj == 'ScalarField':
+        obj = ScalarField()
+    elif obj == 'VectorField':
+        obj = VectorField()
+    elif obj == 'Profile':
+        obj = Profile()
+    elif obj == 'Points':
+        obj = Points
+    # Create building dict
+    build_dic = {key: data[entry]
+                 for key, entry in kwargs.items()}
+    # Fill the object
+    obj.import_from_arrays(**build_dic)
+    # Return
+    return obj
+
+
 def export_to_matlab(obj, name, filepath, **kw):
     filepath = check_path(filepath, newfile=True)
     dic = matlab_parser(obj, name)
     spio.savemat(filepath, dic, **kw)
 
 
-### VTK ###
 def export_to_vtk(obj, filepath, axis=None, **kw):
     """
     Export the field to a .vtk file, for Mayavi use.
@@ -358,7 +417,7 @@ def __export_pts_to_vtk(pts, filepath, axis=None, line=False):
         If 'True', lines between points are writen instead of points.
     """
     import pyvtk
-    if not os.path.exists(os.path.dirname(filepath)):
+    if not path.exists(path.dirname(filepath)):
         raise ValueError("'filepath' is not a valid path")
     if axis is None:
         axis = ('x', 'y')
@@ -419,7 +478,7 @@ def __export_sf_to_vtk(obj, filepath, axis=None):
         in vtk z axis, and y scalar field axis in y vtk axis.
     """
     import pyvtk
-    if not os.path.exists(os.path.dirname(filepath)):
+    if not path.exists(path.dirname(filepath)):
         raise ValueError("'filepath' is not a valid path")
     if axis is None:
         axis = ('x', 'y')
@@ -471,7 +530,7 @@ def __export_vf_to_vtk(obj, filepath, axis=None):
         in vtk z axis, and y scalar field axis in y vtk axis.
     """
     import pyvtk
-    if not os.path.exists(os.path.dirname(filepath)):
+    if not path.exists(path.dirname(filepath)):
         raise ValueError("'filepath' is not a valid path")
     if axis is None:
         axis = ('x', 'y')
@@ -519,7 +578,6 @@ def __export_vf_to_vtk(obj, filepath, axis=None):
     data.tofile(filepath)
 
 
-### DAVIS ###
 def _get_imx_buffers(filename):
     """
     Return the buffers stored in the given file.
@@ -535,6 +593,7 @@ def _get_imx_buffers(filename):
     ReadIM.DestroyBuffer(vbuff2)
     return fmt, vectorGrid, arrays, atts
 
+
 def import_from_IM7(filename, infos=False):
     """
     Import a scalar field from a .IM7 file.
@@ -548,14 +607,14 @@ def import_from_IM7(filename, infos=False):
     """
     if not isinstance(filename, STRINGTYPES):
         raise TypeError("'filename' must be a string")
-    if not os.path.exists(filename):
+    if not path.exists(filename):
         raise ValueError("I did not find your file, boy")
-    _, ext = os.path.splitext(filename)
+    _, ext = path.splitext(filename)
     if not (ext == ".im7" or ext == ".IM7"):
         raise ValueError("I need the file to be an IM7 file (not a {} file)"
                          .format(ext))
     # Importing from buffer
-    fmt, vectorGrid, v_array, atts =  _get_imx_buffers(filename)
+    fmt, vectorGrid, v_array, atts = _get_imx_buffers(filename)
     if v_array.shape[0] == 2:
         mask = v_array[0][:, ::1]
         values = v_array[1][:, ::1]
@@ -640,8 +699,8 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
         fieldspaths = np.asarray(fieldspath, dtype=str)
     elif isinstance(fieldspath, STRINGTYPES):
         fieldspath = check_path(fieldspath)
-        paths = np.asarray([f for f in glob(os.path.join(fieldspath, '*'))
-                            if os.path.splitext(f)[-1] in ['.im7', '.IM7']],
+        paths = np.asarray([f for f in glob(path.join(fieldspath, '*'))
+                            if path.splitext(f)[-1] in ['.im7', '.IM7']],
                            dtype=str)
         # if no file found, search recursively
         if len(paths) == 0:
@@ -649,11 +708,12 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
                                            ask=True)
             if len(poss_paths) == 0:
                 raise ValueError()
-            paths = np.asarray([f for f in glob(os.path.join(poss_paths[0], '*'))
-                                if os.path.splitext(f)[-1] in ['.im7', '.IM7']],
+            paths = np.asarray([f
+                                for f in glob(path.join(poss_paths[0], '*'))
+                                if path.splitext(f)[-1] in ['.im7', '.IM7']],
                                dtype=str)
         # Sort path by numbers
-        filenames = [os.path.basename(p) for p in paths]
+        filenames = [path.basename(p) for p in paths]
         ind_sort = np.argsort(filenames)
         fieldspaths = paths[ind_sort]
     else:
@@ -715,7 +775,7 @@ def import_from_VC7(filename, infos=False, add_fields=False):
     """
     # check parameters
     filename = check_path(filename)
-    _, ext = os.path.splitext(filename)
+    _, ext = path.splitext(filename)
     if not (ext == ".vc7" or ext == ".VC7"):
         raise ValueError("'filename' must be a vc7 file")
     # Importing from buffer
@@ -809,6 +869,7 @@ def import_from_VC7(filename, infos=False, add_fields=False):
         res += (add_fields,)
     return res
 
+
 def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
                      add_fields=False, verbose=False):
     """
@@ -843,18 +904,18 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
         paths = fieldspath
     elif isinstance(fieldspath, STRINGTYPES):
         fieldspath = check_path(fieldspath)
-        paths = np.array([f for f in glob(os.path.join(fieldspath, '*'))
-                          if os.path.splitext(f)[-1] in ['.vc7', '.VC7']])
+        paths = np.array([f for f in glob(path.join(fieldspath, '*'))
+                          if path.splitext(f)[-1] in ['.vc7', '.VC7']])
         # if no file found, search recursively
         if len(paths) == 0:
             poss_paths = find_file_in_path(['.*.vc7', '.*.VC7'], fieldspath,
                                            ask=True)
             if len(poss_paths) == 0:
                 raise ValueError()
-            paths = np.array([f for f in glob(os.path.join(poss_paths[0], '*'))
-                              if os.path.splitext(f)[-1] in ['.vc7', '.VC7']])
+            paths = np.array([f for f in glob(path.join(poss_paths[0], '*'))
+                              if path.splitext(f)[-1] in ['.vc7', '.VC7']])
         # Sort path by numbers
-        filenames = [os.path.basename(p) for p in paths]
+        filenames = [path.basename(p) for p in paths]
         ind_sort = np.argsort(filenames)
         paths = paths[ind_sort]
     else:
@@ -950,21 +1011,21 @@ def IM7_to_imt(im7_path, imt_path, kind='SF', compressed=True, **kwargs):
     im7_path = check_path(im7_path)
     imt_path = check_path(imt_path, newfile=True)
     # checking if file or directory
-    if os.path.isdir(im7_path):
+    if path.isdir(im7_path):
         if kind in ['SSF', 'TSF']:
             ST_SF = import_from_IM7s(im7_path, kind=kind, **kwargs)
             export_to_file(ST_SF, imt_path)
         elif kind in ['SF']:
             paths = glob(im7_path + "/*")
-            for path in paths:
-                name_ext = os.path.basename(path)
-                name, ext = os.path.splitext(name_ext)
+            for tmp_path in paths:
+                name_ext = path.basename(tmp_path)
+                name, ext = path.splitext(name_ext)
                 if ext not in ['.im7', '.IM7']:
                     continue
-                SF = import_from_IM7(path)
+                SF = import_from_IM7(tmp_path)
                 export_to_file(SF, imt_path + "/{}".format(name),
                                compressed=compressed)
-    elif os.path.isfile(im7_path):
+    elif path.isfile(im7_path):
         SF = import_from_IM7(im7_path, **kwargs)
         export_to_file(SF, imt_path)
     else:
@@ -994,21 +1055,21 @@ def VC7_to_imt(vc7_path, imt_path, kind='VF', compressed=True, **kwargs):
     vc7_path = check_path(vc7_path)
     imt_path = check_path(imt_path)
     # checking if file or directory
-    if os.path.isdir(vc7_path):
+    if path.isdir(vc7_path):
         if kind in ['SVF', 'TVF']:
             ST_VF = import_from_VC7s(vc7_path, kind=kind, **kwargs)
             export_to_file(ST_VF, imt_path)
         elif kind in ['VF']:
             paths = glob(vc7_path + "/*")
-            for path in paths:
-                name_ext = os.path.basename(path)
-                name, ext = os.path.splitext(name_ext)
+            for tmp_path in paths:
+                name_ext = path.basename(tmp_path)
+                name, ext = path.splitext(name_ext)
                 if ext not in ['.vc7', '.VC7']:
                     continue
-                VF = import_from_VC7(path)
+                VF = import_from_VC7(tmp_path)
                 export_to_file(VF, imt_path + "/{}".format(name),
                                compressed=compressed)
-    elif os.path.isfile(vc7_path):
+    elif path.isfile(vc7_path):
         SF = import_from_IM7(vc7_path, **kwargs)
         export_to_file(SF, imt_path)
     else:
@@ -1032,7 +1093,7 @@ def davis_to_imt_gui():
     # importing files
     if len(davis_path) == 1:
         davis_path = davis_path[0]
-        ext = os.path.splitext(davis_path)[-1]
+        ext = path.splitext(davis_path)[-1]
         if ext in ['.im7', '.IM7']:
             obj = import_from_IM7(davis_path)
         elif ext in ['.vc7', '.VC7']:
@@ -1041,10 +1102,10 @@ def davis_to_imt_gui():
             raise ValueError()
     elif len(davis_path) > 1:
         # getting extension
-        ext = os.path.splitext(davis_path[0])[-1]
+        ext = path.splitext(davis_path[0])[-1]
         # checking if all files have the same extension
-        for path in davis_path:
-            if not ext == os.path.splitext(path)[-1]:
+        for tmp_path in davis_path:
+            if not ext == path.splitext(tmp_path)[-1]:
                 raise ValueError()
         if ext in [".im7", ".IM7"]:
             obj = import_from_IM7s(davis_path)
@@ -1063,7 +1124,7 @@ def davis_to_imt_gui():
     # saving datas
     export_to_file(obj, imt_path)
 
-### PICTURES ###
+
 def import_from_picture(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
                         unit_values=''):
     """
@@ -1092,8 +1153,8 @@ def import_from_picture(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
     usable_ext = ['.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG', '.bmp',
                   '.BMP']
     filepath = check_path(filepath)
-    _, ext = os.path.splitext(filepath)
-    if not ext in usable_ext:
+    _, ext = path.splitext(filepath)
+    if ext not in usable_ext:
         raise ValueError("I need the file to be an supported picture file"
                          "(not a {} file)".format(ext))
     # importing from file
@@ -1117,9 +1178,9 @@ def import_from_picture(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
     return tmp_sf
 
 
-def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
-                         unit_values='', times=None, unit_times='',
-                         fieldnumbers=None):
+def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='',
+                         unit_y='', unit_values='', times=None,
+                         unit_times='', fieldnumbers=None):
     """
     Import scalar fields from a bunch of picture files.
 
@@ -1252,7 +1313,8 @@ def import_tvf_from_pivmat(filepath, fieldnumbers=None, incr=1):
                        .value.flatten()])
     unit_vy = "".join([chr(n) for n in data[data.get('unitvy').value[0][0]]
                        .value.flatten()])
-    atts = "".join([chr(n) for n in list(data[data.get('Attributes')[0][0]])]).split("\n")
+    atts = "".join([chr(n) for n in list(data[data.get('Attributes')[0][0]])])
+    atts = atts.split("\n")
     atts = {att.split('=')[0]: att.split('=')[1]
             for att in atts
             if "=" in att}
@@ -1271,8 +1333,10 @@ def import_tvf_from_pivmat(filepath, fieldnumbers=None, incr=1):
         end = fieldnumbers[1]
     for i in np.arange(start, end, incr):
         VF = VectorField()
-        vx = np.array(data[data.get('vx').value[i][0]].value, dtype=float).transpose()
-        vy = np.array(data[data.get('vy').value[i][0]].value, dtype=float).transpose()
+        vx = np.array(data[data.get('vx').value[i][0]].value, dtype=float)
+        vx = vx.transpose()
+        vy = np.array(data[data.get('vy').value[i][0]].value, dtype=float)
+        vy = vy.transpose()
         VF.import_from_arrays(axe_x=x, axe_y=y, comp_x=vx, comp_y=vy,
                               mask=False, unit_x=unit_x, unit_y=unit_y,
                               unit_values=unit_vx)
@@ -1323,7 +1387,6 @@ def export_to_pictures(SFs, filepath):
         spmisc.imsave(path.join(filepath, "{:0>5}.png".format(i)), val)
 
 
-### ASCII ###
 def import_profile_from_ascii(filepath, x_col=1, y_col=2,
                               unit_x=make_unit(""), unit_y=make_unit(""),
                               **kwargs):
@@ -1576,7 +1639,8 @@ def import_vf_from_ascii(filepath, x_col=1, y_col=2, vx_col=3,
     vy_org.mask = np.logical_or(vy_org.mask, np.isnan(vy_org.data))
     #store field in attributes
     tmpvf = VectorField()
-    tmpvf.import_from_arrays(x_org, y_org, vx_org, vy_org,  mask=vx_org.mask,
+    tmpvf.import_from_arrays(x_org, y_org, vx_org, vy_org,
+                             mask=vx_org.mask,
                              unit_x=unit_x, unit_y=unit_y,
                              unit_values=unit_values)
     return tmpvf
@@ -1672,25 +1736,25 @@ def export_to_ascii(filepath, obj):
         f = open(filepath, 'w')
         # write header
         header = "X {}\tY {}\tVx {}\tVy {}\n"\
-                .format(obj.unit_x.strUnit(),
-                        obj.unit_y.strUnit(),
-                        obj.unit_values.strUnit(),
-                        obj.unit_values.strUnit())
+                 .format(obj.unit_x.strUnit(),
+                         obj.unit_y.strUnit(),
+                         obj.unit_values.strUnit(),
+                         obj.unit_values.strUnit())
         f.write(header)
         # write data
         for i, x in enumerate(obj.axe_x):
             for j, y in enumerate(obj.axe_y):
                 f.write("{}\t{}\t{}\t{}\n".format(x, y, obj.comp_x[i, j],
-                                                obj.comp_y[i, j]))
+                                                  obj.comp_y[i, j]))
         f.close()
     elif isinstance(obj, ScalarField):
         # open file
         f = open(filepath, 'w')
         # write header
         header = "X {}\tY {}\tValue {}\n"\
-                .format(obj.unit_x.strUnit(),
-                        obj.unit_y.strUnit(),
-                        obj.unit_values.strUnit())
+                 .format(obj.unit_x.strUnit(),
+                         obj.unit_y.strUnit(),
+                         obj.unit_values.strUnit())
         f.write(header)
         # write data
         for i, x in enumerate(obj.axe_x):
@@ -1701,7 +1765,6 @@ def export_to_ascii(filepath, obj):
         raise TypeError()
 
 
-### VECTRINO ###
 def import_from_VNO(filepath, add_info=True):
     """
     Import data from a VNO file. VNO files contains data from an ADV
@@ -1776,9 +1839,9 @@ def import_from_VNO(filepath, add_info=True):
         print(("+++    Corr_z  = {:.1f}".format(np.mean(Corrz))))
         print(("+++    Corr_z2 = {:.1f}".format(np.mean(Corrz2))))
     # print warnings if measure quality is not good enough
-    if np.any(np.array([np.mean(Sx), np.mean(Sy), np.mean(Sz), np.mean(Sz2)])
-              < 100):
-        print("+++ Warning : low signal strength")
+        if np.any(np.array([np.mean(Sx), np.mean(Sy),
+                            np.mean(Sz), np.mean(Sz2)]) < 100):
+            print("+++ Warning : low signal strength")
     if np.any(np.array([np.mean(SNRx), np.mean(SNRy), np.mean(SNRz),
                         np.mean(SNRz2)]) < 13):
         print("+++ Warning : low SNR ratio")

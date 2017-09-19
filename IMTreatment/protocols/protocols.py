@@ -1,5 +1,28 @@
+# -*- coding: utf-8 -*-
+#!/bin/env python3
+
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import numpy as np
-import sys
 import psutil
 import warnings
 import matplotlib.pyplot as plt
@@ -77,38 +100,41 @@ class POD_CP_protocol(object):
                              join(self.imtpath,
                                   "{}_mean.cimt".format(self.name)))
         del tvf
-        
+
     def pod_decomp(self):
         print("    Making POD decomposition    ")
         # improt data
-        tvf = imtio.import_from_file(join(self.imtpath, "{}_cln.cimt".format(self.name)))
+        tvf = imtio.import_from_file(join(self.imtpath, "{}_cln.cimt"
+                                          .format(self.name)))
         # make the decomposition
         pod = imtpod.modal_decomposition(tvf, kind='pod',
                                          wanted_modes='all',
                                          max_vecs_per_node=len(tvf) + 1,
-                                         verbose=False)   
-        # save a display        
+                                         verbose=False)
+        # save a display
         pod.display()
         plt.savefig(join(self.respath, "{}/pod.png".format(self.name)))
         plt.close(plt.gcf())
         # save data
-        imtio.export_to_file(pod, join(self.imtpath, "{}_pod.cimt".format(self.name)))
+        imtio.export_to_file(pod, join(self.imtpath, "{}_pod.cimt"
+                                       .format(self.name)))
         del pod
-    
+
     def pod_reconstr(self, detailled=False):
         if self.detailled:
             print("    Making detailled POD reconstruction    ")
         else:
             print("    Making POD reconstruction    ")
         # improt data
-        pod = imtio.import_from_file(join(self.imtpath, "{}_pod.cimt".format(self.name)))
+        pod = imtio.import_from_file(join(self.imtpath, "{}_pod.cimt"
+                                          .format(self.name)))
         # make reconstruction
         if detailled:
             pod.augment_temporal_resolution(fact=self.det_fact,
                                             interp='linear',
                                             inplace=True)
-        wanted_modes = pod.modes_nmb[pod.get_spatial_coherence(raw=True)
-                                     > self.pod_coh]
+        wanted_modes = pod.modes_nmb[pod.get_spatial_coherence(raw=True) >
+                                     self.pod_coh]
         wanted_modes = np.array(wanted_modes)
         wanted_modes = wanted_modes[wanted_modes < len(pod.modes)/2.]
         rec = pod.reconstruct(wanted_modes=wanted_modes)
@@ -127,11 +153,13 @@ class POD_CP_protocol(object):
         plt.close(plt.gcf())
         # save data
         if detailled:
-            imtio.export_to_file(rec, join(self.imtpath, "{}_rec_det.cimt".format(self.name)))
+            imtio.export_to_file(rec, join(self.imtpath, "{}_rec_det.cimt"
+                                           .format(self.name)))
         else:
-            imtio.export_to_file(rec, join(self.imtpath, "{}_rec.cimt".format(self.name)))
+            imtio.export_to_file(rec, join(self.imtpath, "{}_rec.cimt"
+                                           .format(self.name)))
         del rec
-        
+
     def CP_detection(self, detailled=False):
         # improt data
         if self.detailled:
@@ -140,17 +168,13 @@ class POD_CP_protocol(object):
             print("    Making CP detection")
         mem_available = psutil.virtual_memory().free
         if detailled:
-            rec = imtio.import_from_file(join(self.imtpath, "{}_rec_det.cimt".format(self.name)))
+            rec = imtio.import_from_file(join(self.imtpath, "{}_rec_det.cimt"
+                                              .format(self.name)))
         else:
-            rec = imtio.import_from_file(join(self.imtpath, "{}_rec.cimt".format(self.name)))
-        # TODO : too remove, just here for compatibility
-        from .. import make_unit
-        rec.xy_scale = make_unit("")
-        for i in range(len(rec)):
-            rec.fields[i].xy_scale = make_unit("")
-        # TODO :
+            rec = imtio.import_from_file(join(self.imtpath, "{}_rec.cimt"
+                                              .format(self.name)))
         # Check if there is enough memory to use
-        filesize = mem_available - psutil.virtual_memory().free 
+        filesize = mem_available - psutil.virtual_memory().free
         possible_nmb_of_copies = int(mem_available/(filesize*2))
         if possible_nmb_of_copies < 1:
             possible_nmb_of_copies = 1
@@ -164,66 +188,78 @@ class POD_CP_protocol(object):
                                           mirroring=self.mirroring,
                                           verbose=False, thread=self.thread)
         traj.compute_traj(epsilon=self.eps_traj)
-        traj.clean_traj(self.nmb_min_in_traj)       
+        traj.clean_traj(self.nmb_min_in_traj)
         # save display
         plt.figure()
         traj.display_traj('x', filt=[True, True, False, False, False],
                           marker=None)
         if detailled:
-            plt.savefig(join(self.respath, "{}/traj_x_cln_det.png".format(self.name)))
+            plt.savefig(join(self.respath, "{}/traj_x_cln_det.png"
+                             .format(self.name)))
         else:
-            plt.savefig(join(self.respath, "{}/traj_x_cln.png".format(self.name)))
+            plt.savefig(join(self.respath, "{}/traj_x_cln.png"
+                             .format(self.name)))
         plt.close(plt.gcf())
         plt.figure()
         traj.display_traj('y', filt=[True, True, False, False, False],
                           marker=None)
         if detailled:
-            plt.savefig(join(self.respath, "{}/traj_y_cln_det.png".format(self.name)))
+            plt.savefig(join(self.respath, "{}/traj_y_cln_det.png"
+                             .format(self.name)))
         else:
-            plt.savefig(join(self.respath, "{}/traj_y_cln.png".format(self.name)))
+            plt.savefig(join(self.respath, "{}/traj_y_cln.png"
+                             .format(self.name)))
         plt.close(plt.gcf())
         # save
         if detailled:
-            imtio.export_to_file(traj, join(self.imtpath, "{}_traj_det.cimt".format(self.name)))
+            imtio.export_to_file(traj, join(self.imtpath, "{}_traj_det.cimt"
+                                            .format(self.name)))
         else:
-            imtio.export_to_file(traj, join(self.imtpath, "{}_traj.cimt".format(self.name)))
+            imtio.export_to_file(traj, join(self.imtpath, "{}_traj.cimt"
+                                            .format(self.name)))
         del traj
-        
+
     def compute_everything(self):
         if not os.path.exists(join(self.respath, "{}".format(self.name))):
             os.mkdir(join(self.respath, "{}".format(self.name)))
-        if not os.path.exists(join(self.imtpath, "{}_cln.cimt".format(self.name))):
-            self._display_heading()      
+        if not os.path.exists(join(self.imtpath, "{}_cln.cimt"
+                                   .format(self.name))):
+            self._display_heading()
             self.prepare_data()
             self.pod_decomp()
             self.pod_reconstr()
             self.CP_detection()
-        elif not os.path.exists(join(self.imtpath, "{}_pod.cimt".format(self.name))):
-            self._display_heading()          
+        elif not os.path.exists(join(self.imtpath, "{}_pod.cimt"
+                                     .format(self.name))):
+            self._display_heading()
             self.pod_decomp()
             self.pod_reconstr()
             self.CP_detection()
-        elif not os.path.exists(join(self.imtpath, "{}_rec.cimt".format(self.name))):
-            self._display_heading()                
+        elif not os.path.exists(join(self.imtpath, "{}_rec.cimt"
+                                     .format(self.name))):
+            self._display_heading()
             self.pod_reconstr()
             self.CP_detection()
-        elif not os.path.exists(join(self.imtpath, "{}_traj.cimt".format(self.name))):
-            self._display_heading()                
+        elif not os.path.exists(join(self.imtpath, "{}_traj.cimt"
+                                     .format(self.name))):
+            self._display_heading()
             self.CP_detection()
         else:
             pass
         # detailled study
         if self.detailled:
-            if not os.path.exists(join(self.imtpath, "{}_rec_det.cimt".format(self.name))):
-                self._display_heading()                
+            if not os.path.exists(join(self.imtpath, "{}_rec_det.cimt"
+                                       .format(self.name))):
+                self._display_heading()
                 self.pod_reconstr(detailled=True)
                 self.CP_detection(detailled=True)
-            elif not os.path.exists(join(self.imtpath, "{}_traj_det.cimt".format(self.name))):
-                self._display_heading()                
+            elif not os.path.exists(join(self.imtpath, "{}_traj_det.cimt"
+                                         .format(self.name))):
+                self._display_heading()
                 self.CP_detection(detailled=True)
         else:
             pass
-        
+
     def recompute_everything(self):
         if not os.path.exists(join(self.respath, "{}".format(self.name))):
             os.mkdir(join(self.respath, "{}".format(self.name)))
@@ -231,10 +267,9 @@ class POD_CP_protocol(object):
         self.pod_decomp()
         self.pod_reconstr()
         self.CP_detection()
-        
+
     def _display_heading(self):
         title = "=   {}   =".format(self.name)
         print(("\n" + "="*len(title)))
         print(title)
         print(("="*len(title)))
-        

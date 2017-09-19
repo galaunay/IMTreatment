@@ -1,14 +1,28 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Feb 23 18:07:07 2014
+#!/bin/env python3
 
-@author: muahah
+# Copyright (C) 2003-2007 Gaby Launay
 
-For performance
-"""
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
 
-import pdb
-from ..core import ScalarField, VectorField,TemporalScalarFields,\
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from ..core import ScalarField, VectorField, TemporalScalarFields,\
     TemporalVectorFields
 from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 from ..utils import make_unit
@@ -17,8 +31,6 @@ import numpy as np
 from scipy import linalg
 
 
-
-### Angle based criterion ###
 def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
                         raw=False, local_treatment='none', order=1):
     """
@@ -52,7 +64,7 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
         (default 1 for sum of differences, 2 for standart deviation (std)
         or more)
     """
-    ### Checking parameters coherence ###
+    # Checking parameters coherence
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
     if radius is None:
@@ -79,12 +91,12 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
         raise TypeError()
     if order < 1:
         raise ValueError()
-    ### Getting data ###
+    # Getting data
     theta = vectorfield.theta
     mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
         _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
                                             dev_pass=False)
-    ### Computing criterion ###
+    # Computing criterion
     # creating reference dispersion functions
     best_fun = np.array([2.*np.pi/nmbpts]*nmbpts)
     worse_fun = np.array([0]*(nmbpts - 1) + [2.*np.pi])
@@ -121,13 +133,13 @@ def get_angle_deviation(vectorfield, radius=None, ind=False, mask=None,
         d_angles[0:-1] = angles[1::] - angles[:-1:]
         d_angles[-1] = angles[0] + 2*np.pi - angles[-1]
         # getting neighbour angles deviation
-        deviation[ind_x, ind_y] = (1 - (np.sum(np.abs(d_angles - best_fun)
-                                               ** order))
-                                   ** (1./order)/worse_value)
-    ### Applying masks ###
+        deviation[ind_x, ind_y] = (1 - (np.sum(np.abs(d_angles - best_fun) **
+                                               order)) **
+                                   (1./order)/worse_value)
+    # Applying masks
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
-    ### Creating gamma ScalarField ###
+    # Creating gamma ScalarField
     if raw:
         return np.ma.masked_array(deviation, mask)
     else:
@@ -177,7 +189,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         velocity angles deviation is strong (faster if there is few points).
         Work only with 'gamma1'
     """
-    ### Checking parameters coherence ###
+    # Checking parameters coherence
     if not isinstance(vectorfield, (VectorField, TemporalVectorFields)):
         raise TypeError()
     if radius is None:
@@ -206,7 +218,8 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         for time, field in zip(vectorfield.times, vectorfield.fields):
             gamma = get_gamma(field, radius=radius, ind=ind, kind=kind,
                               mask=mask, raw=raw, dev_pass=dev_pass)
-            gammas.add_field(gamma, time=time, unit_times=vectorfield.unit_times)
+            gammas.add_field(gamma, time=time,
+                             unit_times=vectorfield.unit_times)
         return gammas
     # getting data and masks
     Vx = vectorfield.comp_x
@@ -224,7 +237,7 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
         vector_a_x[i] = indaround[0]*deltax
         vector_a_y[i] = indaround[1]*deltay
     norm_vect_a = (vector_a_x**2 + vector_a_y**2)**(.5)
-    ### Loop on points ###
+    # Loop on points
     gammas = np.zeros(vectorfield.shape)
     for inds, pos, _ in vectorfield:
         ind_x = inds[0]
@@ -243,15 +256,15 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
             v_mean[0] = np.mean(Vx[indsaround[:, 0], indsaround[:, 1]])
             v_mean[1] = np.mean(Vy[indsaround[:, 0], indsaround[:, 1]])
         if kind in ['gamma2b']:
-            v_mean2[0] = np.mean((Vx[indsaround[:, 0], indsaround[:, 1]]
-                                 - v_mean[0])**2)
-            v_mean2[1] = np.mean((Vy[indsaround[:, 0], indsaround[:, 1]]
-                                 - v_mean[1])**2)
+            v_mean2[0] = np.mean((Vx[indsaround[:, 0], indsaround[:, 1]] -
+                                 v_mean[0])**2)
+            v_mean2[1] = np.mean((Vy[indsaround[:, 0], indsaround[:, 1]] -
+                                 v_mean[1])**2)
             fact = np.sqrt(v_mean2[0] + v_mean2[1]) / \
                 np.sqrt(v_mean[0]**2 + v_mean[1]**2)
             if np.abs(fact) > 1:
                 fact = 1.
-        ### Loop on neighbouring points ###
+        # Loop on neighbouring points
         gamma = 0.
         for i, indaround in enumerate(indsaround):
             inda_x = indaround[0]
@@ -262,15 +275,15 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
                 vector_b_y = Vy[inda_x, inda_y]
                 denom = norm_v[inda_x, inda_y]*norm_vect_a[i]
                 if denom != 0:
-                    gamma += (vector_a_x[i]*vector_b_y
-                              - vector_a_y[i]*vector_b_x)/denom
+                    gamma += (vector_a_x[i]*vector_b_y -
+                              vector_a_y[i]*vector_b_x)/denom
             elif kind in ['gamma2', 'gamma2b']:
                 vector_b_x = Vx[inda_x, inda_y] - v_mean[0]
                 vector_b_y = Vy[inda_x, inda_y] - v_mean[1]
                 denom = (vector_b_x**2 + vector_b_y**2)**.5*norm_vect_a[i]
                 if denom != 0:
-                    gamma += (vector_a_x[i]*vector_b_y
-                              - vector_a_y[i]*vector_b_x)/denom
+                    gamma += (vector_a_x[i]*vector_b_y -
+                              vector_a_y[i]*vector_b_x)/denom
         # adapting with factors
         if kind in ['gamma1', 'gamma2']:
             gamma = gamma/nmbpts
@@ -280,10 +293,10 @@ def get_gamma(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
             gamma = gamma/nmbpts*fact
         # storing computed gamma value
         gammas[ind_x, ind_y] = gamma
-    ### Applying masks ###
+    # Applying masks
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
-    ### Creating gamma ScalarField ###
+    # Creating gamma ScalarField
     if raw:
         return np.ma.masked_array(gammas, mask)
     else:
@@ -319,7 +332,7 @@ def get_NL_residual_vorticity(vectorfield, radius=None, ind=False, mask=None,
         If 'False' (default), a ScalarField is returned,
         if 'True', an array is returned.
     """
-    ### Checking parameters coherence ###
+    # Checking parameters coherence
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
     if radius is None:
@@ -342,7 +355,7 @@ def get_NL_residual_vorticity(vectorfield, radius=None, ind=False, mask=None,
     mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
         _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
                                             dev_pass=False)
-    ### Loop on points to get non-local gradients ###
+    # Loop on points to get non-local gradients
     Exx = np.zeros(vectorfield.shape, dtype=float)
     Exy = np.zeros(vectorfield.shape, dtype=float)
     Eyx = np.zeros(vectorfield.shape, dtype=float)
@@ -376,10 +389,10 @@ def get_NL_residual_vorticity(vectorfield, radius=None, ind=False, mask=None,
     # getting the residual vorticity
     res_vort = np.zeros(vectorfield.shape)
     res_vort[filt] = sign_omega[filt]*(omega_abs[filt] - s[filt])
-    ### Applying masks ###
+    # Applying masks
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
-    ### Creating gamma ScalarField ###
+    # Creating gamma ScalarField
     if raw:
         return np.ma.masked_array(res_vort, mask)
     else:
@@ -392,155 +405,6 @@ def get_NL_residual_vorticity(vectorfield, radius=None, ind=False, mask=None,
                                     unit_x=unit_x, unit_y=unit_y,
                                     unit_values=unit_values)
         return gamma_sf
-
-
-#def get_gamma_res(vectorfield, radius=None, ind=False, kind='gamma1', mask=None,
-#                  raw=False, dev_pass=False):
-#    """
-#    Return the gamma scalar field. Gamma criterion is used in
-#    vortex analysis.
-#    The fonction recognize if the field is ortogonal, and use an
-#    apropriate algorithm.
-#
-#    Parameters
-#    ----------
-#    vectorfield : VectorField object
-#        .
-#    radius : number, optionnal
-#        The radius used to choose the zone where to compute
-#        gamma for each point. If not mentionned, a value is choosen in
-#        ordre to have about 8 points in the circle. It allow to get good
-#        result, without big computation cost.
-#    ind : boolean
-#        If 'True', radius is expressed on number of vectors.
-#        If 'False' (default), radius is expressed on axis unit.
-#    kind : string
-#        If 'gamma1' (default), compute gamma1 criterion.
-#        If 'gamma2', compute gamma2 criterion (with relative velocities)
-#    mask : array of boolean, optionnal
-#        Has to be an array of the same size of the vector field object,
-#        gamma will be compute only where mask is 'False'.
-#    raw : boolean, optional
-#        If 'False' (default), a ScalarField is returned,
-#        if 'True', an array is returned.
-#    dev_pass : boolean, optional
-#        If 'True', the algorithm compute gamma criterion only where the
-#        velocity angles deviation is strong (faster if there is few points).
-#        Work only with 'gamma1'
-#    """
-#    ### Checking parameters coherence ###
-#    if not isinstance(vectorfield, VectorField):
-#        raise TypeError("'vectorfield' must be a VectorField object")
-#    if radius is None:
-#        radius = 1.9
-#        ind = True
-#    if not isinstance(radius, NUMBERTYPES):
-#        raise TypeError("'radius' must be a number")
-#    if not isinstance(ind, bool):
-#        raise TypeError("'ind' must be a boolean")
-#    axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
-#    if not isinstance(kind, STRINGTYPES):
-#        raise TypeError("'kind' must be a string")
-#    if kind not in ['gamma1', 'gamma2']:
-#        raise ValueError("Unkown value for kind")
-#    if mask is None:
-#        mask = np.zeros(vectorfield.shape)
-#    elif not isinstance(mask, ARRAYTYPES):
-#        raise TypeError("'zone' must be an array of boolean")
-#    else:
-#        mask = np.array(mask)
-#    if kind in ['gamma2', 'gamma2b']:
-#        dev_pass = False
-#    # getting data and masks
-#    Vx = vectorfield.comp_x
-#    Vy = vectorfield.comp_y
-#    norm_v = vectorfield.magnitude
-#    mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
-#        _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
-#                                            dev_pass)
-#    # getting the vectors between center and neighbouring
-#    deltax = axe_x[1] - axe_x[0]
-#    deltay = axe_y[1] - axe_y[0]
-#    vector_a_x = np.zeros(motif.shape[0])
-#    vector_a_y = np.zeros(motif.shape[0])
-#    theta = []
-#    for i, indaround in enumerate(motif):
-#        vector_a_x[i] = indaround[0]*deltax
-#        vector_a_y[i] = indaround[1]*deltay
-#        theta.append(np.arctan(vector_a_y[i]/vector_a_x[i]))
-#    theta = np.array(theta) % np.pi
-#    norm_vect_a = (vector_a_x**2 + vector_a_y**2)**(.5)
-#    ### Loop on points ###
-#    gammas = np.zeros(vectorfield.shape)
-#    for inds, pos, _ in vectorfield:
-#        ind_x = inds[0]
-#        ind_y = inds[1]
-#        # stop if masked or on border or with a masked surrouinding point
-#        if mask[ind_x, ind_y] or mask_surr[ind_x, ind_y]\
-#                or mask_border[ind_x, ind_y] or mask_dev[ind_x, ind_y]:
-#            continue
-#        # getting neighbour points
-#        indsaround = motif + inds
-#        # If necessary, compute mean velocity on points (gamma2)
-#        v_mean = [Vx[ind_x, ind_y], Vy[ind_x, ind_y]]
-#        v_mean[0] = np.mean(Vx[indsaround[:, 0], indsaround[:, 1]])
-#        v_mean[1] = np.mean(Vy[indsaround[:, 0], indsaround[:, 1]])
-#
-#        ### Loop on neighbouring points ###
-#        loc_gammas = []
-#        loc_weights = []
-#        for i, indaround in enumerate(indsaround):
-#            inda_x = indaround[0]
-#            inda_y = indaround[1]
-#            # getting vectors for scalar product
-#            if kind in ['gamma1']:
-#                vector_b_x = Vx[inda_x, inda_y]
-#                vector_b_y = Vy[inda_x, inda_y]
-#                denom = norm_v[inda_x, inda_y]*norm_vect_a[i]
-#                if denom != 0:
-#                    gamma += (vector_a_x[i]*vector_b_y
-#                              - vector_a_y[i]*vector_b_x)/denom
-#            elif kind in ['gamma2']:
-#                vector_b_x = Vx[inda_x, inda_y] - v_mean[0]
-#                vector_b_y = Vy[inda_x, inda_y] - v_mean[1]
-#                denom = (vector_b_x**2 + vector_b_y**2)**.5*norm_vect_a[i]
-#                if denom != 0:
-#                    loc_weights.append((vector_b_x**2 + vector_b_y**2)**.5)
-#                    loc_gammas.append((vector_a_x[i]*vector_b_y
-#                                      - vector_a_y[i]*vector_b_x)/denom)
-#
-#        loc_weights = np.array(loc_weights)
-#        loc_gammas = np.array(loc_gammas)
-#        theta = np.array(theta)
-#        weights = []
-#        gams = []
-#        for thet in theta:
-#            weights.append(np.mean(loc_weights[theta == thet]))
-#            gams.append(np.mean(loc_gammas[theta == thet]))
-#        gamma = np.sum(loc_gammas)
-#
-#        if ind_x == 10 and ind_y == 50:
-#            plt.figure()
-#            plt.plot(weights, gams, 'o')
-#            bug
-#        # adapting with factors
-#        if kind in ['gamma1', 'gamma2']:
-#            gamma = gamma/nmbpts
-#        # storing computed gamma value
-#        gammas[ind_x, ind_y] = gamma
-#    ### Applying masks ###
-#    mask = np.logical_or(mask, mask_border)
-#    mask = np.logical_or(mask, mask_surr)
-#    ### Creating gamma ScalarField ###
-#    if raw:
-#        return np.ma.masked_array(gammas, mask)
-#    else:
-#        gamma_sf = ScalarField()
-#        unit_x, unit_y = vectorfield.unit_x, vectorfield.unit_y
-#        gamma_sf.import_from_arrays(axe_x, axe_y, gammas, mask,
-#                                    unit_x=unit_x, unit_y=unit_y,
-#                                    unit_values=make_unit(''))
-#        return gamma_sf
 
 
 def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
@@ -575,7 +439,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         If 'True', the algorithm compute gamma criterion only where the
         velocity angles deviation is strong (faster if there is few points)
     """
-    ### Checking parameters coherence ###
+    # Checking parameters coherence
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
     if radius is None:
@@ -612,7 +476,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
         vector_a_x[i] = indaround[0]*deltax
         vector_a_y[i] = indaround[1]*deltay
     norm_vect_a = (vector_a_x**2 + vector_a_y**2)**(.5)
-    ### Loop on points ###
+    # Loop on points
     kappas = np.zeros(vectorfield.shape)
     for inds, pos, _ in vectorfield:
         ind_x = inds[0]
@@ -632,7 +496,7 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
                 v_mean[1] += Vy[ind_x, ind_y]
             v_mean[0] /= nmbpts
             v_mean[1] /= nmbpts
-        ### Loop on neighbouring points ###
+        # Loop on neighbouring points
         kappa = 0.
         nmbpts = len(indsaround)
         for i, indaround in enumerate(indsaround):
@@ -647,14 +511,14 @@ def get_kappa(vectorfield, radius=None, ind=False, kind='kappa1', mask=None,
                 denom = (vector_b_x**2 + vector_b_y**2)**.5*norm_vect_a[i]
             # getting scalar product
             if denom != 0:
-                kappa += (vector_a_x[i]*vector_b_x
-                          + vector_a_y[i]*vector_b_y)/denom
+                kappa += (vector_a_x[i]*vector_b_x +
+                          vector_a_y[i]*vector_b_y)/denom
         # storing computed kappa value
         kappas[ind_x, ind_y] = kappa/nmbpts
-    ### Applying masks ###
+    # Applying masks
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
-    ### Creating kappa ScalarField ###
+    # Creating kappa ScalarField
     if raw:
         return np.ma.masked_array(kappas, mask)
     else:
@@ -713,7 +577,7 @@ def get_iota(vectorfield, mask=None, radius=None, ind=False, raw=False):
     else:
         theta = vectorfield.theta
         mask = np.logical_or(mask, vectorfield.mask)
-    ### calcul du gradients de theta
+    # calcul du gradients de theta
     # necesary steps to avoid big gradients by passing from 0 to 2*pi
     theta1 = theta.copy()
     theta2 = theta.copy()
@@ -740,6 +604,7 @@ def get_iota(vectorfield, mask=None, radius=None, ind=False, raw=False):
                                    unit_values=make_unit(''))
         return iota_sf
 
+
 def get_enstrophy(vectorfield, radius=None, ind=False, mask=None,
                   raw=False):
     """
@@ -763,7 +628,7 @@ def get_enstrophy(vectorfield, radius=None, ind=False, mask=None,
         If 'False' (default), a ScalarField is returned,
         if 'True', an array is returned.
     """
-    ### Checking parameters coherence ###
+    # Checking parameters coherence
     if not isinstance(vectorfield, VectorField):
         raise TypeError("'vectorfield' must be a VectorField object")
     if radius is None:
@@ -787,9 +652,9 @@ def get_enstrophy(vectorfield, radius=None, ind=False, mask=None,
     mask, nmbpts, mask_dev, mask_border, mask_surr, motif =\
         _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
                                             dev_pass=False)
-    dv = ((vectorfield.axe_x[1] - vectorfield.axe_x[0])
-          * (vectorfield.axe_y[1] - vectorfield.axe_y[0]))
-    ### Loop on points ###
+    dv = ((vectorfield.axe_x[1] - vectorfield.axe_x[0]) *
+          (vectorfield.axe_y[1] - vectorfield.axe_y[0]))
+    # Loop on points
     enstrophy = np.zeros(vectorfield.shape)
     for inds, pos, _ in vectorfield:
         ind_x = inds[0]
@@ -800,16 +665,16 @@ def get_enstrophy(vectorfield, radius=None, ind=False, mask=None,
             continue
         # getting neighbour points
         indsaround = motif + inds
-        ### Loop on neighbouring points ###
+        # Loop on neighbouring points
         loc_enstrophy = 0.
         for i, indaround in enumerate(indsaround):
             loc_enstrophy += vort2[indaround[0], indaround[1]]
         # storing computed gamma value
         enstrophy[ind_x, ind_y] = loc_enstrophy*dv
-    ### Applying masks ###
+    # Applying masks
     mask = np.logical_or(mask, mask_border)
     mask = np.logical_or(mask, mask_surr)
-    ### Creating gamma ScalarField ###
+    # Creating gamma ScalarField
     if raw:
         return np.ma.masked_array(enstrophy, mask)
     else:
@@ -828,9 +693,9 @@ def _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
                                         dev_pass):
     """
     """
-    ### Importing data from vectorfield (velocity, axis and mask) ###
+    # Importing data from vectorfield (velocity, axis and mask)
     mask = np.logical_or(mask, vectorfield.mask)
-    ### Compute motif and motif angles on an arbitrary point ###
+    # Compute motif and motif angles on an arbitrary point
     axe_x, axe_y = vectorfield.axe_x, vectorfield.axe_y
     indcentral = [int(len(axe_x)/2.), int(len(axe_y)/2.)]
     if ind:
@@ -842,7 +707,7 @@ def _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
         motif = vectorfield.get_points_around(ptcentral, radius, ind)
         motif = motif - indcentral
     nmbpts = len(motif)
-    ### Generating masks ###
+    # Generating masks
     # creating surrounding masked point zone mask
     mask_surr = np.zeros(mask.shape)
     inds_masked = np.transpose(np.where(mask))
@@ -908,7 +773,6 @@ def _get_angles(Vx, Vy, check=False):
     return theta
 
 
-### Tensor based criterion ###
 def get_divergence(vf, raw=False):
     """
     Return a scalar field with the 2D divergence.
@@ -963,6 +827,7 @@ def get_divergence(vf, raw=False):
         return div_tsf
     else:
         raise TypeError()
+
 
 def get_vorticity(vf, raw=False):
     """
@@ -1141,7 +1006,7 @@ def get_swirling_strength(vf, raw=False):
         return swst
     else:
         unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
-        # TODO: implémenter unité
+        # TODO: Implement unities
         unit_values = ""
         tmp_sf = ScalarField()
         tmp_sf.import_from_arrays(axe_x, axe_y, swst, mask=mask,
@@ -1201,13 +1066,14 @@ def get_improved_swirling_strength(vf, raw=False):
         return swst
     else:
         unit_x, unit_y = tmp_vf.unit_x, tmp_vf.unit_y
-        # TODO: implémenter unité
+        # TODO: Implement unities
         unit_values = ""
         tmp_sf = ScalarField()
         tmp_sf.import_from_arrays(axe_x, axe_y, swst, mask=mask,
                                   unit_x=unit_x, unit_y=unit_y,
                                   unit_values=unit_values)
         return tmp_sf
+
 
 def get_q_criterion(vectorfield, mask=None, raw=False):
     """
@@ -1461,7 +1327,8 @@ def get_residual_vorticity(vf, raw=False):
         omega_abs = np.abs(omega)
         sign_omega = np.zeros(omega.shape, dtype=int)
         sign_omega[omega_abs == 0] = 1.
-        sign_omega[omega_abs != 0] = omega[omega_abs != 0]/omega_abs[omega_abs != 0]
+        sign_omega[omega_abs != 0] = (omega[omega_abs != 0] /
+                                      omega_abs[omega_abs != 0])/
         filt = s < omega_abs
         # getting the residual vorticity
         res_vort = np.zeros(tmp_vf.shape)

@@ -1,15 +1,29 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
 
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pdb
 import unum
 import copy
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
@@ -24,7 +38,6 @@ class SpatialFields(flds.Fields):
     """
     """
 
-    ### Operators ###
     def __init__(self):
         self.unit_x = make_unit('')
         self.unit_y = make_unit('')
@@ -177,8 +190,8 @@ class SpatialFields(flds.Fields):
         # get interesting fields
         inter_ind = []
         for i, field in enumerate(self.fields):
-            if (x > field.axe_x[0] and x < field.axe_x[-1]
-                    and y > field.axe_y[0] and y < field.axe_y[-1]):
+            if (x > field.axe_x[0] and x < field.axe_x[-1] and
+                    y > field.axe_y[0] and y < field.axe_y[-1]):
                 inter_ind.append(i)
         # get values (mean over fields if necessary)
         if len(inter_ind) == 0:
@@ -289,18 +302,21 @@ class SpatialFields(flds.Fields):
         inter_ind = []
         if direction == 1:
             for i, field in enumerate(self.fields):
-                if np.any(position < field.axe_x[-1]) and np.any(position > field.axe_x[0]):
+                if np.any(position < field.axe_x[-1]) and \
+                   np.any(position > field.axe_x[0]):
                     inter_ind.append(i)
         elif direction == 2:
             for i, field in enumerate(self.fields):
-                if np.any(position < field.axe_y[-1]) and np.any(position > field.axe_y[0]):
+                if np.any(position < field.axe_y[-1]) and \
+                   np.any(position > field.axe_y[0]):
                     inter_ind.append(i)
         # get profiles
         if len(inter_ind) == 0:
             return None
         elif len(inter_ind) == 1:
             return comp[inter_ind[0]].get_profile(direction=direction,
-                                                  position=position, ind=False)[0]
+                                                  position=position,
+                                                  ind=False)[0]
         else:
             # get profiles
             x = np.array([])
@@ -308,7 +324,8 @@ class SpatialFields(flds.Fields):
             for ind in inter_ind:
                 tmp_comp = comp[ind]
                 tmp_prof = tmp_comp.get_profile(direction=direction,
-                                                position=position, ind=False)[0]
+                                                position=position,
+                                                ind=False)[0]
                 x = np.concatenate((x, tmp_prof.x))
                 y = np.concatenate((y, tmp_prof.y))
             # recreate profile object
@@ -316,7 +333,7 @@ class SpatialFields(flds.Fields):
             x = x[ind_sort]
             y = y[ind_sort]
             fin_prof = prof.Profile(x, y, mask=False, unit_x=tmp_prof.unit_x,
-                               unit_y = tmp_prof.unit_y)
+                                    unit_y=tmp_prof.unit_y)
 
             return fin_prof
 

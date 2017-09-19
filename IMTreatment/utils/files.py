@@ -1,24 +1,39 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
 
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
 
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import warnings
 import numpy as np
 import shutil
 import colorama
 import os
-import pdb
 from os.path import join
 import copy
 import re
+from ..utils.types import ARRAYTYPES
+from ..utils.progresscounter import ProgressCounter
 
-    
+
 class Files(object):
     def __init__(self):
         """
@@ -66,9 +81,9 @@ class Files(object):
             # if too much files to display, display number of files
             if 'files' in list(fold.keys()):
                 if len(fold['files']) > max_file_list:
-                    yield (tab1 + file_number_color
-                           + '[{} Files]'.format(len(fold['files']))
-                           + files_end_of_line)
+                    yield (tab1 + file_number_color +
+                           '[{} Files]'.format(len(fold['files'])) +
+                           files_end_of_line)
             # loop recursively on folder's folders
             for key in list(fold.keys()):
                 if key == 'files':
@@ -90,7 +105,8 @@ class Files(object):
             curr_fold = self.tree
             while True:
                 if isinstance(curr_fold, dict):
-                    if len(list(curr_fold.keys())) == 1 and list(curr_fold.keys())[0] != "files":
+                    if len(list(curr_fold.keys())) == 1 and \
+                            list(curr_fold.keys())[0] != "files":
                         text += list(curr_fold.keys())[0] + separator
                         curr_fold = curr_fold[list(curr_fold.keys())[0]]
                     else:
@@ -100,10 +116,11 @@ class Files(object):
             # put a nice heading
             text = text[:-1]
             heading_sep = heading_separator*(len(text)+2)
-            text = (tab0 + tab_color + heading_sep + tab0 + folders_end_of_line
-                    + tab0 + " " + text + " " + tab0 + folders_end_of_line
-                    + tab_color + tab0 + tab_color + heading_sep + tab0
-                    + folders_end_of_line)
+            text = (tab0 + tab_color + heading_sep + tab0 +
+                    folders_end_of_line +
+                    tab0 + " " + text + " " + tab0 + folders_end_of_line +
+                    tab_color + tab0 + tab_color + heading_sep + tab0 +
+                    folders_end_of_line)
             # update folder
             tree = curr_fold
         # display the tree
@@ -214,7 +231,7 @@ class Files(object):
         """
         dic = {}
         for isdir, path in zip(self.isdir, self.paths):
-            sep_path  = path.split(os.path.sep)
+            sep_path = path.split(os.path.sep)
             tmp_dic = dic
             sep_path_len = len(sep_path)
             for i, fold in enumerate(sep_path):
@@ -244,10 +261,12 @@ class Files(object):
               .format(nmb_files, nmb_dir))
         while True:
             rep = input("+++ Okay with that ? ('o', 'n') \n+++ ")
-            if rep in ['o', 'O', 'y', 'Y', 'oui', 'Oui', 'Yes', 'yes', 'YES', 'OUI']:
+            if rep in ['o', 'O', 'y', 'Y', 'oui', 'Oui',
+                       'Yes', 'yes', 'YES', 'OUI']:
                 rep = True
                 break
-            elif rep in ['n', 'N', 'No', 'no', 'non', 'Non', 'NON', 'NO']:
+            elif rep in ['n', 'N', 'No', 'no', 'non',
+                         'Non', 'NON', 'NO']:
                 rep = False
                 break
         # remove if necessary
@@ -276,7 +295,8 @@ class Files(object):
                             print("+++ Following folder is not empty\n"
                                   "{}".format(p))
                             while True:
-                                rep = input("+++ Delete anyway ? ('o', 'n') \n+++ ")
+                                rep = input("+++ Delete anyway ? ('o', 'n') "
+                                            "\n+++ ")
                                 if rep in ['o', 'O', 'y', 'Y', 'oui', 'Oui',
                                            'Yes', 'yes', 'YES', 'OUI']:
                                     rep = True
@@ -290,9 +310,6 @@ class Files(object):
             #
             for i in range(len(self.exist)):
                 self.exist[i] = False
-
-
-
 
 
 def remove_files_in_dirs(rootpath, dir_regex, file_regex,
@@ -342,12 +359,14 @@ def remove_files_in_dirs(rootpath, dir_regex, file_regex,
     if np.sum(nmb_files) == 0:
         print("+++ Nothing to delete")
         return None
-    print("+++ Ready to remove {} files in directories :".format(np.sum(nmb_files)))
+    print("+++ Ready to remove {} files in directories :"
+          .format(np.sum(nmb_files)))
     for i in range(len(dir_paths)):
         print("+++    [{} files] {}".format(nmb_files[i], dir_paths[i]))
     while True:
         rep = input("+++ Okay with that ? ('o', 'n') \n+++ ")
-        if rep in ['o', 'O', 'y', 'Y', 'oui', 'Oui', 'Yes', 'yes', 'YES', 'OUI']:
+        if rep in ['o', 'O', 'y', 'Y', 'oui', 'Oui',
+                   'Yes', 'yes', 'YES', 'OUI']:
             rep = True
             break
         elif rep in ['n', 'N', 'No', 'no', 'non', 'Non', 'NON', 'NO']:

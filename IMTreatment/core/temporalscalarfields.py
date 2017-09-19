@@ -1,14 +1,27 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
 
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
 
-# import warnings
-# arnings.filterwarnings('error')
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import numpy as np
 import scipy.interpolate as spinterp
 from matplotlib import pyplot as plt
@@ -36,7 +49,6 @@ class TemporalScalarFields(tf.TemporalFields):
     "calc_*" : give access to a bunch of derived statistical fields.
     """
 
-    ### Attributes ###
     @property
     def values_as_sf(self):
         return self
@@ -49,7 +61,6 @@ class TemporalScalarFields(tf.TemporalFields):
             values[i, :, :] = field.values[:, :]
         return values
 
-    ### Watchers ###
     def get_min_field(self, nmb_min=1):
         """
         Calculate the minimum scalar field, from all the fields.
@@ -128,7 +139,8 @@ class TemporalScalarFields(tf.TemporalFields):
             tf = len(self.fields)
         # select spectrum to display
         if check_spec is not None:
-            check_spec_inds = np.random.choice(range(self.shape[0]*self.shape[1]),
+            check_spec_inds = np.random.choice(range(self.shape[0] *
+                                                     self.shape[1]),
                                                check_spec)
         # get phases
         if verbose:
@@ -212,8 +224,6 @@ class TemporalScalarFields(tf.TemporalFields):
         if not inplace:
             return tsf
 
-
-    ### Modifiers ###
     def fill(self, tof='spatial', kind='linear', value=0.,
              inplace=False, crop=False):
         """
@@ -237,7 +247,8 @@ class TemporalScalarFields(tf.TemporalFields):
         crop : boolean, optional
             If 'True', TVF borders are croped before filling.
         """
-        # TODO : utiliser Profile.fill au lieu d'une nouvelle méthode de filling
+        # TODO : utiliser Profile.fill au lieu d'une nouvelle méthode de
+        #        filling
         # checking parameters coherence
         if len(self.fields) < 3 and tof == 'temporal':
             raise ValueError("Not enough fields to fill with temporal"

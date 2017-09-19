@@ -1,22 +1,36 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
-"""
-IMTreatment3 module
+#!/bin/env python3
 
-    Auteur : Gaby Launay
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
-import pdb
 import unum
 import copy
-from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
+from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 from ..utils import make_unit
 
 
 class Field(object):
 
-    ### Operators ###
     def __init__(self):
         self.__axe_x = np.array([], dtype=float)
         self.__axe_y = np.array([], dtype=float)
@@ -29,7 +43,6 @@ class Field(object):
             for j, y in enumerate(self.axe_y):
                 yield [i, j], [x, y]
 
-    ### Attributes ###
     @property
     def axe_x(self):
         return self.__axe_x
@@ -101,7 +114,7 @@ class Field(object):
     @unit_y.setter
     def unit_y(self, new_unit_y):
         if isinstance(new_unit_y, unum.Unum):
-            if np.isclose(new_unit_y.asNumber(),  1):
+            if np.isclose(new_unit_y.asNumber(), 1):
                 self.__unit_y = new_unit_y
             else:
                 raise ValueError()
@@ -114,12 +127,10 @@ class Field(object):
     def unit_y(self):
         raise Exception("Nope, can't do that")
 
-    ### Properties ###
     @property
     def shape(self):
         return self.__axe_x.shape[0], self.__axe_y.shape[0]
 
-    ### Watchers ###
     def copy(self):
         """
         Return a copy of the Field object.
@@ -263,7 +274,6 @@ class Field(object):
                 inds.append([x, y])
         return np.array(inds, subok=True)
 
-    ### Modifiers ###
     def scale(self, scalex=None, scaley=None, inplace=False,
               output_reverse=False):
         """
@@ -280,10 +290,7 @@ class Field(object):
             tmp_f = self
         else:
             tmp_f = self.copy()
-        # TODO : for compatibility purpose
-        if not hasattr(tmp_f, "xy_scale"):
-            tmp_f.xy_scale = make_unit("")
-        # set xy_scale 
+        # set xy_scale
         if scalex is not None and scaley is not None:
             tmp_f.xy_scale *= scalex/scaley
         elif scalex is not None:
@@ -309,7 +316,7 @@ class Field(object):
         else:
             raise TypeError()
         if reversex:
-            tmp_f.axe_x = tmp_f.axe_x[::-1]   
+            tmp_f.axe_x = tmp_f.axe_x[::-1]
         # y
         reversey = False
         if scaley is None:
@@ -329,7 +336,7 @@ class Field(object):
         else:
             raise TypeError()
         if reversey:
-            tmp_f.axe_y = tmp_f.axe_y[::-1]   
+            tmp_f.axe_y = tmp_f.axe_y[::-1]
         # returning
         if output_reverse:
             if inplace:

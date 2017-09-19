@@ -1,15 +1,31 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Feb 23 18:21:52 2014
+#!/bin/env python3
 
-@author: muahah
-"""
+# Copyright (C) 2003-2007 Gaby Launay
+
+# Author: Gaby Launay  <gaby.launay@tutanota.com>
+# URL: https://framagit.org/gabylaunay/IMTreatment
+# Version: 1.0
+
+# This file is part of IMTreatment.
+
+# IMTreatment is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+
+# IMTreatment is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint, ode
 from .. import Profile, make_unit, ScalarField
-import pdb
 import scipy.integrate as spinteg
 
 NUMBERTYPES = (int, float, int, np.float, np.float16, np.float32)
@@ -58,10 +74,6 @@ class BlasiusBL(object):
         """
         Return the boundary layer properties according to blasius theory.
 
-        Fonction
-        --------
-        delta, delta2, delta_star, H, Cf, Rex, tau_w = BlasiusBL(allTurbulent=False)
-
         Parameters
         ---------
         x : number or array of number
@@ -81,13 +93,13 @@ class BlasiusBL(object):
         delta_star : array of numbers
             Boundary layer displacement thickness (m)
         H : array of numbers
-            Shape factor 
+            Shape factor
         Cf : array of numbers
             Friction coefficient profile
         Rex : array of numbers
             Reynolds number on the distance from the border.
         tau_w : array of numbers
-            Wall shear stress (Pa)   
+            Wall shear stress (Pa)
         """
         # check
         if not isinstance(x, (NUMBERTYPES, ARRAYTYPES)):
@@ -121,7 +133,7 @@ class BlasiusBL(object):
             else:
                 Rex.append(self.Uinf*xpos/self.nu)
                 if Rex[-1] < 5e5 and not allTurbulent:
-                    delta.append(xpos*perc_coef_lam/np.power(Rex[-1], 0.5)) 
+                    delta.append(xpos*perc_coef_lam/np.power(Rex[-1], 0.5))
                     delta2.append(0.664*(self.nu*xpos/self.Uinf)**.5)
                     delta_star.append(delta2[-1]*2.59)
                     Cf.append(0.664/np.power(Rex[-1], 0.5))
@@ -315,15 +327,16 @@ class FalknerSkanBL(object):
         """
         return the \mu parameter at the position '(x, y)'.
         """
-        return y*(self.c0*(self.m + 1)/(2*self.nu*self.L))**.5*(x/self.L)**((self.m - 1)/2.)
+        return y*(self.c0*(self.m + 1)/(2*self.nu*self.L))**.5 * \
+            (x/self.L)**((self.m - 1)/2.)
 
     def get_y(self, x, mu):
         """
         Return the 'y' vaue associated with \mu parameter.
         """
         return mu*(self.nu*x/self.get_u_e(x))**.5
-        return mu/((self.c0*(self.m + 1)/(2*self.nu*self.L))**.5*(x/self.L)**((self.m - 1)/2.))
-
+        return mu/((self.c0*(self.m + 1)/(2*self.nu*self.L))**.5 *
+                   (x/self.L)**((self.m - 1)/2.))
 
     def get_f_function(self, relerr=1e-5, max_it=1000, verbose=False):
         """
@@ -378,7 +391,7 @@ class FalknerSkanBL(object):
         # Prepare shooting method to solve BVP (boundary value problem)
         aimed_Y1p = 1.
         first_Y3_guess = 0.33 + 0.77*np.log(2.207*(self.m + 0.45696))
-        interval_Y3 = [first_Y3_guess - .33, first_Y3_guess+ .33]
+        interval_Y3 = [first_Y3_guess - .33, first_Y3_guess + .33]
         # first guesses for f'''(0)
         tmp_Y3s = np.linspace(*interval_Y3, num=100)
         tmp_Y1ps = []
@@ -404,11 +417,13 @@ class FalknerSkanBL(object):
             tmp_neg = resid[:-1]*resid[1::]
             ind1 = np.where(tmp_neg < 0)[0]
             ind2 = np.where(tmp_Y2ps[:-1]*tmp_Y2ps[1:] < 0)[0]
-            ind = [ind1[i] for i in np.arange(len(ind1)) if ind1[i] == ind2[i]][0]
+            ind = [ind1[i]
+                   for i in np.arange(len(ind1))
+                   if ind1[i] == ind2[i]][0]
             interval_Y1p = [tmp_Y1ps[ind], tmp_Y1ps[ind + 1]]
             interval_Y3 = [tmp_Y3s[ind], tmp_Y3s[ind + 1]]
         # check if we get a lesser cool interval
-        elif ind_min[0] in [0, len(tmp_Y1ps) - 1] :
+        elif ind_min[0] in [0, len(tmp_Y1ps) - 1]:
             raise Exception("Guessing interval for f''(0) need to be enlarged"
                             "\n tmp_Y1ps={}".format(tmp_Y1ps))
         else:
@@ -421,21 +436,19 @@ class FalknerSkanBL(object):
             print("+++ Shooting method iteration +++")
         mid_Y3 = 1e30
         while True:
-            new_mid_Y3 = ((interval_Y3[0]*np.abs(1 - interval_Y1p[1])
-                           + interval_Y3[1]*np.abs(1 - interval_Y1p[0]))
-                          / (np.abs(1 - interval_Y1p[1])
-                             + np.abs(1 - interval_Y1p[0])))
-#            print(interval_Y3)
-#            print(interval_Y1p)
-#            print(new_mid_Y3)
-#            bug
+            new_mid_Y3 = ((interval_Y3[0]*np.abs(1 - interval_Y1p[1]) +
+                           interval_Y3[1]*np.abs(1 - interval_Y1p[0])) /
+                          (np.abs(1 - interval_Y1p[1]) +
+                           np.abs(1 - interval_Y1p[0])))
             if np.abs(new_mid_Y3 - mid_Y3) < 1e-10:
                 if verbose:
-                    print("+++    Can't do better than that (stuck in local minimum ?)")
+                    print("+++    Can't do better than that "
+                          "(stuck in local minimum ?)")
                 break
             mid_Y3 = new_mid_Y3
             if verbose:
-                print(("+++    ({})     new tested Y3 = {:.4f}".format(nmb_it, mid_Y3)))
+                print(("+++    ({})     new tested Y3 = {:.4f}"
+                       .format(nmb_it, mid_Y3)))
             # compute new Y1p at middle
             ODE.set_initial_value([0, 0, mid_Y3])
             prof = ODE.integrate(mu[-1])
@@ -457,7 +470,8 @@ class FalknerSkanBL(object):
                 break
             if err < relerr:
                 if verbose:
-                    print(("+++    Converged in {} iterations !".format(nmb_it)))
+                    print(("+++    Converged in {} iterations !"
+                           .format(nmb_it)))
                     break
             # incr
             nmb_it += 1
@@ -479,7 +493,6 @@ class FalknerSkanBL(object):
                                       verbose=verbose)
         # get y values
         y = self.get_y(x, mu)
-        dy = y[1] - y[0]
 
         # check solution
         dmu = mu[1] - mu[0]
@@ -487,19 +500,14 @@ class FalknerSkanBL(object):
         F1 = sol[:, 1]
         F2 = sol[:, 2]
         F3 = np.gradient(F2, dmu)
+        res = np.mean(F3 + (self.m + 1)/2*F0*F2 + self.m*(1 - F1**2))
         print("+++ Equation +++")
-        print(("+++     should be zero : {:.4f}".format(np.mean(F3 + (self.m + 1)/2*F0*F2 + self.m*(1 - F1**2)))))
+        print(("+++     should be zero : {:.4f}".format(res)))
         print("+++ Boundary conditions +++")
         print(("+++     f(0)={:.3f} (should be 0)".format(sol[0, 0])))
         print(("+++     f'(0)={:.3f} (should be 0)".format(sol[0, 1])))
         print(("+++     f'(inf)={:.3f} (should be 1)".format(sol[-1, 1])))
-
-        # get velocit from f
-#        phi = (self.get_u_e(x)*self.nu*x)**.5*sol[:, 0]
-#        phi = y*((2*self.nu*self.c0*self.L)/(self.m + 1))*(x/self.L)**((self.m + 1.)/2.)*sol[:, 0]
-#        vx = np.gradient(phi, dy)
         vx = sol[:, 1]*self.get_u_e(x)
-        #return mu, sol[:, 1]
         return y, vx
 
 
@@ -507,7 +515,7 @@ class ThwaitesBL(object):
 
     def __init__(self, u_e, nu=1.e-6):
         """
-        Represent a The solution of the boundary layer momentum equation 
+        Represent a The solution of the boundary layer momentum equation
         using Thwaites solution.
 
         Parameters
@@ -537,14 +545,14 @@ class ThwaitesBL(object):
     def get_momentum_thikness(self, x):
         """
         Return the evolution of the boundary layer momentum thikness.
-        
+
         Parameters
         ----------
         x : number or array of numbers
             Position along the flat plan until where we want to solve the
             momentum equation.
             (has no influence on the resoluion accuracy)
-            
+
         Returns
         -------
         delta2 : position and value of momentum thicknesses
@@ -556,9 +564,6 @@ class ThwaitesBL(object):
                 delta2 = None
             else:
                 delta2 = (self.emp_coef_1*self.nu/denom*res)**.5
-#            # limitation #TMP
-#            if delta2 > 0.02:
-#                delta2 = 0.02
         elif isinstance(x, ARRAYTYPES):
             x = np.array(x, dtype=float)
             delta2 = []
@@ -568,11 +573,11 @@ class ThwaitesBL(object):
         else:
             raise TypeError()
         return np.array(delta2)
-        
+
     def get_BL_properties(self, x):
         """
         Return the boundary layer properties for given values of x
-        
+
         Parameters
         ----------
         x : number or array of numbers
@@ -584,7 +589,7 @@ class ThwaitesBL(object):
         -------
         lambda : array of numbers
             Dimensionless pressure gradient.
-            (According to Kays and Crawford, a value of -0.082 is caracteristic 
+            (According to Kays and Crawford, a value of -0.082 is caracteristic
             of the separation phenomenon.)
         delta2 : array of numbers
             Boundary layer momentum thickness
@@ -614,7 +619,7 @@ class ThwaitesBL(object):
         delta_star = H*delta2
         return lambd, delta2, delta_star, H
 
-        
+
 class WallLaw(object):
     """
     Class representing a law of the wall profile.
@@ -803,11 +808,11 @@ class WakeLaw(WallLaw):
         """
         y = yp/self.Utau*self.visc_c
         Cc = 0.55
-        return (1./self.k*np.log(self.Utau*y/self.visc_c) + 5.1
-                + 2.*Cc/self.k*np.sin(np.pi*y/(2.*self.delta))**2)
+        return (1./self.k*np.log(self.Utau*y/self.visc_c) + 5.1 +
+                2.*Cc/self.k*np.sin(np.pi*y/(2.*self.delta))**2)
 
 
-def get_bl_thickness(obj, direction=1,  perc=0.95):
+def get_bl_thickness(obj, direction=1, perc=0.95):
     """
     Return a boundary layer thickness if 'obj' is a Profile.
     Return a profile of boundary layer thicknesses if 'obj' is a ScalarField.
@@ -1075,7 +1080,7 @@ def get_shear_stress(obj, direction=1, method='simple',
         raise TypeError()
     if nu <= 0:
         raise ValueError()
-    if not direction in [1, 2]:
+    if direction not in [1, 2]:
         raise ValueError()
     # if obj is a profile
     if isinstance(obj, Profile):
@@ -1107,8 +1112,8 @@ def get_shear_stress(obj, direction=1, method='simple',
                 C = 5.1
                 # compute residual
                 if u_star < 0:
-                    res = -(U/u_star - 1./k*np.log(np.abs(y*u_star/nu))
-                            - C)
+                    res = -(U/u_star - 1./k*np.log(np.abs(y*u_star/nu)) -
+                            C)
                 elif u_star == 0:
                     res = U/u_star - 1./k*np.log(-1e5) - C
                 else:
@@ -1139,12 +1144,12 @@ def get_shear_stress(obj, direction=1, method='simple',
         values = np.zeros(obj.shape)
         for i in range(len(profiles)):
             if direction == 1:
-                values[i, :] = get_shear_stress(profiles[i], direction=1, 
+                values[i, :] = get_shear_stress(profiles[i], direction=1,
                                                 method=method, respace=False,
                                                 tau_w_guess=tau_w_guess,
                                                 rho=rho, nu=nu).y
             else:
-                values[:, i] = get_shear_stress(profiles[i], direction=1, 
+                values[:, i] = get_shear_stress(profiles[i], direction=1,
                                                 method=method, respace=False,
                                                 tau_w_guess=tau_w_guess,
                                                 rho=rho, nu=nu).y
@@ -1158,31 +1163,3 @@ def get_shear_stress(obj, direction=1, method='simple',
         return tau_w
     else:
         raise TypeError()
-
-
-
-
-if __name__ == '__main__':
-    
-    # comparaison Blasius BL and Thwaites BL
-    L = 0.6
-    u_e_0 = 0.05
-    def u_e(x):
-        return u_e_0 - x/L*u_e_0
-        
-    x = np.linspace(0, L*.9, 1000.)
-    tbl = ThwaitesBL(u_e)
-    bbl = BlasiusBL(u_e_0, 1.e-6, 1000.)
-    Bdelta, Bdelta2, Bdelta_star, BH, _, _, _ = bbl.get_BL_properties(x)
-    Tlambd, Tdelta2, Tdelta_star, TH = tbl.get_BL_properties(x)
-   
-    colors = ['r', 'b', 'g']
-    plt.figure()
-    plt.plot(x, Tlambd, color='k', label="$\lambda$")
-    plt.plot(x, Bdelta2, label="$\delta_2$", linestyle='--', color=colors[1])
-    plt.plot(x, Bdelta_star, label="$\delta^*$", linestyle='--', color=colors[2])
-    plt.plot(x, Bdelta, label="$\delta$", linestyle='--', color=colors[0])
-    plt.plot(x, Tdelta2, label="$\delta_2$", linestyle='-', color=colors[1])
-    plt.plot(x, Tdelta_star, label="$\delta^*$", linestyle='-', color=colors[2])
-    plt.legend()
-    plt.axhline(-0.082, linestyle='--', color='k')
