@@ -40,9 +40,12 @@ setup(
         'Natural Language :: English',
         'Operating System :: POSIX :: Linux',
     ],
-    keywords='scalarfield vectorfield fluid dynamics PIV',
+    keywords='scalarfield vectorfield fluid dynamics PIV vortex',
     packages=find_packages(exclude=['contrib', 'docs', 'tests', 'samples']),
-    install_requires=['numpy', 'matplotlib', 'scipy', 'unum', 'Plotlib',
-                      'sklearn', 'networkx', 'modred', 'colorama',
-                      'PotentialFlow', 'h5py', 'pillow']
+    install_requires=['numpy', 'matplotlib', 'scipy', 'unum', 'modred'],
+    extras_require={
+        'Point clustering': 'sklearn',
+        'Mean trajectories clustering': 'networkx',
+        'Color in console': 'colorama',
+        'Pivmat format support': 'h5py'},
 )

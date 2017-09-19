@@ -28,7 +28,6 @@ import os
 from glob import glob
 
 import numpy as np
-import h5py
 
 from ..core import (Points, Profile, ScalarField, SpatialScalarFields,
                     SpatialVectorFields, TemporalScalarFields,
@@ -1248,6 +1247,11 @@ def import_vf_from_pivmat(filepath):
     VF : VectorField
         .
     """
+    try:
+        import h5py
+    except ImportError:
+        raise Exception("You need to install `h5py` to use this"
+                        "functionality")
     VF = VectorField()
     f = h5py.File(filepath, 'r')
     data = f.get('Data')

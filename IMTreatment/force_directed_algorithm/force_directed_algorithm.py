@@ -22,12 +22,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 
 
 def FDG_optimization(nodes, edges, edge_weights, node_values):
+    try:
+        import networkx as nx
+    except ImportError:
+        raise Exception("You need to install `networkx` to use this"
+                        " functionality.")
     graph = nx.Graph()
     graph.add_nodes_from(nodes)
     for edge, weight in zip(edges, edge_weights):

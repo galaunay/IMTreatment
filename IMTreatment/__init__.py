@@ -26,14 +26,29 @@
 IMTreatment - A fields study package
 ====================================
 
-Provides
-  1. Class representing 2D fields of 1 component (ScalarField)
-  2. Class representing 2D fields of 2 components (VectorField)
-  3. Class representing a velocity field (VelocityField)
-  4. Classes representing sets of velocityfields
-     (Spatial- and TemporalVelocityFields)
-  5. Class representing profiles (Profile)
-  6. Class representing scatter points (Points)
+Provides generic functionalities for data analysis::
+  1. Class representing 2D fields of 1 component (``ScalarField``)
+  2. Class representing 2D fields of 2 components (``VectorField``)
+  3. Classes representing sets of scalar fields vector fields
+     (``SpatialScalarFields``, ``TemporalScalarField``,
+      ``SpatialVectorField`` and ``TemporalVectorFields``)
+  4. Class representing profiles (``Profile``)
+  5. Class representing scatter points (``Points``)
+  6. Module for modal decomposition (POD, DMD) and reconstruction (``pod``)
+  7. Module to import/export data from/to Davis, matlab, ascii, pivmat and
+     images files (``file_operation``)
+  8. Functionalities to visualize those data (``plotlib``)
+
+Provides specific functionalities for flow analysis::
+  1. Module to create artificial vortices: Burger, Jill, Rankine, ...
+     and to simulate their motion in potential flows (``vortex_creation``)
+  2. Module providing several vortex criterions computation
+     (``vortex_criterions``)
+  3. Module to automatically detect and track critical points as well as
+     computing the evolution of some vortes properties (``vortex_detection``)
+  4. Module to generate potential flows with arbitrary geometries
+     (``potential_flow``)
+
 
 How to use the documentation
 ----------------------------
@@ -50,26 +65,25 @@ Use the built-in ``help`` function to view a function's docstring::
   >>> help(np.sort)
   ... # doctest: +SKIP
 
-Available subpackages
----------------------
-boundary_layer
-    Functions used in boundary layer computation.
-vortex_detection
-    Functions used in vortex tracking and detection.
+Dependencies
+------------
+Mandatory::
+    numpy
+    matplotlib
+    scipy
+    unum
+    modred
+
+Optionnal::
+    sklearn
+    networkx
+    colorama
+    h5py
 
 Particular warnings
 -------------------
 It is strongly recommended not to use "import *" on this package.
 """
-# from .core import make_unit,\
-#     Profile, Points, OrientedPoints,\
-#     ScalarField, VectorField, Fields, TemporalFields,\
-#     TemporalScalarFields, TemporalVectorFields, SpatialVectorFields,\
-#     SpatialScalarFields
 from .utils import make_unit
 from .core import Profile, Points, OrientedPoints, ScalarField, VectorField,\
     TemporalFields, TemporalScalarFields, TemporalVectorFields
-# __all__ = ["ScalarField", "VectorField",
-#            "Fields", "TemporalFields", "TemporalScalarFields",
-#            "TemporalVectorFields", "Points", "OrientedPoints", "Profile",
-#            "make_unit"]

@@ -25,7 +25,6 @@
 import warnings
 import numpy as np
 import shutil
-import colorama
 import os
 from os.path import join
 import copy
@@ -33,6 +32,10 @@ import re
 from ..utils.types import ARRAYTYPES
 from ..utils.progresscounter import ProgressCounter
 
+try:
+    import colorama
+except ImportError:
+    colorama = None
 
 class Files(object):
     def __init__(self):
@@ -58,18 +61,23 @@ class Files(object):
     def get_tree_representation(self, max_file_list=10, hide_top=False):
         self.build_tree()
         # properties
+        tab_color = ""
+        folder_color = ""
+        file_color = ""
+        file_number_color = ""
         tab0 = "|"
         tab1 = tab0 + ">" + tab0
         tab2 = tab0 + " "
         separator = "/"
         heading_separator = "="
-        tab_color = colorama.Fore.BLACK + colorama.Style.BRIGHT
-        tab0 = tab_color + tab0 + colorama.Style.NORMAL
-        tab1 = tab_color + tab1 + colorama.Style.NORMAL
-        tab2 = tab_color + tab2 + colorama.Style.NORMAL
-        folder_color = colorama.Fore.BLACK
-        file_color = colorama.Fore.GREEN
-        file_number_color = colorama.Fore.CYAN
+        if colorama is not None:
+            tab_color = colorama.Fore.BLACK + colorama.Style.BRIGHT
+            tab0 = tab_color + tab0 + colorama.Style.NORMAL
+            tab1 = tab_color + tab1 + colorama.Style.NORMAL
+            tab2 = tab_color + tab2 + colorama.Style.NORMAL
+            folder_color = colorama.Fore.BLACK
+            file_color = colorama.Fore.GREEN
+            file_number_color = colorama.Fore.CYAN
         folders_end_of_line = "\n"
         files_end_of_line = "\n"
         max_file_list = max_file_list

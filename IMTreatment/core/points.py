@@ -29,7 +29,6 @@ import unum
 import copy
 from scipy import stats
 from scipy import ndimage
-import sklearn.cluster as clst
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from ..utils import make_unit
 
@@ -521,6 +520,11 @@ class Points(object):
         Finds core samples of high density and expands clusters from them.
         Good for data which contains clusters of similar density.
         """
+        try:
+            import sklearn.cluster as clst
+        except ImportError:
+            raise Exception("You need to install `sklearn` to use this "
+                            "functionnality")
         X = self.xy
         db = clst.DBSCAN(eps=eps, min_samples=min_samples).fit(X)
         labels = db.labels_
