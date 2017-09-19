@@ -23,7 +23,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import unittest
-from IMTreatment3 import make_unit, ScalarField
+from IMTreatment import make_unit, ScalarField
 import numpy as np
 
 
@@ -35,7 +35,7 @@ class FieldTest(unittest.TestCase):
 ### SCALARFIELD TEST ###
 class SFTest(unittest.TestCase):
 
-    def setup(self):
+    def setUp(self):
         axe_x = np.arange(23)
         unit_x = make_unit('m')
         unit_y = make_unit('km')
@@ -43,18 +43,20 @@ class SFTest(unittest.TestCase):
         axe_y = np.arange(47)*.01
         values = np.random.rand(len(axe_y), len(axe_x))
         values = values*np.random.randint(-100, 100)
-        mask = [np.random.rand(len(axe_y), len(axe_x)) < 0.1]
-        values = np.ma.masked_array(values, mask)
+        mask = np.random.rand(len(axe_y), len(axe_x)) < 0.1
         values2 = np.random.rand(len(axe_y), len(axe_x))
         values2 = values2*np.random.randint(-100, 100)
-        mask2 = [np.random.rand(len(axe_y), len(axe_x)) < 0.1]
-        values2 = np.ma.masked_array(values2, mask2)
+        mask2 = np.random.rand(len(axe_y), len(axe_x)) < 0.1
         self.SF1 = ScalarField()
         self.SF1.import_from_arrays(axe_x, axe_y, values,
-                                    unit_x, unit_y, unit_values)
+                                    mask=mask,
+                                    unit_x=unit_x, unit_y=unit_y,
+                                    unit_values=unit_values)
         self.SF2 = ScalarField()
         self.SF2.import_from_arrays(axe_x, axe_y, values2,
-                                    unit_x, unit_y, unit_values)
+                                    mask=mask2,
+                                    unit_x=unit_x, unit_y=unit_y,
+                                    unit_values=unit_values)
 
     def test_import_from_arrays(self):
         # creating a SF field using 'import_from_arrays
@@ -65,39 +67,43 @@ class SFTest(unittest.TestCase):
         axe_y = np.arange(20)*.01
         values = np.arange(len(axe_x)*len(axe_y)).reshape(len(axe_y),
                                                           len(axe_x))
-        mask = [values % 6 == 0]
+        values = np.array(values, dtype=float)
+        mask = np.random.rand(len(axe_y), len(axe_x)) > 0.75
+        values[mask] = np.nan
         values = np.pi*values
-        values = np.ma.masked_array(values, mask)
         sf = ScalarField()
-        sf.import_from_arrays(axe_x, axe_y, values, unit_x, unit_y,
-                              unit_values)
+        sf.import_from_arrays(axe_x, axe_y, values, mask=mask,
+                              unit_x=unit_x, unit_y=unit_y,
+                              unit_values=unit_values)
+        values = values.transpose()
+        mask = mask.transpose()
         # tests
-        self.assertEqual(np.all(sf.get_axes()[0] == axe_x), True)
-        self.assertEqual(np.all(sf.get_axes()[1] == axe_y), True)
-        self.assertEqual(np.all(sf.get_values().data == values), True)
-        self.assertEqual(np.all(sf.get_values().mask == mask), True)
-        self.assertEqual(sf.get_axe_units()[0], unit_x)
-        self.assertEqual(sf.get_axe_units()[1], unit_y)
-        self.assertEqual(sf.get_values_unit(), unit_values)
+        self.assertEqual(np.all(sf.axe_x == axe_x), True)
+        self.assertEqual(np.all(sf.axe_y == axe_y), True)
+        self.assertEqual(np.all(sf.values[~sf.mask] == values[~mask]), True)
+        self.assertEqual(np.all(sf.mask == mask), True)
+        self.assertEqual(sf.unit_x, unit_x)
+        self.assertEqual(sf.unit_y, unit_y)
+        self.assertEqual(sf.unit_values, unit_values)
 
     def test_operations(self):
         # get datas
-        axe_x, axe_y = self.SF1.get_axes()
-        values = self.SF1.get_values().data
-        mask = self.SF1.get_values().mask
-        values2 = self.SF2.get_values().data
-        mask2 = self.SF2.get_values().mask
-        unit_x, unit_y = self.SF1.get_axe_units()
-        unit_values = self.SF1.get_values_unit()
+        axe_x, axe_y = self.SF1.axe_x, self.SF1.axe_y
+        values = self.SF1.values
+        mask = self.SF1.mask
+        values2 = self.SF2.values
+        mask2 = self.SF2.mask
+        unit_x, unit_y = self.SF1.unit_x, self.SF1.unit_y
+        unit_values = self.SF1.unit_values
         # neg
         sf = -self.SF1
-        self.assertEqual(np.all(sf.get_axes()[0] == axe_x), True)
-        self.assertEqual(np.all(sf.get_axes()[1] == axe_y), True)
-        self.assertEqual(np.all(sf.get_values().data == -values), True)
-        self.assertEqual(np.all(sf.get_values().mask == mask), True)
-        self.assertEqual(sf.get_axe_units()[0], unit_x)
-        self.assertEqual(sf.get_axe_units()[1], unit_y)
-        self.assertEqual(sf.get_values_unit(), unit_values)
+        self.assertEqual(np.all(sf.axe_x == axe_x), True)
+        self.assertEqual(np.all(sf.axe_y == axe_y), True)
+        self.assertEqual(np.all(sf.values[~sf.mask] == -values[~mask]), True)
+        self.assertEqual(np.all(sf.mask == mask), True)
+        self.assertEqual(sf.unit_x, unit_x)
+        self.assertEqual(sf.unit_y, unit_y)
+        self.assertEqual(sf.unit_values, unit_values)
         # add
         nmb = 5
         unt = 500*make_unit('mm/s')
@@ -105,14 +111,14 @@ class SFTest(unittest.TestCase):
                     unt.asNumber()/1000. + values + nmb)
         mask_f = np.logical_or(mask, mask2)
         sf = nmb + self.SF1 + unt + self.SF2 + unt + self.SF1 + nmb
-        self.assertEqual(np.all(sf.get_axes()[0] == axe_x), True)
-        self.assertEqual(np.all(sf.get_axes()[1] == axe_y), True)
-        self.assertEqual(np.all(sf.get_values().data[~mask_f] ==
+        self.assertEqual(np.all(sf.axe_x == axe_x), True)
+        self.assertEqual(np.all(sf.axe_y == axe_y), True)
+        self.assertEqual(np.all(sf.values[~mask_f] ==
                                 values_f[~mask_f]), True)
-        self.assertEqual(np.all(sf.get_values().mask == mask_f), True)
-        self.assertEqual(sf.get_axe_units()[0], unit_x)
-        self.assertEqual(sf.get_axe_units()[1], unit_y)
-        self.assertEqual(sf.get_values_unit(), unit_values)
+        self.assertEqual(np.all(sf.mask == mask_f), True)
+        self.assertEqual(sf.unit_x, unit_x)
+        self.assertEqual(sf.unit_y, unit_y)
+        self.assertEqual(sf.unit_values, unit_values)
         # sub
         nmb = 5
         unt = 500*make_unit('mm/s')
@@ -120,14 +126,14 @@ class SFTest(unittest.TestCase):
                     unt.asNumber()/1000. - values - nmb)
         mask_f = np.logical_or(mask, mask2)
         sf = nmb - self.SF1 - unt - self.SF2 - unt - self.SF1 - nmb
-        self.assertEqual(np.all(sf.get_axes()[0] == axe_x), True)
-        self.assertEqual(np.all(sf.get_axes()[1] == axe_y), True)
-        self.assertEqual(np.all(sf.get_values().data[~mask_f] ==
+        self.assertEqual(np.all(sf.axe_x == axe_x), True)
+        self.assertEqual(np.all(sf.axe_y == axe_y), True)
+        self.assertEqual(np.all(sf.values[~mask_f] ==
                                 values_f[~mask_f]), True)
-        self.assertEqual(np.all(sf.get_values().mask == mask_f), True)
-        self.assertEqual(sf.get_axe_units()[0], unit_x)
-        self.assertEqual(sf.get_axe_units()[1], unit_y)
-        self.assertEqual(sf.get_values_unit(), unit_values)
+        self.assertEqual(np.all(sf.mask == mask_f), True)
+        self.assertEqual(sf.unit_x, unit_x)
+        self.assertEqual(sf.unit_y, unit_y)
+        self.assertEqual(sf.unit_values, unit_values)
         # mul
         nmb = 5.23
         unt = 500.*make_unit('mm/s')
@@ -137,15 +143,15 @@ class SFTest(unittest.TestCase):
         unit_values = make_unit('mm/s')**2*make_unit('m/s')**3*1e6
         mask_f = np.logical_or(mask, mask2)
         sf = nmb * self.SF1 * unt * self.SF2 * unt * self.SF1 * nmb
-        self.assertEqual(np.all(sf.get_axes()[0] == axe_x), True)
-        self.assertEqual(np.all(sf.get_axes()[1] == axe_y), True)
+        self.assertEqual(np.all(sf.axe_x == axe_x), True)
+        self.assertEqual(np.all(sf.axe_y == axe_y), True)
         self.assertAlmostEqual(
-            np.all(sf.get_values().data[~mask_f] - values_f[~mask_f] < 1e-6),
+            np.all(sf.values[~mask_f] - values_f[~mask_f] < 1e-6),
             True)
-        self.assertAlmostEqual(np.all(sf.get_values().mask == mask_f), True)
-        self.assertEqual(sf.get_axe_units()[0], unit_x)
-        self.assertEqual(sf.get_axe_units()[1], unit_y)
-        self.assertEqual(sf.get_values_unit(), unit_values)
+        self.assertAlmostEqual(np.all(sf.mask == mask_f), True)
+        self.assertEqual(sf.unit_x, unit_x)
+        self.assertEqual(sf.unit_y, unit_y)
+        self.assertEqual(sf.unit_values, unit_values)
         # div
         nmb = 5.23
         unt = 500.*make_unit('mm/s')
@@ -155,50 +161,52 @@ class SFTest(unittest.TestCase):
         unit_values = 1./(make_unit('mm/s')**2*make_unit('m/s')**3*1e6)
         mask_f = np.logical_or(mask, mask2)
         sf = nmb / self.SF1 / unt / self.SF2 / unt / self.SF1 / nmb
-        self.assertEqual(np.all(sf.get_axes()[0] == axe_x), True)
-        self.assertEqual(np.all(sf.get_axes()[1] == axe_y), True)
+        self.assertEqual(np.all(sf.axe_x == axe_x), True)
+        self.assertEqual(np.all(sf.axe_y == axe_y), True)
         self.assertAlmostEqual(
-            np.all(sf.get_values().data[~mask_f] - values_f[~mask_f] < 1e-6),
+            np.all(sf.values[~mask_f] - values_f[~mask_f] < 1e-6),
             True)
-        self.assertAlmostEqual(np.all(sf.get_values().mask == mask_f), True)
-        self.assertEqual(sf.get_axe_units()[0], unit_x)
-        self.assertEqual(sf.get_axe_units()[1], unit_y)
-        self.assertEqual(sf.get_values_unit(), unit_values)
+        self.assertAlmostEqual(np.all(sf.mask == mask_f), True)
+        self.assertEqual(sf.unit_x, unit_x)
+        self.assertEqual(sf.unit_y, unit_y)
+        self.assertEqual(sf.unit_values, unit_values)
         # abs
-        unit_values = self.SF1.get_values_unit()
+        unit_values = self.SF1.unit_values
         sf = np.abs(self.SF1)
-        self.assertEqual(np.all(sf.get_axes()[0] == axe_x), True)
-        self.assertEqual(np.all(sf.get_axes()[1] == axe_y), True)
-        self.assertEqual(np.all(sf.get_values().data == np.abs(values)), True)
-        self.assertEqual(np.all(sf.get_values().mask == mask), True)
-        self.assertEqual(sf.get_axe_units()[0], unit_x)
-        self.assertEqual(sf.get_axe_units()[1], unit_y)
-        self.assertEqual(sf.get_values_unit(), unit_values)
-        # pow
-        unit_values = self.SF1.get_values_unit()**3.544186
-        sf = self.SF1**3.544186
-        self.assertEqual(np.all(sf.get_axes()[0] == axe_x), True)
-        self.assertEqual(np.all(sf.get_axes()[1] == axe_y), True)
-        self.assertEqual(np.all(sf.get_values().data ==
-                                np.power(values, 3.544186)),
+        self.assertEqual(np.all(sf.axe_x == axe_x), True)
+        self.assertEqual(np.all(sf.axe_y == axe_y), True)
+        self.assertEqual(np.all(sf.values[~sf.mask] == np.abs(values[~mask])),
                          True)
-        self.assertEqual(np.all(sf.get_values().mask == mask), True)
-        self.assertEqual(sf.get_axe_units()[0], unit_x)
-        self.assertEqual(sf.get_axe_units()[1], unit_y)
-        self.assertEqual(sf.get_values_unit(), unit_values)
+        self.assertEqual(np.all(sf.mask == mask), True)
+        self.assertEqual(sf.unit_x, unit_x)
+        self.assertEqual(sf.unit_y, unit_y)
+        self.assertEqual(sf.unit_values, unit_values)
+        # pow
+        unit_values = self.SF1.unit_values**3.544186
+        sf = (np.abs(self.SF1) + 1)**3.544186
+        self.assertEqual(np.all(sf.axe_x == axe_x), True)
+        self.assertEqual(np.all(sf.axe_y == axe_y), True)
+        self.assertEqual(np.all(sf.values[~sf.mask] -
+                                (np.abs(values[~mask]) + 1)**3.544186 <
+                                1e-6),
+                         True)
+        self.assertEqual(np.all(sf.mask == mask), True)
+        self.assertEqual(sf.unit_x, unit_x)
+        self.assertEqual(sf.unit_y, unit_y)
+        self.assertEqual(sf.unit_values, unit_values)
 
     def test_iter(self):
-        axe_x, axe_y = self.SF1.get_axes()
-        axe_x, axe_y = np.meshgrid(axe_x, axe_y)
+        axe_x, axe_y = self.SF1.axe_x, self.SF1.axe_y
         ind_x = np.arange(len(axe_x))
         ind_y = np.arange(len(axe_y))
+        axe_x, axe_y = np.meshgrid(axe_x, axe_y)
         ind_x, ind_y = np.meshgrid(ind_x, ind_y)
         axe_x = np.transpose(axe_x)
         axe_y = np.transpose(axe_y)
         ind_x = np.transpose(ind_x)
         ind_y = np.transpose(ind_y)
-        values = np.transpose(self.SF1.get_values().data)
-        mask = np.transpose(self.SF1.get_values().mask)
+        values = self.SF1.values
+        mask = self.SF1.mask
         ind_x = ind_x[~mask]
         ind_y = ind_y[~mask]
         axe_x = axe_x[~mask]
@@ -218,12 +226,14 @@ class SFTest(unittest.TestCase):
         self.assertEqual(np.all(ind_x == ind2_x), True)
 
     def test_trim_area(self):
-        axe_x, axe_y = self.SF1.get_axes()
-        values = self.SF1.get_values()
-        sf = self.SF1.trim_area([axe_x[3], axe_x[-4]], [axe_y[2], axe_y[-7]])
-        self.assertEqual(np.all(sf.get_axes()[0] == axe_x[3:-3]), True)
-        self.assertEqual(np.all(sf.get_axes()[1] == axe_y[2:-6]), True)
-        self.assertEqual(np.all(sf.get_values() == values[2:-6, 3:-3]), True)
+        axe_x, axe_y = self.SF1.axe_x, self.SF1.axe_y
+        values = self.SF1.values
+        mask = self.SF1.mask
+        sf = self.SF1.crop([axe_x[3], axe_x[-4]], [axe_y[2], axe_y[-7]])
+        self.assertEqual(np.all(sf.axe_x == axe_x[3:-3]), True)
+        self.assertEqual(np.all(sf.axe_y == axe_y[2:-6]), True)
+        self.assertEqual(np.all(sf.values[~sf.mask] ==
+                                values[3:-3, 2:-6][~mask[3:-3, 2:-6]]), True)
 
     def test_crop_border(self):
         pass

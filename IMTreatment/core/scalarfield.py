@@ -179,8 +179,10 @@ class ScalarField(fld.Field):
             return tmpsf
         elif isinstance(obj, unum.Unum):
             tmpsf = self.copy()
-            tmpsf.values /= obj.asNumber()
-            tmpsf.unit_values /= obj/obj.asNumber()
+            unit_values = tmpsf.unit_values / obj
+            tmpsf.values *= unit_values.asNumber()
+            unit_values /= unit_values.asNumber()
+            tmpsf.unit_values = unit_values
             return tmpsf
         elif isinstance(obj, ARRAYTYPES):
             obj = np.array(obj, subok=True)
@@ -329,7 +331,9 @@ class ScalarField(fld.Field):
 
     @property
     def values(self):
-        return self.__values
+        val = self.__values
+        val[self.mask] = np.nan
+        return val
 
     @values.setter
     def values(self, new_values):
@@ -448,7 +452,9 @@ class ScalarField(fld.Field):
         axe_x = np.array(axe_x, dtype=float)
         axe_y = np.array(axe_y, dtype=float)
         values = np.array(values, dtype=float)
-        if mask is not None and not isinstance(mask, bool):
+        if mask is None:
+            mask = False
+        if not isinstance(mask, bool):
             mask = np.array(mask, dtype=bool)
         # Be sure axes are one-dimensional
         if axe_x.ndim >= 2:
