@@ -36,17 +36,15 @@ class FieldTest(unittest.TestCase):
 class SFTest(unittest.TestCase):
 
     def setUp(self):
-        axe_x = np.arange(23)
         unit_x = make_unit('m')
         unit_y = make_unit('km')
         unit_values = make_unit('m/s')
-        axe_y = np.arange(47)*.01
-        values = np.random.rand(len(axe_y), len(axe_x))
-        values = values*np.random.randint(-100, 100)
-        mask = np.random.rand(len(axe_y), len(axe_x)) < 0.1
-        values2 = np.random.rand(len(axe_y), len(axe_x))
-        values2 = values2*np.random.randint(-100, 100)
-        mask2 = np.random.rand(len(axe_y), len(axe_x)) < 0.1
+        values = np.genfromtxt("values")
+        axe_x = np.genfromtxt("axe_x")
+        axe_y = np.genfromtxt("axe_y")
+        mask = np.genfromtxt("mask")
+        values2 = np.genfromtxt("values2")
+        mask2 = np.genfromtxt("mask2")
         self.SF1 = ScalarField()
         self.SF1.import_from_arrays(axe_x, axe_y, values,
                                     mask=mask,
@@ -236,8 +234,29 @@ class SFTest(unittest.TestCase):
                                 values[3:-3, 2:-6][~mask[3:-3, 2:-6]]), True)
 
     def test_crop_border(self):
-        pass
+        tmpsf = self.SF1.copy()
+        mask = tmpsf.mask
+        mask[0:3, :] = True
+        mask[-1:, :] = True
+        mask[:, 0:5] = True
+        mask[:, -4:] = True
+        tmpsf.mask = mask
+        tmpsf.crop_masked_border(inplace=True)
+        values_f = self.SF1.values[3:-1, 5:-4]
+        mask_f = self.SF1.mask[3:-1, 5:-4]
+        self.assertTrue(np.all(mask_f == tmpsf.mask))
+        self.assertTrue(np.all(values_f[~mask_f] ==
+                               tmpsf.values[~tmpsf.mask]))
 
+    def test_min_max_mean(self):
+        mini = self.SF1.min
+        maxi = self.SF1.max
+        mean = self.SF1.mean
+        self.assertEqual(mini, -80.685138559926955)
+        self.assertEqual(maxi, -0.11918431073522018)
+        self.assertEqual(mean, -38.416196172428371)
 
-if __name__ == '__main__':
-    unittest.main()
+# TEMP
+TESTS NEED TO BE SPECIFIC, (LIKE 'test_min_max_mean')
+# TEMP - End
+unittest.main()
