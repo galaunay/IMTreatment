@@ -733,12 +733,12 @@ class ScalarField(fld.Field):
                                   unit_x=tmp_sf.unit_x, unit_y=tmp_sf.unit_y,
                                   unit_values=tmp_sf.unit_values)
         # extract the streamline from the gradient field
-        from field_treatment import get_streamlines
+        from ..field_treatment import get_streamlines
         if extrema == 'min':
             reverse = True
         else:
             reverse = False
-        sts = get_streamlines(vf, pts, reverse=reverse, resolution=0.1)
+        sts = get_streamlines(tmp_vf, pts, reverse=reverse, resolution=0.1)
         # get the final converged points
         extremum_pos = []
         if isinstance(sts, ARRAYTYPES):

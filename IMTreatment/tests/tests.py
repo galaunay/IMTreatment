@@ -256,7 +256,39 @@ class SFTest(unittest.TestCase):
         self.assertEqual(maxi, -0.11918431073522018)
         self.assertEqual(mean, -38.416196172428371)
 
-# TEMP
-TESTS NEED TO BE SPECIFIC, (LIKE 'test_min_max_mean')
-# TEMP - End
+    def test_get_values(self):
+        value = self.SF1.get_value(7.5, 20.12)
+        value2 = self.SF1.get_value(5, 10, ind=True)
+        self.assertEqual(value, -39.27599375418945)
+        self.assertEqual(value2, -77.512615587040656)
+
+    def test_fill(self):
+        self.SF1.fill(inplace=True)
+        value_filled = np.genfromtxt("values_filled")
+        self.assertFalse(np.any(self.SF1.mask))
+        self.assertTrue(np.all(value_filled == self.SF1.values))
+
+    def test_get_zones_centers(self):
+        self.SF1.fill(inplace=True)
+        zones_xy = np.genfromtxt("value_zones_center")
+        zones = self.SF1.get_zones_centers(bornes=[0.75, 1])
+        self.assertTrue(np.all(zones_xy == zones.xy))
+
+    def test_get_nearest_extrema(self):
+        self.SF1.fill(inplace=True)
+        center = self.SF1.get_nearest_extrema([7.5, 20.12])
+        self.assertAlmostEqual(6.3020200717715031, center[0][0])
+        self.assertAlmostEqual(22.1880168513963919, center[0][1])
+
+    def test_get_profile(self):
+        profile = self.SF1.get_profile(1, 9.98)
+        prof_x, prof_y = np.genfromtxt("profile")
+        self.assertTrue(np.all(prof_x[~profile.mask] ==
+                               profile.x[~profile.mask]))
+        self.assertTrue(np.all(prof_y[~profile.mask] ==
+                               profile.y[~profile.mask]))
+
 unittest.main()
+
+if __name__ == '__main__':
+    unittest.main()

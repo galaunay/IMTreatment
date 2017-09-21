@@ -27,7 +27,7 @@ import scipy.interpolate as spinterp
 import scipy.integrate as spinteg
 from scipy.optimize import leastsq
 import os
-from ..core import Points, ScalarField, VectorField, Profile, \
+from .. import Points, ScalarField, VectorField, Profile, \
     TemporalVectorFields, TemporalScalarFields
 from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 from ..utils import RemoveFortranOutput
