@@ -1,6 +1,4 @@
-echo "=== Running tests ==="
-coverage run --source="IMTreatment" -m unittest discover tests
-echo "=== Generating html report ==="
-coverage html
+echo "=== Running tests and generating html ==="
+pytest --cov-report html:cov_html --cov IMTreatment tests/
 echo "=== Opening html report ==="
-firefox htmlcov/index.html
+firefox tests/cov_html/index.html

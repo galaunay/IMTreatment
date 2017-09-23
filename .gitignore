@@ -12,3 +12,5 @@ build
 *.egg-info
 /.coverage
 htmlcov
+.cache
+tests/cov_html

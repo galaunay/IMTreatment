@@ -683,7 +683,7 @@ class Profile(object):
                 dx = self.x[1] - self.x[0]
             else:
                 dx = wanted_dx
-            interp = spinterp.UnivariateSpline(self.x, self.y, k=3, s=0)
+            interp = spinterp.UnivariateSpline(self.x, self.y, k=1, s=0)
             if np.all(position < self.x):
                 x = [position, position + dx]
                 y = interp(x)

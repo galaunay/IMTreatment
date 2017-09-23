@@ -23,19 +23,18 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import unittest
 
 import numpy as np
+import pytest
 
 import unum
 from IMTreatment import ScalarField, file_operation as imtio, make_unit
-import matplotlib.pyplot as plt
 
 
-class SFTest(unittest.TestCase):
+class TestScalarField(object):
     """ Done """
 
-    def setUp(self):
+    def setup(self):
         try:
             os.chdir(os.path.dirname(os.path.realpath(__file__)))
         except:
@@ -96,13 +95,13 @@ class SFTest(unittest.TestCase):
         values = values.transpose()
         mask = mask.transpose()
         # tests
-        self.assertEqual(np.all(sf.axe_x == axe_x), True)
-        self.assertEqual(np.all(sf.axe_y == axe_y), True)
-        self.assertEqual(np.all(sf.values[~sf.mask] == values[~mask]), True)
-        self.assertEqual(np.all(sf.mask == mask), True)
-        self.assertEqual(sf.unit_x, unit_x)
-        self.assertEqual(sf.unit_y, unit_y)
-        self.assertEqual(sf.unit_values, unit_values)
+        assert np.all(sf.axe_x == axe_x)
+        assert np.all(sf.axe_y == axe_y)
+        assert np.all(sf.values[~sf.mask] == values[~mask])
+        assert np.all(sf.mask == mask)
+        assert sf.unit_x == unit_x
+        assert sf.unit_y == unit_y
+        assert sf.unit_values == unit_values
 
     def test_operations(self):
         # get datas
@@ -115,13 +114,13 @@ class SFTest(unittest.TestCase):
         unit_values = self.SF1.unit_values
         # neg
         sf = -self.SF1
-        self.assertEqual(np.all(sf.axe_x == axe_x), True)
-        self.assertEqual(np.all(sf.axe_y == axe_y), True)
-        self.assertEqual(np.all(sf.values[~sf.mask] == -values[~mask]), True)
-        self.assertEqual(np.all(sf.mask == mask), True)
-        self.assertEqual(sf.unit_x, unit_x)
-        self.assertEqual(sf.unit_y, unit_y)
-        self.assertEqual(sf.unit_values, unit_values)
+        assert np.all(sf.axe_x == axe_x)
+        assert np.all(sf.axe_y == axe_y)
+        assert np.all(sf.values[~sf.mask] == -values[~mask])
+        assert np.all(sf.mask == mask)
+        assert sf.unit_x == unit_x
+        assert sf.unit_y == unit_y
+        assert sf.unit_values == unit_values
         # add
         nmb = 5
         unt = 500*make_unit('mm/s')
@@ -129,14 +128,13 @@ class SFTest(unittest.TestCase):
                     unt.asNumber()/1000. + values + nmb)
         mask_f = np.logical_or(mask, mask2)
         sf = nmb + self.SF1 + unt + self.SF2 + unt + self.SF1 + nmb
-        self.assertEqual(np.all(sf.axe_x == axe_x), True)
-        self.assertEqual(np.all(sf.axe_y == axe_y), True)
-        self.assertEqual(np.all(sf.values[~mask_f] ==
-                                values_f[~mask_f]), True)
-        self.assertEqual(np.all(sf.mask == mask_f), True)
-        self.assertEqual(sf.unit_x, unit_x)
-        self.assertEqual(sf.unit_y, unit_y)
-        self.assertEqual(sf.unit_values, unit_values)
+        assert np.all(sf.axe_x == axe_x)
+        assert np.all(sf.axe_y == axe_y)
+        assert np.all(sf.values[~mask_f] == values_f[~mask_f])
+        assert np.all(sf.mask == mask_f)
+        assert sf.unit_x == unit_x
+        assert sf.unit_y == unit_y
+        assert sf.unit_values == unit_values
         # sub
         nmb = 5
         unt = 500*make_unit('mm/s')
@@ -144,14 +142,13 @@ class SFTest(unittest.TestCase):
                     unt.asNumber()/1000. - values - nmb)
         mask_f = np.logical_or(mask, mask2)
         sf = nmb - self.SF1 - unt - self.SF2 - unt - self.SF1 - nmb
-        self.assertEqual(np.all(sf.axe_x == axe_x), True)
-        self.assertEqual(np.all(sf.axe_y == axe_y), True)
-        self.assertEqual(np.all(sf.values[~mask_f] ==
-                                values_f[~mask_f]), True)
-        self.assertEqual(np.all(sf.mask == mask_f), True)
-        self.assertEqual(sf.unit_x, unit_x)
-        self.assertEqual(sf.unit_y, unit_y)
-        self.assertEqual(sf.unit_values, unit_values)
+        assert np.all(sf.axe_x == axe_x)
+        assert np.all(sf.axe_y == axe_y)
+        assert np.all(sf.values[~mask_f] == values_f[~mask_f])
+        assert np.all(sf.mask == mask_f)
+        assert sf.unit_x == unit_x
+        assert sf.unit_y == unit_y
+        assert sf.unit_values == unit_values
         # mul
         nmb = 5.23
         unt = 500.*make_unit('mm/s')
@@ -161,15 +158,13 @@ class SFTest(unittest.TestCase):
         unit_values = make_unit('mm/s')**2*make_unit('m/s')**3*1e6
         mask_f = np.logical_or(mask, mask2)
         sf = nmb * self.SF1 * unt * self.SF2 * unt * self.SF1 * nmb
-        self.assertEqual(np.all(sf.axe_x == axe_x), True)
-        self.assertEqual(np.all(sf.axe_y == axe_y), True)
-        self.assertAlmostEqual(
-            np.all(sf.values[~mask_f] - values_f[~mask_f] < 1e-6),
-            True)
-        self.assertAlmostEqual(np.all(sf.mask == mask_f), True)
-        self.assertEqual(sf.unit_x, unit_x)
-        self.assertEqual(sf.unit_y, unit_y)
-        self.assertEqual(sf.unit_values, unit_values)
+        assert np.all(sf.axe_x == axe_x)
+        assert np.all(sf.axe_y == axe_y)
+        assert np.all(sf.values[~mask_f] - values_f[~mask_f] < 1e-6)
+        assert np.all(sf.mask == mask_f)
+        assert sf.unit_x == unit_x
+        assert sf.unit_y == unit_y
+        assert sf.unit_values == unit_values
         # div
         nmb = 5.23
         unt = 500.*make_unit('mm/s')
@@ -179,39 +174,35 @@ class SFTest(unittest.TestCase):
         unit_values = 1./(make_unit('mm/s')**2*make_unit('m/s')**3*1e6)
         mask_f = np.logical_or(mask, mask2)
         sf = nmb / self.SF1 / unt / self.SF2 / unt / self.SF1 / nmb
-        self.assertEqual(np.all(sf.axe_x == axe_x), True)
-        self.assertEqual(np.all(sf.axe_y == axe_y), True)
-        self.assertAlmostEqual(
-            np.all(sf.values[~mask_f] - values_f[~mask_f] < 1e-6),
-            True)
-        self.assertAlmostEqual(np.all(sf.mask == mask_f), True)
-        self.assertEqual(sf.unit_x, unit_x)
-        self.assertEqual(sf.unit_y, unit_y)
-        self.assertEqual(sf.unit_values, unit_values)
+        assert np.all(sf.axe_x == axe_x)
+        assert np.all(sf.axe_y == axe_y)
+        assert np.all(sf.values[~mask_f] - values_f[~mask_f] < 1e-6)
+        assert np.all(sf.mask == mask_f)
+        assert sf.unit_x == unit_x
+        assert sf.unit_y == unit_y
+        assert sf.unit_values == unit_values
         # abs
         unit_values = self.SF1.unit_values
         sf = np.abs(self.SF1)
-        self.assertEqual(np.all(sf.axe_x == axe_x), True)
-        self.assertEqual(np.all(sf.axe_y == axe_y), True)
-        self.assertEqual(np.all(sf.values[~sf.mask] == np.abs(values[~mask])),
-                         True)
-        self.assertEqual(np.all(sf.mask == mask), True)
-        self.assertEqual(sf.unit_x, unit_x)
-        self.assertEqual(sf.unit_y, unit_y)
-        self.assertEqual(sf.unit_values, unit_values)
+        assert np.all(sf.axe_x == axe_x)
+        assert np.all(sf.axe_y == axe_y)
+        assert np.all(sf.values[~sf.mask] == np.abs(values[~mask]))
+        assert np.all(sf.mask == mask)
+        assert sf.unit_x == unit_x
+        assert sf.unit_y == unit_y
+        assert sf.unit_values == unit_values
         # pow
         unit_values = self.SF1.unit_values**3.544186
         sf = (np.abs(self.SF1) + 1)**3.544186
-        self.assertEqual(np.all(sf.axe_x == axe_x), True)
-        self.assertEqual(np.all(sf.axe_y == axe_y), True)
-        self.assertEqual(np.all(sf.values[~sf.mask] -
-                                (np.abs(values[~mask]) + 1)**3.544186 <
-                                1e-6),
-                         True)
-        self.assertEqual(np.all(sf.mask == mask), True)
-        self.assertEqual(sf.unit_x, unit_x)
-        self.assertEqual(sf.unit_y, unit_y)
-        self.assertEqual(sf.unit_values, unit_values)
+        assert np.all(sf.axe_x == axe_x)
+        assert np.all(sf.axe_y == axe_y)
+        assert np.all(sf.values[~sf.mask] -
+                      (np.abs(values[~mask]) + 1)**3.544186 <
+                      1e-6)
+        assert np.all(sf.mask == mask)
+        assert sf.unit_x == unit_x
+        assert sf.unit_y == unit_y
+        assert sf.unit_values == unit_values
 
     def test_iter(self):
         axe_x, axe_y = self.SF1.axe_x, self.SF1.axe_y
@@ -241,127 +232,125 @@ class SFTest(unittest.TestCase):
             axe2_x.append(xy[0])
             axe2_y.append(xy[1])
             values2.append(val)
-        self.assertEqual(np.all(ind_x == ind2_x), True)
+        assert np.all(ind_x == ind2_x)
 
     def test_trim_area(self):
         axe_x, axe_y = self.SF1.axe_x, self.SF1.axe_y
         values = self.SF1.values
         mask = self.SF1.mask
         sf = self.SF1.crop([axe_x[3], axe_x[-4]], [axe_y[2], axe_y[-7]])
-        self.assertEqual(np.all(sf.axe_x == axe_x[3:-3]), True)
-        self.assertEqual(np.all(sf.axe_y == axe_y[2:-6]), True)
-        self.assertEqual(np.all(sf.values[~sf.mask] ==
-                                values[3:-3, 2:-6][~mask[3:-3, 2:-6]]), True)
+        assert np.all(sf.axe_x == axe_x[3:-3])
+        assert np.all(sf.axe_y == axe_y[2:-6])
+        assert np.all(sf.values[~sf.mask] ==
+                      values[3:-3, 2:-6][~mask[3:-3, 2:-6]])
 
     def test_min_max_mean(self):
         mini = self.SF1.min
         maxi = self.SF1.max
         mean = self.SF1.mean
-        self.assertEqual(mini, -80.685138559926955)
-        self.assertEqual(maxi, -0.11918431073522018)
-        self.assertEqual(mean, -38.416196172428371)
+        assert mini == -80.685138559926955
+        assert maxi == -0.11918431073522018
+        assert mean == -38.416196172428371
 
     def test_get_values(self):
         value = self.SF1.get_value(7.5, 20.12)
         value2 = self.SF1.get_value(5, 10, ind=True)
-        self.assertEqual(value, -39.27599375418945)
-        self.assertEqual(value2, -77.512615587040656)
+        assert value == -39.27599375418945
+        assert value2 == -77.512615587040656
 
     def test_get_zones_centers(self):
         self.SF1.fill(inplace=True)
         zones_xy = np.genfromtxt("value_zones_center")
         zones = self.SF1.get_zones_centers(bornes=[0.75, 1])
-        self.assertTrue(np.all(zones_xy == zones.xy))
+        assert np.all(zones_xy == zones.xy)
 
     def test_get_nearest_extrema(self):
         self.SF1.fill(inplace=True)
         center = self.SF1.get_nearest_extrema([7.5, 20.12])
-        self.assertAlmostEqual(6.3020200717715031, center[0][0])
-        self.assertAlmostEqual(22.1880168513963919, center[0][1])
+        assert (6.3020200717715031 - center[0][0]) < 1e-6
+        assert (22.1880168513963919 - center[0][1]) < 1e-6
 
     def test_get_profile(self):
         profile = self.SF1.get_profile('x', 9.98)
         prof_x, prof_y = np.genfromtxt("profile")
-        self.assertTrue(np.all(prof_x[~profile.mask] ==
-                               profile.x[~profile.mask]))
-        self.assertTrue(np.all(prof_y[~profile.mask] ==
-                               profile.y[~profile.mask]))
+        assert np.all(prof_x[~profile.mask] == profile.x[~profile.mask])
+        assert np.all(prof_y[~profile.mask] == profile.y[~profile.mask])
 
     def test_get_spatial_autocorrelation(self):
         res_x = self.SF1.get_spatial_autocorrelation('x')
         imtio.export_to_file(res_x, "spatial_autocorrelation_x.cimt")
         res_x2 = imtio.import_from_file("spatial_autocorrelation_x.cimt")
-        self.assertEqual(res_x, res_x2)
+        assert res_x == res_x2
         res_y = self.SF1.get_spatial_autocorrelation('y')
         imtio.export_to_file(res_y, "spatial_autocorrelation_y.cimt")
         res_y2 = imtio.import_from_file("spatial_autocorrelation_y.cimt")
-        self.assertEqual(res_y, res_y2)
+        assert res_y == res_y2
 
     def test_get_spatial_spectrum(self):
         res_x = self.SF1.get_spatial_spectrum('x', intervx=[5, 19],
                                               intervy=[10.2, 29])
         # imtio.export_to_file(res_x, "get_spatial_spectrum_x.cimt")
         res_x2 = imtio.import_from_file("get_spatial_spectrum_x.cimt")
-        self.assertEqual(res_x, res_x2)
+        assert res_x == res_x2
         res_y = self.SF1.get_spatial_spectrum('y', intervx=[5, 19],
                                               intervy=[10.2, 29])
         # imtio.export_to_file(res_y, "get_spatial_spectrum_y.cimt")
         res_y2 = imtio.import_from_file("get_spatial_spectrum_y.cimt")
-        self.assertEqual(res_y, res_y2)
+        assert res_y == res_y2
 
     def test_get_norm(self):
         res = self.SF1.get_norm()
         # imtio.export_to_file(res, "get_norm.cimt")
         res2 = imtio.import_from_file("get_norm.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_get_interpolator(self):
         res = self.SF1_nomask.get_interpolator()
         # imtio.export_to_file(res, "get_interpolator.cimt")
         res2 = imtio.import_from_file("get_interpolator.cimt")
-        self.assertEqual(res(5, 9.2), res2(5, 9.2))
+        assert res(5, 9.2), res2(5 == 9.2)
 
     def test_integrate_over_line(self):
         res_x = self.SF1_nomask.integrate_over_line('x', [3.2, 17.8])
         # imtio.export_to_file(res_x, "integrate_over_line_x.cimt")
         res_x2 = imtio.import_from_file("integrate_over_line_x.cimt")
-        self.assertEqual(res_x, res_x2)
+        assert res_x == res_x2
         res_y = self.SF1_nomask.integrate_over_line('y', [3.2, 17.8])
         # imtio.export_to_file(res_y, "integrate_over_line_y.cimt")
         res_y2 = imtio.import_from_file("integrate_over_line_y.cimt")
-        self.assertEqual(res_y, res_y2)
+        assert res_y == res_y2
 
     def test_integrate_over_surface(self):
         res = self.SF1_nomask.integrate_over_surface(intervx=[2.4, 19.8],
                                                      intervy=[5.6, 8.3])
         # imtio.export_to_file(res, "integrate_over_surface.cimt")
         res2 = imtio.import_from_file("integrate_over_surface.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_copy(self):
         res = self.SF1.copy()
         # imtio.export_to_file(res, "copy.cimt")
         res2 = imtio.import_from_file("copy.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_export_to_scatter(self):
         res = self.SF1.export_to_scatter()
         # imtio.export_to_file(res, "export_to_scatter.cimt")
         res2 = imtio.import_from_file("export_to_scatter.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_scale(self):
         res = self.SF1.scale(scalex=1.45, scaley=.98, scalev=3.4,
                              inplace=False)
         # imtio.export_to_file(res, "scale.cimt")
         res2 = imtio.import_from_file("scale.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_rotate(self):
         res = self.SF1.rotate(270, inplace=False)
         # imtio.export_to_file(res, "rotate.cimt")
         res2 = imtio.import_from_file("rotate.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_change_unit(self):
         res = self.SF1.copy()
@@ -369,8 +358,8 @@ class SFTest(unittest.TestCase):
         res.change_unit('y', 'm')
         # imtio.export_to_file(res, "change_unit.cimt")
         res2 = imtio.import_from_file("change_unit.cimt")
-        self.assertEqual(res, res2)
-        with self.assertRaises(unum.IncompatibleUnitsError):
+        assert res == res2
+        with pytest.raises(unum.IncompatibleUnitsError):
             res.change_unit('x', 'm/s')
 
     def test_crop(self):
@@ -378,7 +367,7 @@ class SFTest(unittest.TestCase):
                             intervy=[2.1, 8], inplace=False)
         # imtio.export_to_file(res, "crop.cimt")
         res2 = imtio.import_from_file("crop.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_extend(self):
         res = self.SF1.extend(nmb_left=1,
@@ -388,13 +377,13 @@ class SFTest(unittest.TestCase):
                               inplace=False)
         # imtio.export_to_file(res, "extend.cimt")
         res2 = imtio.import_from_file("extend.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_mirroring(self):
         res = self.SF1.mirroring('x', 35, mir_coef=1.5)
         # imtio.export_to_file(res, "mirroring.cimt")
         res2 = imtio.import_from_file("mirroring.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_crop_masked_border(self):
         tmpsf = self.SF1.copy()
@@ -405,7 +394,7 @@ class SFTest(unittest.TestCase):
         res = tmpsf.crop_masked_border(inplace=False)
         # imtio.export_to_file(res, "crop_masked_border.cimt")
         res2 = imtio.import_from_file("crop_masked_border.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
         #
         tmpsf = self.SF1_nomask.copy()
         tmpsf.mask[3:-2, :] = False
@@ -413,31 +402,31 @@ class SFTest(unittest.TestCase):
         res = self.SF1.crop_masked_border(hard=True, inplace=False)
         # imtio.export_to_file(res, "crop_masked_border_2.cimt")
         res2 = imtio.import_from_file("crop_masked_border_2.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_fill(self):
         res = self.SF1.fill(inplace=False)
         # imtio.export_to_file(res, "fill.cimt")
         res2 = imtio.import_from_file("fill.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_smooth(self):
         res = self.SF1.smooth(tos='uniform', size=4, inplace=False)
         # imtio.export_to_file(res, "smooth.cimt")
         res2 = imtio.import_from_file("smooth.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_make_evenly_spaced(self):
         res = self.SF_notevenlyspaced.make_evenly_spaced()
         # imtio.export_to_file(res, "make_evenly_spaced.cimt")
         res2 = imtio.import_from_file("make_evenly_spaced.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
     def test_reduce_spatial_resolution(self):
         res = self.SF1.reduce_spatial_resolution(4, inplace=False)
         imtio.export_to_file(res, "reduce_spatial_resolution.cimt")
         res2 = imtio.import_from_file("reduce_spatial_resolution.cimt")
-        self.assertEqual(res, res2)
+        assert res == res2
 
 # # TEMP
 # unittest.main()

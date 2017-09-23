@@ -32,9 +32,9 @@ from IMTreatment import Points, file_operation as imtio, make_unit
 import matplotlib.pyplot as plt
 
 
-class PointsTest(unittest.TestCase):
+class TestPoints(object):
 
-    def setUp(self):
+    def setup(self):
         try:
             os.chdir(os.path.dirname(os.path.realpath(__file__)))
         except:
@@ -57,7 +57,7 @@ class PointsTest(unittest.TestCase):
         res_a = self.P1.copy()
         imtio.export_to_file(res_a, "P1_copy_a.cimt")
         res_a2 = imtio.import_from_file("P1_copy_a.cimt")
-        self.assertEqual(res_a, res_a2)
+        assert res_a == res_a2
 
 
 

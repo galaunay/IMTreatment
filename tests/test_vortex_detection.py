@@ -31,12 +31,11 @@ import unum
 from IMTreatment import VectorField, file_operation as imtio, make_unit, \
     TemporalVectorFields
 import IMTreatment.vortex_detection as vod
-import matplotlib.pyplot as plt
 
 
-class VODTest(unittest.TestCase):
+class TestVortexDetection(object):
 
-    def setUp(self):
+    def setup(self):
         try:
             os.chdir(os.path.dirname(os.path.realpath(__file__)))
         except:
@@ -63,22 +62,22 @@ class VODTest(unittest.TestCase):
         res_a = vod.get_critical_points(self.VF1)
         # imtio.export_to_file(res_a, "VF1_get_critical_points_a.cimt")
         res_a2 = imtio.import_from_file("VF1_get_critical_points_a.cimt")
-        self.assertEqual(res_a, res_a2)
+        assert res_a == res_a2
         #
         res_b = vod.get_critical_points(self.TVF1)
         # imtio.export_to_file(res_b, "VF1_get_critical_points_b.cimt")
         res_b2 = imtio.import_from_file("VF1_get_critical_points_b.cimt")
-        self.assertEqual(res_b, res_b2)
+        assert res_b == res_b2
         #
         res_c = vod.get_critical_points(self.TVF1, kind='gam_vort')
         # imtio.export_to_file(res_c, "VF1_get_critical_points_c.cimt")
         res_c2 = imtio.import_from_file("VF1_get_critical_points_c.cimt")
-        self.assertEqual(res_c, res_c2)
+        assert res_c == res_c2
         #
         res_d = vod.get_critical_points(self.VF1, kind='gam_vort')
         # imtio.export_to_file(res_d, "VF1_get_dritical_points_d.cimt")
         res_d2 = imtio.import_from_file("VF1_get_dritical_points_d.cimt")
-        self.assertEqual(res_d, res_d2)
+        assert res_d == res_d2
 
 # # TEMP
 # unittest.main()
