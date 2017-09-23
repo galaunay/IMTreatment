@@ -75,9 +75,10 @@ class ScalarField(fld.Field):
             return False
         if not np.all(self.axe_y == another.axe_y):
             return False
-        if not np.all(self.values == another.values):
-            return False
         if not np.all(self.mask == another.mask):
+            return False
+        if not np.all(self.values[~self.mask] ==
+                      another.values[~another.mask]):
             return False
         if not np.all(self.unit_x == another.unit_x):
             return False
@@ -499,6 +500,21 @@ class ScalarField(fld.Field):
         self.unit_y = unit_y
         self.unit_values = unit_values
 
+    def get_props(self):
+        """
+        Print the ScalarField main properties
+        """
+        print(f"Shape: {self.shape}")
+        unit_x = self.unit_x.strUnit()
+        print(f"Axe x: [{self.axe_x[0]}..{self.axe_x[-1]}]{unit_x}")
+        unit_y = self.unit_y.strUnit()
+        print(f"Axe y: [{self.axe_y[0]}..{self.axe_y[-1]}]{unit_y}")
+        unit_values = self.unit_values.strUnit()
+        print(f"Values: [{self.min}..{self.max}]{unit_values}")
+        nmb_mask = np.sum(self.mask)
+        nmb_tot = self.shape[0]*self.shape[1]
+        print(f"Masked values: {nmb_mask}/{nmb_tot}")
+
     def get_value(self, x, y, ind=False, unit=False):
         """
         Return the scalar field value on the point (x, y).
@@ -715,13 +731,13 @@ class ScalarField(fld.Field):
         """
         # get data
         tmp_sf = self.copy()
-        tmp_sf.mirroring(direction=1, position=tmp_sf.axe_x[0],
+        tmp_sf.mirroring(direction='x', position=tmp_sf.axe_x[0],
                          inds_to_mirror=1, inplace=True)
-        tmp_sf.mirroring(direction=1, position=tmp_sf.axe_x[-1],
+        tmp_sf.mirroring(direction='x', position=tmp_sf.axe_x[-1],
                          inds_to_mirror=1, inplace=True)
-        tmp_sf.mirroring(direction=2, position=tmp_sf.axe_y[0],
+        tmp_sf.mirroring(direction='y', position=tmp_sf.axe_y[0],
                          inds_to_mirror=1, inplace=True)
-        tmp_sf.mirroring(direction=2, position=tmp_sf.axe_y[-1],
+        tmp_sf.mirroring(direction='y', position=tmp_sf.axe_y[-1],
                          inds_to_mirror=1, inplace=True)
         dx = tmp_sf.axe_x[1] - tmp_sf.axe_x[0]
         dy = tmp_sf.axe_y[1] - tmp_sf.axe_y[0]
@@ -766,8 +782,8 @@ class ScalarField(fld.Field):
 
         Parameters
         ----------
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y)
+        direction : string in ['x', 'y']
+            Direction along which we choose a position.
         position : float, interval of float or string
             Position, interval in which we want a profile or 'all'
         ind : boolean
@@ -784,10 +800,8 @@ class ScalarField(fld.Field):
             Wanted profile
         """
         # checking parameters
-        if not isinstance(direction, int):
-            raise TypeError("'direction' must be an integer between 1 and 2")
-        if not (direction == 1 or direction == 2):
-            raise ValueError("'direction' must be an integer between 1 and 2")
+        if direction not in ['x', 'y']:
+            raise TypeError("'direction' must be 'x' or 'y'")
         if not isinstance(position, NUMBERTYPES + ARRAYTYPES + STRINGTYPES):
             raise TypeError()
         if isinstance(position, ARRAYTYPES):
@@ -804,7 +818,7 @@ class ScalarField(fld.Field):
         if interp not in ['nearest', 'linear']:
             raise ValueError()
         # getting data
-        if direction == 1:
+        if direction == 'x':
             axe = self.axe_x
             unit_x = self.unit_y
             unit_y = self.unit_values
@@ -840,7 +854,7 @@ class ScalarField(fld.Field):
             raise ValueError()
         # if use interpolation
         if isinstance(position, NUMBERTYPES) and interp == 'linear':
-            if direction == 1:
+            if direction == 'x':
                 axe = self.axe_y
                 if ind:
                     position = self.axe_x[position]
@@ -848,7 +862,7 @@ class ScalarField(fld.Field):
                 tmp_prof = prof.Profile(x=axe, y=vals, mask=False,
                                         unit_x=self.unit_y,
                                         unit_y=self.unit_values)
-            if direction == 2:
+            if direction == 'y':
                 axe = self.axe_x
                 if ind:
                     position = self.axe_y[position]
@@ -867,7 +881,7 @@ class ScalarField(fld.Field):
                 finalindice = i-1
             else:
                 finalindice = i
-            if direction == 1:
+            if direction == 'x':
                 prof_mask = self.mask[finalindice, :]
                 profile = self.values[finalindice, :]
                 axe = self.axe_y
@@ -876,7 +890,7 @@ class ScalarField(fld.Field):
                 profile = self.values[:, finalindice]
                 axe = self.axe_x
         elif isinstance(position, NUMBERTYPES) and ind:
-            if direction == 1:
+            if direction == 'x':
                 prof_mask = self.mask[position, :]
                 profile = self.values[position, :]
                 axe = self.axe_y
@@ -887,7 +901,7 @@ class ScalarField(fld.Field):
         # Calculation of the profile for an interval of position
         elif isinstance(position, ARRAYTYPES) and not ind:
             axe_mask = np.logical_and(axe >= position[0], axe <= position[1])
-            if direction == 1:
+            if direction == 'x':
                 prof_mask = self.mask[axe_mask, :].mean(0)
                 profile = self.values[axe_mask, :].mean(0)
                 axe = self.axe_y
@@ -896,7 +910,7 @@ class ScalarField(fld.Field):
                 profile = self.values[:, axe_mask].mean(1)
                 axe = self.axe_x
         elif isinstance(position, ARRAYTYPES) and ind:
-            if direction == 1:
+            if direction == 'x':
                 prof_mask = self.mask[position[0]:position[1], :].mean(0)
                 profile = self.values[position[0]:position[1], :].mean(0)
                 axe = self.axe_y
@@ -927,11 +941,13 @@ class ScalarField(fld.Field):
         """
         # Direction X
         if direction == 'x':
+            if window_len is None:
+                window_len = int(len(self.axe_x) - 2)
             # loop on profiles
-            cor = np.zeros(np.floor(window_len/2.)*2 + 1)
+            cor = np.zeros(int(np.floor(window_len/2.)*2 + 1))
             nmb = 0
             for i, y in enumerate(self.axe_y):
-                tmp_prof, _ = self.get_profile(2, i, ind=True)
+                tmp_prof = self.get_profile('y', i, ind=True)
                 cor += tmp_prof.get_auto_correlation(window_len, raw=True)
                 nmb += 1
             cor /= nmb
@@ -941,11 +957,13 @@ class ScalarField(fld.Field):
             return prof.Profile(x=x, y=cor, unit_x=self.unit_x,
                                 unit_y=make_unit(''))
         elif direction == 'y':
+            if window_len is None:
+                window_len = int(len(self.axe_y) - 2)
             # loop on profiles
-            cor = np.zeros(np.floor(window_len/2.)*2 + 1)
+            cor = np.zeros(int(np.floor(window_len/2.)*2 + 1))
             nmb = 0
             for i, x in enumerate(self.axe_x):
-                tmp_prof, _ = self.get_profile(1, i, ind=True)
+                tmp_prof = self.get_profile('x', i, ind=True)
                 cor += tmp_prof.get_auto_correlation(window_len, raw=True)
                 nmb += 1
             cor /= nmb
@@ -1031,23 +1049,23 @@ class ScalarField(fld.Field):
         # getting spectrum
         if direction == 'x':
             # first spectrum
-            prof, _ = tmp_SF.get_profile(2, tmp_SF.axe_y[0])
+            prof = tmp_SF.get_profile('y', tmp_SF.axe_y[0])
             spec = prof.get_spectrum(welch_seglen=welch_seglen,
                                      scaling=scaling, fill=fill)
             # otherones
             for y in tmp_SF.axe_y[1::]:
-                prof, _ = tmp_SF.get_profile(2, y)
+                prof = tmp_SF.get_profile('y', y)
                 spec += prof.get_spectrum(welch_seglen=welch_seglen,
                                           scaling=scaling, fill=fill)
             spec /= len(tmp_SF.axe_y)
         else:
             # first spectrum
-            prof, _ = tmp_SF.get_profile(1, tmp_SF.axe_x[0])
+            prof = tmp_SF.get_profile('x', tmp_SF.axe_x[0])
             spec = prof.get_spectrum(welch_seglen=welch_seglen,
                                      scaling=scaling, fill=fill)
             # otherones
             for x in tmp_SF.axe_x[1::]:
-                prof, _ = tmp_SF.get_profile(1, x)
+                prof = tmp_SF.get_profile('x', x)
                 spec += prof.get_spectrum(welch_seglen=welch_seglen,
                                           scaling=scaling, fill=fill)
             spec /= len(tmp_SF.axe_x)
@@ -1079,7 +1097,7 @@ class ScalarField(fld.Field):
     def integrate_over_line(self, direction, interval):
         """
         Return the integral on an interval and along a direction
-        (1 for x and 2 for y).
+        ('x' or 'y').
         Discretized integral is computed with a trapezoidal algorithm.
 
         Function
@@ -1088,10 +1106,10 @@ class ScalarField(fld.Field):
 
         Parameters
         ----------
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y)
+        direction : string in ['x', 'y']
+            Direction along which we choose a position.
         interval : interval of numbers
-            Interval on which we want to calculate the integrale
+            Interval on which we want to calculate the integral.
 
         Returns
         -------
@@ -1101,7 +1119,9 @@ class ScalarField(fld.Field):
             Unit of the result
 
         """
-        profile, _ = self.get_profile(direction, interval)
+        profile = self.get_profile(direction, interval)
+        if np.any(profile.mask):
+            raise Exception("Masked values on the line")
         integrale = np.trapz(profile.y, profile.x)
         if direction == 1:
             unit = self.unit_values*self.unit_y
@@ -1141,6 +1161,8 @@ class ScalarField(fld.Field):
         if intervy is None:
             intervy = [-np.inf, np.inf]
         cropfield = self.crop(intervx=intervx, intervy=intervy, inplace=False)
+        if np.any(cropfield.mask):
+            raise Exception("Masked values on the surface")
         axe2_x, axe2_y = cropfield.axe_x, cropfield.axe_y
         unit_x, unit_y = cropfield.unit_x, cropfield.unit_y
         integral = (cropfield.values.sum() *
@@ -1182,18 +1204,18 @@ class ScalarField(fld.Field):
                              "the ScalarField :{}".format(self.shape))
         # récupération du masque
         mask = np.logical_or(mask, self.mask)
-        pts = None
+        tmp_pts = None
         v = np.array([], dtype=float)
         # boucle sur les points
         for inds, pos, value in self:
             if mask[inds[0], inds[1]]:
                 continue
-            if pts is None:
-                pts = [pos]
+            if tmp_pts is None:
+                tmp_pts = [pos]
             else:
-                pts = np.append(pts, [pos], axis=0)
+                tmp_pts = np.append(tmp_pts, [pos], axis=0)
             v = np.append(v, value)
-        return pts.Points(pts, v, self.unit_x, self.unit_y, self.unit_values)
+        return pts.Points(tmp_pts, v, self.unit_x, self.unit_y, self.unit_values)
 
     def scale(self, scalex=None, scaley=None, scalev=None, inplace=False):
         """
@@ -1435,8 +1457,8 @@ class ScalarField(fld.Field):
 
         Parameters
         ----------
-        direction : integer
-            Axe on which place the symetry plane (1 for x and 2 for y)
+        direction : string in ['x', 'y']
+            Axe on which place the symetry plane
         position : number
             Position of the symetry plane alogn the given axe
         inds_to_mirror : integer
@@ -1457,7 +1479,7 @@ class ScalarField(fld.Field):
             Value at the symetry plane, in case of interpolation
         """
         # check params
-        if not isinstance(direction, int):
+        if direction not in ['x', 'y']:
             raise TypeError()
         if not isinstance(position, NUMBERTYPES):
             raise TypeError()
@@ -1471,7 +1493,7 @@ class ScalarField(fld.Field):
             tmp_vf = self.copy()
         tmp_vf.crop_masked_border(inplace=True)
         # get side to mirror
-        if direction == 1:
+        if direction == 'x':
             axe = axe_x
             x_median = (axe_x[-1] + axe_x[0])/2.
             delta = axe_x[1] - axe_x[0]
@@ -1495,7 +1517,7 @@ class ScalarField(fld.Field):
                 border = axe_x[-1]
             else:
                 raise ValueError()
-        elif direction == 2:
+        elif direction == 'y':
             axe = axe_y
             y_median = (axe_y[-1] + axe_y[0])/2.
             delta = axe_y[1] - axe_y[0]
@@ -1541,7 +1563,7 @@ class ScalarField(fld.Field):
                 if not tmp_vf.mask[i, j]:
                     continue
                 # get mirror point position
-                if direction == 1:
+                if direction == 'x':
                     mir_pos = [position - (x - position), y]
                 else:
                     mir_pos = [x, position - (y - position)]
@@ -1616,7 +1638,7 @@ class ScalarField(fld.Field):
             else:
                 raise ValueError()
             # adding the value at the symetry plane
-            if direction == 1:
+            if direction == 'x':
                 addit_xy = list(zip([position]*len(tmp_vf.axe_y),
                                     tmp_vf.axe_y))
                 addit_values = [value]*len(tmp_vf.axe_y)
@@ -1812,40 +1834,6 @@ class ScalarField(fld.Field):
                                   unit_values=self.unit_values)
             return sf
 
-    def fill2(self, inplace=False):
-        """
-        Fill the current scalar field using linear solving so that all the
-        missing values are the average of the 8 surrounding values.
-        """
-        # check
-        if inplace:
-            vf = self
-        else:
-            vf = self.copy()
-        if not np.any(self.mask):
-            if inplace:
-                return None
-            else:
-                return vf
-        # get masked zones
-        zone_connection = np.ones((3, 3), dtype=int)
-        zones, nmb_zones = msr.label(self.mask, structure=zone_connection)
-        # loop on zones
-        for ind_zone in range(nmb_zones):
-            # get local zone
-            zone = zones == ind_zone
-            # get surrounding zone (known values)
-            surr_zone = ndimage.binary_dilation(zone,
-                                                structure=zone_connection)
-            surr_zone = np.logical_xor(surr_zone, zone)
-            #
-        plt.figure()
-        plt.imshow(zone, interpolation='nearest')
-        plt.figure()
-        plt.imshow(surr_zone, interpolation='nearest')
-        plt.colorbar()
-        # TODO : not finisehd
-
     def smooth(self, tos='uniform', size=None, inplace=False, **kw):
         """
         Smooth the scalarfield in place.
@@ -1991,7 +1979,8 @@ class ScalarField(fld.Field):
                         new_mask[i, j] = True
                         new_values[i, j] = 0.
                     else:
-                        new_values[i, j] = np.mean(values[intervx, intervy])
+                        new_values[i, j] = np.mean(values[intervx, intervy]
+                                                   [~mask[intervx, intervy]])
 
         else:
             inds_x = np.arange((fact - 1)/2, len(axe_x) - (fact - 1)/2, fact)
@@ -2008,7 +1997,8 @@ class ScalarField(fld.Field):
                         new_mask[i, j] = True
                         new_values[i, j] = 0.
                     else:
-                        new_values[i, j] = np.mean(values[intervx, intervy])
+                        new_values[i, j] = np.mean(values[intervx, intervy]
+                                                   [~mask[intervx, intervy]])
         # returning
         if inplace:
             self.__init__()

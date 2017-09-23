@@ -181,6 +181,9 @@ class VectorField(field.Field):
         tmpvf = self.__add__(other_tmp)
         return tmpvf
 
+    def __rsub__(self, other):
+        return other + self.__neg__()
+
     def __truediv__(self, other):
         if isinstance(other, ARRAYTYPES):
             other = np.array(other, subok=True)
@@ -253,8 +256,8 @@ class VectorField(field.Field):
             tmpvf.mask = np.logical_or(other.mask, self.mask)
             return tmpvf
         else:
-            raise TypeError("You can only multiply a vector field "
-                            "by numbers")
+            raise TypeError("You cannot multiply Vectorfields object "
+                            "with {} objects".format(type(other)))
 
     __rmul__ = __mul__
 
@@ -271,6 +274,7 @@ class VectorField(field.Field):
         tmpvf = self.copy()
         tmpvf.comp_x = np.power(tmpvf.comp_x, number)
         tmpvf.comp_y = np.power(tmpvf.comp_y, number)
+        tmpvf.unit_values = np.power(tmpvf.unit_values, number)
         return tmpvf
 
     def __abs__(self):
@@ -288,6 +292,40 @@ class VectorField(field.Field):
             j = ij[1]
             if not mask[i, j]:
                 yield ij, xy, [datax[i, j], datay[i, j]]
+
+    def __eq__(self, obj):
+        if not isinstance(obj, VectorField):
+            return False
+        if not self.shape == obj.shape:
+            print('shape')
+            print(self.shape)
+            print(obj.shape)
+            return False
+        if not np.all(self.axe_x == obj.axe_x):
+            # print("axe_x")
+            # print(self.axe_x)
+            # print(obj.axe_x)
+            # print(obj.axe_y)
+            return False
+        if not np.all(self.axe_y == obj.axe_y):
+            print("axe_y")
+            return False
+        if not np.all(self.mask == obj.mask):
+            print("mask")
+            return False
+        if not np.all(self.comp_x[~self.mask] == obj.comp_x[~self.mask]):
+            print("comp_x")
+            return False
+        if not np.all(self.comp_y[~self.mask] == obj.comp_y[~self.mask]):
+            print("comp_y")
+            return False
+        if not self.unit_x == obj.unit_x:
+            return False
+        if not self.unit_y == obj.unit_y:
+            return False
+        if not self.unit_values == obj.unit_values:
+            return False
+        return True
 
     @property
     def comp_x(self):
@@ -408,11 +446,11 @@ class VectorField(field.Field):
 
     @property
     def min(self):
-        return np.min(self.magnitude)
+        return np.min(self.magnitude[~self.mask])
 
     @property
     def max(self):
-        return np.max(self.magnitude[np.logical_not(self.mask)])
+        return np.max(self.magnitude[~self.mask])
 
     @property
     def magnitude(self):
@@ -560,6 +598,22 @@ class VectorField(field.Field):
         self.unit_y = unit_y
         self.unit_values = unit_values
 
+    def get_props(self):
+        """
+        Print the VectorField main properties
+        """
+        print(f"Shape: {self.shape}")
+        unit_x = self.unit_x.strUnit()
+        print(f"Axe x: [{self.axe_x[0]}..{self.axe_x[-1]}]{unit_x}")
+        unit_y = self.unit_y.strUnit()
+        print(f"Axe y: [{self.axe_y[0]}..{self.axe_y[-1]}]{unit_y}")
+        unit_values = self.unit_values.strUnit()
+        print(f"Comp x: [{self.min[0]}..{self.max[0]}]{unit_values}")
+        print(f"Comp y: [{self.min[1]}..{self.max[1]}]{unit_values}")
+        nmb_mask = np.sum(self.mask)
+        nmb_tot = self.shape[0]*self.shape[1]
+        print(f"Masked values: {nmb_mask}/{nmb_tot}")
+
     def get_value(self, x, y, ind=False, unit=False):
         """
         Return the vector field components on the point (x, y).
@@ -585,10 +639,10 @@ class VectorField(field.Field):
 
         Parameters
         ----------
-        component : integer
+        component : string in ['vx', 'vy']
             component to treat.
-        direction : integer
-            Direction along which we choose a position (1 for x and 2 for y).
+        direction : string in ['x', 'y']
+            Direction along which we choose a position.
         position : float or interval of float
             Position or interval in which we want a profile.
         ind : boolean, optional
@@ -606,16 +660,14 @@ class VectorField(field.Field):
         cutposition : array or number
             Final position or interval in which the profile has been taken.
         """
-        if not isinstance(component, int):
-            raise TypeError("'component' must be an integer")
-        if component == 1:
+        if component == 'vx':
             return self.comp_x_as_sf.get_profile(direction, position, ind,
                                                  interp=interp)
-        elif component == 2:
+        elif component == 'vy':
             return self.comp_y_as_sf.get_profile(direction, position, ind,
                                                  interp=interp)
         else:
-            raise ValueError("'component' must have the value of 1 or 2")
+            raise TypeError("'component' must be 'vx' or 'vy'")
 
     def copy(self):
         """
@@ -1051,8 +1103,8 @@ class VectorField(field.Field):
 
         Parameters
         ----------
-        direction : integer
-            Axe on which place the symetry plane (1 for x and 2 for y)
+        direction : string in ['x', 'y']
+            Axe on which place the symetry plane.
         position : number
             Position of the symetry plane along the given axe
         inds_to_mirror : integer
@@ -1073,13 +1125,15 @@ class VectorField(field.Field):
         value : array, optional
             Value at the symetry plane, in case of interpolation
         """
+        if direction not in ['x', 'y']:
+            raise ValueError()
         # getting components
         vx = self.comp_x_as_sf
         vy = self.comp_y_as_sf
         xy_scale = self.xy_scale
         # treating sign changments
         if isinstance(mir_coef, NUMBERTYPES):
-            if direction == 1:
+            if direction == 'x':
                 coefx = -1
                 coefy = 1
             else:

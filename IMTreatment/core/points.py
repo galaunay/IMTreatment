@@ -145,6 +145,21 @@ class Points(object):
             raise Exception("You can't add {} to Points objects"
                             .format(type(another)))
 
+    def __eq__(self, obj):
+        if not isinstance(obj, Points):
+            return False
+        if not np.all(self.xy == obj.xy):
+            return False
+        if not np.all(self.v == obj.v):
+            return False
+        if not self.unit_x == obj.unit_x:
+            return False
+        if not self.unit_y == obj.unit_y:
+            return False
+        if not self.unit_v == obj.unit_v:
+            return False
+        return True
+
     @property
     def xy(self):
         return self.__xy

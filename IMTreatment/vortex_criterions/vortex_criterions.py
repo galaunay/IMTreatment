@@ -701,7 +701,7 @@ def _non_local_criterion_precomputation(vectorfield, mask, radius, ind,
     if ind:
         motif = vectorfield.get_points_around(indcentral, radius, ind)
         motif = motif - indcentral
-        motif = np.delete(motif, len(motif)/2, axis=0)
+        motif = np.delete(motif, int(len(motif)/2), axis=0)
     else:
         ptcentral = [axe_x[indcentral[0]], axe_y[indcentral[1]]]
         motif = vectorfield.get_points_around(ptcentral, radius, ind)
@@ -1328,7 +1328,7 @@ def get_residual_vorticity(vf, raw=False):
         sign_omega = np.zeros(omega.shape, dtype=int)
         sign_omega[omega_abs == 0] = 1.
         sign_omega[omega_abs != 0] = (omega[omega_abs != 0] /
-                                      omega_abs[omega_abs != 0])/
+                                      omega_abs[omega_abs != 0])
         filt = s < omega_abs
         # getting the residual vorticity
         res_vort = np.zeros(tmp_vf.shape)

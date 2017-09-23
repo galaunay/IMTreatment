@@ -10,3 +10,5 @@ build
 .fuse_hidden*
 *.bak
 *.egg-info
+/.coverage
+htmlcov

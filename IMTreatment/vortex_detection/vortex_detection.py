@@ -504,6 +504,25 @@ class CritPoints(object):
         else:
             raise TypeError()
 
+    def __eq__(self, obj):
+        if not isinstance(obj, CritPoints):
+            return False
+        for attr in ['foc', 'foc_c', 'node_i', 'node_o', 'sadd']:
+            if not np.all(obj.__getattribute__(attr) ==
+                          self.__getattribute__(attr)):
+                return False
+            attr2 = f'{attr}_traj'
+            if obj.__getattribute__(attr2) != self.__getattribute__(attr2):
+                return False
+        for attr in ['unit_time', 'unit_x', 'unit_y']:
+            if obj.__getattribute__(attr) != self.__getattribute__(attr):
+                return False
+        for attr in ['times', 'colors', 'cp_types']:
+            if not np.all(obj.__getattribute__(attr) ==
+                          self.__getattribute__(attr)):
+                return False
+        return True
+
     @property
     def unit_x(self):
         return self.__unit_x
@@ -3263,7 +3282,7 @@ def _get_gamma2_vortex_center_on_VF(vectorfield, time=0,
         unit_time = make_unit(unit_time)
     # get gamma field
     gamma = get_gamma(vectorfield, radius=radius, ind=True, kind='gamma1')
-    gamma.crop_masked_border(hard=True)
+    gamma.crop_masked_border(hard=True, inplace=True)
     # get zones centers
     centers_c = gamma.get_zones_centers(bornes=[-1., -2/np.pi], rel=False)
     centers_cv = gamma.get_zones_centers(bornes=[2/np.pi, 1.], rel=False)

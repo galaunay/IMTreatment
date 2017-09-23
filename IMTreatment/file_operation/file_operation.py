@@ -219,7 +219,6 @@ def import_from_file(filepath, **kw):
     elif extension == ".cimt":
         gc.disable()
         with gzip.open(filepath, 'rb') as f:
-
             obj = pickle.load(f)
         gc.enable()
     else:

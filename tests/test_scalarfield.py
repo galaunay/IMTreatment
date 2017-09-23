@@ -22,20 +22,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import unittest
-from IMTreatment import make_unit, ScalarField
+
 import numpy as np
 
+import unum
+from IMTreatment import ScalarField, file_operation as imtio, make_unit
+import matplotlib.pyplot as plt
 
-### FIELD TEST ###
-class FieldTest(unittest.TestCase):
-    pass
 
-
-### SCALARFIELD TEST ###
 class SFTest(unittest.TestCase):
+    """ Done """
 
     def setUp(self):
+        try:
+            os.chdir(os.path.dirname(os.path.realpath(__file__)))
+        except:
+            pass
         unit_x = make_unit('m')
         unit_y = make_unit('km')
         unit_values = make_unit('m/s')
@@ -50,11 +54,27 @@ class SFTest(unittest.TestCase):
                                     mask=mask,
                                     unit_x=unit_x, unit_y=unit_y,
                                     unit_values=unit_values)
+        self.SF1_nomask = ScalarField()
+        self.SF1_nomask.import_from_arrays(axe_x, axe_y, values,
+                                           mask=False,
+                                           unit_x=unit_x, unit_y=unit_y,
+                                           unit_values=unit_values)
         self.SF2 = ScalarField()
         self.SF2.import_from_arrays(axe_x, axe_y, values2,
                                     mask=mask2,
                                     unit_x=unit_x, unit_y=unit_y,
                                     unit_values=unit_values)
+        # not evenly spaced
+        dx = np.random.rand(23)*2.3
+        dy = np.random.rand(47)*1.2
+        axe_x = np.cumsum(dx)
+        axe_y = np.cumsum(dy)
+        self.SF_notevenlyspaced = ScalarField()
+        self.SF_notevenlyspaced.import_from_arrays(axe_x, axe_y, values,
+                                                   mask=mask,
+                                                   unit_x=unit_x,
+                                                   unit_y=unit_y,
+                                                   unit_values=unit_values)
 
     def test_import_from_arrays(self):
         # creating a SF field using 'import_from_arrays
@@ -233,21 +253,6 @@ class SFTest(unittest.TestCase):
         self.assertEqual(np.all(sf.values[~sf.mask] ==
                                 values[3:-3, 2:-6][~mask[3:-3, 2:-6]]), True)
 
-    def test_crop_border(self):
-        tmpsf = self.SF1.copy()
-        mask = tmpsf.mask
-        mask[0:3, :] = True
-        mask[-1:, :] = True
-        mask[:, 0:5] = True
-        mask[:, -4:] = True
-        tmpsf.mask = mask
-        tmpsf.crop_masked_border(inplace=True)
-        values_f = self.SF1.values[3:-1, 5:-4]
-        mask_f = self.SF1.mask[3:-1, 5:-4]
-        self.assertTrue(np.all(mask_f == tmpsf.mask))
-        self.assertTrue(np.all(values_f[~mask_f] ==
-                               tmpsf.values[~tmpsf.mask]))
-
     def test_min_max_mean(self):
         mini = self.SF1.min
         maxi = self.SF1.max
@@ -262,12 +267,6 @@ class SFTest(unittest.TestCase):
         self.assertEqual(value, -39.27599375418945)
         self.assertEqual(value2, -77.512615587040656)
 
-    def test_fill(self):
-        self.SF1.fill(inplace=True)
-        value_filled = np.genfromtxt("values_filled")
-        self.assertFalse(np.any(self.SF1.mask))
-        self.assertTrue(np.all(value_filled == self.SF1.values))
-
     def test_get_zones_centers(self):
         self.SF1.fill(inplace=True)
         zones_xy = np.genfromtxt("value_zones_center")
@@ -281,14 +280,165 @@ class SFTest(unittest.TestCase):
         self.assertAlmostEqual(22.1880168513963919, center[0][1])
 
     def test_get_profile(self):
-        profile = self.SF1.get_profile(1, 9.98)
+        profile = self.SF1.get_profile('x', 9.98)
         prof_x, prof_y = np.genfromtxt("profile")
         self.assertTrue(np.all(prof_x[~profile.mask] ==
                                profile.x[~profile.mask]))
         self.assertTrue(np.all(prof_y[~profile.mask] ==
                                profile.y[~profile.mask]))
 
-unittest.main()
+    def test_get_spatial_autocorrelation(self):
+        res_x = self.SF1.get_spatial_autocorrelation('x')
+        imtio.export_to_file(res_x, "spatial_autocorrelation_x.cimt")
+        res_x2 = imtio.import_from_file("spatial_autocorrelation_x.cimt")
+        self.assertEqual(res_x, res_x2)
+        res_y = self.SF1.get_spatial_autocorrelation('y')
+        imtio.export_to_file(res_y, "spatial_autocorrelation_y.cimt")
+        res_y2 = imtio.import_from_file("spatial_autocorrelation_y.cimt")
+        self.assertEqual(res_y, res_y2)
 
-if __name__ == '__main__':
-    unittest.main()
+    def test_get_spatial_spectrum(self):
+        res_x = self.SF1.get_spatial_spectrum('x', intervx=[5, 19],
+                                              intervy=[10.2, 29])
+        # imtio.export_to_file(res_x, "get_spatial_spectrum_x.cimt")
+        res_x2 = imtio.import_from_file("get_spatial_spectrum_x.cimt")
+        self.assertEqual(res_x, res_x2)
+        res_y = self.SF1.get_spatial_spectrum('y', intervx=[5, 19],
+                                              intervy=[10.2, 29])
+        # imtio.export_to_file(res_y, "get_spatial_spectrum_y.cimt")
+        res_y2 = imtio.import_from_file("get_spatial_spectrum_y.cimt")
+        self.assertEqual(res_y, res_y2)
+
+    def test_get_norm(self):
+        res = self.SF1.get_norm()
+        # imtio.export_to_file(res, "get_norm.cimt")
+        res2 = imtio.import_from_file("get_norm.cimt")
+        self.assertEqual(res, res2)
+
+    def test_get_interpolator(self):
+        res = self.SF1_nomask.get_interpolator()
+        # imtio.export_to_file(res, "get_interpolator.cimt")
+        res2 = imtio.import_from_file("get_interpolator.cimt")
+        self.assertEqual(res(5, 9.2), res2(5, 9.2))
+
+    def test_integrate_over_line(self):
+        res_x = self.SF1_nomask.integrate_over_line('x', [3.2, 17.8])
+        # imtio.export_to_file(res_x, "integrate_over_line_x.cimt")
+        res_x2 = imtio.import_from_file("integrate_over_line_x.cimt")
+        self.assertEqual(res_x, res_x2)
+        res_y = self.SF1_nomask.integrate_over_line('y', [3.2, 17.8])
+        # imtio.export_to_file(res_y, "integrate_over_line_y.cimt")
+        res_y2 = imtio.import_from_file("integrate_over_line_y.cimt")
+        self.assertEqual(res_y, res_y2)
+
+    def test_integrate_over_surface(self):
+        res = self.SF1_nomask.integrate_over_surface(intervx=[2.4, 19.8],
+                                                     intervy=[5.6, 8.3])
+        # imtio.export_to_file(res, "integrate_over_surface.cimt")
+        res2 = imtio.import_from_file("integrate_over_surface.cimt")
+        self.assertEqual(res, res2)
+
+    def test_copy(self):
+        res = self.SF1.copy()
+        # imtio.export_to_file(res, "copy.cimt")
+        res2 = imtio.import_from_file("copy.cimt")
+        self.assertEqual(res, res2)
+
+    def test_export_to_scatter(self):
+        res = self.SF1.export_to_scatter()
+        # imtio.export_to_file(res, "export_to_scatter.cimt")
+        res2 = imtio.import_from_file("export_to_scatter.cimt")
+        self.assertEqual(res, res2)
+
+    def test_scale(self):
+        res = self.SF1.scale(scalex=1.45, scaley=.98, scalev=3.4,
+                             inplace=False)
+        # imtio.export_to_file(res, "scale.cimt")
+        res2 = imtio.import_from_file("scale.cimt")
+        self.assertEqual(res, res2)
+
+    def test_rotate(self):
+        res = self.SF1.rotate(270, inplace=False)
+        # imtio.export_to_file(res, "rotate.cimt")
+        res2 = imtio.import_from_file("rotate.cimt")
+        self.assertEqual(res, res2)
+
+    def test_change_unit(self):
+        res = self.SF1.copy()
+        res.change_unit('x', 'um')
+        res.change_unit('y', 'm')
+        # imtio.export_to_file(res, "change_unit.cimt")
+        res2 = imtio.import_from_file("change_unit.cimt")
+        self.assertEqual(res, res2)
+        with self.assertRaises(unum.IncompatibleUnitsError):
+            res.change_unit('x', 'm/s')
+
+    def test_crop(self):
+        res = self.SF1.crop(intervx=[7.4, 19.0],
+                            intervy=[2.1, 8], inplace=False)
+        # imtio.export_to_file(res, "crop.cimt")
+        res2 = imtio.import_from_file("crop.cimt")
+        self.assertEqual(res, res2)
+
+    def test_extend(self):
+        res = self.SF1.extend(nmb_left=1,
+                              nmb_right=5,
+                              nmb_down=7,
+                              nmb_up=4,
+                              inplace=False)
+        # imtio.export_to_file(res, "extend.cimt")
+        res2 = imtio.import_from_file("extend.cimt")
+        self.assertEqual(res, res2)
+
+    def test_mirroring(self):
+        res = self.SF1.mirroring('x', 35, mir_coef=1.5)
+        # imtio.export_to_file(res, "mirroring.cimt")
+        res2 = imtio.import_from_file("mirroring.cimt")
+        self.assertEqual(res, res2)
+
+    def test_crop_masked_border(self):
+        tmpsf = self.SF1.copy()
+        tmpsf.mask[0:3, :] = True
+        tmpsf.mask[-1:, :] = True
+        tmpsf.mask[:, 0:5] = True
+        tmpsf.mask[:, -4:] = True
+        res = tmpsf.crop_masked_border(inplace=False)
+        # imtio.export_to_file(res, "crop_masked_border.cimt")
+        res2 = imtio.import_from_file("crop_masked_border.cimt")
+        self.assertEqual(res, res2)
+        #
+        tmpsf = self.SF1_nomask.copy()
+        tmpsf.mask[3:-2, :] = False
+        tmpsf.mask[:, 5:-4] = False
+        res = self.SF1.crop_masked_border(hard=True, inplace=False)
+        # imtio.export_to_file(res, "crop_masked_border_2.cimt")
+        res2 = imtio.import_from_file("crop_masked_border_2.cimt")
+        self.assertEqual(res, res2)
+
+    def test_fill(self):
+        res = self.SF1.fill(inplace=False)
+        # imtio.export_to_file(res, "fill.cimt")
+        res2 = imtio.import_from_file("fill.cimt")
+        self.assertEqual(res, res2)
+
+    def test_smooth(self):
+        res = self.SF1.smooth(tos='uniform', size=4, inplace=False)
+        # imtio.export_to_file(res, "smooth.cimt")
+        res2 = imtio.import_from_file("smooth.cimt")
+        self.assertEqual(res, res2)
+
+    def test_make_evenly_spaced(self):
+        res = self.SF_notevenlyspaced.make_evenly_spaced()
+        # imtio.export_to_file(res, "make_evenly_spaced.cimt")
+        res2 = imtio.import_from_file("make_evenly_spaced.cimt")
+        self.assertEqual(res, res2)
+
+    def test_reduce_spatial_resolution(self):
+        res = self.SF1.reduce_spatial_resolution(4, inplace=False)
+        imtio.export_to_file(res, "reduce_spatial_resolution.cimt")
+        res2 = imtio.import_from_file("reduce_spatial_resolution.cimt")
+        self.assertEqual(res, res2)
+
+# # TEMP
+# unittest.main()
+# # TEMP - End

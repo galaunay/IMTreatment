@@ -103,7 +103,7 @@ class Profile(object):
             name = self.name
             mask = self.mask
         elif isinstance(otherone, unum.Unum):
-            y = self.y + otherone/self.unit_y
+            y = self.y + (otherone/self.unit_y).asNumber()
             name = self.name
             mask = self.mask
         elif isinstance(otherone, Profile):
@@ -229,6 +229,21 @@ class Profile(object):
 
     def __len__(self):
         return len(self.x)
+
+    def __eq__(self, obj):
+        if not isinstance(obj, Profile):
+            return False
+        if not np.all(self.mask == obj.mask):
+            return False
+        if not np.all(self.x[~self.mask] == obj.x[~obj.mask]):
+            return False
+        if not np.all(self.y[~self.mask] == obj.y[~obj.mask]):
+            return False
+        if not self.unit_x == obj.unit_x:
+            return False
+        if not self.unit_y == obj.unit_y:
+            return False
+        return True
 
     def __getitem__(self, ind):
         if isinstance(ind, ARRAYTYPES):
@@ -907,7 +922,7 @@ class Profile(object):
             raise TypeError()
         if window_len >= len(self.y) - 1:
             raise ValueError()
-        window_len = np.floor(window_len/2.)
+        window_len = int(np.floor(window_len/2.))
         # loop on possible central values
         corr = np.zeros(2*window_len + 1)
         corr_ad = 0
@@ -958,7 +973,7 @@ class Profile(object):
         ydata = self.y
         if p0 is None:
             nmb_arg = func.__code__.co_argcount
-            p0 = [1]*nmb_arg
+            p0 = [1]*(nmb_arg - 1)
 
         # minimize function
         def min_func(args, x, y):
@@ -1133,8 +1148,9 @@ class Profile(object):
         if not np.all(self.x[1:] - self.x[0:-1] - (self.x[1] - self.x[0]) <
                       self.x[-1]*1e-10):
             raise Exception("Profiles should have orthogonal x axis")
-        if not np.all(other_prof.x[1:] - other_prof.x[0:-1] ==
-                      other_prof.x[1] - other_prof.x[0]):
+        if not np.all(other_prof.x[1:] - other_prof.x[0:-1] -
+                      other_prof.x[1] - other_prof.x[0] <
+                      1e-6*np.mean(other_prof.x)):
             raise Exception("Profiles should have orthogonal x axis")
         if not self.x[1] - self.x[0] == other_prof.x[1] - other_prof.x[0]:
             raise Exception("Profiles should have same x discretization step")
@@ -1321,8 +1337,8 @@ class Profile(object):
         if not ind >= 0:
             raise ValueError()
         # remove the point
-        self.x = np.concatenate((self.x[0:ind], self.x[ind + 1::]))
         self.y = np.concatenate((self.y[0:ind], self.y[ind + 1::]))
+        self.x = np.concatenate((self.x[0:ind], self.x[ind + 1::]))
 
     def crop_masked_border(self, inplace=False):
         """
@@ -1432,7 +1448,7 @@ class Profile(object):
                                self.unit_y)
             return tmp_prof
 
-    def scale(self, scalex=1., scaley=1., scalev=1., inplace=False):
+    def scale(self, scalex=1., scaley=1., inplace=False):
         """
         Change the scale of the axis.
 
@@ -1473,8 +1489,6 @@ class Profile(object):
             tmp_prof.x *= scalex
         if scaley != 1.:
             tmp_prof.y *= scaley
-        if scalev != 1.:
-            tmp_prof.v *= scalev
         # returning
         if not inplace:
             return tmp_prof
