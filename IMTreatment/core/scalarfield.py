@@ -457,6 +457,8 @@ class ScalarField(fld.Field):
             mask = False
         if not isinstance(mask, bool):
             mask = np.array(mask, dtype=bool)
+        # Be sure nan values are masked
+        mask = np.logical_or(mask, np.isnan(values))
         # Be sure axes are one-dimensional
         if axe_x.ndim >= 2:
             if np.all(axe_x[0, 0] == axe_x[:, 0]):
@@ -1482,7 +1484,8 @@ class ScalarField(fld.Field):
         if direction not in ['x', 'y']:
             raise TypeError()
         if not isinstance(position, NUMBERTYPES):
-            raise TypeError()
+            raise TypeError("Position should be a number, not {}"
+                            .format(type(position)))
         position = float(position)
         # get data
         axe_x = self.axe_x

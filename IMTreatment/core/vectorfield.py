@@ -551,6 +551,9 @@ class VectorField(field.Field):
         comp_y = np.array(comp_y, dtype=float)
         if mask is not None and not isinstance(mask, bool):
             mask = np.array(mask, dtype=bool)
+        # Be sure nan values are masked
+        mask = np.logical_or(mask, np.isnan(comp_x))
+        mask = np.logical_or(mask, np.isnan(comp_y))
         # Be sure axes are one-dimensional
         if axe_x.ndim >= 2:
             if np.all(axe_x[0, 0] == axe_x[:, 0]):
@@ -608,8 +611,12 @@ class VectorField(field.Field):
         unit_y = self.unit_y.strUnit()
         print(f"Axe y: [{self.axe_y[0]}..{self.axe_y[-1]}]{unit_y}")
         unit_values = self.unit_values.strUnit()
-        print(f"Comp x: [{self.min[0]}..{self.max[0]}]{unit_values}")
-        print(f"Comp y: [{self.min[1]}..{self.max[1]}]{unit_values}")
+        xmin = np.min(self.comp_x[~self.mask])
+        xmax = np.max(self.comp_x[~self.mask])
+        ymin = np.min(self.comp_y[~self.mask])
+        ymax = np.max(self.comp_y[~self.mask])
+        print(f"Comp x: [{xmin}..{xmax}]{unit_values}")
+        print(f"Comp y: [{ymin}..{ymax}]{unit_values}")
         nmb_mask = np.sum(self.mask)
         nmb_tot = self.shape[0]*self.shape[1]
         print(f"Masked values: {nmb_mask}/{nmb_tot}")

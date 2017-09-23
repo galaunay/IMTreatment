@@ -148,44 +148,80 @@ def find_file_in_path(regs, dirpath, ask=False):
 
 
 def matlab_parser(obj, name):
-    classic_types = (int, float, str, str)
+    classic_types = (int, float, str, bool)
     array_types = (list, float)
     if isinstance(obj, classic_types):
         return {name: obj}
     elif isinstance(obj, array_types):
         simple = True
         for val in obj:
-            if not isinstance(val, classic_types):
+            if not isinstance(val, (classic_types, array_types)):
                 simple = False
         if simple:
             return {name: obj}
         else:
             raise IOError("Matlab can't handle this kind of variable")
     elif isinstance(obj, Points):
-        x = np.zeros((obj.xy.shape[0],))
-        y = np.zeros((obj.xy.shape[0],))
-        for i in np.arange(obj.xy.shape[0]):
-            x[i] = obj.xy[i, 0]
-            y[i] = obj.xy[i, 1]
-        dic = matlab_parser(list(x), 'x')
-        dic.update(matlab_parser(list(y), 'y'))
-        dic.update(matlab_parser(list(obj.v), 'v'))
+        xy = obj.xy
+        xy = [list(comp) for comp in xy]
+        dic = matlab_parser(list(obj.v), 'v')
+        dic.update(matlab_parser(xy, 'xy'))
+        dic.update(matlab_parser(obj.unit_x.strUnit()[1:-1], 'unit_x'))
+        dic.update(matlab_parser(obj.unit_y.strUnit()[1:-1], 'unit_y'))
+        dic.update(matlab_parser(obj.unit_v.strUnit()[1:-1], 'unit_v'))
+        return {name: dic}
+    elif isinstance(obj, Profile):
+        mask = [int(val) for val in obj.mask]
+        dic = matlab_parser(list(obj.x), 'x')
+        dic.update(matlab_parser(list(obj.y), 'y'))
+        dic.update(matlab_parser(mask, 'mask'))
+        dic.update(matlab_parser(obj.unit_x.strUnit()[1:-1], 'unit_x'))
+        dic.update(matlab_parser(obj.unit_y.strUnit()[1:-1], 'unit_y'))
         return {name: dic}
     elif isinstance(obj, VectorField):
         x = obj.axe_x
         y = obj.axe_y
         X, Y = np.meshgrid(x, y, indexing='ij')
-        X = X.flatten()
-        Y = Y.flatten()
-        Vx = obj.comp_x.flatten()
-        Vy = obj.comp_y.flatten()
-        dic = matlab_parser(list(x), 'x')
-        dic.update(matlab_parser(list(y), 'y'))
-        dic.update(matlab_parser(list(y), 'y'))
+        X = [list(comp) for comp in X]
+        Y = [list(comp) for comp in Y]
+        comp_x = obj.comp_x
+        comp_x = [list(comp) for comp in comp_x]
+        comp_y = obj.comp_y
+        comp_y = [list(comp) for comp in comp_y]
+        mask = obj.mask
+        mask = [list(comp) for comp in mask]
+        dic = matlab_parser(list(obj.axe_x), 'axe_x')
+        dic.update(matlab_parser(list(obj.axe_y), 'axe_y'))
         dic.update(matlab_parser(list(X), 'X'))
         dic.update(matlab_parser(list(Y), 'Y'))
-        dic.update(matlab_parser(list(Vx), 'Vx'))
-        dic.update(matlab_parser(list(Vy), 'Vy'))
+        dic.update(matlab_parser(comp_x, 'comp_x'))
+        dic.update(matlab_parser(comp_y, 'comp_y'))
+        dic.update(matlab_parser(mask, 'mask'))
+        dic.update(matlab_parser(obj.unit_x.strUnit()[1:-1], 'unit_x'))
+        dic.update(matlab_parser(obj.unit_y.strUnit()[1:-1], 'unit_y'))
+        dic.update(matlab_parser(obj.unit_values.strUnit()[1:-1],
+                                 'unit_values'))
+        return {name: dic}
+    elif isinstance(obj, ScalarField):
+        x = obj.axe_x
+        y = obj.axe_y
+        X, Y = np.meshgrid(x, y, indexing='ij')
+        X = [list(comp) for comp in X]
+        Y = [list(comp) for comp in Y]
+        values = obj.values
+        values = [list(comp) for comp in values]
+        mask = obj.mask
+        mask = [list(comp) for comp in mask]
+        dic = matlab_parser(list(obj.axe_x), 'axe_x')
+        dic.update(matlab_parser(list(obj.axe_y), 'axe_y'))
+        dic.update(matlab_parser(list(X), 'X'))
+        dic.update(matlab_parser(list(Y), 'Y'))
+        dic.update(matlab_parser(values, 'values'))
+        dic.update(matlab_parser(mask, 'mask'))
+        dic.update(matlab_parser(obj.unit_x.strUnit()[1:-1], 'unit_x'))
+        dic.update(matlab_parser(obj.unit_y.strUnit()[1:-1], 'unit_y'))
+        dic.update(matlab_parser(obj.unit_values.strUnit()[1:-1],
+                                 'unit_values'))
         return {name: dic}
     else:
         raise IOError("Can't parser that : \n {}".format(obj))
@@ -296,12 +332,14 @@ def imts_to_imt(imts_path, imt_path, kind):
     elif kind == 'SSF':
         imts_type = 'SF'
         fields = SpatialScalarFields()
-    elif kind == 'SVF':
+    elif kind == 'TVF':
         imts_type = 'VF'
         fields = TemporalVectorFields()
     elif kind == 'SVF':
         imts_type = 'VF'
         fields = SpatialVectorFields()
+    else:
+        raise ValueError()
     # importing data
     for tmp_path in paths:
         basename = path.basename(tmp_path)
@@ -348,26 +386,47 @@ def import_from_matlab(filepath, obj, **kwargs):
     data = spio.loadmat(filepath)
     # Create object
     if obj == 'ScalarField':
-        obj = ScalarField()
+        res = ScalarField
+        default_dic = {'axe_x': 'axe_x', 'axe_y': 'axe_y', 'unit_x': 'unit_x',
+                       'unit_y': 'unit_y', 'values': 'values', 'mask': 'mask',
+                       'unit_values': 'unit_values'}
     elif obj == 'VectorField':
-        obj = VectorField()
+        res = VectorField
+        default_dic = {'axe_x': 'axe_x', 'axe_y': 'axe_y', 'comp_x': 'comp_x',
+                       'comp_y': 'comp_y', 'mask': 'mask', 'unit_x': 'unit_x',
+                       'unit_y': 'unit_y', 'unit_values': 'unit_values'}
     elif obj == 'Profile':
-        obj = Profile()
+        res = Profile
+        default_dic = {'x': 'x', 'y': 'y', 'mask': 'mask', 'unit_x': 'unit_x',
+                       'unit_y': 'unit_y'}
     elif obj == 'Points':
-        obj = Points
+        res = Points
+        default_dic = {'xy': 'xy', 'v': 'v', 'unit_x': 'unit_x',
+                       'unit_y': 'unit_y', 'unit_v': 'unit_v'}
+    default_dic.update(kwargs)
+    kwargs = default_dic
     # Create building dict
     build_dic = {key: data[entry]
                  for key, entry in kwargs.items()}
+    # Fix unities
+    for key, item in build_dic.items():
+        if len(item) == 1:
+            print(key, build_dic[key])
+            build_dic[key] = build_dic[key][0]
     # Fill the object
-    obj.import_from_arrays(**build_dic)
+    if obj in ['ScalarField', 'VectorField']:
+        ress = res()
+        ress.import_from_arrays(**build_dic)
+    else:
+        ress = res(**build_dic)
     # Return
-    return obj
+    return ress
 
 
-def export_to_matlab(obj, name, filepath, **kw):
+def export_to_matlab(obj, filepath, **kw):
     filepath = check_path(filepath, newfile=True)
-    dic = matlab_parser(obj, name)
-    spio.savemat(filepath, dic, **kw)
+    dic = matlab_parser(obj, "tmp")
+    spio.savemat(filepath, dic["tmp"], **kw)
 
 
 def export_to_vtk(obj, filepath, axis=None, **kw):
@@ -414,7 +473,11 @@ def __export_pts_to_vtk(pts, filepath, axis=None, line=False):
     line : boolean, optional
         If 'True', lines between points are writen instead of points.
     """
-    import pyvtk
+    try:
+        import pyvtk
+    except ImportError:
+        raise Exception("You need to install pyvtk to use this "
+                        "functionnality")
     if not path.exists(path.dirname(filepath)):
         raise ValueError("'filepath' is not a valid path")
     if axis is None:
@@ -1073,56 +1136,6 @@ def VC7_to_imt(vc7_path, imt_path, kind='VF', compressed=True, **kwargs):
     else:
         raise ValueError()
 
-
-def davis_to_imt_gui():
-    from tkinter import Tk
-    from tkinter.filedialog import askopenfilename, asksaveasfilename
-    # getting importing directory
-    win = Tk()
-    filetypes = [('Davis files', '.vc7 .im7'), ('other files', '.*')]
-    title = "Choose a file or a directory to import"
-    davis_path = askopenfilename(filetypes=filetypes, title=title,
-                                 multiple=True)
-    # exit if no file selected
-    if len(davis_path) == 0:
-        return None
-    davis_path = win.tk.splitlist(davis_path)
-    win.destroy()
-    # importing files
-    if len(davis_path) == 1:
-        davis_path = davis_path[0]
-        ext = path.splitext(davis_path)[-1]
-        if ext in ['.im7', '.IM7']:
-            obj = import_from_IM7(davis_path)
-        elif ext in ['.vc7', '.VC7']:
-            obj = import_from_VC7(davis_path)
-        else:
-            raise ValueError()
-    elif len(davis_path) > 1:
-        # getting extension
-        ext = path.splitext(davis_path[0])[-1]
-        # checking if all files have the same extension
-        for tmp_path in davis_path:
-            if not ext == path.splitext(tmp_path)[-1]:
-                raise ValueError()
-        if ext in [".im7", ".IM7"]:
-            obj = import_from_IM7s(davis_path)
-        if ext in [".vc7", ".VC7"]:
-            obj = import_from_VC7s(davis_path)
-        else:
-            raise ValueError()
-    else:
-        raise ValueError()
-    # getting saving directory
-    win = Tk()
-    filetypes = [('other files', '.*'), ('IMT files', '.cimt')]
-    title = "Choose a file or a directory to import"
-    imt_path = asksaveasfilename(filetypes=filetypes, title=title)
-    win.destroy()
-    # saving datas
-    export_to_file(obj, imt_path)
-
-
 def import_from_picture(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
                         unit_values=''):
     """
@@ -1232,122 +1245,6 @@ def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='',
     return tmp_tsf
 
 
-def import_vf_from_pivmat(filepath):
-    """
-    Import a vectorfield from a .mat file created by PIVMAT
-
-    Parameters
-    ----------
-    filepath:
-        .
-
-    Returns
-    -------
-    VF : VectorField
-        .
-    """
-    try:
-        import h5py
-    except ImportError:
-        raise Exception("You need to install `h5py` to use this"
-                        "functionality")
-    VF = VectorField()
-    f = h5py.File(filepath, 'r')
-    data = f.get('Data')
-    x = np.array(data.get('x').value, dtype=float).flatten()
-    y = np.array(data.get('y').value, dtype=float).flatten()
-    vx = np.array(data.get('vx').value, dtype=float).transpose()
-    vy = np.array(data.get('vy').value, dtype=float).transpose()
-    unit_x = "".join([chr(n) for n in data.get('unitx').value.flatten()])
-    unit_y = "".join([chr(n) for n in data.get('unity').value.flatten()])
-    unit_vx = "".join([chr(n) for n in data.get('unitvx').value.flatten()])
-    unit_vy = "".join([chr(n) for n in data.get('unitvy').value.flatten()])
-    if unit_vx != unit_vy:
-        raise Exception()
-    VF.import_from_arrays(axe_x=x, axe_y=y, comp_x=vx, comp_y=vy,
-                          mask=False, unit_x=unit_x, unit_y=unit_y,
-                          unit_values=unit_vx)
-    f.close()
-    return VF
-
-
-def import_tvf_from_pivmat(filepath, fieldnumbers=None, incr=1):
-    """
-    Import a set of vectorfields from a .mat file created by PIVMAT
-
-    Parameters
-    ----------
-    filepath:
-        .
-    fieldnumbers : 2x1 tuple of int
-        Interval of fields to import, default is all.
-    incr : integer
-        Incrementation between fields to take. Default is 1, meaning all
-        fields are taken.
-
-    Returns
-    -------
-    TVF : TemporalVectorFields
-        .
-    """
-    # check
-    if fieldnumbers is not None:
-        if not isinstance(fieldnumbers, ARRAYTYPES):
-            raise TypeError("'fieldnumbers' must be a 2x1 array")
-        if not len(fieldnumbers) == 2:
-            raise TypeError("'fieldnumbers' must be a 2x1 array")
-        if not isinstance(fieldnumbers[0], int) \
-                or not isinstance(fieldnumbers[1], int):
-            raise TypeError("'fieldnumbers' must be an array of integers")
-    # check and adpat 'incr'
-    if not isinstance(incr, int):
-        raise TypeError("'incr' must be an integer")
-    if incr <= 0:
-        raise ValueError("'incr' must be positive")
-    # import
-    TVF = TemporalVectorFields()
-    f = h5py.File(filepath, 'r')
-    data = f.get('Data')
-    unit_x = "".join([chr(n) for n in data[data.get('unitx').value[0][0]]
-                      .value.flatten()])
-    unit_y = "".join([chr(n) for n in data[data.get('unity').value[0][0]]
-                      .value.flatten()])
-    unit_vx = "".join([chr(n) for n in data[data.get('unitvx').value[0][0]]
-                       .value.flatten()])
-    unit_vy = "".join([chr(n) for n in data[data.get('unitvy').value[0][0]]
-                       .value.flatten()])
-    atts = "".join([chr(n) for n in list(data[data.get('Attributes')[0][0]])])
-    atts = atts.split("\n")
-    atts = {att.split('=')[0]: att.split('=')[1]
-            for att in atts
-            if "=" in att}
-    dt = int(atts['FrameDt0'].split(" ")[0])
-    unit_times = atts['FrameDt0'].split(" ")[1]
-    if unit_vx != unit_vy:
-        raise Exception()
-    x = np.array(data[data.get('x').value[0][0]].value, dtype=float).flatten()
-    y = np.array(data[data.get('y').value[0][0]].value, dtype=float).flatten()
-    nmb_fields = data.get('vx').value.shape[0]
-    if fieldnumbers is None:
-        start = 0
-        end = nmb_fields
-    else:
-        start = fieldnumbers[0]
-        end = fieldnumbers[1]
-    for i in np.arange(start, end, incr):
-        VF = VectorField()
-        vx = np.array(data[data.get('vx').value[i][0]].value, dtype=float)
-        vx = vx.transpose()
-        vy = np.array(data[data.get('vy').value[i][0]].value, dtype=float)
-        vy = vy.transpose()
-        VF.import_from_arrays(axe_x=x, axe_y=y, comp_x=vx, comp_y=vy,
-                              mask=False, unit_x=unit_x, unit_y=unit_y,
-                              unit_values=unit_vx)
-        TVF.add_field(VF, time=i*dt, unit_times=unit_times)
-    f.close()
-    return TVF
-
-
 def export_to_picture(SF, filepath):
     """
     Export a scalar field to a picture file.
@@ -1387,7 +1284,7 @@ def export_to_pictures(SFs, filepath):
             values.append(SFs.fields[i].values[:, ::-1].transpose())
     # save
     for i, val in enumerate(values):
-        spmisc.imsave(path.join(filepath, "{:0>5}.png".format(i)), val)
+        spmisc.imsave("{}_{:0>5}.png".format(filepath, i), val)
 
 
 def import_profile_from_ascii(filepath, x_col=1, y_col=2,
@@ -1430,7 +1327,7 @@ def import_profile_from_ascii(filepath, x_col=1, y_col=2,
         return prof
 
 
-def import_pts_from_ascii(pts, filepath, x_col=1, y_col=2, v_col=None,
+def import_pts_from_ascii(filepath, x_col=1, y_col=2, v_col=None,
                           unit_x=make_unit(""), unit_y=make_unit(""),
                           unit_v=make_unit(""), **kwargs):
         """
@@ -1438,8 +1335,6 @@ def import_pts_from_ascii(pts, filepath, x_col=1, y_col=2, v_col=None,
 
         Parameters
         ----------
-        pts : Points object
-            .
         x_col, y_col, v_col : integer, optional
             Colonne numbers for the given variables
             (begining at 1).
@@ -1456,8 +1351,6 @@ def import_pts_from_ascii(pts, filepath, x_col=1, y_col=2, v_col=None,
         # check
         filepath = check_path(filepath)
         # validating parameters
-        if not isinstance(pts, Points):
-            raise TypeError()
         if v_col is None:
             v_col = 0
         if not isinstance(x_col, int) or not isinstance(y_col, int)\
@@ -1473,12 +1366,11 @@ def import_pts_from_ascii(pts, filepath, x_col=1, y_col=2, v_col=None,
         # get axes
         x = data[:, x_col-1]
         y = data[:, y_col-1]
-        pts.xy = list(zip(x, y))
         if v_col != 0:
             v = data[:, v_col-1]
         else:
             v = None
-        pts.__init__(list(zip(x, y)), v, unit_x, unit_y, unit_v)
+        return Points(list(zip(x, y)), v, unit_x, unit_y, unit_v)
 
 
 def import_sf_from_ascii(filepath, x_col=1, y_col=2, vx_col=3,
@@ -1738,7 +1630,7 @@ def export_to_ascii(filepath, obj):
         # open file
         f = open(filepath, 'w')
         # write header
-        header = "X {}\tY {}\tVx {}\tVy {}\n"\
+        header = "# X {}\tY {}\tVx {}\tVy {}\n"\
                  .format(obj.unit_x.strUnit(),
                          obj.unit_y.strUnit(),
                          obj.unit_values.strUnit(),
@@ -1754,7 +1646,7 @@ def export_to_ascii(filepath, obj):
         # open file
         f = open(filepath, 'w')
         # write header
-        header = "X {}\tY {}\tValue {}\n"\
+        header = "# X {}\tY {}\tValue {}\n"\
                  .format(obj.unit_x.strUnit(),
                          obj.unit_y.strUnit(),
                          obj.unit_values.strUnit())
@@ -1764,97 +1656,30 @@ def export_to_ascii(filepath, obj):
             for j, y in enumerate(obj.axe_y):
                 f.write("{}\t{}\t{}\n".format(x, y, obj.values[i, j]))
         f.close()
+    elif isinstance(obj, Profile):
+        # open file
+        f = open(filepath, 'w')
+        # write header
+        header = "# X {}\tY {}\n"\
+                 .format(obj.unit_x.strUnit(),
+                         obj.unit_y.strUnit())
+        f.write(header)
+        # write data
+        for x, y in zip(obj.x, obj.y):
+            f.write("{}\t{}\n".format(x, y))
+        f.close()
+    elif isinstance(obj, Points):
+        # open file
+        f = open(filepath, 'w')
+        # write header
+        header = "# X {}\tY {}\tV {}\n"\
+                 .format(obj.unit_x.strUnit(),
+                         obj.unit_y.strUnit(),
+                         obj.unit_v.strUnit())
+        f.write(header)
+        # write data
+        for x, y, v in zip(obj.xy[:, 0], obj.xy[:, 1], obj.v):
+            f.write("{}\t{}\t{}\n".format(x, y, v))
+        f.close()
     else:
         raise TypeError()
-
-
-def import_from_VNO(filepath, add_info=True):
-    """
-    Import data from a VNO file. VNO files contains data from an ADV
-    measurement.
-
-    Parameters
-    ----------
-    filepath : string
-        Path to the VNO file
-
-    Returns
-    -------
-    Vx, Vy, Vz, Vz2 : Profile objects
-        Velocity time profile along x, y, z,and z2 axis
-    """
-    # check filepath
-    filepath = check_path(filepath)
-    if add_info not in [True, False]:
-        raise TypeError()
-    # extract data from file
-    data = np.genfromtxt(filepath)
-    # check data shape
-    if data.shape[1] != 20:
-        print((data.shape))
-        raise ValueError()
-    # get profiles
-    time = data[:, 1]
-    Vx = data[:, 4]
-    Vy = data[:, 5]
-    Vz = data[:, 6]
-    Vz2 = data[:, 7]
-    Sx = data[:, 8]
-    Sy = data[:, 9]
-    Sz = data[:, 10]
-    Sz2 = data[:, 11]
-    SNRx = data[:, 12]
-    SNRy = data[:, 13]
-    SNRz = data[:, 14]
-    SNRz2 = data[:, 15]
-    Corrx = data[:, 16]
-    Corry = data[:, 17]
-    Corrz = data[:, 18]
-    Corrz2 = data[:, 19]
-    # print additional informations
-    if add_info:
-        print()
-        print("+++ ADV Measurement informations +++")
-        print(("+++ Number of measure points : {}".format(len(time))))
-        print("+++ Mean velocities :")
-        print(("+++    Vx  = {}".format(np.mean(Vx))))
-        print(("+++    Vy  = {}".format(np.mean(Vy))))
-        print(("+++    Vz  = {}".format(np.mean(Vz))))
-        print(("+++    Vz2 = {}".format(np.mean(Vz2))))
-        print("+++ Mean velocities std :")
-        print(("+++    Vx_var  = {}".format(np.mean(np.abs(Vx - np.mean(Vx))))))
-        print(("+++    Vy_var  = {}".format(np.mean(np.abs(Vy - np.mean(Vy))))))
-        print(("+++    Vz_var  = {}".format(np.mean(np.abs(Vz - np.mean(Vz))))))
-        print(("+++    Vz2_var = {}".format(np.mean(np.abs(Vz2 - np.mean(Vz2))))))
-        print("+++ Mean strength :")
-        print(("+++    S_x  = {:.0f}".format(np.mean(Sx))))
-        print(("+++    S_y  = {:.0f}".format(np.mean(Sy))))
-        print(("+++    S_z  = {:.0f}".format(np.mean(Sz))))
-        print(("+++    S_z2 = {:.0f}".format(np.mean(Sz2))))
-        print("+++ Mean SNR :")
-        print(("+++    SNR_x  = {:.1f}".format(np.mean(SNRx))))
-        print(("+++    SNR_y  = {:.1f}".format(np.mean(SNRy))))
-        print(("+++    SNR_z  = {:.1f}".format(np.mean(SNRz))))
-        print(("+++    SNR_z2 = {:.1f}".format(np.mean(SNRz2))))
-        print("+++ Mean Correlation :")
-        print(("+++    Corr_x  = {:.1f}".format(np.mean(Corrx))))
-        print(("+++    Corr_y  = {:.1f}".format(np.mean(Corry))))
-        print(("+++    Corr_z  = {:.1f}".format(np.mean(Corrz))))
-        print(("+++    Corr_z2 = {:.1f}".format(np.mean(Corrz2))))
-    # print warnings if measure quality is not good enough
-        if np.any(np.array([np.mean(Sx), np.mean(Sy),
-                            np.mean(Sz), np.mean(Sz2)]) < 100):
-            print("+++ Warning : low signal strength")
-    if np.any(np.array([np.mean(SNRx), np.mean(SNRy), np.mean(SNRz),
-                        np.mean(SNRz2)]) < 13):
-        print("+++ Warning : low SNR ratio")
-    if np.any(np.array([np.mean(Corrx), np.mean(Corry), np.mean(Corrz),
-                        np.mean(Corrz2)]) < 80):
-        print("+++ Warning : low signal correlation")
-    # create profiles
-    Vx_prof = Profile(time, Vx, mask=False, unit_x="s", unit_y="m/s")
-    Vy_prof = Profile(time, Vy, mask=False, unit_x="s", unit_y="m/s")
-    Vz_prof = Profile(time, Vz, mask=False, unit_x="s", unit_y="m/s")
-    Vz2_prof = Profile(time, Vz2, mask=False, unit_x="s", unit_y="m/s")
-    # returning
-    return Vx_prof, Vy_prof, Vz_prof, Vz2_prof

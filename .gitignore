@@ -14,3 +14,5 @@ build
 htmlcov
 .cache
 tests/cov_html
+cov_html
+.eggs

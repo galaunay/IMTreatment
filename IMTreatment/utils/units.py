@@ -23,6 +23,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
+import re
 import unum
 import unum.units as units
 try:
@@ -90,6 +91,11 @@ def make_unit(string):
         for j in np.arange(len(pieces)-1, -1, -1):
             if pieces[j] == '':
                 pieces[j:j+1] = []
+        # Add power where needed
+        for i, piece in enumerate(pieces):
+            match = re.match('([a-zA-Z]+)([0-9]+)', piece)
+            if match is not None:
+                pieces[i:i+1] = [match.groups()[0], "^", match.groups()[1]]
         return pieces
 
     def app_brackets(strlist):

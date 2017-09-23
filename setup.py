@@ -47,5 +47,8 @@ setup(
         'Point clustering': 'sklearn',
         'Mean trajectories clustering': 'networkx',
         'Color in console': 'colorama',
-        'Pivmat format support': 'h5py'},
+        'Pivmat format support': 'h5py',
+        'Export to VTK format': 'pyvtk'},
+    setup_requires=['pytest-runner'],
+    tests_require=['pytest'],
 )

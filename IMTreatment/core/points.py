@@ -187,12 +187,15 @@ class Points(object):
 
     @v.setter
     def v(self, values):
-        values = np.array(values, subok=True)
-        if not values.ndim == 1:
-            raise ValueError()
-        if not len(values) in [0, len(self.__xy)]:
-            raise ValueError()
-        self.__v = values
+        if values is None:
+            self__v = None
+        else:
+            values = np.array(values, subok=True)
+            if not values.ndim == 1:
+                raise ValueError()
+            if not len(values) in [0, len(self.__xy)]:
+                raise ValueError()
+            self.__v = values
 
     @v.deleter
     def v(self):

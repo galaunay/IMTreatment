@@ -26,6 +26,7 @@ import os
 import unittest
 
 import numpy as np
+import pytest
 
 import unum
 from IMTreatment import VectorField, file_operation as imtio, make_unit, \
@@ -40,45 +41,55 @@ class TestVortexDetection(object):
             os.chdir(os.path.dirname(os.path.realpath(__file__)))
         except:
             pass
-        unit_x = make_unit('m')
-        unit_y = make_unit('m')
-        unit_values = make_unit('m/s')
-        x = np.genfromtxt('axe_x')
-        y = np.genfromtxt('axe_y')
-        vx = np.genfromtxt('vod_vx')
-        vy = np.genfromtxt('vod_vy')
-        self.VF1 = VectorField()
-        self.VF1.import_from_arrays(axe_x=x, axe_y=y,
-                                    comp_x=vx, comp_y=vy,
-                                    mask=False,
-                                    unit_x=unit_x,
-                                    unit_y=unit_y,
-                                    unit_values=unit_values)
-        self.TVF1 = TemporalVectorFields()
-        for i in range(10):
-            self.TVF1.add_field(self.VF1*np.cos(i/10*np.pi), i/10, "s")
+        self.VF1_nomask = imtio.import_from_file('VF1_nomask.cimt')
+        self.TVF1_nomask = imtio.import_from_file('TVF1_nomask.cimt')
 
     def test_get_critical_points(self):
-        res_a = vod.get_critical_points(self.VF1)
+        res_a = vod.get_critical_points(self.VF1_nomask,
+                                        mirroring=[['x', 0.]])
         # imtio.export_to_file(res_a, "VF1_get_critical_points_a.cimt")
         res_a2 = imtio.import_from_file("VF1_get_critical_points_a.cimt")
         assert res_a == res_a2
         #
-        res_b = vod.get_critical_points(self.TVF1)
+        res_b = vod.get_critical_points(self.TVF1_nomask)
         # imtio.export_to_file(res_b, "VF1_get_critical_points_b.cimt")
         res_b2 = imtio.import_from_file("VF1_get_critical_points_b.cimt")
         assert res_b == res_b2
         #
-        res_c = vod.get_critical_points(self.TVF1, kind='gam_vort')
+        res_c = vod.get_critical_points(self.TVF1_nomask, kind='gam_vort')
         # imtio.export_to_file(res_c, "VF1_get_critical_points_c.cimt")
         res_c2 = imtio.import_from_file("VF1_get_critical_points_c.cimt")
         assert res_c == res_c2
         #
-        res_d = vod.get_critical_points(self.VF1, kind='gam_vort')
+        res_d = vod.get_critical_points(self.VF1_nomask, kind='gam_vort',
+                                        mirroring=[['x', 0.]])
         # imtio.export_to_file(res_d, "VF1_get_dritical_points_d.cimt")
         res_d2 = imtio.import_from_file("VF1_get_dritical_points_d.cimt")
         assert res_d == res_d2
+        #
+        res_e = vod.get_critical_points(self.TVF1_nomask, kind='pbi_cell')
+        # imtio.export_to_file(res_e, "VF1_get_eritical_points_e.cimt")
+        res_e2 = imtio.import_from_file("VF1_get_eritical_points_e.cimt")
+        assert res_e == res_e2
+        #
+        res_f = vod.get_critical_points(self.VF1_nomask, kind='pbi_cell',
+                                        mirroring=[['x', 0.]])
+        # imtio.export_to_file(res_f, "VF1_get_fritical_points_f.cimt")
+        res_f2 = imtio.import_from_file("VF1_get_fritical_points_f.cimt")
+        assert res_f == res_f2
+        #
+        res_g = vod.get_critical_points(self.TVF1_nomask, kind='pbi_crit')
+        # imtio.export_to_file(res_g, "VF1_get_gritical_points_g.cimt")
+        res_g2 = imtio.import_from_file("VF1_get_gritical_points_g.cimt")
+        assert res_g == res_g2
+        #
+        res_h = vod.get_critical_points(self.VF1_nomask, kind='pbi_crit',
+                                        smoothing_size=2)
+        # imtio.export_to_file(res_h, "VF1_get_hritical_points_h.cimt")
+        res_h2 = imtio.import_from_file("VF1_get_hritical_points_h.cimt")
+        assert res_h == res_h2
 
-# # TEMP
-# unittest.main()
-# # TEMP - End
+# TEMP
+pytest.main(['test_vortex_detection.py'])
+# pytest.main(['--pdb', 'test_vortex_detection.py'])
+# TEMP - End

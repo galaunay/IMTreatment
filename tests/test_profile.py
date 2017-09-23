@@ -25,6 +25,7 @@
 import os
 
 import numpy as np
+import pytest
 
 import unum
 from IMTreatment import Profile, file_operation as imtio, make_unit
@@ -60,6 +61,19 @@ class TestProfile(object):
         self.Prof_evenlyspaced_nomask = Profile(np.linspace(0, 30, 100),
                                                 y, mask=False, unit_x=unit_x,
                                                 unit_y=unit_y)
+        imtio.export_to_file(self.Prof1, "Prof1.cimt")
+        imtio.export_to_file(self.Prof2, "Prof2.cimt")
+        imtio.export_to_file(self.Prof_evenlyspaced, "Prof_evenlyspaced.cimt")
+        imtio.export_to_file(self.Prof_nomask, "Prof_nomask.cimt")
+        imtio.export_to_file(self.Prof_evenlyspaced_nomask,
+                             "Prof_evenlyspaced_nomask.cimt")
+
+        self.Prof1 = imtio.import_from_file('Prof1.cimt')
+        self.Prof2 = imtio.import_from_file('Prof2.cimt')
+        self.Prof_evenlyspaced = imtio.import_from_file('Prof_evenlyspaced.cimt')
+        self.Prof_nomask = imtio.import_from_file('Prof_nomask.cimt')
+        self.Prof_evenlyspaced_nomask = imtio.import_from_file('Prof_evenlyspaced_nomask.cimt')
+
 
     def test_add(self):
         res_a = self.Prof2 + self.Prof1
@@ -360,6 +374,6 @@ class TestProfile(object):
         assert res_a == res_a2
 
 
-# # TEMP
-# unittest.main()
-# # TEMP - End
+# TEMP
+pytest.main(['test_profile.py'])
+# TEMP - End

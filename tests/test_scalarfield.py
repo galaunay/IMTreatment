@@ -39,41 +39,10 @@ class TestScalarField(object):
             os.chdir(os.path.dirname(os.path.realpath(__file__)))
         except:
             pass
-        unit_x = make_unit('m')
-        unit_y = make_unit('km')
-        unit_values = make_unit('m/s')
-        values = np.genfromtxt("values")
-        axe_x = np.genfromtxt("axe_x")
-        axe_y = np.genfromtxt("axe_y")
-        mask = np.genfromtxt("mask")
-        values2 = np.genfromtxt("values2")
-        mask2 = np.genfromtxt("mask2")
-        self.SF1 = ScalarField()
-        self.SF1.import_from_arrays(axe_x, axe_y, values,
-                                    mask=mask,
-                                    unit_x=unit_x, unit_y=unit_y,
-                                    unit_values=unit_values)
-        self.SF1_nomask = ScalarField()
-        self.SF1_nomask.import_from_arrays(axe_x, axe_y, values,
-                                           mask=False,
-                                           unit_x=unit_x, unit_y=unit_y,
-                                           unit_values=unit_values)
-        self.SF2 = ScalarField()
-        self.SF2.import_from_arrays(axe_x, axe_y, values2,
-                                    mask=mask2,
-                                    unit_x=unit_x, unit_y=unit_y,
-                                    unit_values=unit_values)
-        # not evenly spaced
-        dx = np.random.rand(23)*2.3
-        dy = np.random.rand(47)*1.2
-        axe_x = np.cumsum(dx)
-        axe_y = np.cumsum(dy)
-        self.SF_notevenlyspaced = ScalarField()
-        self.SF_notevenlyspaced.import_from_arrays(axe_x, axe_y, values,
-                                                   mask=mask,
-                                                   unit_x=unit_x,
-                                                   unit_y=unit_y,
-                                                   unit_values=unit_values)
+        self.SF1 = imtio.import_from_file("SF1.cimt")
+        self.SF1_nomask = imtio.import_from_file("SF1_nomask.cimt")
+        self.SF2 = imtio.import_from_file("SF2.cimt")
+        self.SF_notevenlyspaced = imtio.import_from_file("SF_notevenlyspaced.cimt")
 
     def test_import_from_arrays(self):
         # creating a SF field using 'import_from_arrays
@@ -428,6 +397,6 @@ class TestScalarField(object):
         res2 = imtio.import_from_file("reduce_spatial_resolution.cimt")
         assert res == res2
 
-# # TEMP
-# unittest.main()
-# # TEMP - End
+# TEMP
+pytest.main(["test_scalarfield.py"])
+# TEMP - End

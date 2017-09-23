@@ -336,8 +336,7 @@ def reconstruct_from_gradients(field_dx, field_dy, field2_dx=None,
         u4 -= np.mean(u4[filt_corn])
         # concatenate (with linear weight fonction)
         ### TODO : let or remove ?
-        X, Y = np.meshgrid(np.arange(u.shape[1]), np.arange(u.shape[0]),
-                           dtype=float)
+        X, Y = np.meshgrid(np.arange(u.shape[1]), np.arange(u.shape[0]))
         weight1 = X[::-1, ::-1] + Y[::-1, ::-1]
         weight2 = X[::-1, :] + Y[::-1, :]
         weight3 = X[:, ::-1] + Y[:, ::-1]
@@ -533,16 +532,18 @@ def get_Kenwright_field(field, raw=False):
     else:
         K1_sf = ScalarField()
         K1_sf.import_from_arrays(field.axe_x, field.axe_y, K1,
+                                 mask=np.isnan(K1),
                                  unit_x=field.unit_x, unit_y=field.unit_y,
                                  unit_values=field.unit_values)
         K2_sf = ScalarField()
         K2_sf.import_from_arrays(field.axe_x, field.axe_y, K2,
+                                 mask=np.isnan(K2),
                                  unit_x=field.unit_x, unit_y=field.unit_y,
                                  unit_values=field.unit_values)
         return K1_sf, K2_sf
 
 
-def get_grad_field(field, direction=1):
+def get_grad_field(field, direction='x'):
     """
     Return a field based on original field gradients.
     (Vx = dV/dx, Vy = DV/Vy)
@@ -551,9 +552,9 @@ def get_grad_field(field, direction=1):
     ----------
     field : VectorField object
         .
-    direction : integer (1 or 2)
-        if '1', return Vx gradients
-        if '2', return Vy gradients.
+    direction : string in ['x', 'y']
+        if 'x', return Vx gradients
+        if 'y', return Vy gradients.
 
     Returns
     -------
@@ -561,14 +562,14 @@ def get_grad_field(field, direction=1):
         .
     """
     # checking parameters:
-    if not direction in [1, 2]:
+    if not direction in ['x', 'y']:
         raise ValueError()
     # getting gradients
     field.comp_x = field.comp_x
     field.comp_y = field.comp_y
     grads = get_gradients(field)
     # returning
-    if direction == 1:
+    if direction == 'x':
         gvx = grads[0]
         gvy = grads[1]
     else:
@@ -614,7 +615,7 @@ def get_divergence(vf):
 
 ### Stream and track lines
 def get_streamlines_fast(vf, xy, delta=.25, interp='linear',
-                        reverse=False):
+                         reverse=False):
     """
     Return a tuples of Points object representing the streamline begining
     at the points specified in xy.
@@ -979,8 +980,9 @@ def get_fieldlines(VF, xys, reverse=False, rel_err=1.e-8,
     return sts
 
 
-def get_tracklines(vf, xy, delta=.25, interp='linear',
-                   reverse=False):
+def get_tracklines(VF, xys, reverse=False, rel_err=1.e-8,
+                    max_steps=1000, resolution=0.25, resolution_kind='length',
+                    boundary_tr='stop'):
     """
     Return a tuples of Points object representing the tracklines begining
     at the points specified in xy.
@@ -989,30 +991,36 @@ def get_tracklines(vf, xy, delta=.25, interp='linear',
 
     Parameters
     ----------
-    vf : VectorField or velocityField object
-        Field on which compute the tracklines
-    xy : tuple
-        Tuple containing each starting point for tracklines.
-    delta : number, optional
-        Spatial discretization of the tracklines,
-        relative to a the spatial discretization of the field.
-    interp : string, optional
-        Used interpolation for trackline computation.
-        Can be 'linear'(default) or 'cubic'
-    reverse : boolean, optional
-        If True, the trackline goes upstream.
+    VF : VectorField or velocityField object
+        Field on which compute the streamlines
+    xys : 2xN tuple of number
+        Initial points positions
+    rel_err : number
+        relative maximum error for rk4 algorithm
+    max_steps : integer
+        Maximum number of steps (default = 1000).
+    resolution : number,
+        resolution of the resulting streamline (do not impact accuracy).
+    resolution_kind : string in ['time', 'length']
+        if 'time', returned points time space are homogeneous,
+        if 'length', returned points space interval are homogeneous.
+    boundary_tr : string
+        Method to treat the field boundaries. If 'stop', streamlines are
+        stopped when encountering a boundary, If 'hide', streamlines
+        that encounter a boundary are not returned.
 
     Returns
     -------
-    streams : tuple of Points object
+    tracks : tuple of Points object
         Each Points object represent a trackline
 
     """
     # get the track field
-    track_field = get_track_field(vf)
-    return get_streamlines(track_field, xy, delta=delta, interp=interp,
-                           reverse=reverse)
-
+    track_field = get_track_field(VF)
+    return get_streamlines(track_field, xys, rel_err=rel_err,
+                           max_steps=max_steps, resolution=resolution,
+                           resolution_kind=resolution_kind,
+                           boundary_tr=boundary_tr)
 
 def get_shear_stress(vf, raw=False):
     """

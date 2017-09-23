@@ -46,9 +46,15 @@ class TemporalFields(flds.Fields, fld.Field):
     def __init__(self):
         fld.Field.__init__(self)
         flds.Fields.__init__(self)
+        self.fields = []
         self.__times = np.array([], dtype=float)
         self.__unit_times = make_unit("")
         self.field_type = None
+        self.axe_x = []
+        self.axe_y = []
+        self.unit_x = make_unit('')
+        self.unit_y = make_unit('')
+        self.unit_times = make_unit('')
 
     def __add__(self, other):
         if isinstance(other, self.fields[0].__class__):
@@ -147,6 +153,23 @@ class TemporalFields(flds.Fields, fld.Field):
     def __iter__(self):
         for i in np.arange(len(self.fields)):
             yield self.times[i], self.fields[i]
+
+    def __eq__(self, obj):
+        if not isinstance(obj, self.__class__):
+            return False
+        if not fld.Field.__eq__(self, obj):
+            return False
+        if not flds.Fields.__eq__(self, obj):
+            return False
+        for attr in ['fields', 'times', 'axe_x', 'axe_y']:
+            if not np.all(self.__getattribute__(attr) ==
+                          obj.__getattribute__(attr)):
+                return False
+        for attr in ['field_type', 'unit_x', 'unit_y', 'unit_times']:
+            if not (self.__getattribute__(attr) ==
+                    obj.__getattribute__(attr)):
+                return False
+        return True
 
     @fld.Field.axe_x.setter
     def axe_x(self, value):

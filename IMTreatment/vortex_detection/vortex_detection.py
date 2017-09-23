@@ -339,7 +339,7 @@ class VF(object):
         Return the PBI along the given axe.
         """
         theta = self.theta.copy()
-        if direction == 2:
+        if direction == 'y':
             theta = np.rot90(theta, 3)
         pbi = np.zeros(theta.shape[1])
         for i in np.arange(1, theta.shape[1]):
@@ -358,7 +358,7 @@ class VF(object):
             delta_thetas[delta_thetas < -np.pi] += 2*np.pi
             # Stockage
             pbi[i] = np.sum(delta_thetas)/(2.*np.pi)
-        if direction == 2:
+        if direction == 'y':
             pbi = pbi[::-1]
         return np.array(np.round(pbi))
 
@@ -417,8 +417,8 @@ class VF(object):
             self.pbi_x
             self.pbi_y
         except AttributeError:
-            self.pbi_x = self.get_pbi(direction=1)
-            self.pbi_y = self.get_pbi(direction=2)
+            self.pbi_x = self.get_pbi(direction='x')
+            self.pbi_y = self.get_pbi(direction='y')
 
     def _check_struct_number(self):
         """
@@ -2655,7 +2655,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
     mirroring : array of numbers
         If specified, use mirroring to get the critical points on the
         eventual walls. should be an array of
-        '[direction (1 or 2), position]*N'.
+        '[direction ('x' or 'y'), position]*N'.
     mirror_interp : string, optional
         Method used to fill the gap at the wall.
         ‘value’ : fill with the given value,
@@ -2693,10 +2693,9 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
         if len(mirroring) == 0:
             mirroring = None
         else:
-            mirroring = np.array(mirroring)
-            if mirroring.ndim != 2:
+            if np.array(mirroring).ndim != 2:
                 raise ValueError()
-            if mirroring.shape[1] != 2:
+            if np.array(mirroring).shape[1] != 2:
                 raise ValueError()
     if mirror_interp is not None:
         if not isinstance(mirror_interp, STRINGTYPES):
@@ -2720,12 +2719,12 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
             tmp_vf = obj.copy()
             for direction, position in mirroring:
                 if kind == 'pbi_crit':
-                    tmp_vf.mirroring(int(direction), position,
+                    tmp_vf.mirroring(direction, position,
                                      inds_to_mirror=window_size*2,
                                      inplace=True, interp=mirror_interp,
                                      value=[0, 0])
                 else:
-                    tmp_vf.mirroring(int(direction), position,
+                    tmp_vf.mirroring(direction, position,
                                      inds_to_mirror=2,
                                      inplace=True, interp=mirror_interp,
                                      value=[0, 0])
@@ -2759,7 +2758,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
             intervy = np.array([-np.inf, np.inf])
             axe_x, axe_y = tmp_vf.axe_x, tmp_vf.axe_y
             for direction, position in mirroring:
-                if direction == 1:
+                if direction == 'x':
                     if position < x_median and position > intervx[0]:
                         ind = tmp_vf.get_indice_on_axe(1, position)[0]
                         intervx[0] = axe_x[ind - 1]
