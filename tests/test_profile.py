@@ -40,37 +40,38 @@ class TestProfile(object):
             os.chdir(os.path.dirname(os.path.realpath(__file__)))
         except:
             pass
-        unit_x = make_unit('m')
-        unit_y = make_unit('m/s')
-        x = np.genfromtxt('prof_x')
-        y = np.genfromtxt('prof_y')
-        y2 = np.genfromtxt('prof_y2')
-        mask = np.genfromtxt('prof_mask')
-        self.Prof1 = Profile(x, y, mask=mask, unit_x=unit_x,
-                             unit_y=unit_y)
-        self.Prof2 = Profile(x, y2, mask=mask, unit_x=unit_x,
-                             unit_y=unit_y)
-        self.Prof_evenlyspaced = Profile(np.linspace(0, 30, 100),
-                                         y, mask=mask, unit_x=unit_x,
-                                         unit_y=unit_y)
-        self.Prof2_evenlyspaced = Profile(np.linspace(0, 30, 100),
-                                          y2, mask=mask, unit_x=unit_x,
-                                          unit_y=unit_y)
-        self.Prof_nomask = Profile(x, y, mask=False, unit_x=unit_x,
-                                   unit_y=unit_y)
-        self.Prof_evenlyspaced_nomask = Profile(np.linspace(0, 30, 100),
-                                                y, mask=False, unit_x=unit_x,
-                                                unit_y=unit_y)
-        imtio.export_to_file(self.Prof1, "Prof1.cimt")
-        imtio.export_to_file(self.Prof2, "Prof2.cimt")
-        imtio.export_to_file(self.Prof_evenlyspaced, "Prof_evenlyspaced.cimt")
-        imtio.export_to_file(self.Prof_nomask, "Prof_nomask.cimt")
-        imtio.export_to_file(self.Prof_evenlyspaced_nomask,
-                             "Prof_evenlyspaced_nomask.cimt")
-
+        # unit_x = make_unit('m')
+        # unit_y = make_unit('m/s')
+        # x = np.genfromtxt('prof_x')
+        # y = np.genfromtxt('prof_y')
+        # y2 = np.genfromtxt('prof_y2')
+        # mask = np.genfromtxt('prof_mask')
+        # self.Prof1 = Profile(x, y, mask=mask, unit_x=unit_x,
+        #                      unit_y=unit_y)
+        # self.Prof2 = Profile(x, y2, mask=mask, unit_x=unit_x,
+        #                      unit_y=unit_y)
+        # self.Prof_evenlyspaced = Profile(np.linspace(0, 30, 100),
+        #                                  y, mask=mask, unit_x=unit_x,
+        #                                  unit_y=unit_y)
+        # self.Prof2_evenlyspaced = Profile(np.linspace(0, 30, 100),
+        #                                   y2, mask=mask, unit_x=unit_x,
+        #                                   unit_y=unit_y)
+        # self.Prof_nomask = Profile(x, y, mask=False, unit_x=unit_x,
+        #                            unit_y=unit_y)
+        # self.Prof_evenlyspaced_nomask = Profile(np.linspace(0, 30, 100),
+        #                                         y, mask=False, unit_x=unit_x,
+        #                                         unit_y=unit_y)
+        # imtio.export_to_file(self.Prof1, "Prof1.cimt")
+        # imtio.export_to_file(self.Prof2, "Prof2.cimt")
+        # imtio.export_to_file(self.Prof_evenlyspaced, "Prof_evenlyspaced.cimt")
+        # imtio.export_to_file(self.Prof2_evenlyspaced, "Prof2_evenlyspaced.cimt")
+        # imtio.export_to_file(self.Prof_nomask, "Prof_nomask.cimt")
+        # imtio.export_to_file(self.Prof_evenlyspaced_nomask,
+        #                      "Prof_evenlyspaced_nomask.cimt")
         self.Prof1 = imtio.import_from_file('Prof1.cimt')
         self.Prof2 = imtio.import_from_file('Prof2.cimt')
         self.Prof_evenlyspaced = imtio.import_from_file('Prof_evenlyspaced.cimt')
+        self.Prof2_evenlyspaced = imtio.import_from_file('Prof2_evenlyspaced.cimt')
         self.Prof_nomask = imtio.import_from_file('Prof_nomask.cimt')
         self.Prof_evenlyspaced_nomask = imtio.import_from_file('Prof_evenlyspaced_nomask.cimt')
 
@@ -102,10 +103,10 @@ class TestProfile(object):
         res_b2 = imtio.import_from_file("Prof1_sub_b.cimt")
         assert res_b == res_b2
         #
-        # res_b = self.Prof1 - 23*make_unit('km/us')
-        imtio.export_to_file(res_b, "Prof1_sub_b.cimt")
-        res_b2 = imtio.import_from_file("Prof1_sub_b.cimt")
-        assert res_b == res_b2
+        res_c = self.Prof1 - 23*make_unit('km/us')
+        # imtio.export_to_file(res_c, "Prof1_sub_c.cimt")
+        res_c2 = imtio.import_from_file("Prof1_sub_c.cimt")
+        assert res_c == res_c2
 
     def test_mul(self):
         res_a = self.Prof1 * self.Prof2
@@ -369,7 +370,7 @@ class TestProfile(object):
     def test_remove_doublons(self):
         self.Prof1.x[0:50] = self.Prof1.x[50:100]
         res_a = self.Prof1.remove_doublons()
-        imtio.export_to_file(res_a, "Prof1_remove_doublons_a.cimt")
+        # imtio.export_to_file(res_a, "Prof1_remove_doublons_a.cimt")
         res_a2 = imtio.import_from_file("Prof1_remove_doublons_a.cimt")
         assert res_a == res_a2
 

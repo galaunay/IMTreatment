@@ -60,7 +60,7 @@ class TestPoints(object):
 
     def test_copy(self):
         res_a = self.P1.copy()
-        imtio.export_to_file(res_a, "P1_copy_a.cimt")
+        # imtio.export_to_file(res_a, "P1_copy_a.cimt")
         res_a2 = imtio.import_from_file("P1_copy_a.cimt")
         assert res_a == res_a2
 

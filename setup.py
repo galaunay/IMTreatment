@@ -42,7 +42,8 @@ setup(
     ],
     keywords='scalarfield vectorfield fluid dynamics PIV vortex',
     packages=find_packages(exclude=['contrib', 'docs', 'tests', 'samples']),
-    install_requires=['numpy', 'matplotlib', 'scipy', 'unum', 'modred'],
+    install_requires=['numpy', 'matplotlib', 'scipy', 'unum', 'modred',
+                      'multiprocess'],
     extras_require={
         'Point clustering': 'sklearn',
         'Mean trajectories clustering': 'networkx',

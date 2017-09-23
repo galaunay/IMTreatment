@@ -44,9 +44,11 @@ Provides specific functionalities for flow analysis::
      and to simulate their motion in potential flows (``vortex_creation``)
   2. Module providing several vortex criterions computation
      (``vortex_criterions``)
-  3. Module to automatically detect and track critical points as well as
-     computing the evolution of some vortes properties (``vortex_detection``)
-  4. Module to generate potential flows with arbitrary geometries
+  3. Module to automatically detect and track critical points
+     (``vortex_detection``)
+  4. Module to compute the evolution of some vortex properties
+     (``vortex_properties``)
+  5. Module to generate potential flows with arbitrary geometries
      (``potential_flow``)
 
 

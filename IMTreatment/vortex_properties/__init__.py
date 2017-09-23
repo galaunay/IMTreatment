@@ -22,5 +22,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from .vortex_detection import \
-    get_critical_points, CritPoints, get_vortex_position
+from .vortex_properties import \
+    get_vortex_radius, get_vortex_radius_time_evolution,\
+    get_vortex_circulation,\
+    get_vortex_property_time_evolution, \
+    get_vortex_property

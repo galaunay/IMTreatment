@@ -426,6 +426,19 @@ class Profile(object):
         """
         return copy.deepcopy(self)
 
+    def get_props(self):
+        """
+        Print the Profile main properties
+        """
+        print(f"Length: {len(self.x)}")
+        unit_x = self.unit_x.strUnit()
+        print(f"x: [{self.x[0]}..{self.x[-1]}]{unit_x}")
+        unit_y = self.unit_y.strUnit()
+        print(f"y: [{self.y[0]}..{self.y[-1]}]{unit_y}")
+        nmb_mask = np.sum(self.mask)
+        nmb_tot = len(self.mask)
+        print(f"Masked values: {nmb_mask}/{nmb_tot}")
+
     def get_interpolator(self, kind='linear', bounds_error=True,
                          fill_value=np.nan):
         """

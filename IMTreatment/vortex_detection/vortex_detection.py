@@ -25,27 +25,20 @@
 from ..core import Points, OrientedPoints, Profile, ScalarField, VectorField,\
     TemporalScalarFields,\
     TemporalVectorFields
-from ..field_treatment import get_streamlines
 from ..utils import ProgressCounter, make_unit
 from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
-from ..vortex_criterions import get_kappa, get_gamma, get_iota, get_vorticity,\
-    get_residual_vorticity, get_NL_residual_vorticity
+from ..vortex_criterions import get_kappa, get_gamma, get_iota, \
+    get_residual_vorticity
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
-from scipy.interpolate import UnivariateSpline, RectBivariateSpline
-from scipy.integrate import simps
+from scipy.interpolate import RectBivariateSpline
 import warnings
-import scipy.ndimage.measurements as msr
 import unum
 import copy
 from .. import plotlib as pplt
 
-try:
-    from multiprocess import Pool
-    MULTIPROC = True
-except:
-    MULTIPROC = False
+from multiprocess import Pool
 
 
 def velocityfield_to_vf(vectorfield, time):
@@ -315,7 +308,7 @@ class VF(object):
             return res_pos
 
         # use multiprocessing to get cp position on cell if asked
-        if thread != 1 and MULTIPROC:
+        if thread != 1:
             if thread == 'all':
                 pool = Pool()
             else:
@@ -323,6 +316,7 @@ class VF(object):
             new_positions = pool.map_async(get_cp_position_in_cell, positions)
             pool.close()
             pool.join()
+            new_positions = new_positions.get()
         else:
             new_positions = [get_cp_position_in_cell(pos) for pos in positions]
         new_positions = np.array(new_positions)
@@ -395,18 +389,18 @@ class VF(object):
             raise ValueError()
         return VF(vx, vy, axe_x, axe_y, mask, theta, time)
 
-    def _find_arbitrary_cut_positions(self):
-        """
-        Return the position along x and y where the field can be cut.
-        (at middle positions along each axes)
-        """
-        if np.any(self.shape <= 4):
-            return None, None
-        len_x = self.shape[1]
-        len_y = self.shape[0]
-        grid_x = [0, np.round(len_x/2.), len_x]
-        grid_y = [0, np.round(len_y/2.), len_y]
-        return grid_x, grid_y
+    # def _find_arbitrary_cut_positions(self):
+    #     """
+    #     Return the position along x and y where the field can be cut.
+    #     (at middle positions along each axes)
+    #     """
+    #     if np.any(self.shape <= 4):
+    #         return None, None
+    #     len_x = self.shape[1]
+    #     len_y = self.shape[0]
+    #     grid_x = [0, np.round(len_x/2.), len_x]
+    #     grid_y = [0, np.round(len_y/2.), len_y]
+    #     return grid_x, grid_y
 
     def _calc_pbi(self):
         """
@@ -512,7 +506,8 @@ class CritPoints(object):
                           self.__getattribute__(attr)):
                 return False
             attr2 = f'{attr}_traj'
-            if obj.__getattribute__(attr2) != self.__getattribute__(attr2):
+            if not np.all(obj.__getattribute__(attr2) ==
+                          self.__getattribute__(attr2)):
                 return False
         for attr in ['unit_time', 'unit_x', 'unit_y']:
             if obj.__getattribute__(attr) != self.__getattribute__(attr):
@@ -901,19 +896,6 @@ class CritPoints(object):
         # return
         if not inplace:
             return tmp_cp
-
-    def get_axes_lims(self):
-        xs = []
-        ys = []
-        for traj_typ in self.iter:
-            for traj in traj_typ:
-                if len(traj.xy) == 0:
-                    continue
-                tmp_x = traj.xy[:, 0]
-                tmp_y = traj.xy[:, 1]
-                xs += [np.min(tmp_x), np.max(tmp_x)]
-                ys += [np.min(tmp_y), np.max(tmp_y)]
-        return ((np.min(xs), np.max(xs)), (np.min(ys), np.max(ys)))
 
     def get_mean_trajectory(self, cp_type, min_len=20,
                             min_nmb_to_avg=10, rel_diff_epsilon=0.03,
@@ -2032,9 +2014,9 @@ class CritPoints(object):
         # plot
         if len(self.times) == 1:
             for db in dbs:
-                plot = db.draw(0, rescale=False)
+                db.draw(0, rescale=False)
         else:
-            bm = pplt.ButtonManager(dbs)
+            pplt.ButtonManager(dbs)
         return dbs
 
     def display_traj(self, data='default', filt=None, **kw):
@@ -2793,7 +2775,7 @@ def get_critical_points(obj, time=0, unit_time='', window_size=4,
                                       thread=1)
             return res
         # Mapping with multiprocess or not
-        if thread == 1 or not MULTIPROC:
+        if thread == 1:
             for i in np.arange(len(obj.fields)):
                 res += get_cp_on_one_field((obj.fields[i], obj.times[i]))
         else:
@@ -3444,658 +3426,3 @@ def _get_jacobian_matrix(Vx, Vy, dx=1., dy=1, pt=None):
     # get jacobian eignevalues
     jac = np.array([[Vx_dx2, Vx_dy2], [Vy_dx2, Vy_dy2]], subok=True)
     return jac
-
-
-def get_vortex_radius(VF, vort_center, NL_radius=None, eps_detection=0.1,
-                      output_center=False, output_unit=False):
-    """
-    Return the radius of the given vortex, use the residual vorticity.
-
-    Parameters:
-    -----------
-    VF : vectorfield object
-        Velocity field on which compute gamma2.
-    vort_center : 2x1 array
-        Approximate position of the vortex center.
-    NL_radius : number, optional
-        IF specified, radius used for the non-local computation of the
-        gradients.
-    eps_detection : number
-        epsilon used to determine the edge of the vortex (default is 0.1 for
-        10% of the maximum vorticity value).
-    output_center : boolean, optional
-        If 'True', return the associated vortex center, computed using center
-        of mass algorythm.
-    output_unit ; boolean, optional
-        If 'True', return the associated unit.
-
-    Returns :
-    ---------
-    radius : number
-        Average radius of the vortex. If no vortex is found, 0 is returned.
-    center : 2x1 array of numbers
-        If 'output_center' is 'True', contain the newly computed vortex center.
-    unit_radius : Unit object
-        Radius unity
-    """
-
-    # getting data
-    if NL_radius is None:
-        vort = get_residual_vorticity(VF)
-    else:
-        vort = get_NL_residual_vorticity(VF, radius=NL_radius, ind=False,
-                                         mask=None, raw=False)
-    dx = VF.axe_x[1] - VF.axe_x[0]
-    dy = VF.axe_y[1] - VF.axe_y[0]
-    # getting the ~initial maximum vorticity of the zone
-    ind_x = VF.get_indice_on_axe(1, vort_center[0], kind='nearest')
-    ind_y = VF.get_indice_on_axe(2, vort_center[1], kind='nearest')
-    max_vort = vort.values[ind_x, ind_y]
-    # getting zone around point
-    zones, nmb_zones = msr.label(vort.values > eps_detection*max_vort)
-    zone_number = zones[ind_x, ind_y]
-    # getting the real maximum vorticity
-    max_vort = np.max(vort.values[zones == zone_number])
-    # getting the real zones
-    zones, nmb_zones = msr.label(vort.values > eps_detection*max_vort)
-    zone_number = zones[ind_x, ind_y]
-    # getting the zone area and radius
-    area = np.sum(zones == zone_number)*dx*dy
-    radius = (area/np.pi)**.5
-    # getting the new center
-    if output_center:
-        center = np.array(msr.center_of_mass(np.abs(vort.values),
-                                             zones == zone_number))
-        center[0] = VF.axe_x[0] + center[0]*dx
-        center[1] = VF.axe_y[0] + center[1]*dy
-    # optional computed unit
-    if output_unit:
-        unit_radius = (VF.unit_x**2 + VF.unit_y**2)**.5
-    # return
-    if not output_unit and not output_center:
-        return radius
-    elif output_unit and not output_center:
-        return radius, unit_radius
-    elif not output_unit and output_center:
-        return radius, center
-    else:
-        return radius, center, unit_radius
-
-
-def get_vortex_radius_time_evolution(TVFS, traj, NL_radius=None,
-                                     eps_detection=0.1,
-                                     output_center=False, verbose=False):
-    """
-    Return the radius evolution in time for the given vortex center trajectory.
-
-    Use the criterion |gamma2| > 2/pi. The returned radius is an average value
-    if the vortex zone is not circular.
-
-    Parameters:
-    -----------
-    TVFS : TemporalField object
-        Velocity field on which compute gamma2.
-    traj : Points object
-        Trajectory of the vortex.
-    NL_radius : number, optional
-        IF specified, radius used for the non-local computation of the
-        gradients.
-    eps_detection : number
-        epsilon used to determine the edge of the vortex (default is 0.1 for
-        10% of the maximum vorticity value).
-    output_center : boolean, optional
-        If 'True', return a Points object with associated vortex centers,
-        computed using center of mass algorythm.
-    verbose : boolean
-        .
-
-    Returns :
-    ---------
-    radius : Profile object
-        Average radius of the vortex. If no vortex is found, 0 is returned.
-    center : Points object
-        If 'output_center' is 'True', contain the newly computed vortex center.
-    """
-    radii = np.empty((len(traj.xy),))
-    if verbose:
-        pg = ProgressCounter("Begin vortex radii detection",
-                             "Done", len(traj.xy), 'fields', perc_interv=1)
-    # computing with vortex center
-    if output_center:
-        centers = Points(unit_x=TVFS.unit_x, unit_y=TVFS.unit_y,
-                         unit_v=TVFS.unit_times)
-
-        for i, pt in enumerate(traj):
-            if verbose:
-                pg.print_progress()
-            # getting time and associated velocity field
-            time = traj.v[i]
-            field = TVFS.fields[TVFS.times == time][0]
-            # getting radius and center
-            rad, cent = get_vortex_radius(field, traj.xy[i],
-                                          NL_radius=NL_radius,
-                                          eps_detection=eps_detection,
-                                          output_center=True)
-            radii[i] = rad
-            centers.add(cent, time)
-    # computing without vortex centers
-    else:
-        for i, _ in enumerate(traj):
-            if verbose:
-                pg.print_progress()
-            # getting time and associated velocity field
-            time = traj.v[i]
-            field = TVFS.fields[TVFS.times == time][0]
-            # getting radius
-            radii[i] = get_vortex_radius(field, traj.xy[i],
-                                         NL_radius=NL_radius,
-                                         eps_detection=eps_detection,
-                                         output_center=False)
-    # returning
-    mask = radii == 0.
-    radii_prof = Profile(traj.v, radii, mask=mask, unit_x=TVFS.unit_times,
-                         unit_y=TVFS.unit_x)
-    if output_center:
-        return radii_prof, centers
-    else:
-        return radii_prof
-
-
-def get_vortex_property(VF, vort_center, size_crit=None, size_crit_lim=0.1,
-                        prop_crit=None, output_unit=False, verbose=False):
-    """
-    Return a property of a particular vortex.
-
-    Parameters:
-    -----------
-    VF : vectorfield object
-        Base velocity field.
-    vort_center : 2x1 array
-        Approximate position of the vortex center.
-    size_crit : function or 'value'
-        Function applied to 'VF' and returning a ScalarField used to get the
-        vortex area.
-        (Default is residual vorticity)
-        If 'value', only the value at the given point is returned.
-    size_crit_lim : number
-        Used to determine the size criterion interval defining the vortex area
-        (i.e. the vortex area is the area around the vortex center where
-        the size criterion is superior to 'size_crit_lim' times the value at
-        the center)
-        (Default is 0.1 (10%))
-        Useless if 'size_crit='value'
-    prop_crit : function
-        Function applied to 'VF' and returning a ScalarField used to get the
-        property value (Default is residual vorticity)
-    output_unit : boolean, optional
-        If 'True', return the associated unit.
-    verbose : bool
-        If 'True', display information and graph along computation.
-
-    Returns :
-    ---------
-    prop : number
-        Property associated to the vortex.
-        (Is the integral of 'prop_crit' result on the area defined by
-        'size_crit')
-    """
-    # default behavior
-    if size_crit is None:
-        size_crit = get_residual_vorticity
-    if prop_crit is None:
-        prop_crit = get_residual_vorticity
-    # getting data
-    if size_crit == "value":
-        prop_crit = prop_crit(VF)
-        val = prop_crit.get_value(*vort_center)
-        if output_unit:
-            return val, prop_crit.unit_values
-        else:
-            return val
-    if size_crit == prop_crit:
-        prop_crit = size_crit(VF)
-        size_crit = np.abs(prop_crit)
-    else:
-        size_crit = np.abs(size_crit(VF))
-        prop_crit = prop_crit(VF)
-    ind_x = VF.get_indice_on_axe(1, vort_center[0], kind='nearest')
-    ind_y = VF.get_indice_on_axe(2, vort_center[1], kind='nearest')
-    unit_int = prop_crit.unit_values*prop_crit.unit_x*prop_crit.unit_y
-    # check if value is positive at the vortex center
-    if VF.magnitude[ind_x, ind_y] <= 0:
-        raise ValueError()
-    # get first guess vortex zone (use value at center as a predica of
-    #    the maxima)
-    tmp_maxi = size_crit.values[ind_x, ind_y]
-    vort_zones = size_crit.values > tmp_maxi*size_crit_lim
-    vort_zones_labs, _ = msr.label(vort_zones)
-    lab = vort_zones_labs[ind_x, ind_y]
-    # if we're outside, just give up
-    if lab == 0:
-        if output_unit:
-            return 0, unit_int
-        else:
-            return 0
-    # get final vortex zone with real maxima
-    size_crit_maxi = np.max(size_crit.values[lab == vort_zones_labs])
-    vort_zones = size_crit.values > size_crit_maxi*size_crit_lim
-    vort_zones_labs, _ = msr.label(vort_zones)
-    lab = vort_zones_labs[ind_x, ind_y]
-    # get prop_crit integral along zone
-    tmp_prop_crit = prop_crit.values.copy()
-    tmp_prop_crit[lab != vort_zones_labs] = 0.
-    dx = VF.axe_x[1] - VF.axe_x[0]
-    dy = VF.axe_y[1] - VF.axe_y[0]
-    prop = simps(simps(tmp_prop_crit, dx=dy), dx=dx)
-    # verbose
-    if verbose:
-        tmp_vort_zone = ScalarField()
-        tmp_vort_zone.import_from_arrays(VF.axe_x, VF.axe_y,
-                                         values=lab == vort_zones_labs)
-        fig, axs = plt.subplots(2, 1)
-        plt.sca(axs[0])
-        size_crit.display()
-        VF.display(kind='stream', color='w')
-        tmp_vort_zone._display(kind='contour', levels=[-1e30, 0.5, 1e30],
-                               colors='r')
-        plt.plot([], color='r', label='Detected vortex zone')
-        plt.plot(*vort_center, marker='o', linestyle='none', mec='k', mfc='w',
-                 label="Vortex center")
-        plt.title("Vortex size detection")
-        plt.legend()
-        plt.sca(axs[1])
-        prop_crit.display()
-        VF.display(kind='stream', color='w')
-        tmp_vort_zone._display(kind='contour', levels=[-1e30, 0.5, 1e30],
-                               colors='r')
-        plt.plot([], color='r', label='Detected vortex zone')
-        plt.plot(*vort_center, marker='o', linestyle='none', mec='k', mfc='w',
-                 label="Vortex center")
-        plt.title("Vortex property integration on vortex zone\nProp={:.2f} {}"
-                  .format(prop, unit_int.strUnit()))
-        plt.legend()
-    # returning
-    if output_unit:
-        return prop, unit_int
-    else:
-        return prop
-
-
-def get_vortex_property_time_evolution(TVFs, vort_center_traj, size_crit=None,
-                                       size_crit_lim=0.1,
-                                       prop_crit=None, output_unit=False,
-                                       verbose=0):
-    """
-    Return a property of a particular vortex.
-
-    Parameters:
-    -----------
-    TVFs : TemporalVectorFields object
-        Base velocity fields.
-    vort_center : Points object
-        Approximate position of the vortex centers along times.
-    size_crit : function or 'value'
-        Function applied to 'VF' and returning a ScalarField used to get the
-        vortex area.
-        (Default is residual vorticity)
-        if 'value', only return the value at point.
-    size_crit_lim : number
-        Used to determine the size criterion interval defining the vortex area
-        (i.e. the vortex area is the area around the vortex center where
-        the size criterion is superior to 'size_crit_lim' times the value at
-        the center)
-        (Default is 0.1 (10%))
-        Useless if "size_crit='value".
-    prop_crit : function
-        Function applied to 'VF' and returning a ScalarField used to get the
-        property value (Default is residual vorticity)
-    verbose : integer
-        specified the number of fields to verbosify.
-        Default is 0.
-
-    Returns :
-    ---------
-    prop : Profile object
-        Evolution of the property associated with the vortex long time.
-    """
-    # prepare storage
-    times = []
-    props = []
-    if verbose == 1:
-        field_to_verbosify = [len(vort_center_traj)/2]
-    elif verbose == 2:
-        field_to_verbosify = [len(vort_center_traj)/3,
-                              len(vort_center_traj)*2/3]
-    else:
-        field_to_verbosify = np.round(np.linspace(0, len(vort_center_traj),
-                                                  verbose))
-    # loop on fields
-    for i in range(len(TVFs)):
-        # pass if vortex center is not defined for this time
-        if TVFs.times[i] not in vort_center_traj.v:
-            continue
-        ind_traj = np.where(vort_center_traj.v == TVFs.times[i])[0][0]
-        # verbosify (or not...)
-        if len(times) in field_to_verbosify:
-            verbose = True
-        else:
-            verbose = False
-        # get the wanted property
-        field = TVFs.fields[i]
-        vc = vort_center_traj.xy[ind_traj]
-        prop, unit = get_vortex_property(VF=field, vort_center=vc,
-                                         size_crit=size_crit,
-                                         size_crit_lim=size_crit_lim,
-                                         prop_crit=prop_crit, verbose=verbose,
-                                         output_unit=True)
-        times.append(TVFs.times[i])
-        props.append(prop)
-    # store on a Profile object
-    prof_prop = Profile(x=times, y=props, unit_x=TVFs.unit_times,
-                        unit_y=unit)
-    # returning
-    return prof_prop
-
-
-def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False,
-                           verbose=False):
-    """
-    Return the circulation of the given vortex.
-
-    $\Gamma = \int_S \omega dS$
-    avec : $S$ : surface su vortex ($| \omega | > \epsilon$)
-
-    Recirculation is representative of the swirling strength.
-
-    Warning : integral on complex domain is complex (you don't say?),
-    here is just implemented a sum of accessible values on the domain.
-
-    Parameters:
-    -----------
-    VF : vectorfield object
-        Velocity field on which compute gamma2.
-    vort_center : 2x1 array
-        Approximate position of the vortex center.
-    epsilon : float, optional
-        Relative seuil for the vorticity integral (default is 0.1).
-    output_unit : boolean, optional
-        If 'True', circulation unit is returned.
-
-    Returns :
-    ---------
-    circ : float
-        Vortex virculation.
-    """
-    # getting data
-    ind_x = VF.get_indice_on_axe(1, vort_center[0], kind='nearest')
-    ind_y = VF.get_indice_on_axe(2, vort_center[1], kind='nearest')
-    dx = VF.axe_x[1] - VF.axe_x[0]
-    dy = VF.axe_y[1] - VF.axe_y[0]
-    vort = get_vorticity(VF)
-    # find omega > 0.1 zones and label them
-    max_vort = np.max(np.abs(vort.values[~vort.mask]))
-    vort_zone = np.abs(vort.values)/max_vort > epsilon
-    vort_zone, nmb_zone = msr.label(vort_zone)
-    # get wanted zone label
-    lab = vort_zone[ind_x, ind_y]
-    # if we are outside a zone
-    if lab == 0:
-        if output_unit:
-            return 0., make_unit("")
-        else:
-            return 0.
-    if verbose:
-        plt.figure()
-        vort.display()
-        plt.plot(vort_center[0], vort_center[1], 'ok')
-        plt.figure()
-        plt.imshow(vort_zone == lab)
-    # else, we compute the circulation
-    circ = np.sum(vort.values[vort_zone == lab])*dx*dy
-    # if necessary, we compute the unit
-    unit_circ = vort.unit_values*VF.unit_x*VF.unit_y
-    circ *= unit_circ.asNumber()
-    unit_circ /= unit_circ.asNumber()
-    # returning
-    if output_unit:
-        return circ, unit_circ
-    else:
-        return circ
-
-
-def get_separation_position(obj, wall_direction, wall_position,
-                            interval=None, nmb_lines=4):
-    """
-    Compute and return the separation points position.
-    Separation points position is computed by searching zero streamwise
-    velocities on surrounding field lines and by extrapolating at
-    the wanted 'wall_position'.
-    If specified, 'interval' must include separation points on the 4 nearest
-    field line.
-    If multiples changments of streamwise velocity are found, return the mean
-    positions of those points.
-
-    Parameters
-    ----------
-    obj : ScalarField, VectorField, VectorField or TemporalVelocityField
-        If 'VectorField' or 'VectorField', wall_direction is used to
-        determine the interesting velocity component.
-    wall_direction : integer
-        1 for a wall at a given value of x,
-        2 for a wall at a given value of y.
-    wall_position : number
-        Position of the wall.
-    interval : 2x1 array of numbers, optional
-        Optional interval in which search for the detachment points.
-    nmb_lines : int
-        Number of lines to take into account to make the extrapolation.
-        (default is 4)
-    """
-    # checking parameters coherence
-    if not isinstance(obj, (ScalarField, VectorField,
-                            TemporalVectorFields)):
-        raise TypeError("Unknown type for 'obj' : {}".format(type(obj)))
-    if not isinstance(wall_direction, NUMBERTYPES):
-        raise TypeError("'wall_direction' must be a number")
-    if wall_direction != 1 and wall_direction != 2:
-        raise ValueError("'wall_direction' must be 1 or 2")
-    if not isinstance(wall_position, NUMBERTYPES):
-        raise ValueError("'wall_position' must be a number")
-    axe_x, axe_y = obj.axe_x, obj.axe_y
-    if interval is None:
-        if wall_direction == 2:
-            interval = [np.min(axe_x), np.max(axe_x)]
-        else:
-            interval = [np.min(axe_y), np.max(axe_y)]
-    if not isinstance(interval, ARRAYTYPES):
-        raise TypeError("'interval' must be a array")
-
-    # Get data according to 'obj' type
-    if isinstance(obj, ScalarField):
-        # checking masked values
-        if np.any(obj.mask):
-            raise Warning("I can give weird results if masked values remains")
-        V = obj.values_as_sf
-        if wall_direction == 1:
-            axe = axe_x
-        else:
-            axe = axe_y
-    elif isinstance(obj, VectorField):
-        if np.any(obj.mask):
-            raise Warning("I can give weird results if masked values remains")
-        if wall_direction == 1:
-            V = obj.comp_y_as_sf
-            axe = axe_x
-        else:
-            V = obj.comp_x_as_sf
-            axe = axe_y
-    elif isinstance(obj, TemporalVectorFields):
-        if np.any(obj.fields[0].mask):
-            raise Warning("I can give weird results if masked values remains")
-        pts = []
-        times = obj.times
-        if wall_direction == 1:
-            unit_axe = obj.unit_y
-        else:
-            unit_axe = obj.unit_x
-        for field in obj.fields:
-            pts.append(get_separation_position(field,
-                                               wall_direction=wall_direction,
-                                               wall_position=wall_position,
-                                               interval=interval))
-        return Profile(times, pts, unit_x=obj.unit_times,
-                       unit_y=unit_axe)
-    else:
-        raise ValueError("Unknown type for 'obj'")
-
-    # Getting separation position
-    # Getting lines around wall
-    if wall_position < axe[0]:
-        lines_pos = axe[0:nmb_lines]
-    elif wall_position > axe[-1]:
-        lines_pos = axe[-nmb_lines-1:-1]
-    else:
-        inds = V.get_indice_on_axe(wall_direction, wall_position)
-        if len(inds) == 1:
-            inds = [inds[0], inds[0] + 1]
-        if inds[0] - nmb_lines/2 < 0:
-            lines_pos = axe[0:nmb_lines]
-        elif inds[-1] + nmb_lines/2 > len(axe):
-            lines_pos = axe[-nmb_lines-1:-1]
-        else:
-            lines_pos = axe[inds[0] - nmb_lines/2:inds[1] + nmb_lines/2]
-    # Getting separation points on surrounding lines
-    seps = np.array([])
-    new_lines_pos = np.array([])
-    for lp in lines_pos:
-        # extraction one line
-        tmp_profile = V.get_profile(wall_direction, lp)
-        # getting the velocity sign changment on the line
-        values = tmp_profile.get_interpolated_values(y=0)
-        values = np.array(values)
-        # masking with 'interval'
-        values = values[np.logical_and(values > interval[0],
-                                       values < interval[1])]
-        if len(values) == 0:
-            continue
-        seps = np.append(seps, np.mean(values))
-        new_lines_pos = np.append(new_lines_pos, lp)
-    if len(seps) == 0:
-        raise Exception("Can't find sign chagment on the given interval")
-    elif len(seps) != nmb_lines:
-        warnings.warn("extrapolation done on only {} points"
-                      " instead of {}".format(len(seps), nmb_lines))
-    lines_pos = new_lines_pos
-    # Deleting lines where no separation points were found
-    if np.any(np.isnan(seps)):
-        warnings.warn("I can't find a separation points on one (or more)"
-                      " line(s). You may want to change 'interval' values")
-        seps = seps[~np.isnan(seps)]
-        lines_pos = lines_pos[~np.isnan(seps)]
-    interp = UnivariateSpline(lines_pos, seps, k=1)
-    return float(interp(wall_position))
-
-
-def get_critical_line(VF, source_point, direction, kol='stream',
-                      delta=1, fit='none', order=2):
-    """
-    Return a parametric curve fitting the virtual streamlines expanding from
-    the 'source_point' critical point on the 'VF' field.
-
-    Parameters
-    ----------
-    VF : VectorField object
-        Base field for streamline
-    source_point : Point object
-        Source critical point.
-    direction : integer
-        Direction in which the streamline should go.
-        (0 for x axis, 1 for y axis)
-    kol : string
-        Kind of line to use (can be 'stream' for streamlines (default)
-        or 'track' for tracklines).
-    delta : integer, optional
-        Range (in axis step) in where searching for expanding streamlines.
-        (Default is 1)
-    fit : string, optional
-        Kind of fitting. Can be 'polynomial' or 'ellipse' or 'none'.
-    order : integer, optional
-        Order for the polynomial fitting (Default is 2).
-
-    Returns
-    -------
-    If 'None' :
-        return a Points object representing the curve.
-    If 'polynomial' :
-        return the polynomial coefficient in a tuple.
-        (warning, these coefficient are to apply on the axis given by
-        'direction')
-    If 'ellipse' :
-        return 'radii' (ellipse semi-radii),
-        'center' (ellipse center) and
-        'angle' (angle between the semi-axis)
-    """
-    # check parameters coherence
-    if not isinstance(VF, VectorField):
-        raise TypeError("'VF' must be a VectorField object")
-    if not isinstance(source_point, Points):
-        raise TypeError("'source_point' must be a Point object")
-    if not isinstance(direction, int):
-        raise TypeError("'direction' must be an integer")
-    if direction not in [0, 1]:
-        raise ValueError("'direction' must be 0 or 1")
-    if not isinstance(delta, int):
-        raise TypeError("'delta' must be an integer")
-    if delta < 0:
-        raise ValueError("'delta' must be positive")
-    if not isinstance(fit, STRINGTYPES):
-        raise TypeError("'fit' must be a string")
-    if not isinstance(order, int):
-        raise TypeError("'order' must be an integer")
-    if order < 0:
-        raise ValueError("'order' must be positive")
-    # get initial position and axis steps
-    x_pt = source_point.xy[0, 0]
-    y_pt = source_point.xy[0, 1]
-    axe_x, axe_y = VF.axe_x, VF.axe_y
-    dx = axe_x[1] - axe_x[0]
-    dy = axe_y[1] - axe_y[0]
-    # get around positions
-    # TODO : may be optimize
-    if direction == 0:
-        xs = [x_pt - dx*delta, x_pt + dx*delta]
-        ys = [y_pt]  # [y_pt - dy, y_pt, y_pt + dy]
-    else:
-        xs = [x_pt]  # [x_pt - dx, x_pt, x_pt + dx]
-        ys = [y_pt - dy*delta, y_pt + dy*delta]
-    xs, ys = np.meshgrid(xs, ys)
-    pts = list(zip(xs.flatten(), ys.flatten()))
-    # get stream or track lines on around positions
-    if kol == 'stream':
-        lines = get_streamlines(VF, pts)
-    else:
-        raise ValueError("Unknown value for 'kol' (see documentation)")
-    # remove streamline near the critical point
-    for i in np.arange(len(lines)):
-        if direction == 0:
-            lines[i] = lines[i].cut(interv_x=[x_pt - 3*delta*dx,
-                                              x_pt + 3*delta*dx])
-        else:
-            lines[i] = lines[i].cut(interv_y=[y_pt - 3*delta*dy,
-                                              y_pt + 3*delta*dy])
-    # concatenating streamlines
-    line_t = lines[0]
-    for sl in lines[1::]:
-        line_t += sl
-    # fitting
-    if fit == 'none':
-        return line_t
-    elif fit == 'polynomial':
-        if direction == 1:
-            return line_t.reverse().fit(fit, order=order)
-        else:
-            return line_t.fit(fit, order=order)
-    elif fit == 'ellipse':
-        return line_t.fit(fit)
-    else:
-        raise ValueError("Unknown kind of fitting")

@@ -247,11 +247,11 @@ class TestScalarField(object):
 
     def test_get_spatial_autocorrelation(self):
         res_x = self.SF1.get_spatial_autocorrelation('x')
-        imtio.export_to_file(res_x, "spatial_autocorrelation_x.cimt")
+        # imtio.export_to_file(res_x, "spatial_autocorrelation_x.cimt")
         res_x2 = imtio.import_from_file("spatial_autocorrelation_x.cimt")
         assert res_x == res_x2
         res_y = self.SF1.get_spatial_autocorrelation('y')
-        imtio.export_to_file(res_y, "spatial_autocorrelation_y.cimt")
+        # imtio.export_to_file(res_y, "spatial_autocorrelation_y.cimt")
         res_y2 = imtio.import_from_file("spatial_autocorrelation_y.cimt")
         assert res_y == res_y2
 
@@ -393,7 +393,7 @@ class TestScalarField(object):
 
     def test_reduce_spatial_resolution(self):
         res = self.SF1.reduce_spatial_resolution(4, inplace=False)
-        imtio.export_to_file(res, "reduce_spatial_resolution.cimt")
+        # imtio.export_to_file(res, "reduce_spatial_resolution.cimt")
         res2 = imtio.import_from_file("reduce_spatial_resolution.cimt")
         assert res == res2
 

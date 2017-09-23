@@ -25,7 +25,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint, ode
-from .. import Profile, make_unit, ScalarField
+from scipy.interpolate import UnivariateSpline
+import warnings
+from .. import Profile, make_unit, ScalarField, VectorField, \
+    TemporalVectorFields
 import scipy.integrate as spinteg
 
 NUMBERTYPES = (int, float, int, np.float, np.float16, np.float32)
@@ -1163,3 +1166,136 @@ def get_shear_stress(obj, direction=1, method='simple',
         return tau_w
     else:
         raise TypeError()
+
+
+def get_separation_position(obj, wall_direction, wall_position,
+                            interval=None, nmb_lines=4):
+    """
+    Compute and return the separation points position.
+    Separation points position is computed by searching zero streamwise
+    velocities on surrounding field lines and by extrapolating at
+    the wanted 'wall_position'.
+    If specified, 'interval' must include separation points on the 4 nearest
+    field line.
+    If multiples changments of streamwise velocity are found, return the mean
+    positions of those points.
+
+    Parameters
+    ----------
+    obj : ScalarField, VectorField, VectorField or TemporalVelocityField
+        If 'VectorField' or 'VectorField', wall_direction is used to
+        determine the interesting velocity component.
+    wall_direction : integer
+        1 for a wall at a given value of x,
+        2 for a wall at a given value of y.
+    wall_position : number
+        Position of the wall.
+    interval : 2x1 array of numbers, optional
+        Optional interval in which search for the detachment points.
+    nmb_lines : int
+        Number of lines to take into account to make the extrapolation.
+        (default is 4)
+    """
+    # checking parameters coherence
+    if not isinstance(obj, (ScalarField, VectorField,
+                            TemporalVectorFields)):
+        raise TypeError("Unknown type for 'obj' : {}".format(type(obj)))
+    if not isinstance(wall_direction, NUMBERTYPES):
+        raise TypeError("'wall_direction' must be a number")
+    if wall_direction != 1 and wall_direction != 2:
+        raise ValueError("'wall_direction' must be 1 or 2")
+    if not isinstance(wall_position, NUMBERTYPES):
+        raise ValueError("'wall_position' must be a number")
+    axe_x, axe_y = obj.axe_x, obj.axe_y
+    if interval is None:
+        if wall_direction == 2:
+            interval = [np.min(axe_x), np.max(axe_x)]
+        else:
+            interval = [np.min(axe_y), np.max(axe_y)]
+    if not isinstance(interval, ARRAYTYPES):
+        raise TypeError("'interval' must be a array")
+
+    # Get data according to 'obj' type
+    if isinstance(obj, ScalarField):
+        # checking masked values
+        if np.any(obj.mask):
+            raise Warning("I can give weird results if masked values remains")
+        V = obj.values_as_sf
+        if wall_direction == 1:
+            axe = axe_x
+        else:
+            axe = axe_y
+    elif isinstance(obj, VectorField):
+        if np.any(obj.mask):
+            raise Warning("I can give weird results if masked values remains")
+        if wall_direction == 1:
+            V = obj.comp_y_as_sf
+            axe = axe_x
+        else:
+            V = obj.comp_x_as_sf
+            axe = axe_y
+    elif isinstance(obj, TemporalVectorFields):
+        if np.any(obj.fields[0].mask):
+            raise Warning("I can give weird results if masked values remains")
+        pts = []
+        times = obj.times
+        if wall_direction == 1:
+            unit_axe = obj.unit_y
+        else:
+            unit_axe = obj.unit_x
+        for field in obj.fields:
+            pts.append(get_separation_position(field,
+                                               wall_direction=wall_direction,
+                                               wall_position=wall_position,
+                                               interval=interval))
+        return Profile(times, pts, unit_x=obj.unit_times,
+                       unit_y=unit_axe)
+    else:
+        raise ValueError("Unknown type for 'obj'")
+
+    # Getting separation position
+    # Getting lines around wall
+    if wall_position < axe[0]:
+        lines_pos = axe[0:nmb_lines]
+    elif wall_position > axe[-1]:
+        lines_pos = axe[-nmb_lines-1:-1]
+    else:
+        inds = V.get_indice_on_axe(wall_direction, wall_position)
+        if len(inds) == 1:
+            inds = [inds[0], inds[0] + 1]
+        if inds[0] - nmb_lines/2 < 0:
+            lines_pos = axe[0:nmb_lines]
+        elif inds[-1] + nmb_lines/2 > len(axe):
+            lines_pos = axe[-nmb_lines-1:-1]
+        else:
+            lines_pos = axe[inds[0] - nmb_lines/2:inds[1] + nmb_lines/2]
+    # Getting separation points on surrounding lines
+    seps = np.array([])
+    new_lines_pos = np.array([])
+    for lp in lines_pos:
+        # extraction one line
+        tmp_profile = V.get_profile(wall_direction, lp)
+        # getting the velocity sign changment on the line
+        values = tmp_profile.get_interpolated_values(y=0)
+        values = np.array(values)
+        # masking with 'interval'
+        values = values[np.logical_and(values > interval[0],
+                                       values < interval[1])]
+        if len(values) == 0:
+            continue
+        seps = np.append(seps, np.mean(values))
+        new_lines_pos = np.append(new_lines_pos, lp)
+    if len(seps) == 0:
+        raise Exception("Can't find sign chagment on the given interval")
+    elif len(seps) != nmb_lines:
+        warnings.warn("extrapolation done on only {} points"
+                      " instead of {}".format(len(seps), nmb_lines))
+    lines_pos = new_lines_pos
+    # Deleting lines where no separation points were found
+    if np.any(np.isnan(seps)):
+        warnings.warn("I can't find a separation points on one (or more)"
+                      " line(s). You may want to change 'interval' values")
+        seps = seps[~np.isnan(seps)]
+        lines_pos = lines_pos[~np.isnan(seps)]
+    interp = UnivariateSpline(lines_pos, seps, k=1)
+    return float(interp(wall_position))

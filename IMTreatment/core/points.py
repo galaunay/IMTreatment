@@ -1023,7 +1023,7 @@ class Points(object):
                 mask = np.logical_or(mask, out_zone)
         # Cropping values
         tmp_pts.__xy = tmp_pts.xy[~mask, :]
-        if tmp_pts.v is not None:
+        if len(tmp_pts.v) != 0:
             tmp_pts.__v = tmp_pts.v[~mask]
         # returning
         if not inplace:

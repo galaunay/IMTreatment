@@ -24,11 +24,10 @@
 
 import os
 
-import numpy as np
 import pytest
 
-import unum
-from IMTreatment import field_treatment as imtft, file_operation as imtio, make_unit
+from IMTreatment import field_treatment as imtft, file_operation as imtio, \
+    make_unit
 import matplotlib.pyplot as plt
 
 
@@ -62,7 +61,6 @@ class TestFieldTreatment(object):
         # imtio.export_to_file(res_c, "Prof1_get_gradients_c.cimt")
         res_c2 = imtio.import_from_file("Prof1_get_gradients_c.cimt")
         assert res_c == res_c2
-
 
     def test_get_jacobian_eigenproperties(self):
         res_a = imtft.get_jacobian_eigenproperties(self.VF1)
@@ -101,32 +99,32 @@ class TestFieldTreatment(object):
         assert res_b == res_b2
 
     def test_get_streamlines_fast(self):
-        res_a = imtft.get_streamlines_fast(self.VF1_nomask,  [13, 3.4])
+        res_a = imtft.get_streamlines_fast(self.VF1_nomask, [13, 3.4])
         # imtio.export_to_file(res_a, "VF1_get_streamlines_fast_a.cimt")
         res_a2 = imtio.import_from_file("VF1_get_streamlines_fast_a.cimt")
         assert res_a[0] == res_a2[0]
 
     def test_get_streamlines(self):
-        res_a = imtft.get_streamlines(self.VF1,  [13, 3.4])
+        res_a = imtft.get_streamlines(self.VF1, [13, 3.4])
         # imtio.export_to_file(res_a, "VF1_get_streamlines_a.cimt")
         res_a2 = imtio.import_from_file("VF1_get_streamlines_a.cimt")
         assert res_a == res_a2
 
     def test_get_fieldlines(self):
-        res_a = imtft.get_fieldlines(self.VF1,  [[13, 3.4], [3.2, 5.43]])
+        res_a = imtft.get_fieldlines(self.VF1, [[13, 3.4], [3.2, 5.43]])
         # imtio.export_to_file(res_a, "VF1_get_fieldlines_a.cimt")
         res_a2 = imtio.import_from_file("VF1_get_fieldlines_a.cimt")
         assert res_a == res_a2
 
     def test_get_tracklines(self):
-        res_a = imtft.get_tracklines(self.VF1,  [13, 3.4])
+        res_a = imtft.get_tracklines(self.VF1, [13, 3.4])
         # imtio.export_to_file(res_a, "VF1_get_tracklines_a.cimt")
         res_a2 = imtio.import_from_file("VF1_get_tracklines_a.cimt")
         assert res_a == res_a2
 
     def test_get_shear_stress(self):
         res_a = imtft.get_shear_stress(self.VF1)
-        imtio.export_to_file(res_a, "VF1_get_shear_stress_a.cimt")
+        # imtio.export_to_file(res_a, "VF1_get_shear_stress_a.cimt")
         res_a2 = imtio.import_from_file("VF1_get_shear_stress_a.cimt")
         assert res_a == res_a2
 
@@ -139,7 +137,7 @@ class TestFieldTreatment(object):
 
     def test_extrapolated_until_wall(self):
         res_a = imtft.extrapolate_until_wall(self.SF1, 'x', position=-0.4)
-        imtio.export_to_file(res_a, "SF1_extrapolate_until_wall_a.cimt")
+        # imtio.export_to_file(res_a, "SF1_extrapolate_until_wall_a.cimt")
         res_a2 = imtio.import_from_file("SF1_extrapolate_until_wall_a.cimt")
         assert res_a == res_a2
         #
@@ -155,7 +153,7 @@ class TestFieldTreatment(object):
         assert res_c == res_c2
 
 # TEMP
-# pytest.main(['test_field_treatment.py'])
+pytest.main(['test_field_treatment.py'])
 # pytest.main(['-v', 'test_field_treatment.py'])
 # pytest.main(['--pdb', 'test_field_treatment.py'])
 # TEMP - End
