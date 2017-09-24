@@ -1415,6 +1415,8 @@ class Points(object):
             To determine wich value has to be plotted along which axis, and
             whith value is used to color the scattered points.
             Default plot 'y' to 'x' with colors from 'v'.
+        **plotargs : dic
+            Additionnal arguments sent to `plot` or `scatter`
         """
         # default values
         if axe_x is None:

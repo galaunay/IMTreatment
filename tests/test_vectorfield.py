@@ -24,6 +24,7 @@
 
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -367,6 +368,48 @@ class TestVectorField(object):
         # imtio.export_to_file(res, "VF1_reduce_spatial_resolution.cimt")
         res2 = imtio.import_from_file("VF1_reduce_spatial_resolution.cimt")
         assert res == res2
+
+    @pytest.mark.mpl_image_compare
+    def test_display_VF_a(self):
+        fig = plt.figure()
+        self.VF1.display()
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_VF_b(self):
+        fig = plt.figure()
+        self.VF1.display("magnitude")
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_VF_c(self):
+        fig = plt.figure()
+        self.VF1.display("mask")
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_VF_d(self):
+        fig = plt.figure()
+        self.VF1.display("x")
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_VF_e(self):
+        fig = plt.figure()
+        self.VF1.display("y")
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_VF_f(self):
+        fig = plt.figure()
+        self.VF1.display(kind='stream')
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_VF_g(self):
+        fig = plt.figure()
+        self.VF1.display(kind='stream', density=2, color='k')
+        return fig
 
 # TEMP
 pytest.main(["test_vectorfield.py"])

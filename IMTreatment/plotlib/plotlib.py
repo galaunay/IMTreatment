@@ -1168,20 +1168,20 @@ class Displayer(object):
             plot = ax.plot = colored_plot(tmp_x, tmp_y, z=tmp_values, **dargs)
         elif kind == 'semilogx':
             tmp_filt = ~np.isnan(tmp_x)
-            tmp_filt = np.logical_or(tmp_filt, tmp_x[tmp_filt] < 0)
+            tmp_filt = np.logical_or(tmp_filt, tmp_x < 0)
             tmp_x[~tmp_filt] = np.nan
             plot = ax.semilogx(tmp_x, tmp_y, **dargs)
         elif kind == 'semilogy':
             tmp_filt = ~np.isnan(tmp_y)
-            tmp_filt = np.logical_or(tmp_filt, tmp_y[tmp_filt] < 0)
+            tmp_filt = np.logical_or(tmp_filt, tmp_y < 0)
             tmp_y[~tmp_filt] = np.nan
             plot = ax.semilogy(tmp_x, tmp_y, **dargs)
         elif kind == 'loglog':
             tmp_filt = ~np.isnan(tmp_x)
-            tmp_filt = np.logical_or(tmp_filt, tmp_x[tmp_filt] < 0)
+            tmp_filt = np.logical_or(tmp_filt, tmp_x < 0)
             tmp_x[~tmp_filt] = np.nan
             tmp_filt = ~np.isnan(tmp_y)
-            tmp_filt = np.logical_or(tmp_filt, tmp_y[tmp_filt] < 0)
+            tmp_filt = np.logical_or(tmp_filt, tmp_y < 0)
             tmp_y[~tmp_filt] = np.nan
             plot = ax.loglog(tmp_x, tmp_y, **dargs)
         elif kind == 'matrix':

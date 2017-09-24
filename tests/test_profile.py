@@ -374,6 +374,41 @@ class TestProfile(object):
         res_a2 = imtio.import_from_file("Prof1_remove_doublons_a.cimt")
         assert res_a == res_a2
 
+    @pytest.mark.mpl_image_compare
+    def test_display_Prof_a(self):
+        fig = plt.figure()
+        self.Prof1.display()
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_Prof_b(self):
+        fig = plt.figure()
+        self.Prof1.display(kind='semilogx')
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_Prof_c(self):
+        fig = plt.figure()
+        self.Prof1.display(kind='semilogy')
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_Prof_d(self):
+        fig = plt.figure()
+        self.Prof1.display(kind='loglog')
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_Prof_d(self):
+        fig = plt.figure()
+        self.Prof1.display(reverse=True)
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_Prof_d(self):
+        fig = plt.figure()
+        self.Prof1.display(marker='o', lw=5, ls=':')
+        return fig
 
 # TEMP
 pytest.main(['test_profile.py'])

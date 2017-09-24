@@ -64,8 +64,41 @@ class TestPoints(object):
         res_a2 = imtio.import_from_file("P1_copy_a.cimt")
         assert res_a == res_a2
 
+    @pytest.mark.mpl_image_compare
+    def test_display_Points_a(self):
+        fig = plt.figure()
+        self.P1.display()
+        return fig
 
+    @pytest.mark.mpl_image_compare
+    def test_display_Points_b(self):
+        fig = plt.figure()
+        self.P1.display(kind='scatter')
+        return fig
 
+    @pytest.mark.mpl_image_compare
+    def test_display_Points_c(self):
+        fig = plt.figure()
+        self.P1.display(kind='colored_plot')
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_Points_d(self):
+        fig = plt.figure()
+        self.P1.display(axe_x="y", axe_y='v')
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_Points_e(self):
+        fig = plt.figure()
+        self.P1.display(axe_x="v", axe_y='x', axe_color='y')
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_Points_f(self):
+        fig = plt.figure()
+        self.P1.display(marker=".", color='b', ls=':', lc='r')
+        return fig
 
 # TEMP
 pytest.main(['test_points.py'])

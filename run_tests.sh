@@ -1,2 +1,2 @@
 echo "=== Running tests ==="
-pytest tests/
+pytest --mpl tests/

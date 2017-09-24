@@ -26,6 +26,7 @@ import os
 
 import numpy as np
 import pytest
+import matplotlib.pyplot as plt
 
 import unum
 from IMTreatment import ScalarField, file_operation as imtio, make_unit
@@ -396,6 +397,36 @@ class TestScalarField(object):
         # imtio.export_to_file(res, "reduce_spatial_resolution.cimt")
         res2 = imtio.import_from_file("reduce_spatial_resolution.cimt")
         assert res == res2
+
+    @pytest.mark.mpl_image_compare
+    def test_display_SF_a(self):
+        fig = plt.figure()
+        self.SF1.display()
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_SF_b(self):
+        fig = plt.figure()
+        self.SF1.display(kind='contour')
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_SF_c(self):
+        fig = plt.figure()
+        self.SF1.display(kind='contourf')
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_SF_d(self):
+        fig = plt.figure()
+        self.SF1.display(kind='contourf', levels=[-1, 0, 1])
+        return fig
+
+    @pytest.mark.mpl_image_compare
+    def test_display_SF_e(self):
+        fig = plt.figure()
+        self.SF1.display('mask')
+        return fig
 
 # TEMP
 pytest.main(["test_scalarfield.py"])
