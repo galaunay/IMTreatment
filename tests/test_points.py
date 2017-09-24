@@ -97,7 +97,7 @@ class TestPoints(object):
     @pytest.mark.mpl_image_compare
     def test_display_Points_f(self):
         fig = plt.figure()
-        self.P1.display(marker=".", color='b', ls=':', lc='r')
+        self.P1.display(kind='plot', marker=".", color='b', ls=':')
         return fig
 
 # TEMP

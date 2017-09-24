@@ -1161,7 +1161,9 @@ class Displayer(object):
             if tmp_values is None:
                 plot = ax.scatter(tmp_x, tmp_y, **dargs)
             else:
-                plot = ax.scatter(tmp_x, tmp_y, c=tmp_values, **dargs)
+                if 'c' not in dargs.keys():
+                    dargs['c'] = tmp_values
+                plot = ax.scatter(tmp_x, tmp_y, **dargs)
         elif kind == 'plot':
             plot = ax.plot(tmp_x, tmp_y, **dargs)
         elif kind == 'colored_plot':
@@ -1200,8 +1202,12 @@ class Displayer(object):
         elif kind == "quiver":
             if 'color' in list(dargs.keys()):
                 C = dargs.pop('color')
+                if 'c' in dargs.keys():
+                    dargs.pop('c')
             else:
                 C = tmp_magn
+                if 'c' in dargs.keys():
+                    dargs.pop('c')
             plot = ax.quiver(tmp_x, tmp_y, tmp_values[0].transpose(),
                              tmp_values[1].transpose(), C.transpose(),
                              **dargs)

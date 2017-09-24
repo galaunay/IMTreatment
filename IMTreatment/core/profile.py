@@ -213,11 +213,6 @@ class Profile(object):
 
     __div__ = __truediv__
 
-    def __sqrt__(self):
-        y = np.sqrt(self.y)
-        unit_y = np.sqrt(self.unit_y)
-        return Profile(self.x, y, self.unit_x, unit_y, name=self.name)
-
     def __pow__(self, number):
         if not isinstance(number, NUMBERTYPES):
             raise TypeError("You only can use a number for the power "
@@ -245,21 +240,21 @@ class Profile(object):
             return False
         return True
 
-    def __getitem__(self, ind):
-        if isinstance(ind, ARRAYTYPES):
-            ind = np.array(ind)
-            if len(ind) == len(self):
-                tmp_pts = self.copy()
-                tmp_pts.x = self.x[ind]
-                tmp_pts.y = self.y[ind]
-                tmp_pts.mask = self.mask[ind]
-                return tmp_pts
-            else:
-                raise ValueError()
-        elif isinstance(ind, int):
-            return self.x[ind], self.y[ind]
-        else:
-            raise TypeError()
+    # def __getitem__(self, ind):
+    #     if isinstance(ind, ARRAYTYPES):
+    #         ind = np.array(ind)
+    #         if len(ind) == len(self):
+    #             tmp_pts = self.copy()
+    #             tmp_pts.x = self.x[ind]
+    #             tmp_pts.y = self.y[ind]
+    #             tmp_pts.mask = self.mask[ind]
+    #             return tmp_pts
+    #         else:
+    #             raise ValueError()
+    #     elif isinstance(ind, int):
+    #         return self.x[ind], self.y[ind]
+    #     else:
+    #         raise TypeError()
 
     @property
     def x(self):
@@ -430,14 +425,15 @@ class Profile(object):
         """
         Print the Profile main properties
         """
-        print(f"Length: {len(self.x)}")
+        text = f"Length: {len(self.x)}"
         unit_x = self.unit_x.strUnit()
-        print(f"x: [{self.x[0]}..{self.x[-1]}]{unit_x}")
+        text += f"x: [{self.x[0]}..{self.x[-1]}]{unit_x}"
         unit_y = self.unit_y.strUnit()
-        print(f"y: [{self.y[0]}..{self.y[-1]}]{unit_y}")
+        text += f"y: [{self.y[0]}..{self.y[-1]}]{unit_y}"
         nmb_mask = np.sum(self.mask)
         nmb_tot = len(self.mask)
-        print(f"Masked values: {nmb_mask}/{nmb_tot}")
+        text += f"Masked values: {nmb_mask}/{nmb_tot}"
+        return text
 
     def get_interpolator(self, kind='linear', bounds_error=True,
                          fill_value=np.nan):
@@ -535,7 +531,8 @@ class Profile(object):
                     val = self._get_interpolated_single_value(y=yi, ind=ind)
                     if len(val) == 0:
                         res.append(np.nan)
-                    res.append(val[0])
+                    else:
+                        res.append(val[0])
                 return np.array(res, dtype=float)
 
     def _get_interpolated_single_value(self, x=None, y=None, ind=False):

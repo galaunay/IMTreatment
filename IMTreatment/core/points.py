@@ -1394,6 +1394,11 @@ class Points(object):
             color_values = self.v
         else:
             raise ValueError()
+        # check c and color
+        if 'c' in plotargs.keys():
+            plotargs['color'] = None
+        if 'color' in plotargs.keys():
+            plotargs['c'] = None
         # display
         dp = pplt.Displayer(x=x_values, y=y_values, values=color_values,
                             kind=kind, **plotargs)
@@ -1416,7 +1421,7 @@ class Points(object):
             whith value is used to color the scattered points.
             Default plot 'y' to 'x' with colors from 'v'.
         **plotargs : dic
-            Additionnal arguments sent to `plot` or `scatter`
+            Additionnal arguments sent to 'plot' or 'scatter'
         """
         # default values
         if axe_x is None:

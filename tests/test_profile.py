@@ -23,9 +23,17 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import sys
+try:
+    dirname = os.path.dirname(os.path.realpath(__file__))
+    sys.path.append(dirname)
+    os.chdir(dirname)
+except:
+    pass
 
 import numpy as np
 import pytest
+from helper import parametric_test
 
 import unum
 from IMTreatment import Profile, file_operation as imtio, make_unit
@@ -36,10 +44,6 @@ class TestProfile(object):
     """ Done """
 
     def setup(self):
-        try:
-            os.chdir(os.path.dirname(os.path.realpath(__file__)))
-        except:
-            pass
         # unit_x = make_unit('m')
         # unit_y = make_unit('m/s')
         # x = np.genfromtxt('prof_x')
@@ -75,6 +79,17 @@ class TestProfile(object):
         self.Prof_nomask = imtio.import_from_file('Prof_nomask.cimt')
         self.Prof_evenlyspaced_nomask = imtio.import_from_file('Prof_evenlyspaced_nomask.cimt')
 
+    def test_properties(self):
+        prof = self.Prof1
+        prof.unit_x = 'kg'
+        prof.unit_y = 's'
+        assert prof.unit_x.strUnit() == make_unit('kg').strUnit()
+        assert prof.unit_y.strUnit() == make_unit('s').strUnit()
+
+    def test_get_props(self):
+        fun = self.Prof1.get_props
+        kwargs = [{}]
+        parametric_test(fun, kwargs)
 
     def test_add(self):
         res_a = self.Prof2 + self.Prof1
@@ -135,7 +150,7 @@ class TestProfile(object):
         res_b2 = imtio.import_from_file("Prof1_div_b.cimt")
         assert res_b == res_b2
         #
-        res_c = self.Prof1 / 32*make_unit('Hz')
+        res_c = self.Prof1 / (32*make_unit('Hz'))
         # imtio.export_to_file(res_c, "Prof1_div_c.cimt")
         res_c2 = imtio.import_from_file("Prof1_div_c.cimt")
         assert res_c == res_c2
@@ -190,6 +205,16 @@ class TestProfile(object):
         # imtio.export_to_file(res_d, "Prof1_get_interpolated_values_d.cimt")
         res_d2 = imtio.import_from_file("Prof1_get_interpolated_values_d.cimt")
         assert res_d == res_d2
+        #
+        res_e = self.Prof1.get_interpolated_values(x=[13.2, 14.2, 15.2, 16.2])
+        # imtio.export_to_file(res_e, "Prof1_get_interpolated_values_e.cimt")
+        res_e2 = imtio.import_from_file("Prof1_get_interpolated_values_e.cimt")
+        assert np.all(res_e[~np.isnan(res_e)] == res_e2[~np.isnan(res_e2)])
+        #
+        res_f = self.Prof1.get_interpolated_values(y=[.2, .3, .5, .7])
+        # imtio.export_to_file(res_f, "Prof1_get_interpolated_values_f.cimt")
+        res_f2 = imtio.import_from_file("Prof1_get_interpolated_values_f.cimt")
+        assert np.all(res_f[~np.isnan(res_f)] == res_f2[~np.isnan(res_f2)])
 
     def test_get_value_position(self):
         res_a = self.Prof1.get_value_position(self.Prof1.mean)
@@ -213,18 +238,61 @@ class TestProfile(object):
         # imtio.export_to_file(res_b, "Prof1_get_gradient_b.cimt")
         res_b2 = imtio.import_from_file("Prof1_get_gradient_b.cimt")
         assert res_b == res_b2
+        #
+        res_c = self.Prof_evenlyspaced_nomask.get_gradient(
+            position=self.Prof_evenlyspaced_nomask.x[0] - 1)
+        # imtio.export_to_file(res_c, "Prof1_get_gradient_c.cimt")
+        res_c2 = imtio.import_from_file("Prof1_get_gradient_c.cimt")
+        assert res_c == res_c2
+        #
+        res_d = self.Prof_evenlyspaced_nomask.get_gradient(
+            position=self.Prof_evenlyspaced_nomask.x[-1] + 1)
+        # imtio.export_to_file(res_d, "Prof1_get_gradient_d.cimt")
+        res_d2 = imtio.import_from_file("Prof1_get_gradient_d.cimt")
+        assert res_d == res_d2
 
     def test_get_spectrum(self):
         res_a = self.Prof1.get_spectrum()
         # imtio.export_to_file(res_a, "Prof1_get_spectrum_a.cimt")
         res_a2 = imtio.import_from_file("Prof1_get_spectrum_a.cimt")
         assert res_a == res_a2
+        #
+        res_b = self.Prof1.get_spectrum(welch_seglen=10)
+        # imtio.export_to_file(res_b, "Prof1_get_spectrum_b.cimt")
+        res_b2 = imtio.import_from_file("Prof1_get_spectrum_b.cimt")
+        assert res_b == res_b2
+        #
+        res_c = self.Prof1.get_spectrum(scaling="spectrum", detrend='linear')
+        # imtio.export_to_file(res_c, "Prof1_get_spectrum_c.cimt")
+        res_c2 = imtio.import_from_file("Prof1_get_spectrum_c.cimt")
+        assert res_c == res_c2
+        #
+        res_d = self.Prof1.get_spectrum(scaling="density", detrend='none')
+        # imtio.export_to_file(res_d, "Prof1_get_spectrum_d.cimt")
+        res_d2 = imtio.import_from_file("Prof1_get_spectrum_d.cimt")
+        assert res_d == res_d2
+        #
+        res_e = self.Prof1.get_spectrum(scaling="density")
+        # imtio.export_to_file(res_e, "Prof1_get_spectrum_e.cimt")
+        res_e2 = imtio.import_from_file("Prof1_get_spectrum_e.cimt")
+        assert res_e == res_e2
 
     def test_get_wavelet_transform(self):
         res_a = self.Prof_evenlyspaced.get_wavelet_transform()
         # imtio.export_to_file(res_a, "Prof1_get_wavelet_transform_a.cimt")
         res_a2 = imtio.import_from_file("Prof1_get_wavelet_transform_a.cimt")
         assert res_a == res_a2
+        #
+        res_b = self.Prof_evenlyspaced.get_wavelet_transform(
+            widths=np.linspace(0, len(self.Prof_evenlyspaced_nomask.y) - 1, 10)[1::])
+        # imtio.export_to_file(res_b, "Prof1_get_wavelet_transform_b.cimt")
+        res_b2 = imtio.import_from_file("Prof1_get_wavelet_transform_b.cimt")
+        assert res_b == res_b2
+        #
+        res_c = self.Prof_evenlyspaced.get_wavelet_transform(fill=2)
+        # imtio.export_to_file(res_c, "Prof1_get_wavelet_transform_c.cimt")
+        res_c2 = imtio.import_from_file("Prof1_get_wavelet_transform_c.cimt")
+        assert res_c == res_c2
 
     def test_get_pdf(self):
         res_a = self.Prof1.get_pdf()
@@ -245,25 +313,26 @@ class TestProfile(object):
         # imtio.export_to_file(res_a, "Prof1_get_fitting_a.cimt")
         res_a2 = imtio.import_from_file("Prof1_get_fitting_a.cimt")
         assert res_a == res_a2
+        #
+        res_b = self.Prof1.get_fitting(fit_fun, output_param=True)
+        # imtio.export_to_file(res_b, "Prof1_get_fitting_b.cimt")
+        res_b2 = imtio.import_from_file("Prof1_get_fitting_b.cimt")
+        assert res_b[0] == res_b2[0]
+        assert np.all(res_b[1] == res_b2[1])
 
     def test_get_distribution(self):
-        res_a = self.Prof1.get_distribution()
-        # imtio.export_to_file(res_a, "Prof1_get_distribution_a.cimt")
-        res_a2 = imtio.import_from_file("Prof1_get_distribution_a.cimt")
-        assert res_a == res_a2
+        fun = self.Prof1.get_distribution
+        kwargs = [{},
+                  {'bw_method': 2},
+                  {'output_format': 'ponderated'},
+                  {'output_format': 'concentration'}]
+        parametric_test(fun, kwargs)
 
     def test_get_extrema_position(self):
-        res_a = self.Prof_evenlyspaced.get_extrema_position()
-        # imtio.export_to_file(res_a, "Prof1_get_extrema_position_a.cimt")
-        res_a2 = imtio.import_from_file("Prof1_get_extrema_position_a.cimt")
-        assert np.all(res_a[0] == res_a2[0])
-        assert np.all(res_a[1] == res_a2[1])
-        #
-        res_b = self.Prof_evenlyspaced.get_extrema_position(smoothing=4)
-        # imtio.export_to_file(res_b, "Prof1_get_extrema_position_b.cimt")
-        res_b2 = imtio.import_from_file("Prof1_get_extrema_position_b.cimt")
-        assert np.all(res_b[0] == res_b2[0])
-        assert np.all(res_b[1] == res_b2[1])
+        fun = self.Prof_evenlyspaced.get_extrema_position
+        kwargs = [{},
+                  {'smoothing': 4}]
+        parametric_test(fun, kwargs)
 
     def test_get_convolution(self):
         res_a = self.Prof_evenlyspaced.get_convolution(self.Prof2_evenlyspaced)
@@ -399,17 +468,20 @@ class TestProfile(object):
         return fig
 
     @pytest.mark.mpl_image_compare
-    def test_display_Prof_d(self):
+    def test_display_Prof_e(self):
         fig = plt.figure()
         self.Prof1.display(reverse=True)
         return fig
 
     @pytest.mark.mpl_image_compare
-    def test_display_Prof_d(self):
+    def test_display_Prof_f(self):
         fig = plt.figure()
-        self.Prof1.display(marker='o', lw=5, ls=':')
+        self.Prof1.display('plot', marker='o', lw=5, ls=':')
         return fig
 
 # TEMP
 pytest.main(['test_profile.py'])
+# test = TestProfile()
+# test.setup()
+# test.test_get_interpolated_values()
 # TEMP - End
