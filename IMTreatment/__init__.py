@@ -52,6 +52,12 @@ Provides specific functionalities for flow analysis::
      (``potential_flow``)
 
 
+Examples
+--------
+The modules 'examples' contains examples of use for some of the modules above.
+It could be a good start to take a look at the file on this module.
+
+
 How to use the documentation
 ----------------------------
 Documentation is available in docstrings provided
