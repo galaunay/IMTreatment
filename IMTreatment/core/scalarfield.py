@@ -2062,8 +2062,7 @@ class ScalarField(fld.Field):
         kind : string, optinnal
             If 'imshow': (default) each datas are plotted (imshow),
             if 'contour': contours are ploted (contour),
-            if 'contourf': filled contours are ploted (contourf),
-            if '3D': a tri-dimensionnal plot is created.
+            if 'contourf': filled contours are ploted (contourf).
         **plotargs : dict
             Arguments passed to the 'contourf' function used to display the
             scalar field.

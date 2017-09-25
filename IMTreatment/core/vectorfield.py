@@ -1253,8 +1253,7 @@ class VectorField(field.Field):
             if 'contourf': filled contours are ploted (contourf).
             Vector plots :
             if 'quiver': quiver plot,
-            if 'stream': streamlines,
-            if '3D': tri-dimensionnal plot.
+            if 'stream': streamlines.
 
         plotargs : dict
             Arguments passed to the function used to display the vector field.

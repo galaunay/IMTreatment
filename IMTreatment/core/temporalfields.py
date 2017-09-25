@@ -781,7 +781,7 @@ class TemporalFields(flds.Fields, fld.Field):
                 if verbose:
                     PG.print_progress()
                 # get local spectrum
-                tmp_prof = self.get_time_profile(comp, x, y)
+                tmp_prof = self.get_time_profile(comp, [x, y])
                 # check if should be masked
                 if np.sum(tmp_prof.mask)/float(len(tmp_prof)) > .5:
                     map_freq_mask[i, j] = True
@@ -1560,10 +1560,38 @@ class TemporalFields(flds.Fields, fld.Field):
                                 sharey=sharey, ncol=ncol, nrow=nrow)
         return plot
 
-    def display(self, compo=None, kind=None, sharecb=True, use_buffer=True,
-                buffer_size=100, **plotargs):
+    def display(self, compo=None, kind=None, sharecb=True, buffer_size=100,
+                **plotargs):
         """
         Create a windows to display temporals field, controlled by buttons.
+
+        Parameters
+        ----------
+        compo: string
+            Component to plot.
+        kind: string
+            Kind of plot to use.
+        sharecb: boolean
+            Do all the vector field serie has to share the same colorbar or
+            not.
+        buffer_size: number
+            Number of displays to keep in memory (faster, but use memory).
+        **plotargs : dic
+            Arguments passed to the plot command.
+
+        Display control
+        ---------------
+        The display can be controlled useing the button, but also the keyboard:
+        space, right arrow or + : next field
+        backspace, left arrow or - : previous field
+        up arrow : last field
+        down arrow : first field
+        number + enter : goto a specific frame
+        p : play the animated fields
+        number + i : set the animation increment
+        number + t : set the animation time interval (ms)
+        q : close
+        s : save an image
         """
         nmb_fields = len(self.fields)
         # getting values
@@ -1586,7 +1614,7 @@ class TemporalFields(flds.Fields, fld.Field):
         db = pplt.Displayer(x=[self.axe_x]*nmb_fields,
                             y=[self.axe_y]*nmb_fields,
                             values=values, kind=kind,
-                            use_buffer=use_buffer, buffer_size=buffer_size,
+                            buffer_size=buffer_size,
                             **plotargs)
         win = pplt.ButtonManager(db,
                                  xlabel="X " + self.unit_x.strUnit(),

@@ -295,8 +295,9 @@ class VF(object):
             # if multiple points
             elif len(tmp_sol) != 1:
                 tmp_sol = np.array(tmp_sol)
+                tmp_sol = [t for t in tmp_sol if not np.any(np.isnan(t))]
                 if not np.all(tmp_sol[0] == tmp_sol):
-                    raise Exception()
+                    tmp_sol = [np.mean(tmp_sol, axis=0)]
                 tmp_sol = tmp_sol[0]
                 res_pos = np.array([tmp_sol[0] + axe_x[ind_x],
                                     tmp_sol[1] + axe_y[ind_y]])
@@ -1910,7 +1911,7 @@ class CritPoints(object):
                                linestyle='none', axe_x='x', axe_y='y', **cpkw)
 
     def display(self, fields=None, cpkw={}, lnkw={}, display_traj=False,
-                use_buffer=True, buffer_size=100, **kwargs):
+                buffer_size=100, **kwargs):
         """
         Display some critical points.
 
@@ -2009,8 +2010,7 @@ class CritPoints(object):
                 if cpkw['kind'] != 'plot':
                     args = {}
             args.update(cpkw)
-            dbs.append(pplt.Displayer(x, y, use_buffer=use_buffer,
-                                      buffer_size=buffer_size, **args))
+            dbs.append(pplt.Displayer(x, y, buffer_size=buffer_size, **args))
         # plot
         if len(self.times) == 1:
             for db in dbs:

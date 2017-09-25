@@ -517,7 +517,7 @@ class ButtonManager(object):
         if self.ind == ind2:
             self.ind = ind1
         elif self.ind >= self.ind_max:
-            self.playf(None)
+            self.ind = 0
         else:
             self.ind += self.incr
         self.update()
@@ -853,7 +853,7 @@ class Displayer(object):
                              "aspect": "equal"}
 
     def __init__(self, x, y, values=None, data_type=None, sharebds=True,
-                 buffer_size=10, use_buffer=True, **kwargs):
+                 buffer_size=100, **kwargs):
         # get figure
         if "ax" not in list(kwargs.keys()):
             self.ax = None
@@ -905,8 +905,12 @@ class Displayer(object):
         self.curr_draw = None
         self.displ_saved_inds = np.zeros(self.length, dtype=int)
         self.displ_saved_curr_ind = 1
-        self.max_saved_displ = buffer_size
-        self.use_buffer = use_buffer
+        if buffer_size is None:
+            self.max_saved_displ = 0
+            self.use_buffer = False
+        else:
+            self.max_saved_displ = buffer_size
+            self.use_buffer = True
         # try to guess the data type
         tmp_x, tmp_y, tmp_values, tmp_colors, tmp_magn = self.get_data(i=0)
         if data_type is None:
