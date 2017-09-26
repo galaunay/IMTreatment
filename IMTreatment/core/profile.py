@@ -425,14 +425,14 @@ class Profile(object):
         """
         Print the Profile main properties
         """
-        text = f"Length: {len(self.x)}"
+        text = "Length: {}".format(len(self.x))
         unit_x = self.unit_x.strUnit()
-        text += f"x: [{self.x[0]}..{self.x[-1]}]{unit_x}"
+        text += "x: [{}..{}]{}".format(self.x[0], self.x[-1], unit_x)
         unit_y = self.unit_y.strUnit()
-        text += f"y: [{self.y[0]}..{self.y[-1]}]{unit_y}"
+        text += "y: [{}..{}]{}".format(self.y[0], self.y[-1], unit_y)
         nmb_mask = np.sum(self.mask)
         nmb_tot = len(self.mask)
-        text += f"Masked values: {nmb_mask}/{nmb_tot}"
+        text += "Masked values: {}/{}".format(nmb_mask, nmb_tot)
         return text
 
     def get_interpolator(self, kind='linear', bounds_error=True,

@@ -509,16 +509,18 @@ class ScalarField(fld.Field):
         """
         Print the ScalarField main properties
         """
-        text = f"Shape: {self.shape}"
+        text = "Shape: {}".format(self.shape)
         unit_x = self.unit_x.strUnit()
-        text += f"Axe x: [{self.axe_x[0]}..{self.axe_x[-1]}]{unit_x}"
+        text += "Axe x: [{}..{}]{}".format(self.axe_x[0], self.axe_x[-1],
+                                           unit_x)
         unit_y = self.unit_y.strUnit()
-        text += f"Axe y: [{self.axe_y[0]}..{self.axe_y[-1]}]{unit_y}"
+        text += "Axe y: [{}..{}]{}".format(self.axe_y[0], self.axe_y[-1],
+                                           unit_y)
         unit_values = self.unit_values.strUnit()
-        text += f"Values: [{self.min}..{self.max}]{unit_values}"
+        text += "Values: [{}..{}]{}".format(self.min, self.max, unit_values)
         nmb_mask = np.sum(self.mask)
         nmb_tot = self.shape[0]*self.shape[1]
-        text += f"Masked values: {nmb_mask}/{nmb_tot}"
+        text += "Masked values: {}/{}".format(nmb_mask, nmb_tot)
         return text
 
     def get_value(self, x, y, ind=False, unit=False):

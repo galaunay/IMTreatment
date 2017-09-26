@@ -506,7 +506,7 @@ class CritPoints(object):
             if not np.all(obj.__getattribute__(attr) ==
                           self.__getattribute__(attr)):
                 return False
-            attr2 = f'{attr}_traj'
+            attr2 = '{}_traj'.format(attr)
             if not np.all(obj.__getattribute__(attr2) ==
                           self.__getattribute__(attr2)):
                 return False

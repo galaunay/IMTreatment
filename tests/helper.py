@@ -12,7 +12,7 @@ def parametric_test(func, kwargs, update=False):
                 "y", "z"]
     fun_name = func.__name__
     for let, kwarg in zip(alphabet, kwargs):
-        filename = f"test_{fun_name}_{let}.cimt"
+        filename = "test_{}_{}.cimt".format(fun_name, let)
         res = func(**kwarg)
         # Update if necessary
         if update:

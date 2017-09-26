@@ -1,0 +1,11 @@
+numpy
+matplotlib
+scipy
+unum
+modred
+multiprocess
+sklearn
+networkx
+colorama
+h5py
+pyvtk
