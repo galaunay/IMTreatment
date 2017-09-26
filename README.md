@@ -47,7 +47,19 @@ Mandatory:
 - modred
 
 Optional:
-- sklearn
-- networkx
-- colorama
-- h5py
+- sklearn (to work with point clustering)
+- networkx (to use force-directed algorithms to compare trajectories)
+- colorama (to have a nice interface when manipulating files)
+- h5py (allow to import data from [pivmat](http://www.fast.u-psud.fr/pivmat/) files)
+
+Installation
+------------
+A good old `python setup.py install`should do the trick and install
+the necessary dependencies.
+
+You can try to run the tests with `run_tests.sh`,
+but the test suite is not plateform-independent yet,
+and should fail miserably.
+
+If you intend to modify this package, store it some place safe and 
+install it as a developement package with `python setup.py develop`.
