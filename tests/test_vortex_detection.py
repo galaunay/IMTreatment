@@ -23,18 +23,24 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import sys
 try:
-    os.chdir(os.path.dirname(os.path.realpath(__file__)))
+    dirname = os.path.dirname(os.path.realpath(__file__))
+    sys.path.append(dirname)
+    os.chdir(dirname)
 except:
     pass
-import unittest
-import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.use('Agg')
+
 
 import numpy as np
 import pytest
-from helper import parametric_test
+from helper import parametric_test, sane_parameters
 
+import matplotlib.pyplot as plt
 import unum
+
 from IMTreatment import VectorField, file_operation as imtio, make_unit, \
     TemporalVectorFields
 import IMTreatment.vortex_detection as vod
@@ -44,6 +50,7 @@ import IMTreatment.vortex_criterions as voc
 class TestVortexDetection(object):
 
     def setup(self):
+        sane_parameters()
         # VF1 = VectorField()
         # VF1.import_from_arrays(np.linspace(0, 24, 40),
         #                        np.linspace(-15.5, 15.5, 40),

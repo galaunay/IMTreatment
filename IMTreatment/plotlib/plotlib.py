@@ -155,7 +155,7 @@ def use_perso_style():
     """
     fp = path.dirname(__file__)
     plt.style.use(path.join(fp, r'perso.mplstyle'))
-    plt.rcParams["backend"] = "gtkcairo"
+    # plt.rcParams["backend"] = "gtkcairo"
 
 
 # Data manipulation:

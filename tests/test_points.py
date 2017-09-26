@@ -23,10 +23,19 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import unittest
+import sys
+try:
+    dirname = os.path.dirname(os.path.realpath(__file__))
+    sys.path.append(dirname)
+    os.chdir(dirname)
+except:
+    pass
+import matplotlib as mpl
+mpl.use('Agg')
 
 import numpy as np
 import pytest
+from helper import sane_parameters, parametric_test
 
 import unum
 from IMTreatment import Points, file_operation as imtio, make_unit
@@ -36,10 +45,7 @@ import matplotlib.pyplot as plt
 class TestPoints(object):
 
     def setup(self):
-        try:
-            os.chdir(os.path.dirname(os.path.realpath(__file__)))
-        except:
-            pass
+        sane_parameters()
         # unit_x = make_unit('m')
         # unit_y = make_unit('dm')
         # unit_v = make_unit('m/s**2')

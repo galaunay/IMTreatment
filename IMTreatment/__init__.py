@@ -26,7 +26,15 @@
 IMTreatment - A fields study package
 ====================================
 
-Provides generic functionalities for data analysis::
+This module has been written to carry out analysis and more
+specifically structure detection on PIV velocity fields. It is now
+more general and can handle different kind of data (point cloud,
+scalar and vector field, ...) and perform classical and more advanced
+analysis on them (spectra, pod, post-processing, visualization, ...).
+
+
+General data analysis
+---------------------
   1. Class representing 2D fields of 1 component (``ScalarField``)
   2. Class representing 2D fields of 2 components (``VectorField``)
   3. Classes representing sets of scalar fields vector fields
@@ -39,7 +47,9 @@ Provides generic functionalities for data analysis::
      images files (``file_operation``)
   8. Functionalities to visualize those data (``plotlib``)
 
-Provides specific functionalities for flow analysis::
+
+Flow analysis
+-------------
   1. Module to create artificial vortices: Burger, Jill, Rankine, ...
      and to simulate their motion in potential flows (``vortex_creation``)
   2. Module providing several vortex criterions computation
@@ -52,27 +62,6 @@ Provides specific functionalities for flow analysis::
      (``potential_flow``)
 
 
-Examples
---------
-The modules 'examples' contains examples of use for some of the modules above.
-It could be a good start to take a look at the file on this module.
-
-
-How to use the documentation
-----------------------------
-Documentation is available in docstrings provided
-with the code.
-
-Code snippets are indicated by three greater-than signs::
-
-  >>> x = 42
-  >>> x = x + 1
-
-Use the built-in ``help`` function to view a function's docstring::
-
-  >>> help(np.sort)
-  ... # doctest: +SKIP
-
 Dependencies
 ------------
 Mandatory::
@@ -82,7 +71,7 @@ Mandatory::
     unum
     modred
 
-Optionnal::
+Optional::
     sklearn
     networkx
     colorama

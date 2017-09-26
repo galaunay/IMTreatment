@@ -2,6 +2,10 @@ import IMTreatment.file_operation as imtio
 import numpy as np
 
 
+def sane_parameters():
+    pass
+
+
 def parametric_test(func, kwargs, update=False):
     alphabet = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l",
                 "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x",

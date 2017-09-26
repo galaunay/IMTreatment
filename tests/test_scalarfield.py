@@ -23,11 +23,21 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import sys
+try:
+    dirname = os.path.dirname(os.path.realpath(__file__))
+    sys.path.append(dirname)
+    os.chdir(dirname)
+except:
+    pass
+import matplotlib as mpl
+mpl.use('Agg')
 
 import numpy as np
 import pytest
-import matplotlib.pyplot as plt
+from helper import sane_parameters, parametric_test
 
+import matplotlib.pyplot as plt
 import unum
 from IMTreatment import ScalarField, file_operation as imtio, make_unit
 
@@ -36,10 +46,7 @@ class TestScalarField(object):
     """ Done """
 
     def setup(self):
-        try:
-            os.chdir(os.path.dirname(os.path.realpath(__file__)))
-        except:
-            pass
+        sane_parameters()
         self.SF1 = imtio.import_from_file("SF1.cimt")
         self.SF1_nomask = imtio.import_from_file("SF1_nomask.cimt")
         self.SF2 = imtio.import_from_file("SF2.cimt")

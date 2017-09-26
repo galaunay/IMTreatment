@@ -30,10 +30,12 @@ try:
     os.chdir(dirname)
 except:
     pass
+import matplotlib as mpl
+mpl.use('Agg')
 
 import numpy as np
 import pytest
-from helper import parametric_test
+from helper import parametric_test, sane_parameters
 
 import unum
 from IMTreatment import Profile, file_operation as imtio, make_unit
@@ -44,6 +46,7 @@ class TestProfile(object):
     """ Done """
 
     def setup(self):
+        sane_parameters()
         # unit_x = make_unit('m')
         # unit_y = make_unit('m/s')
         # x = np.genfromtxt('prof_x')
