@@ -753,8 +753,8 @@ class ModalFields(Field):
         # modes
         fig1 = plt.figure()
         modes = self.modes_as_tf
-        plot0 = modes.display('magnitude')
-        plot1 = modes.display(kind='stream', color='w')
+        plot1 = modes.display('magnitude')
+        plt.title('POD modes')
         # temporal evolutions
         fig2 = plt.figure()
         tmp_x = [prof.x for prof in self.temp_evo]
@@ -762,6 +762,7 @@ class ModalFields(Field):
         plot2 = pplt.Displayer(tmp_x, tmp_y, data_type='profile', color='k')
         bm = pplt.ButtonManager(plot2)
         plot2.button_manager.link_to_other_graph(plot1)
+        plt.title('Modes temporal evolution')
         # temporal evolution spectrum
         fig3 = plt.figure()
         specs = [prof.get_spectrum() for prof in self.temp_evo]
@@ -771,6 +772,7 @@ class ModalFields(Field):
                                kind='loglog', color='k')
         bm = pplt.ButtonManager(plot3)
         plot3.button_manager.link_to_other_graph(plot2)
+        plt.title('Modes temporal evolution spectra')
         # cum nrj
         fig4 = plt.figure()
         cum_nrj = self.get_modes_energy(cum=True)
@@ -782,7 +784,8 @@ class ModalFields(Field):
         cum_nrj.display(color='k', ls='-', marker=None)
         plt.xlim(xmin=0)
         plot4.button_manager.link_to_other_graph(plot2)
-        return plot0, plot1, plot2, plot3, plot4
+        plt.title('Modes cumulative energy')
+        return plot1, plot2, plot3, plot4
 
     def display_recap(self, figsize=(15, 10)):
         """

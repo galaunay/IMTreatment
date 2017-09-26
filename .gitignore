@@ -16,3 +16,4 @@ htmlcov
 tests/cov_html
 cov_html
 .eggs
+dist

@@ -477,7 +477,9 @@ class ScalarField(fld.Field):
         epsy_abs = delta_y*1e-6
         if np.any(delta_y - delta_y[0] > epsy_abs) or \
            np.any(delta_x - delta_x[0] > epsx_abs):
-            warnings.warn("Axis are not evenly spaced")
+            warnings.warn("Axis are not evenly spaced.\n"
+                          "Consider using 'make_evenly_spaced' method"
+                          " to avoid bad surprises.")
         # Be sure values is of the good shape
         if len(axe_x) == values.shape[1] and \
            len(axe_y) == values.shape[0] and \
@@ -1419,15 +1421,10 @@ class ScalarField(fld.Field):
         if np.any(np.array([nmb_left, nmb_right, nmb_up, nmb_down]) < 0):
             raise ValueError()
         # used herited method to extend the field
-        if inplace:
-            fld.Field.extend(self, nmb_left=nmb_left, nmb_right=nmb_right,
-                             nmb_up=nmb_up, nmb_down=nmb_down, inplace=True)
-            new_shape = self.shape
-        else:
-            new_field = fld.Field.extend(self, nmb_left=nmb_left,
-                                         nmb_right=nmb_right, nmb_up=nmb_up,
-                                         nmb_down=nmb_down, inplace=False)
-            new_shape = new_field.shape
+        tmpsf = fld.Field.extend(self, nmb_left=nmb_left,
+                                 nmb_right=nmb_right, nmb_up=nmb_up,
+                                 nmb_down=nmb_down, inplace=False)
+        new_shape = tmpsf.shape
         # extend the value ans mask
         if value is None:
             new_values = np.zeros(new_shape, dtype=float)
@@ -1447,8 +1444,11 @@ class ScalarField(fld.Field):
         new_mask[slice_x, slice_y] = self.mask
         # return
         if inplace:
-            self.values = new_values
-            self.mask = new_mask
+            self.import_from_arrays(axe_x=tmpsf.axe_x, axe_y=tmpsf.axe_y,
+                                    values=new_values, mask=new_mask,
+                                    unit_x=tmpsf.unit_x,
+                                    unit_y=tmpsf.unit_y,
+                                    unit_values=tmpsf.unit_values)
         else:
             new_field.values = new_values
             new_field.mask = new_mask
@@ -1602,7 +1602,7 @@ class ScalarField(fld.Field):
             # direction x
             if side in ['right', 'left']:
                 # get last column
-                ind_last = np.where(mask[:, 0])[0][0]
+                ind_last = np.where(mask[:, 0])[0][0] - 1
                 # get number of missing values
                 nmb_masked = np.sum(mask[:, 0])
                 # loop on lines

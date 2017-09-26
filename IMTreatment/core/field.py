@@ -577,12 +577,28 @@ class Field(object):
         Extended_field : Field object, optional
             Extended field.
         """
-        dx = self.axe_x[1] - self.axe_x[0]
-        dy = self.axe_y[1] - self.axe_y[0]
-        new_axe_x = np.arange(self.axe_x[0] - nmb_left*dx,
-                              self.axe_x[-1] + nmb_right*dx + 0.1*dx, dx)
-        new_axe_y = np.arange(self.axe_y[0] - nmb_down*dy,
-                              self.axe_y[-1] + nmb_up*dy + 0.1*dy, dy)
+        new_axe_x = self.axe_x.copy()
+        new_axe_y = self.axe_y.copy()
+        if nmb_left != 0:
+            dx = self.axe_x[1] - self.axe_x[0]
+            x0 = self.axe_x[0]
+            new_xs = np.arange(x0-dx*nmb_left, x0, dx)
+            new_axe_x = np.concatenate((new_xs, new_axe_x))
+        if nmb_right != 0:
+            dx = self.axe_x[-1] - self.axe_x[-2]
+            x0 = self.axe_x[-1]
+            new_xs = np.arange(x0 + dx, x0+dx*(nmb_right + 1), dx)
+            new_axe_x = np.concatenate((new_axe_x, new_xs))
+        if nmb_down != 0:
+            dy = self.axe_y[1] - self.axe_y[0]
+            y0 = self.axe_y[0]
+            new_ys = np.arange(y0-dy*nmb_down, y0, dy)
+            new_axe_y = np.concatenate((new_ys, new_axe_y))
+        if nmb_up != 0:
+            dy = self.axe_y[-1] - self.axe_y[-2]
+            y0 = self.axe_y[-1]
+            new_ys = np.arange(y0 + dy, y0+dy*(nmb_up + 1), dy)
+            new_axe_y = np.concatenate((new_axe_y, new_ys))
         if inplace:
             self.__axe_x = new_axe_x
             self.__axe_y = new_axe_y

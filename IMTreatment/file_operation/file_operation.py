@@ -407,11 +407,10 @@ def import_from_matlab(filepath, obj, **kwargs):
     kwargs = default_dic
     # Create building dict
     build_dic = {key: data[entry]
-                 for key, entry in kwargs.items()}
+                 for key, entry in kwargs.items() if entry in data.keys()}
     # Fix unities
     for key, item in build_dic.items():
         if len(item) == 1:
-            print(key, build_dic[key])
             build_dic[key] = build_dic[key][0]
     # Fill the object
     if obj in ['ScalarField', 'VectorField']:

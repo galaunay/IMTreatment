@@ -291,27 +291,16 @@ class VectorField(field.Field):
         if not isinstance(obj, VectorField):
             return False
         if not self.shape == obj.shape:
-            print('shape')
-            print(self.shape)
-            print(obj.shape)
             return False
         if not np.all(self.axe_x == obj.axe_x):
-            # print("axe_x")
-            # print(self.axe_x)
-            # print(obj.axe_x)
-            # print(obj.axe_y)
             return False
         if not np.all(self.axe_y == obj.axe_y):
-            print("axe_y")
             return False
         if not np.all(self.mask == obj.mask):
-            print("mask")
             return False
         if not np.all(self.comp_x[~self.mask] == obj.comp_x[~self.mask]):
-            print("comp_x")
             return False
         if not np.all(self.comp_y[~self.mask] == obj.comp_y[~self.mask]):
-            print("comp_y")
             return False
         if not self.unit_x == obj.unit_x:
             return False
@@ -566,7 +555,9 @@ class VectorField(field.Field):
         epsy_abs = delta_y*1e-6
         if np.any(delta_y - delta_y[0] > epsy_abs) or \
            np.any(delta_x - delta_x[0] > epsx_abs):
-            warnings.warn("Axis are not evenly spaced")
+            warnings.warn("Axis are not evenly spaced.\n"
+                          "Consider using 'make_evenly_spaced' method"
+                          " to avoid bad surprises.")
         # Be sure comp_x and comp_y are of the good shape
         if len(axe_x) == comp_x.shape[1] and \
            len(axe_y) == comp_x.shape[0]:
