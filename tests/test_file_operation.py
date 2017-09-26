@@ -48,22 +48,8 @@ class TestFileOperation(object):
         self.VF2 = imtio.import_from_file("VF2.cimt")
         self.Prof1 = imtio.import_from_file("Prof1.cimt")
         self.P1 = imtio.import_from_file("P1.cimt")
-
-        TSF1 = TemporalScalarFields()
-        for i in range(10):
-            TSF1.add_field(self.SF1*np.cos(i/10*np.pi), i*0.8)
-        imtio.export_to_file(TSF1, "TSF1.cimt")
-        TSF1_nomask = TemporalScalarFields()
-        for i in range(10):
-            TSF1_nomask.add_field(self.SF1*np.cos(i/10*np.pi), i*0.8)
-        imtio.export_to_file(TSF1_nomask, "TSF1_nomask.cimt")
-
         self.TSF1 = imtio.import_from_file("TSF1.cimt")
         self.TSF1_nomask = imtio.import_from_file("TSF1_nomask.cimt")
-
-        # self.VF1_nomask = imtio.import_from_file("VF1_nomask.cimt")
-        # self.SF2 = imtio.import_from_file("SF2.cimt")
-        # self.TVF1 = imtio.import_from_file("TVF1.cimt")
 
     def test_imt_to_imts(self):
         imtio.imts_to_imt("VFs_imts_to_imt",

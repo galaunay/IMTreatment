@@ -362,6 +362,12 @@ class TestVectorField(object):
         # imtio.export_to_file(res_a, "VF1_mirroring_a.cimt")
         res_a2 = imtio.import_from_file("VF1_mirroring_a.cimt")
         assert res_a == res_a2
+        #
+        res_b = self.VF1.copy()
+        res_b.mirroring('x', 10, mir_coef=-1.2, inplace=True)
+        # imtio.export_to_file(res_b, "VF1_mirroring_b.cimt")
+        res_b2 = imtio.import_from_file("VF1_mirroring_b.cimt")
+        assert res_b == res_b2
 
     def test_reduce_spatial_resolution(self):
         res = self.VF1.reduce_spatial_resolution(4, inplace=False)

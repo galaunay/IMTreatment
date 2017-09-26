@@ -10,9 +10,18 @@ def parametric_test(func, kwargs, update=False):
     for let, kwarg in zip(alphabet, kwargs):
         filename = f"test_{fun_name}_{let}.cimt"
         res = func(**kwarg)
+        # Update if necessary
         if update:
             imtio.export_to_file(res, filename)
-        res2 = imtio.import_from_file(filename)
+        # If the file is not present, create it
+        try:
+            res2 = imtio.import_from_file(filename)
+        except FileNotFoundError:
+            print("file '{}' is not present (normal for a first run),"
+                  "I created it for you !".format(filename))
+            imtio.export_to_file(res, filename)
+            continue
+        # Else try recursively to test for equality
         try:
             res[0][0]
             for r, r2 in zip(res, res2):

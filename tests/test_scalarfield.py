@@ -354,6 +354,13 @@ class TestScalarField(object):
         # imtio.export_to_file(res, "mirroring.cimt")
         res2 = imtio.import_from_file("mirroring.cimt")
         assert res == res2
+        #
+        tmpsf = self.SF1.copy()
+        tmpsf.mirroring('x', 35, mir_coef=1.5, inplace=True)
+        res_b = tmpsf
+        # imtio.export_to_file(res_b, "mirroring_b.cimt")
+        res_b2 = imtio.import_from_file("mirroring_b.cimt")
+        assert res_b == res_b2
 
     def test_crop_masked_border(self):
         tmpsf = self.SF1.copy()

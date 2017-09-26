@@ -23,25 +23,27 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+try:
+    os.chdir(os.path.dirname(os.path.realpath(__file__)))
+except:
+    pass
 import unittest
 import matplotlib.pyplot as plt
 
 import numpy as np
 import pytest
+from helper import parametric_test
 
 import unum
 from IMTreatment import VectorField, file_operation as imtio, make_unit, \
     TemporalVectorFields
 import IMTreatment.vortex_detection as vod
+import IMTreatment.vortex_criterions as voc
 
 
 class TestVortexDetection(object):
 
     def setup(self):
-        try:
-            os.chdir(os.path.dirname(os.path.realpath(__file__)))
-        except:
-            pass
         # VF1 = VectorField()
         # VF1.import_from_arrays(np.linspace(0, 24, 40),
         #                        np.linspace(-15.5, 15.5, 40),
@@ -174,8 +176,28 @@ class TestVortexDetection(object):
         means_2 = imtio.import_from_file("VF1_get_mean_trajectory_a.cimt")
         assert means == means_2
 
+    def test_get_vortex_position(self):
+        fun = vod.get_vortex_position
+        kwargs = [{'obj': self.VF1_nomask,
+                   'criterion': voc.get_residual_vorticity},
+                  {'obj': self.VF1_nomask,
+                   'criterion': voc.get_residual_vorticity,
+                   'threshold': 0.2}]
+        parametric_test(fun, kwargs)
+
+    def test_mean_trajectories(self):
+        pass
+
+    def test_crit_points(self):
+        pass
+
+    def test_topo_points(self):
+        pass
 
 # TEMP
 pytest.main(['test_vortex_detection.py'])
 # pytest.main(['--pdb', 'test_vortex_detection.py'])
+# test = TestVortexDetection()
+# test.setup()
+# test.test_get_vortex_position()
 # TEMP - End

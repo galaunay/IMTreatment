@@ -480,7 +480,8 @@ class ScalarField(fld.Field):
             warnings.warn("Axis are not evenly spaced")
         # Be sure values is of the good shape
         if len(axe_x) == values.shape[1] and \
-           len(axe_y) == values.shape[0]:
+           len(axe_y) == values.shape[0] and \
+           len(axe_x) != len(axe_y):
             values = values.transpose()
             try:
                 mask = mask.transpose()
