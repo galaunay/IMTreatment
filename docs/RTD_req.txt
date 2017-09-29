@@ -9,4 +9,4 @@ networkx
 colorama
 h5py
 pyvtk
-shpinxcontrib-fulltoc
+sphinxcontrib-fulltoc
