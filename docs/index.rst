@@ -8,7 +8,7 @@
     :end-before: .. _end-intro:
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 5
     :hidden:
 
     doc
