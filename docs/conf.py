@@ -44,10 +44,8 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
+    'sphinxcontrib.fulltoc',
     'sphinx.ext.githubpages']
-if not on_rtd:
-    extensions.append('sphinxcontrib.fulltoc')
-
 autosummary_generate = True
 
 # autodoc_member_order = 'bysource'
