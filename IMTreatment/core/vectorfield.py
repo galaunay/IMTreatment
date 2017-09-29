@@ -560,7 +560,8 @@ class VectorField(field.Field):
                           " to avoid bad surprises.")
         # Be sure comp_x and comp_y are of the good shape
         if len(axe_x) == comp_x.shape[1] and \
-           len(axe_y) == comp_x.shape[0]:
+           len(axe_y) == comp_x.shape[0] and \
+           len(axe_x) != len(axe_y):
             comp_x = comp_x.transpose()
             comp_y = comp_y.transpose()
             try:
@@ -586,6 +587,36 @@ class VectorField(field.Field):
         self.unit_y = unit_y
         self.unit_values = unit_values
 
+    def check_consistency(self):
+        """
+        Raise errors if the vectorfield show some
+        incoherences.
+        """
+        super(VectorField, self).check_consistency()
+        # types
+        if not isinstance(self.comp_x, np.ndarray):
+            raise Exception()
+        if not isinstance(self.comp_y, np.ndarray):
+            raise Exception()
+        if not isinstance(self.mask, np.ndarray):
+            raise Exception()
+        if not isinstance(self.unit_values, unum.Unum):
+            raise Exception()
+        # shapes
+        shape = (len(self.axe_x), len(self.axe_y))
+        if not np.all(self.comp_x.shape == shape):
+            raise Exception()
+        if not np.all(self.comp_y.shape == shape):
+            raise Exception()
+        if not np.all(self.mask.shape == shape):
+            raise Exception()
+        # null values
+        if np.any(np.isnan(self.comp_x[~self.mask])):
+            raise Exception()
+        if np.any(np.isnan(self.comp_y[~self.mask])):
+            raise Exception()
+
+
     def get_props(self):
         """
         Print the VectorField main properties
@@ -608,6 +639,7 @@ class VectorField(field.Field):
         nmb_tot = self.shape[0]*self.shape[1]
         text += "Masked values: {}/{}".format(nmb_mask, nmb_tot)
         return text
+
 
     def get_value(self, x, y, ind=False, unit=False):
         """

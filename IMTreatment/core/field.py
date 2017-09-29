@@ -131,6 +131,22 @@ class Field(object):
     def shape(self):
         return self.__axe_x.shape[0], self.__axe_y.shape[0]
 
+    def check_consistency(self):
+        """
+        Raise errors if the field show some
+        incoherences.
+        """
+        if not isinstance(self.axe_x, np.ndarray):
+            raise Exception()
+        if not isinstance(self.axe_y, np.ndarray):
+            raise Exception()
+        if not isinstance(self.unit_x, unum.Unum):
+            raise Exception()
+        if not isinstance(self.unit_y, unum.Unum):
+            raise Exception()
+        if not isinstance(self.xy_scale, unum.Unum):
+            raise Exception()
+
     def copy(self):
         """
         Return a copy of the Field object.

@@ -92,7 +92,7 @@ def annotate_multiple(s, xy, xytext, *args, **kwargs):
     return ans
 
 
-def mark_axe(txt, ax=None, loc=2, pad=0.4, borderpad=0., font_props=None,
+def mark_axe(txt, ax=None, loc=2, pad=0.3, borderpad=0., font_props=None,
              frameon=True):
     # get axe
     if ax is None:
