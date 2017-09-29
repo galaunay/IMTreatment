@@ -684,8 +684,8 @@ class CritPoints(object):
         """
         Return the presence density map for the given point type.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         kind : string
             Type of critical point for the density map
             (can be 'foc', 'foc_c', 'sadd', 'node_i', 'node_o')
@@ -1410,8 +1410,8 @@ class CritPoints(object):
         """
         Smooth the CP trajectories.
 
-        Parameters :
-        ------------
+        Parameters
+        ----------
         tos : string, optional
             Type of smoothing, can be 'uniform' (default) or 'gaussian'
             (See ndimage module documentation for more details)
@@ -1621,8 +1621,8 @@ class CritPoints(object):
         points at different times. (Points objects must each contain only one
         and point time must be specified in 'v' argument of points).
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         points : tuple of Points objects.
             .
         times : array of numbers
@@ -2802,7 +2802,7 @@ def get_vortex_position(obj, criterion=get_residual_vorticity,
     vector field(s).
 
      Parameters
-    ----------
+     ----------
     vectorfield : VectorField or TemporalVectorFields object
         .
     criterion : function

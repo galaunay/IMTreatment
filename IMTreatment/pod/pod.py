@@ -996,8 +996,8 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
     verbose : boolean, optional
         If 'True', display information.
 
-    Retuns
-    ------
+    Returns
+    -------
     modal_field : ModalField object
         .
 

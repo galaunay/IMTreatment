@@ -1270,15 +1270,15 @@ class Profile(object):
         """
         Perform a spectral filtering (highpass, lowpass, bandpass).
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         fmin, fmax : numbers
             Minimal and maximal frequencies
         order : integer, optional
             Butterworth filter order
 
-        Returns:
-        --------
+        Returns
+        -------
         filt_prof : Profile object
             Filtered profile
         """
@@ -1709,8 +1709,8 @@ class Profile(object):
         Return a smoothed profile.
         Warning : fill up the field
 
-        Parameters :
-        ------------
+        Parameters
+        ----------
         tos : string, optional
             Type of smoothing, can be 'uniform' (default) or 'gaussian'
             (See ndimage module documentation for more details)

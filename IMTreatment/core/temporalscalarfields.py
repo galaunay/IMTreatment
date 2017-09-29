@@ -199,15 +199,15 @@ class TemporalScalarFields(tf.TemporalFields):
         """
         Perform a temporal spectral filtering
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         fmin, fmax : numbers
             Minimal and maximal frequencies
         order : integer, optional
             Butterworth filter order
 
-        Returns:
-        --------
+        Returns
+        -------
         filt_tsf : TemporalScalarFields
             Filtered temporal field
         """

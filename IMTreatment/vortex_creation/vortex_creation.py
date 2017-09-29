@@ -28,7 +28,7 @@ from ..utils import make_unit
 from ..utils.types import NUMBERTYPES, ARRAYTYPES
 import copy
 import matplotlib.pyplot as plt
-import IMTreatment3.boundary_layer as imtbl
+from .. import boundary_layer as imtbl
 from .. import potential_flow as pf
 import scipy.interpolate as spinterp
 

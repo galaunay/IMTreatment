@@ -38,8 +38,8 @@ def get_vortex_radius(VF, vort_center, NL_radius=None, eps_detection=0.1,
     """
     Return the radius of the given vortex, use the residual vorticity.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     VF : vectorfield object
         Velocity field on which compute gamma2.
     vort_center : 2x1 array
@@ -56,8 +56,8 @@ def get_vortex_radius(VF, vort_center, NL_radius=None, eps_detection=0.1,
     output_unit ; boolean, optional
         If 'True', return the associated unit.
 
-    Returns :
-    ---------
+    Returns
+    -------
     radius : number
         Average radius of the vortex. If no vortex is found, 0 is returned.
     center : 2x1 array of numbers
@@ -115,11 +115,11 @@ def get_vortex_radius_time_evolution(TVFS, traj, NL_radius=None,
     """
     Return the radius evolution in time for the given vortex center trajectory.
 
-    Use the criterion |gamma2| > 2/pi. The returned radius is an average value
+    Use the criterion $|gamma2| > 2/pi$. The returned radius is an average value
     if the vortex zone is not circular.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     TVFS : TemporalField object
         Velocity field on which compute gamma2.
     traj : Points object
@@ -136,8 +136,8 @@ def get_vortex_radius_time_evolution(TVFS, traj, NL_radius=None,
     verbose : boolean
         .
 
-    Returns :
-    ---------
+    Returns
+    -------
     radius : Profile object
         Average radius of the vortex. If no vortex is found, 0 is returned.
     center : Points object
@@ -193,8 +193,8 @@ def get_vortex_property(VF, vort_center, size_crit=None, size_crit_lim=0.1,
     """
     Return a property of a particular vortex.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     VF : vectorfield object
         Base velocity field.
     vort_center : 2x1 array
@@ -219,8 +219,8 @@ def get_vortex_property(VF, vort_center, size_crit=None, size_crit_lim=0.1,
     verbose : bool
         If 'True', display information and graph along computation.
 
-    Returns :
-    ---------
+    Returns
+    -------
     prop : number
         Property associated to the vortex.
         (Is the integral of 'prop_crit' result on the area defined by
@@ -315,8 +315,8 @@ def get_vortex_property_time_evolution(TVFs, vort_center_traj, size_crit=None,
     """
     Return a property of a particular vortex.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     TVFs : TemporalVectorFields object
         Base velocity fields.
     vort_center : Points object
@@ -340,8 +340,8 @@ def get_vortex_property_time_evolution(TVFs, vort_center_traj, size_crit=None,
         specified the number of fields to verbosify.
         Default is 0.
 
-    Returns :
-    ---------
+    Returns
+    -------
     prop : Profile object
         Evolution of the property associated with the vortex long time.
     """
@@ -397,8 +397,8 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False,
     Warning : integral on complex domain is complex (you don't say?),
     here is just implemented a sum of accessible values on the domain.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     VF : vectorfield object
         Velocity field on which compute gamma2.
     vort_center : 2x1 array
@@ -408,8 +408,8 @@ def get_vortex_circulation(VF, vort_center, epsilon=0.1, output_unit=False,
     output_unit : boolean, optional
         If 'True', circulation unit is returned.
 
-    Returns :
-    ---------
+    Returns
+    -------
     circ : float
         Vortex virculation.
     """

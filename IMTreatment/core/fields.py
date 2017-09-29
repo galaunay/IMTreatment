@@ -174,8 +174,8 @@ class Fields(object):
         Warning : fill up the field (should be used carefully with masked field
         borders)
 
-        Parameters :
-        ------------
+        Parameters
+        ----------
         tos : string, optional
             Type of smoothing, can be 'uniform' (default) or 'gaussian'
             (See ndimage module documentation for more details)

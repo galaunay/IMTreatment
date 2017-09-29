@@ -287,8 +287,8 @@ class Points(object):
         """
         Return a ScalarField with points density.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         bw_method : str, scalar or callable, optional
             The method used to calculate the estimator bandwidth.
             This can be 'scott', 'silverman', a scalar constant or
@@ -423,8 +423,8 @@ class Points(object):
         """
         Return a ScalarField with points density.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         res : number or 2x1 array of numbers
             fdensity field number of subdivision.
             Can be the same number for both axis,  or one number per axis
@@ -569,7 +569,7 @@ class Points(object):
         points.
 
         Parameters
-        ---------
+        ----------
         alpha : number
             maximum distance between two points of the hull.
 
@@ -648,8 +648,9 @@ class Points(object):
         xaxis : string, optional
             Value to put in the profile x axis, can be 'time' (default), 'x'
             or 'y'.
-        Return
-        ------
+
+        Returns
+        -------
         Vx : Profile object
             Profile of x velocity versus time.
         Vy : Profile object
@@ -960,8 +961,8 @@ class Points(object):
         """
         Set the given point (x, y) as the new referential.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         x: number
             .
         y: number
@@ -1288,8 +1289,8 @@ class Points(object):
         """
         Return a smoothed points field.
 
-        Parameters :
-        ------------
+        Parameters
+        ----------
         tos : string, optional
             Type of smoothing, can be 'uniform' (default), 'gaussian'
             or 'lowpass'.

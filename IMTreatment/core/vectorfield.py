@@ -51,7 +51,7 @@ class VectorField(field.Field):
 
     Examples
     --------
-    >>> import IMTreatment3 as imt
+    >>> import IMTreatment as imt
     >>> VF = imt.VectorField()
     >>> unit_axe = make_unit('cm')
     >>> unit_K = make_unit('K')
@@ -464,13 +464,13 @@ class VectorField(field.Field):
         Return a scalar field with the vector angle (in reference of the unit_y
         vector [1, 0]).
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         low_velocity_filter : number
             If not zero, points where V < Vmax*low_velocity_filter are masked.
 
-        Returns:
-        --------
+        Returns
+        -------
         theta_sf : sf.ScalarField object
             Contening theta field.
         """
@@ -850,8 +850,8 @@ class VectorField(field.Field):
         Warning : fill up the field (should be used carefully with masked field
         borders)
 
-        Parameters :
-        ------------
+        Parameters
+        ----------
         tos : string, optional
             Type of smoothing, can be 'uniform' (default) or 'gaussian'
             (See ndimage module documentation for more details)

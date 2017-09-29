@@ -53,7 +53,7 @@ class ScalarField(fld.Field):
 
     Examples
     --------
-    >>> import IMTreatment3 as imt
+    >>> import IMTreatment as imt
     >>> SF = imt.ScalarField()
     >>> unit_axe = imt.make_unit('cm')
     >>> unit_K = imt.make_unit('K')
@@ -1847,8 +1847,8 @@ class ScalarField(fld.Field):
         Warning : fill up the field (should be used carefully with masked field
         borders)
 
-        Parameters :
-        ------------
+        Parameters
+        ----------
         tos : string, optional
             Type of smoothing, can be 'uniform' (default) or 'gaussian'
             (See ndimage module documentation for more details)

@@ -22,7 +22,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from ...core import VectorField, ScalarField, NUMBERTYPES, ARRAYTYPES
+from ... import VectorField, ScalarField
+from ...utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 

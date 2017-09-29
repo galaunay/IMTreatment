@@ -78,7 +78,7 @@ class BlasiusBL(object):
         Return the boundary layer properties according to blasius theory.
 
         Parameters
-        ---------
+        ----------
         x : number or array of number
             Position where the boundary layer thickness is computed (m)
         (can be a list).
@@ -168,7 +168,7 @@ class BlasiusBL(object):
         delta, Cf = BlasiusBL(allTurbulent=False)
 
         Parameters
-        ---------
+        ----------
         x : number or array of number
             Position where the boundary layer thickness is computed (m)
             (can be a list).

@@ -834,15 +834,15 @@ class TemporalFields(flds.Fields, fld.Field):
         """
         Perform a temporal spectral filtering on the wanted component
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         fmin, fmax : numbers
             Minimal and maximal frequencies
         order : integer, optional
             Butterworth filter order
 
-        Returns:
-        --------
+        Returns
+        -------
         filt_tf : TemporalFields
             Filtered temporal field
         """
