@@ -479,7 +479,7 @@ class Field(object):
     def crop(self, intervx=None, intervy=None, full_output=False,
              ind=False, inplace=False):
         """
-       Crop the field in respect with given intervals.
+        Crop the field in respect with given intervals.
 
         Parameters
         ----------

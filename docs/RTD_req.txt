@@ -9,4 +9,3 @@ networkx
 colorama
 h5py
 pyvtk
-numpydoc

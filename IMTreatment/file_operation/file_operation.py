@@ -744,12 +744,13 @@ def import_from_IM7s(fieldspath, kind='TSF', fieldnumbers=None, incr=1):
     kind : string, optional
         Kind of object to create with IM7 files.
         (can be 'TSF' for TemporalScalarFields
-         or 'SSF' for SpatialScalarFields).
+        or 'SSF' for SpatialScalarFields).
     fieldnumbers : 2x1 tuple of int
         Interval of fields to import, default is all.
     incr : integer
         Incrementation between fields to take. Default is 1, meaning all
         fields are taken.
+
     """
     # check parameters
     if isinstance(fieldspath, ARRAYTYPES):

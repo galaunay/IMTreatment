@@ -39,7 +39,8 @@ mpl.use('Agg')
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'numpydoc',
+    'sphinx.ext.autosummary',
+    'sphinx.ext.napoleon',
     'sphinx.ext.coverage',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
@@ -49,11 +50,8 @@ if not on_rtd:
 
 autosummary_generate = True
 
-autodoc_member_order = 'bysource'
+# autodoc_member_order = 'bysource'
 
-autosummary_generate = True
-
-autodoc_member_order = 'bysource'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

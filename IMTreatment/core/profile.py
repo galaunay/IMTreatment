@@ -472,9 +472,11 @@ class Profile(object):
         -------
         interpolator : function
             Take a single value 'x' and return the interpolated value of 'y'.
+
         Note
         ----
         Use scipy.interpolate module
+
         """
         valid_x = self.x[~self.mask]
         valid_y = self.y[~self.mask]
@@ -1021,10 +1023,12 @@ class Profile(object):
             (it should aproximately be the size of the density
             node you want to see).
             (see 'scipy.stats.gaussian_kde' documentation for more details)
+
         Returns
         -------
         distrib : Profile object
             The y values distribution.
+
         """
         # checking parameters coherence
         if not isinstance(resolution, int):

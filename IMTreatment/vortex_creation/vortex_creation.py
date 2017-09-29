@@ -488,8 +488,8 @@ class LambChaplyginVortex(Vortex):
         x : number
             Value where we want the Bessel function evaluation.
 
-        Return
-        ------
+        Returns
+        -------
         y : number
             Bessel function value at 'x'
         """

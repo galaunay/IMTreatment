@@ -313,6 +313,7 @@ class Points(object):
         -------
         density : array, ScalarField object or None
             Return 'None' if there is not enough points in the cloud.
+
         """
         # checking points length
         if len(self.xy) < 2:
