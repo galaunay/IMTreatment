@@ -108,6 +108,47 @@ def mark_axe(txt, ax=None, loc=2, pad=0.3, borderpad=0., font_props=None,
     return txt
 
 
+def make_cmap(colors, position=None, name='my_cmap'):
+    '''
+    Return a color map cnstructed with the geiven colors and positions.
+
+    Parameters
+    ----------
+    colors : Nx1 list of 3x1 tuple
+        Each color wanted on the colormap. each value must be between 0 and 1.
+    positions : Nx1 list of number, optional
+        Relative position of each color on the colorbar. default is an
+        uniform repartition of the given colors.
+    name : string, optional
+        Name for the color map
+    '''
+    # check
+    if not isinstance(colors, ARRAYTYPES):
+        raise TypeError()
+    colors = np.array(colors, dtype=float)
+    if colors.ndim != 2:
+        raise ValueError()
+    if colors.shape[1] != 3:
+        raise ValueError()
+    if position is None:
+        position = np.linspace(0, 1, len(colors))
+    else:
+        position = np.array(position)
+    if position.shape[0] != colors.shape[0]:
+        raise ValueError()
+    if not isinstance(name, STRINGTYPES):
+        raise TypeError()
+    # create colormap
+    cdict = {'red': [], 'green': [], 'blue': []}
+    for pos, color in zip(position, colors):
+        cdict['red'].append((pos, color[0], color[0]))
+        cdict['green'].append((pos, color[1], color[1]))
+        cdict['blue'].append((pos, color[2], color[2]))
+    cmap = mpl.colors.LinearSegmentedColormap(name, cdict, 256)
+    # returning
+    return cmap
+
+
 def save_animation(animpath, fig=None, fields='all', writer='ffmpeg', fps=24,
                    title="", artist="IMTreatment", comment="",
                    bitrate=-1, codec='ffv1', dpi=150):

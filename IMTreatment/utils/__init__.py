@@ -31,4 +31,3 @@ from .files import Files, remove_files_in_dirs
 from .progresscounter import ProgressCounter
 from .codeinteraction import RemoveFortranOutput
 from .multithreading import MultiThreading
-from .plot import colored_plot, make_cmap
