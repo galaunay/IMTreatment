@@ -1,4 +1,4 @@
-IMTreatment\.core\.spatialfields module
+spatialfields module
 =======================================
 
 .. automodule:: IMTreatment.core.spatialfields

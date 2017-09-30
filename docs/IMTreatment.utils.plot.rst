@@ -1,4 +1,4 @@
-IMTreatment\.utils\.plot module
+plot module
 ===============================
 
 .. automodule:: IMTreatment.utils.plot

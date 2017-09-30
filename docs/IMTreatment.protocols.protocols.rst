@@ -1,4 +1,4 @@
-IMTreatment\.protocols\.protocols module
+protocols module
 ========================================
 
 .. automodule:: IMTreatment.protocols.protocols

@@ -1,4 +1,4 @@
-IMTreatment\.vortex\_detection\.levelset\_data module
+levelset\_data module
 =====================================================
 
 .. automodule:: IMTreatment.vortex_detection.levelset_data

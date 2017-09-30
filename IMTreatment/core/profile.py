@@ -1009,8 +1009,7 @@ class Profile(object):
         Parameters
         ----------
         output_format : string, optional
-            'normalized' (default) : give position probability
-                                     (integral egal 1).
+            'normalized' (default) : give position probability (integral egal 1).
             'ponderated' : give position probability ponderated by the number
                            or points (integral egal number of points).
             'concentration' : give local concentration (in point per length).
@@ -1028,7 +1027,6 @@ class Profile(object):
         -------
         distrib : Profile object
             The y values distribution.
-
         """
         # checking parameters coherence
         if not isinstance(resolution, int):

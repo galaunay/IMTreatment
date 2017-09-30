@@ -1,4 +1,4 @@
-IMTreatment\.vortex\_criterions\.vortex\_criterions module
+vortex\_criterions module
 ==========================================================
 
 .. automodule:: IMTreatment.vortex_criterions.vortex_criterions

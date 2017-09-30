@@ -1,4 +1,4 @@
-IMTreatment\.vortex\_properties package
+vortex\_properties package
 =======================================
 
 Submodules

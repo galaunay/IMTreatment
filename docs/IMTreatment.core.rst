@@ -1,4 +1,4 @@
-IMTreatment\.core package
+core package
 =========================
 
 Submodules

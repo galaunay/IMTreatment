@@ -1,4 +1,4 @@
-IMTreatment\.pod\.pod module
+pod module
 ============================
 
 .. automodule:: IMTreatment.pod.pod

@@ -1,4 +1,4 @@
-IMTreatment\.core\.scalarfield module
+ScalarField class
 =====================================
 
 .. automodule:: IMTreatment.core.scalarfield

@@ -39,8 +39,8 @@ class BlasiusBL(object):
     """
     Class representing a Blasius-like boundary layer.
 
-    Constructor parameters
-    ----------------------
+    Parameters
+    ----------
     Uinf : number
         Flown velocity away from the wall (m/s).
     nu : number

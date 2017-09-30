@@ -1,4 +1,4 @@
-IMTreatment\.vortex\_detection package
+vortex\_detection package
 ======================================
 
 Submodules

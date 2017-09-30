@@ -1296,8 +1296,7 @@ def import_profile_from_ascii(filepath, x_col=1, y_col=2,
         Parameters
         ----------
         x_col, y_col : integer, optional
-            Colonne numbers for the given variables
-            (begining at 1).
+            Colonne numbers for the given variables (begining at 1).
         unit_x, unit_y : Unit objects, optional
             Unities for the given variables.
         **kwargs :
@@ -1306,7 +1305,6 @@ def import_profile_from_ascii(filepath, x_col=1, y_col=2,
             'delimiter' to specify the delimiter between colonnes.
             'skip_header' to specify the number of colonne to skip at file
                 begining
-            ...
         """
         # check
         filepath = check_path(filepath)
@@ -1549,9 +1547,6 @@ def import_vfs_from_ascii(filepath, kind='TVF', incr=1, interval=None,
                           unit_time=make_unit(''), **kwargs):
     """
     Import velocityfields from an ascii files.
-    Warning : txt files are taken in alpha-numerical order
-    ('file2.txt' is taken before 'file20.txt').
-    So you should name your files properly.
 
     Parameters
     ----------
@@ -1578,6 +1573,13 @@ def import_vfs_from_ascii(filepath, kind='TVF', incr=1, interval=None,
         'skip_header' to specify the number of colonne to skip at file
             begining
         ...
+
+    Note
+    ----
+    txt files are taken in alpha-numerical order
+    ('file2.txt' is taken before 'file20.txt').
+    So you should name your files properly.
+
     """
     if not isinstance(incr, int):
         raise TypeError("'incr' must be an integer")

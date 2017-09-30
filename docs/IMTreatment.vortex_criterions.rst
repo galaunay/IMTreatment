@@ -1,4 +1,4 @@
-IMTreatment\.vortex\_criterions package
+vortex\_criterions package
 =======================================
 
 Subpackages

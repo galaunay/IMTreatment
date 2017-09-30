@@ -40,26 +40,6 @@ class VectorField(field.Field):
     """
     Class representing a vector field (2D field, with two components on each
     point).
-
-    Principal methods
-    -----------------
-    "import_from_*" : allows to easily create or import vector fields.
-
-    "export_to_*" : allows to export.
-
-    "display" : display the vector field, with these unities.
-
-    Examples
-    --------
-    >>> import IMTreatment as imt
-    >>> VF = imt.VectorField()
-    >>> unit_axe = make_unit('cm')
-    >>> unit_K = make_unit('K')
-    >>> comp_x = [[4, 8], [4, 8]]
-    >>> comp_y = [[1, 2], [3, 4]]
-    >>> VF.import_from_arrays([1,2], [1,2], comp_x, comp_y,  unit_axe,
-    ...                       unit_axe, unit_K, unit_K)
-    >>> VF.display()
     """
 
     def __init__(self):
@@ -659,10 +639,6 @@ class VectorField(field.Field):
         (or at least at the nearest possible position).
         If position is an interval, the fonction return an average profile
         in this interval.
-
-        Function
-        --------
-        profile, cutposition = get_profile(component, direction, position, ind)
 
         Parameters
         ----------

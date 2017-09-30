@@ -21,6 +21,9 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+"""
+Utlities used by IMTreatment modules
+"""
 
 from .units import make_unit
 from .types import  ARRAYTYPES, INTEGERTYPES, STRINGTYPES, NUMBERTYPES

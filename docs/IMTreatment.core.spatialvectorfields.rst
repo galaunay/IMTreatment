@@ -1,4 +1,4 @@
-IMTreatment\.core\.spatialvectorfields module
+SpatialVectorFields class
 =============================================
 
 .. automodule:: IMTreatment.core.spatialvectorfields

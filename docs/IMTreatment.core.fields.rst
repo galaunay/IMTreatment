@@ -1,4 +1,4 @@
-IMTreatment\.core\.fields module
+fields module
 ================================
 
 .. automodule:: IMTreatment.core.fields

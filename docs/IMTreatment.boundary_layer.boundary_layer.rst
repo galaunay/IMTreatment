@@ -1,4 +1,4 @@
-IMTreatment\.boundary\_layer\.boundary\_layer module
+boundary\_layer module
 ====================================================
 
 .. automodule:: IMTreatment.boundary_layer.boundary_layer

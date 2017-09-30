@@ -1,4 +1,4 @@
-IMTreatment\.protocols package
+protocols package
 ==============================
 
 Submodules

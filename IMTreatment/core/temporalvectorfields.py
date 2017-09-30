@@ -35,19 +35,6 @@ from . import temporalfields as tf
 class TemporalVectorFields(tf.TemporalFields):
     """
     Class representing a set of time-evolving velocity fields.
-
-    Principal methods
-    -----------------
-    "add_field" : add a velocity field.
-
-    "remove_field" : remove a field.
-
-    "display" : display the vector field, with these unities.
-
-    "display_animate" : display an animation of a component of the velocity
-    fields set.
-
-    "calc_*" : give access to a bunch of derived statistical fields.
     """
 
     @property

@@ -34,19 +34,6 @@ from IMTreatment.utils import ProgressCounter
 class TemporalScalarFields(tf.TemporalFields):
     """
     Class representing a set of time-evolving scalar fields.
-
-    Principal methods
-    -----------------
-    "add_field" : add a scalar field.
-
-    "remove_field" : remove a field.
-
-    "display" : display the scalar field, with these unities.
-
-    "display_animate" : display an animation of a component of the velocity
-    fields set.
-
-    "calc_*" : give access to a bunch of derived statistical fields.
     """
 
     @property

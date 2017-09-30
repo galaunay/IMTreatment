@@ -1,4 +1,4 @@
-IMTreatment\.plotlib\.plotlib module
+plotlib module
 ====================================
 
 .. automodule:: IMTreatment.plotlib.plotlib

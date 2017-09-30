@@ -1,4 +1,4 @@
-IMTreatment\.boundary\_layer package
+boundary\_layer package
 ====================================
 
 Submodules

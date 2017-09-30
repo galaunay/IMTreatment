@@ -42,24 +42,6 @@ class ScalarField(fld.Field):
     """
     Class representing a scalar field (2D field, with one component on each
     point).
-
-    Principal methods
-    -----------------
-    "import_from_*" : allows to easily create or import scalar fields.
-
-    "export_to_*" : allows to export.
-
-    "display" : display the scalar field, with these unities.
-
-    Examples
-    --------
-    >>> import IMTreatment as imt
-    >>> SF = imt.ScalarField()
-    >>> unit_axe = imt.make_unit('cm')
-    >>> unit_K = imt.make_unit('K')
-    >>> SF.import_from_arrays([1,2], [1,2], [[4,8], [4,8]], unit_axe, unit_axe,
-    ...                       unit_K)
-    >>> SF.display()
     """
 
     def __init__(self):
@@ -784,10 +766,6 @@ class ScalarField(fld.Field):
         If position is an interval, the fonction return an average profile
         in this interval.
 
-        Function
-        --------
-        axe, profile, cutposition = get_profile(direction, position)
-
         Parameters
         ----------
         direction : string in ['x', 'y']
@@ -1108,10 +1086,6 @@ class ScalarField(fld.Field):
         ('x' or 'y').
         Discretized integral is computed with a trapezoidal algorithm.
 
-        Function
-        --------
-        integrale, unit = integrate_over_line(direction, interval)
-
         Parameters
         ----------
         direction : string in ['x', 'y']
@@ -1145,10 +1119,6 @@ class ScalarField(fld.Field):
         if 'intervx' and 'intervy' are given, return the integral over the
         delimited surface.
         WARNING : Only works (and badly) with regular axes.
-
-        Function
-        --------
-        integrale, unit = integrate_over_surface(intervx, intervy)
 
         Parameters
         ----------

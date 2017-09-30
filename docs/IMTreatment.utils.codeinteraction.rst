@@ -1,4 +1,4 @@
-IMTreatment\.utils\.codeinteraction module
+codeinteraction module
 ==========================================
 
 .. automodule:: IMTreatment.utils.codeinteraction

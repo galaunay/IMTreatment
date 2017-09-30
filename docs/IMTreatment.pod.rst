@@ -1,4 +1,4 @@
-IMTreatment\.pod package
+pod package
 ========================
 
 Submodules

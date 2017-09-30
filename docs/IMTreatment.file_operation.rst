@@ -1,4 +1,4 @@
-IMTreatment\.file\_operation package
+file\_operation package
 ====================================
 
 Submodules

@@ -1,4 +1,4 @@
-IMTreatment\.utils\.types module
+types module
 ================================
 
 .. automodule:: IMTreatment.utils.types

@@ -1,4 +1,4 @@
-IMTreatment\.core\.temporalvectorfields module
+TemporalVectorFields class
 ==============================================
 
 .. automodule:: IMTreatment.core.temporalvectorfields

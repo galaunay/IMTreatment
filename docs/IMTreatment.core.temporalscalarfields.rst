@@ -1,4 +1,4 @@
-IMTreatment\.core\.temporalscalarfields module
+TemporalScalarFields class
 ==============================================
 
 .. automodule:: IMTreatment.core.temporalscalarfields

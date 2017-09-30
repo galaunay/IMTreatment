@@ -1,4 +1,4 @@
-IMTreatment\.core\.vectorfield module
+VectorField class
 =====================================
 
 .. automodule:: IMTreatment.core.vectorfield

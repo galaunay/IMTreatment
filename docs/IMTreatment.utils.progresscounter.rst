@@ -1,4 +1,4 @@
-IMTreatment\.utils\.progresscounter module
+progresscounter module
 ==========================================
 
 .. automodule:: IMTreatment.utils.progresscounter

@@ -1,8 +1,10 @@
-IMTreatment\.utils package
+utils package
 ==========================
 
-Submodules
-----------
+.. automodule:: IMTreatment.utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 .. toctree::
 
@@ -13,11 +15,3 @@ Submodules
    IMTreatment.utils.progresscounter
    IMTreatment.utils.types
    IMTreatment.utils.units
-
-Module contents
----------------
-
-.. automodule:: IMTreatment.utils
-    :members:
-    :undoc-members:
-    :show-inheritance:

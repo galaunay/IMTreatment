@@ -702,8 +702,7 @@ class CritPoints(object):
             Resolution for the resulting field.
             Can be a tuple in order to specify resolution along x and y.
         output_format : string, optional
-            'normalized' (default) : give position probability
-                                     (integral egal 1).
+            'normalized' (default) : give position probability (integral egal 1).
             'absolute' : sum of integral over all points density egal 1.
             'ponderated' : give position probability ponderated by the number
                            or points (integral egal number of points).
@@ -2801,8 +2800,8 @@ def get_vortex_position(obj, criterion=get_residual_vorticity,
     Return the position of the vortex (according to the given criterion) on
     vector field(s).
 
-     Parameters
-     ----------
+    Parameters
+    ----------
     vectorfield : VectorField or TemporalVectorFields object
         .
     criterion : function

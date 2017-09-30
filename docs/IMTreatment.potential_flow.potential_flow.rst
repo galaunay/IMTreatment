@@ -1,4 +1,4 @@
-IMTreatment\.potential\_flow\.potential\_flow module
+potential\_flow module
 ====================================================
 
 .. automodule:: IMTreatment.potential_flow.potential_flow

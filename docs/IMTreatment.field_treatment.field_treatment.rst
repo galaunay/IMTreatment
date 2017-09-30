@@ -1,4 +1,4 @@
-IMTreatment\.field\_treatment\.field\_treatment module
+field\_treatment module
 ======================================================
 
 .. automodule:: IMTreatment.field_treatment.field_treatment

@@ -1,4 +1,4 @@
-IMTreatment\.core\.spatialscalarfields module
+SpatialScalarFields class
 =============================================
 
 .. automodule:: IMTreatment.core.spatialscalarfields

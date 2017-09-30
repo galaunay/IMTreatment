@@ -1,4 +1,4 @@
-IMTreatment\.utils\.multithreading module
+multithreading module
 =========================================
 
 .. automodule:: IMTreatment.utils.multithreading

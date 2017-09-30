@@ -1,4 +1,4 @@
-IMTreatment\.field\_treatment package
+field\_treatment package
 =====================================
 
 Submodules

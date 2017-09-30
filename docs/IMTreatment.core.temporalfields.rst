@@ -1,4 +1,4 @@
-IMTreatment\.core\.temporalfields module
+temporalfields module
 ========================================
 
 .. automodule:: IMTreatment.core.temporalfields

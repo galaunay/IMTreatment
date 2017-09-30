@@ -1,4 +1,4 @@
-IMTreatment\.file\_operation\.file\_operation module
+file\_operation module
 ====================================================
 
 .. automodule:: IMTreatment.file_operation.file_operation

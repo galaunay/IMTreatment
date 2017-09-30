@@ -1,4 +1,4 @@
-IMTreatment\.plotlib package
+plotlib package
 ============================
 
 Submodules

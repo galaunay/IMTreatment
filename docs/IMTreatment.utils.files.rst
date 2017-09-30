@@ -1,4 +1,4 @@
-IMTreatment\.utils\.files module
+files module
 ================================
 
 .. automodule:: IMTreatment.utils.files

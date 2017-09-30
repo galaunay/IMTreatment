@@ -1,4 +1,4 @@
-IMTreatment\.core\.orientedpoints module
+orientedpoints module
 ========================================
 
 .. automodule:: IMTreatment.core.orientedpoints

@@ -1,4 +1,4 @@
-IMTreatment\.core\.profile module
+Profile class
 =================================
 
 .. automodule:: IMTreatment.core.profile

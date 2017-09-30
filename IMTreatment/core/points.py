@@ -293,9 +293,9 @@ class Points(object):
             The method used to calculate the estimator bandwidth.
             This can be 'scott', 'silverman', a scalar constant or
             a callable. If a scalar, this will be used as percent of
-            the data std.
-            If a callable, it should take a gaussian_kde instance as only
-            parameter and return a scalar. If None (default), 'scott' is used.
+            the data std. If a callable, it should take a gaussian_kde
+            instance as only parameter and return a scalar.
+            If None (default), 'scott' is used.
         resolution : integer, optional
             Resolution for the resulting field.
         output_format : string, optional
@@ -304,7 +304,6 @@ class Points(object):
             'ponderated' : give position probability ponderated by the number
                            or points (integral egal number of points).
             'concentration' : give local concentration (in point per surface).
-
         raw : boolean, optional
             If 'False' (default), return a ScalarField object,
             if 'True', return numpy array.
@@ -313,7 +312,6 @@ class Points(object):
         -------
         density : array, ScalarField object or None
             Return 'None' if there is not enough points in the cloud.
-
         """
         # checking points length
         if len(self.xy) < 2:

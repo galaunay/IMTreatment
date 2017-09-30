@@ -1,4 +1,4 @@
-IMTreatment\.utils\.units module
+units module
 ================================
 
 .. automodule:: IMTreatment.utils.units

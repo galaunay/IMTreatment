@@ -1,4 +1,4 @@
-IMTreatment\.vortex\_creation package
+vortex\_creation package
 =====================================
 
 Submodules

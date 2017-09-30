@@ -1,4 +1,4 @@
-IMTreatment\.potential\_flow package
+potential\_flow package
 ====================================
 
 Submodules
