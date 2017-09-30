@@ -1572,7 +1572,6 @@ def import_vfs_from_ascii(filepath, kind='TVF', incr=1, interval=None,
         'delimiter' to specify the delimiter between colonnes.
         'skip_header' to specify the number of colonne to skip at file
             begining
-        ...
 
     Note
     ----
