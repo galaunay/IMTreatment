@@ -4,14 +4,9 @@ IMTreatment\.vortex\_creation package
 Submodules
 ----------
 
-IMTreatment\.vortex\_creation\.vortex\_creation module
-------------------------------------------------------
+.. toctree::
 
-.. automodule:: IMTreatment.vortex_creation.vortex_creation
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   IMTreatment.vortex_creation.vortex_creation
 
 Module contents
 ---------------

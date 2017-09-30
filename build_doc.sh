@@ -1,5 +1,5 @@
 #!/bin/bash
 
 cd docs/
-sphinx-apidoc -f -o . '../IMTreatment/'
+sphinx-apidoc -e -f -o . '../IMTreatment/'
 make html

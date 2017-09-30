@@ -1,0 +1,7 @@
+IMTreatment\.core\.field module
+===============================
+
+.. automodule:: IMTreatment.core.field
+    :members:
+    :undoc-members:
+    :show-inheritance:

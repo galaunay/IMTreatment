@@ -4,14 +4,9 @@ IMTreatment\.field\_treatment package
 Submodules
 ----------
 
-IMTreatment\.field\_treatment\.field\_treatment module
-------------------------------------------------------
+.. toctree::
 
-.. automodule:: IMTreatment.field_treatment.field_treatment
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   IMTreatment.field_treatment.field_treatment
 
 Module contents
 ---------------

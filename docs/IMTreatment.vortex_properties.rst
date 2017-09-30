@@ -4,14 +4,9 @@ IMTreatment\.vortex\_properties package
 Submodules
 ----------
 
-IMTreatment\.vortex\_properties\.vortex\_properties module
-----------------------------------------------------------
+.. toctree::
 
-.. automodule:: IMTreatment.vortex_properties.vortex_properties
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   IMTreatment.vortex_properties.vortex_properties
 
 Module contents
 ---------------

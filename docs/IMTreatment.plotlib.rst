@@ -4,14 +4,9 @@ IMTreatment\.plotlib package
 Submodules
 ----------
 
-IMTreatment\.plotlib\.plotlib module
-------------------------------------
+.. toctree::
 
-.. automodule:: IMTreatment.plotlib.plotlib
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   IMTreatment.plotlib.plotlib
 
 Module contents
 ---------------

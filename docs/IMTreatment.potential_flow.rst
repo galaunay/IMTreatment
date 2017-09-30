@@ -4,14 +4,9 @@ IMTreatment\.potential\_flow package
 Submodules
 ----------
 
-IMTreatment\.potential\_flow\.potential\_flow module
-----------------------------------------------------
+.. toctree::
 
-.. automodule:: IMTreatment.potential_flow.potential_flow
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   IMTreatment.potential_flow.potential_flow
 
 Module contents
 ---------------

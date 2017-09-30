@@ -4,14 +4,9 @@ IMTreatment\.vortex\_criterions\.FTLE package
 Submodules
 ----------
 
-IMTreatment\.vortex\_criterions\.FTLE\.ftle module
---------------------------------------------------
+.. toctree::
 
-.. automodule:: IMTreatment.vortex_criterions.FTLE.ftle
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   IMTreatment.vortex_criterions.FTLE.ftle
 
 Module contents
 ---------------

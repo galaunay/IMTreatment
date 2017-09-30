@@ -4,14 +4,9 @@ IMTreatment\.pod package
 Submodules
 ----------
 
-IMTreatment\.pod\.pod module
-----------------------------
+.. toctree::
 
-.. automodule:: IMTreatment.pod.pod
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   IMTreatment.pod.pod
 
 Module contents
 ---------------

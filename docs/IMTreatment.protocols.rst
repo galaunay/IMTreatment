@@ -4,14 +4,9 @@ IMTreatment\.protocols package
 Submodules
 ----------
 
-IMTreatment\.protocols\.protocols module
-----------------------------------------
+.. toctree::
 
-.. automodule:: IMTreatment.protocols.protocols
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   IMTreatment.protocols.protocols
 
 Module contents
 ---------------

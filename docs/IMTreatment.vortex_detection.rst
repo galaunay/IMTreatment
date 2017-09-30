@@ -4,22 +4,10 @@ IMTreatment\.vortex\_detection package
 Submodules
 ----------
 
-IMTreatment\.vortex\_detection\.levelset\_data module
------------------------------------------------------
+.. toctree::
 
-.. automodule:: IMTreatment.vortex_detection.levelset_data
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-IMTreatment\.vortex\_detection\.vortex\_detection module
---------------------------------------------------------
-
-.. automodule:: IMTreatment.vortex_detection.vortex_detection
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   IMTreatment.vortex_detection.levelset_data
+   IMTreatment.vortex_detection.vortex_detection
 
 Module contents
 ---------------

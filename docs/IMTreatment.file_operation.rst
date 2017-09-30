@@ -4,14 +4,9 @@ IMTreatment\.file\_operation package
 Submodules
 ----------
 
-IMTreatment\.file\_operation\.file\_operation module
-----------------------------------------------------
+.. toctree::
 
-.. automodule:: IMTreatment.file_operation.file_operation
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   IMTreatment.file_operation.file_operation
 
 Module contents
 ---------------
