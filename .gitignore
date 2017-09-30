@@ -17,7 +17,4 @@ tests/cov_html
 cov_html
 .eggs
 dist
-_build
-/docs/IMTreatment.*.rst
-/docs/IMTreatment.rst
-/docs/modules.rst
+/docs/_build
