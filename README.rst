@@ -42,9 +42,9 @@ General data analysis
 .. _SpatialVectorFields: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.spatialvectorfields.html
 .. _Points: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.points.html
 .. _Profile: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.profile.html
-.. _pod: http://imtreatment.readthedocs.io/en/latest/IMTreatment.pod.html
-.. _plotlib: http://imtreatment.readthedocs.io/en/latest/IMTreatment.plotlib.html
-.. _file_operation: http://imtreatment.readthedocs.io/en/latest/IMTreatment.file_operation.html
+.. _pod: http://imtreatment.readthedocs.io/en/latest/IMTreatment.pod.pod.html
+.. _plotlib: http://imtreatment.readthedocs.io/en/latest/IMTreatment.plotlib.plotlib.html
+.. _file_operation: http://imtreatment.readthedocs.io/en/latest/IMTreatment.file_operation.file_operation.html
 
 Flow analysis
 -------------
@@ -55,11 +55,11 @@ Flow analysis
 4. Module to compute the evolution of some vortex properties (vortex_properties_)
 5. Module to generate potential flows with arbitrary geometries (potential_flow_)
 
-.. _vortex_creation: http://imtreatment.readthedocs.io/en/latest/IMTreatment.vortex_creation.html
-.. _vortex_detection: http://imtreatment.readthedocs.io/en/latest/IMTreatment.vortex_detection.html
-.. _vortex_criterions: http://imtreatment.readthedocs.io/en/latest/IMTreatment.vortex_criterions.html
-.. _vortex_properties: http://imtreatment.readthedocs.io/en/latest/IMTreatment.vortex_properties.html
-.. _potential_flow: http://imtreatment.readthedocs.io/en/latest/IMTreatment.potential_flow.html
+.. _vortex_creation: http://imtreatment.readthedocs.io/en/latest/IMTreatment.vortex_creation.vortex_creation.html
+.. _vortex_detection: http://imtreatment.readthedocs.io/en/latest/IMTreatment.vortex_detection.vortex_detection.html
+.. _vortex_criterions: http://imtreatment.readthedocs.io/en/latest/IMTreatment.vortex_criterions.vortex_criterions.html
+.. _vortex_properties: http://imtreatment.readthedocs.io/en/latest/IMTreatment.vortex_properties.vortex_properties.html
+.. _potential_flow: http://imtreatment.readthedocs.io/en/latest/IMTreatment.potential_flow.potential_flow.html
 
 Dependencies
 ------------
