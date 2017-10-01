@@ -34,14 +34,14 @@ General data analysis
 7. Module to import/export data from/to Davis, matlab, ascii, pivmat and images files (file_operation_)
 8. Functionalities to visualize those data (plotlib_)
 
-.. _ScalarField: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.html#module-IMTreatment.core.scalarfield
-.. _TemporalScalarFields: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.html#module-IMTreatment.core.temporalscalarfields
-.. _SpatialScalarFields: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.html#module-IMTreatment.core.spatialscalarfields
-.. _VectorField: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.html#module-IMTreatment.core.vectorfield
-.. _TemporalVectorFields: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.html#module-IMTreatment.core.temporalvectorfields
-.. _SpatialVectorFields: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.html#module-IMTreatment.core.spatialvectorfields
-.. _Points: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.html#module-IMTreatment.core.points
-.. _Profile: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.html#module-IMTreatment.core.profile
+.. _ScalarField: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.scalarfield.html
+.. _TemporalScalarFields: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.temporalscalarfields.html
+.. _SpatialScalarFields: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.spatialscalarfields.html
+.. _VectorField: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.vectorfield.html
+.. _TemporalVectorFields: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.temporalvectorfields.html
+.. _SpatialVectorFields: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.spatialvectorfields.html
+.. _Points: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.points.html
+.. _Profile: http://imtreatment.readthedocs.io/en/latest/IMTreatment.core.profile.html
 .. _pod: http://imtreatment.readthedocs.io/en/latest/IMTreatment.pod.html
 .. _plotlib: http://imtreatment.readthedocs.io/en/latest/IMTreatment.plotlib.html
 .. _file_operation: http://imtreatment.readthedocs.io/en/latest/IMTreatment.file_operation.html

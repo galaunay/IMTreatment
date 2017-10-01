@@ -1546,20 +1546,18 @@ def import_vfs_from_ascii(filepath, kind='TVF', incr=1, interval=None,
                           unit_values=make_unit(""), times=[],
                           unit_time=make_unit(''), **kwargs):
     """
-    Import velocityfields from an ascii files.
+    Import velocityfields from an ascii file.
 
     Parameters
     ----------
     filepath : string
         Pathname pattern to the ascii files.
-        (Example: >>> r"F:\datas\velocities_*.txt")
     incr : integer, optional
         Increment value between two fields taken.
     interval : 2x1 array, optional
         Interval in which take fields.
     x_col, y_col, vx_col, vy_col : integer, optional
-        Colonne numbers for the given variables
-        (begining at 1).
+        Colonne numbers for the given variables (begining at 1).
     unit_x, unit_y, unit_v : Unit objects, optional
         Unities for the given variables.
     times : array of number, optional
@@ -1571,7 +1569,7 @@ def import_vfs_from_ascii(filepath, kind='TVF', incr=1, interval=None,
         numpy function 'genfromtext()' :
         'delimiter' to specify the delimiter between colonnes.
         'skip_header' to specify the number of colonne to skip at file
-            begining
+        begining
 
     Note
     ----
