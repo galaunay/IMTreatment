@@ -149,6 +149,23 @@ def make_cmap(colors, position=None, name='my_cmap'):
     return cmap
 
 
+class Formatter(mpl.ticker.ScalarFormatter):
+    def __init__(self, order=0, fformat="%1.1f", offset=True, mathtext=True):
+        self.oom = order
+        self.fformat = fformat
+        mpl.ticker.ScalarFormatter.__init__(self,
+                                            useOffset=offset,
+                                            useMathText=mathtext)
+
+    def _set_orderOfMagnitude(self, nothing):
+        self.orderOfMagnitude = self.oom
+
+    def _set_format(self, vmin, vmax):
+        self.format = self.fformat
+        if self._useMathText:
+            self.format = '${}$'.format(mpl.ticker._mathdefault(self.format))
+
+
 def save_animation(animpath, fig=None, fields='all', writer='ffmpeg', fps=24,
                    title="", artist="IMTreatment", comment="",
                    bitrate=-1, codec='ffv1', dpi=150):

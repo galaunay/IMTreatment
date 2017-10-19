@@ -257,7 +257,6 @@ svg.hashsalt: None
 svg.image_inline: True
 text.antialiased: True
 text.color: k
-text.dvipnghack: None
 text.hinting: auto
 text.hinting_factor: 8
 text.latex.preamble:
