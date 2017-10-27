@@ -642,7 +642,11 @@ def _get_imx_buffers(filename):
     """
     Return the buffers stored in the given file.
     """
-    import ReadIM
+    try:
+        import ReadIM
+    except ModuleNotFoundError:
+        raise Exception("You need the 'ReadIM' module to import from davis"
+                        " files")
     vbuff, vatts = ReadIM.extra.get_Buffer_andAttributeList(filename)
     arrays, vbuff2 = ReadIM.extra.buffer_as_array(vbuff)
     arrays = np.array(arrays.transpose((0, 2, 1)))

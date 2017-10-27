@@ -1946,6 +1946,10 @@ class CritPoints(object):
         dbs = []
         # If trajectories are also asked
         if display_traj:
+            # check if trajectorie are computed
+            if self.iter_traj[0] is None:
+                raise Exception("You need to compute trajectory first,"
+                                " with 'compute_trajectory' method")
             # TODO : Absolutely not optimized
             times = self.times
             for i, kind in enumerate(self.iter_traj):
@@ -2881,13 +2885,14 @@ def _get_vortex_position_on_VF(vectorfield, criterion=get_residual_vorticity,
         raise ValueError()
     try:
         sf = criterion(vectorfield, **criterion_args)
+        sf.crop_masked_border(inplace=True, hard=False)
     except:
         raise TypeError()
     if not isinstance(sf, ScalarField):
         raise TypeError()
     # get vortex positions
+    val_max = np.max(np.abs(sf.values[~sf.mask]))
     if rel:
-        val_max = np.max(np.abs(sf.values))
         threshold *= val_max
     bornes_n = [-val_max, -threshold]
     bornes_p = [threshold, val_max]

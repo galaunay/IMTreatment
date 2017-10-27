@@ -45,6 +45,7 @@ setup(
     install_requires=['numpy', 'matplotlib', 'scipy', 'unum', 'modred',
                       'multiprocess', 'psutil'],
     extras_require={
+        'Davis format support': 'ReadIM',
         'Point clustering': 'sklearn',
         'Mean trajectories clustering': 'networkx',
         'Color in console': 'colorama',
