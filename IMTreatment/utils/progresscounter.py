@@ -89,7 +89,7 @@ class ProgressCounter(object):
         i = self.curr_nmb
         # check if i sup nmb_max
         if i == self.nmb_max + 1:
-            print("+++ Problem with nmb_max value...", end="")
+            print("+++ Problem with nmb_max value...")
         # check if we have to display something
         if i % self.interv == 0 or i == self.nmb_max:
             ti = modtime.time()
@@ -104,7 +104,7 @@ class ProgressCounter(object):
                     .format(np.round(i*1./self.nmb_max*100),
                             i, self.nmb_max, ti, tf, max_pad=self.nmb_max_pad,
                             name=self.name_things))
-            print('\r' + text, end="")
+            print('\r' + text)
         # increment
         self.curr_nmb += 1
         # check if finished
@@ -130,7 +130,7 @@ class ProgressCounter(object):
                 .format(i, ti, dt, self.name_things,
                         max_pad=self.nmb_max_pad,
                         name=self.name_things))
-        print('\r' + text, end="")
+        print('\r' + text)
         # increment
         self.curr_nmb += 1
         # check if finished

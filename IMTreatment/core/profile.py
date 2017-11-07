@@ -32,9 +32,8 @@ from scipy import ndimage
 import scipy.optimize as spopt
 import scipy.signal as spsign
 from ..utils import make_unit
-from .. import plotlib as pplt
+from ..plotlib import plotlib as pplt
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
-from .scalarfield import ScalarField
 
 
 class Profile(object):
@@ -858,6 +857,7 @@ class Profile(object):
         if raw:
             return wav
         else:
+            from .scalarfield import ScalarField
             SF = ScalarField()
             new_y = widths*dx
             mask = np.array([self.mask for i in np.arange(len(widths))])

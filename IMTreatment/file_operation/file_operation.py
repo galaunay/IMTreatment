@@ -163,7 +163,7 @@ def matlab_parser(obj, name):
         if simple:
             return {name: obj}
         else:
-            return {name: [matlab_parser(obj[i], f"obj{i}")
+            return {name: [matlab_parser(obj[i], "obj{}".format(i))
                            for i in range(len(obj))]}
             raise IOError("Matlab can't handle this kind of variable")
     elif isinstance(obj, Points):

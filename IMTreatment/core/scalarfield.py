@@ -32,8 +32,10 @@ import scipy.interpolate as spinterp
 import unum
 from scipy import ndimage
 
-from .. import plotlib as pplt
-from . import field as fld, profile as prof, points as pts
+from ..plotlib import plotlib as pplt
+from . import field as fld
+from . import profile as prof
+from . import points as pts
 from ..utils import make_unit
 from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 
