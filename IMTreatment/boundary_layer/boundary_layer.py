@@ -1219,7 +1219,7 @@ def get_separation_position(obj, wall_direction, wall_position,
     if isinstance(obj, ScalarField):
         # checking masked values
         if np.any(obj.mask):
-            raise Warning("I can give weird results if masked values remains")
+            warnings.warn("I can give weird results if masked values remains")
         V = obj.values_as_sf
         if wall_direction == 1:
             axe = axe_x
@@ -1227,7 +1227,7 @@ def get_separation_position(obj, wall_direction, wall_position,
             axe = axe_y
     elif isinstance(obj, VectorField):
         if np.any(obj.mask):
-            raise Warning("I can give weird results if masked values remains")
+            warnings.warn("I can give weird results if masked values remains")
         if wall_direction == 1:
             V = obj.comp_y_as_sf
             axe = axe_x
@@ -1236,7 +1236,7 @@ def get_separation_position(obj, wall_direction, wall_position,
             axe = axe_y
     elif isinstance(obj, TemporalVectorFields):
         if np.any(obj.fields[0].mask):
-            raise Warning("I can give weird results if masked values remains")
+            warnings.warn("I can give weird results if masked values remains")
         pts = []
         times = obj.times
         if wall_direction == 1:

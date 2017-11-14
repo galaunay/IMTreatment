@@ -651,8 +651,8 @@ class ScalarField(fld.Field):
         values = self.values
         mask = self.mask
         if np.any(mask):
-            raise UserWarning("There is masked values, algorithm can give "
-                              "strange results")
+            warnings.warn("There is masked values, algorithm can give "
+                          "strange results")
         # check if there is more than one point superior
         aoi = np.logical_and(values >= bornes[0], values <= bornes[1])
         if np.sum(aoi) == 1:
