@@ -2894,8 +2894,13 @@ def _get_vortex_position_on_VF(vectorfield, criterion=get_residual_vorticity,
     val_max = np.max(np.abs(sf.values[~sf.mask]))
     if rel:
         threshold *= val_max
-    bornes_n = [-val_max, -threshold]
-    bornes_p = [threshold, val_max]
+    # make sure the max value is superior to the threshold
+    if val_max > threshold:
+        bornes_n = [-val_max, -threshold]
+        bornes_p = [threshold, val_max]
+    else:
+        bornes_n = [-threshold*1.1, -threshold]
+        bornes_p = [threshold, threshold*1.1]
     vort = sf.get_zones_centers(bornes=bornes_n, rel=False, kind='ponderated')
     vort_c = sf.get_zones_centers(bornes=bornes_p, rel=False,
                                   kind='ponderated')
