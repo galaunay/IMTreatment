@@ -33,6 +33,7 @@ from ..core import (Points, Profile, ScalarField, SpatialScalarFields,
                     SpatialVectorFields, TemporalScalarFields,
                     TemporalVectorFields,
                     VectorField)
+from ..vortex_detection import CritPoints
 from ..utils import ProgressCounter, make_unit
 from ..utils.types import ARRAYTYPES, STRINGTYPES
 
@@ -150,7 +151,9 @@ def find_file_in_path(regs, dirpath, ask=False):
 def matlab_parser(obj, name):
     classic_types = (int, float, str, bool)
     array_types = (list, float)
-    if isinstance(obj, classic_types):
+    if obj is None:
+        return {name: "None"}
+    elif isinstance(obj, classic_types):
         return {name: obj}
     elif isinstance(obj, array_types):
         simple = True
@@ -160,6 +163,8 @@ def matlab_parser(obj, name):
         if simple:
             return {name: obj}
         else:
+            return {name: [matlab_parser(obj[i], f"obj{i}")
+                           for i in range(len(obj))]}
             raise IOError("Matlab can't handle this kind of variable")
     elif isinstance(obj, Points):
         xy = obj.xy
@@ -222,6 +227,45 @@ def matlab_parser(obj, name):
         dic.update(matlab_parser(obj.unit_y.strUnit()[1:-1], 'unit_y'))
         dic.update(matlab_parser(obj.unit_values.strUnit()[1:-1],
                                  'unit_values'))
+        return {name: dic}
+    elif isinstance(obj, CritPoints):
+        eps = obj.current_epsilon
+        if eps is not None:
+            foc_traj = list(obj.foc_traj)
+            foc_c_traj = list(obj.foc_c_traj)
+            node_i_traj = list(obj.node_i_traj)
+            node_o_traj = list(obj.node_o_traj)
+            sadd_traj = list(obj.sadd_traj)
+        else:
+            foc_traj = None
+            foc_c_traj = None
+            node_i_traj = None
+            node_o_traj = None
+            sadd_traj = None
+        foc = list(obj.foc)
+        foc_c = list(obj.foc_c)
+        node_i = list(obj.node_i)
+        node_o = list(obj.node_o)
+        sadd = list(obj.sadd)
+        times = list(obj.times)
+        unit_time = obj.unit_time.strUnit()
+        unit_x = obj.unit_x.strUnit()
+        unit_y = obj.unit_y.strUnit()
+        dic = matlab_parser(eps, "epsilon")
+        dic.update(matlab_parser(foc, "foc"))
+        dic.update(matlab_parser(foc_traj, "foc_traj"))
+        dic.update(matlab_parser(foc_c, "foc_c"))
+        dic.update(matlab_parser(foc_c_traj, "foc_c_traj"))
+        dic.update(matlab_parser(node_i, "node_i"))
+        dic.update(matlab_parser(node_o, "node_o"))
+        dic.update(matlab_parser(node_i_traj, "node_i_traj"))
+        dic.update(matlab_parser(node_o_traj, "node_o_traj"))
+        dic.update(matlab_parser(sadd, "sadd"))
+        dic.update(matlab_parser(sadd_traj, "sadd_traj"))
+        dic.update(matlab_parser(times, "times"))
+        dic.update(matlab_parser(unit_time, "unit_time"))
+        dic.update(matlab_parser(unit_x, "unit_x"))
+        dic.update(matlab_parser(unit_y, "unit_y"))
         return {name: dic}
     else:
         raise IOError("Can't parser that : \n {}".format(obj))
@@ -1623,7 +1667,7 @@ def import_vfs_from_ascii(filepath, kind='TVF', incr=1, interval=None,
     return fields
 
 
-def export_to_ascii(filepath, obj):
+def export_to_ascii(obj, filepath):
     """
     """
     # check
@@ -1674,15 +1718,40 @@ def export_to_ascii(filepath, obj):
     elif isinstance(obj, Points):
         # open file
         f = open(filepath, 'w')
-        # write header
-        header = "# X {}\tY {}\tV {}\n"\
-                 .format(obj.unit_x.strUnit(),
-                         obj.unit_y.strUnit(),
-                         obj.unit_v.strUnit())
-        f.write(header)
-        # write data
-        for x, y, v in zip(obj.xy[:, 0], obj.xy[:, 1], obj.v):
-            f.write("{}\t{}\t{}\n".format(x, y, v))
+        if len(obj.v) == 0:
+            # write header
+            header = "# X {}\tY {}\n"\
+                     .format(obj.unit_x.strUnit(),
+                             obj.unit_y.strUnit())
+            f.write(header)
+            # write data
+            for x, y in zip(obj.xy[:, 0], obj.xy[:, 1]):
+                f.write("{}\t{}\n".format(x, y))
+        else:
+            # write header
+            header = "# X {}\tY {}\tV {}\n"\
+                     .format(obj.unit_x.strUnit(),
+                             obj.unit_y.strUnit(),
+                             obj.unit_v.strUnit())
+            f.write(header)
+            # write data
+            for x, y, v in zip(obj.xy[:, 0], obj.xy[:, 1], obj.v):
+                f.write("{}\t{}\t{}\n".format(x, y, v))
         f.close()
+    elif isinstance(obj, CritPoints):
+        # get info from path
+        basename = os.path.splitext(filepath)[0]
+        try:
+            os.mkdir(basename)
+        except FileExistsError:
+            pass
+        t_unit = obj.unit_time.strUnit()
+        if t_unit == "[]":
+            t_unit = ""
+        for typ in obj.cp_types:
+            pts = obj.__getattribute__(typ)
+            for t, pt in zip(obj.times, pts):
+                export_to_ascii(pt, "{}/{}_t={}{}.txt".format(basename,
+                                                              typ, t, t_unit))
     else:
         raise TypeError()
