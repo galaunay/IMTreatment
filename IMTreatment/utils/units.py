@@ -56,6 +56,42 @@ def make_unit(string):
     >>> make_unit("N/m/s**3")
     1 [kg/s4]
     """
+    # Safe check
+    forbidden = ['import', '=', '\n', ';', ':', '"', "'", "open"]
+    forbidden += [key for key in globals().keys()]
+    for f in forbidden:
+        if f in string:
+            raise Exception("Unauthorized string: {}".format(f))
+    if re.match("[a-zA-Z]+\(.*\)", string):
+        raise Exception("No call allowed here")
+    # exec
+    env = {}
+    exec("from unum.units import *;res = {}".format(string), env)
+    return env['res']
+
+
+def make_unit_old(string):
+    """
+    Function helping for the creation of units. For more details, see the
+    Unum module documentation.
+
+    Parameters
+    ----------
+    string : string
+        String representing some units.
+
+    Returns
+    -------
+    unit : unum.Unum object
+        unum object representing the given units
+
+    Examples
+    --------
+    >>> make_unit("m/s")
+    1 [m/s]
+    >>> make_unit("N/m/s**3")
+    1 [kg/s4]
+    """
     if len(string) == 0:
         return unum.Unum({})
     brackets = ['(', ')', '[', ']']
