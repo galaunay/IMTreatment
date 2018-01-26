@@ -59,12 +59,12 @@ class Profile(object):
         """
         if not isinstance(x, ARRAYTYPES):
             raise TypeError("'x' must be an array")
-        if not isinstance(x, (np.ndarray, np.ma.MaskedArray)):
+        if not isinstance(x, np.ma.MaskedArray):
             x = np.array(x, dtype=float)
         if not isinstance(y, ARRAYTYPES):
             raise TypeError("'y' must be an array")
-        if not isinstance(y, (np.ndarray, np.ma.MaskedArray)):
-            y = np.array(y)
+        if not isinstance(y, np.ma.MaskedArray):
+            y = np.array(y, dtype=float)
         if isinstance(mask, bool):
             mask = np.empty(x.shape, dtype=bool)
             mask.fill(False)

@@ -1284,7 +1284,7 @@ class Points(object):
         if not inplace:
             return tmp_pts
 
-    def smooth(self, tos='uniform', size=None, inplace=False, **kw):
+    def smooth(self, tos='gaussian', size=None, inplace=False, **kw):
         """
         Return a smoothed points field.
 
@@ -1373,6 +1373,8 @@ class Points(object):
         elif axe_x == 'y':
             x_values = self.xy[:, 1]
         elif axe_x == 'v':
+            if len(self.v) != len(self.xy):
+                raise Exception()
             x_values = self.v
         else:
             raise ValueError()
@@ -1382,6 +1384,8 @@ class Points(object):
         elif axe_y == 'y' or axe_y is None:
             y_values = self.xy[:, 1]
         elif axe_y == 'v':
+            if len(self.v) != len(self.xy):
+                raise Exception()
             y_values = self.v
         else:
             raise ValueError()
@@ -1390,7 +1394,12 @@ class Points(object):
             color_values = self.xy[:, 0]
         elif axe_color == 'y':
             color_values = self.xy[:, 1]
-        elif axe_color == 'v' or axe_color is None:
+        elif axe_color in [None, 'v']:
+            if len(self.v) != len(self.xy):
+                color_values = None
+                if ('c' not in plotargs.keys()
+                    and 'color' not in plotargs.keys()):
+                    plotargs['color'] = 'k'
             color_values = self.v
         else:
             raise ValueError()
