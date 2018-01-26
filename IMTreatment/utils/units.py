@@ -28,7 +28,7 @@ import unum
 import unum.units as units
 try:
     units.counts = unum.Unum.unit('counts')
-    units.pixel = unum.Unum.unit('pixel')
+    units.px = unum.Unum.unit('px')
 except:
     pass
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
@@ -56,6 +56,8 @@ def make_unit(string):
     >>> make_unit("N/m/s**3")
     1 [kg/s4]
     """
+    if string == "":
+        return unum.Unum({})
     # Safe check
     forbidden = ['import', '=', '\n', ';', ':', '"', "'", "open"]
     forbidden += [key for key in globals().keys()]
