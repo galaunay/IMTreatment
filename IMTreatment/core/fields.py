@@ -121,7 +121,7 @@ class Fields(object):
         if not inplace:
             return tmp_field
 
-    def add_field(self, field):
+    def add_field(self, field, copy=True):
         """
         Add a field to the existing fields.
 
@@ -132,7 +132,11 @@ class Fields(object):
         """
         if not isinstance(field, (vf.VectorField, sf.ScalarField)):
             raise TypeError("'vectorfield' must be a VelocityField object")
-        self.fields = np.append(self.fields, field.copy())
+        if copy:
+            ofield = field.copy()
+        else:
+            ofield = field
+        self.fields = np.append(self.fields, ofield)
 
     def remove_field(self, fieldnumbers):
         """

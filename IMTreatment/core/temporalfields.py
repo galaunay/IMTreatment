@@ -1071,7 +1071,7 @@ class TemporalFields(flds.Fields, fld.Field):
         if axe in ['x', 'y']:
             fld.Field.change_unit(self, axe, new_unit)
 
-    def add_field(self, field, time=0., unit_times=""):
+    def add_field(self, field, time=0., unit_times="", copy=True):
         """
         Add a field to the existing fields.
 
@@ -1126,7 +1126,7 @@ class TemporalFields(flds.Fields, fld.Field):
             time = (time*self.unit_times/unit_times).asNumber()
             self.__times = np.append(self.__times, time)
         # use default constructor
-        flds.Fields.add_field(self, field)
+        flds.Fields.add_field(self, field, copy=copy)
         # sorting the field with time
         self.__sort_field_by_time()
 

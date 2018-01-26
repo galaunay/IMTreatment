@@ -149,7 +149,7 @@ class SpatialFields(flds.Fields):
     def y_max(self):
         return np.max([field.axe_y[-1] for field in self.fields])
 
-    def add_field(self, field):
+    def add_field(self, field, copy=True):
         """
         """
         # check
@@ -171,7 +171,7 @@ class SpatialFields(flds.Fields):
         # crop fields
         field.crop_masked_border(hard=False, inplace=True)
         # add field
-        flds.Fields.add_field(self, field)
+        flds.Fields.add_field(self, field, copy=copy)
 
     def get_value(self, x, y, unit=False, error=True):
         """
