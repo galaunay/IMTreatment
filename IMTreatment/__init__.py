@@ -83,4 +83,5 @@ It is strongly recommended not to use "import *" on this package.
 """
 from .utils import make_unit
 from .core import Profile, Points, OrientedPoints, ScalarField, VectorField,\
-    TemporalFields, TemporalScalarFields, TemporalVectorFields
+    TemporalFields, TemporalScalarFields, TemporalVectorFields,\
+    TemporalPoints

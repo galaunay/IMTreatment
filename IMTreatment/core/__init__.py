@@ -24,6 +24,7 @@
 
 from .profile import Profile
 from .points import Points
+from .temporalpoints import TemporalPoints
 from .orientedpoints import OrientedPoints
 from .vectorfield import VectorField
 from .scalarfield import ScalarField
