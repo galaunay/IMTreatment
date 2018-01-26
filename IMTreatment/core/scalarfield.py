@@ -906,6 +906,30 @@ class ScalarField(fld.Field):
                 axe = self.axe_x
         return prof.Profile(axe, profile, prof_mask, unit_x, unit_y)
 
+    def get_histogram(self, cum=False, normalized=False):
+        """
+        Return the image histogram.
+
+        Parameters
+        ==========
+        cum: boolean
+            If True, get a cumulative histogram.
+
+        Returns
+        =======
+        hist: array of numbers
+            Histogram.
+        """
+        hist, xs = np.histogram(self.values.flatten(),
+                                bins=255,
+                                density=normalized)
+        xs = xs[0:-1] + np.mean(xs[0:2])
+        if cum:
+            hist = np.cumsum(hist)
+
+        return prof.Profile(xs, hist, mask=False, unit_x=self.unit_values,
+                            unit_y="counts")
+
     def get_spatial_autocorrelation(self, direction, window_len=None):
         """
         Return the spatial auto-correlation along the wanted direction.
