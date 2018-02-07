@@ -55,7 +55,10 @@ class ProgressCounter(object):
         self.nmb_max_pad = len(str(nmb_max))
         self.name_things = name_things
         self.perc_interv = perc_interv
-        self.interv = int(np.round(nmb_max)*perc_interv/100.)
+        if self.nmb_max == np.inf:
+            self.interv = None
+        else:
+            self.interv = int(np.round(nmb_max)*perc_interv/100.)
         # check if there is more wanted interval than actual loop
         if self.interv == 0:
             self.interv = 1
@@ -73,6 +76,12 @@ class ProgressCounter(object):
         self._print_init()
 
     def print_progress(self):
+        if self.nmb_max == np.inf:
+            self._print_progress_unknown_nmbmax()
+        else:
+            self._print_progress_full()
+
+    def _print_progress_full(self):
         # start chrono if not
         if self.t0 is None:
             self.start_chrono()
@@ -103,11 +112,42 @@ class ProgressCounter(object):
             self._print_end()
             return 0
 
+    def _print_progress_unknown_nmbmax(self):
+        # start chrono if not
+        if self.t0 is None:
+            self.start_chrono()
+        # get current
+        i = self.curr_nmb
+        # Dsiaplay each time because we cannot do anything else
+        ti = modtime.time()
+        if i == 0:
+            tf = '---'
+        else:
+            dt = (ti - self.t0)/i
+        ti = self._format_time(ti - self.t0)
+        dt = self._format_time(dt)
+        text = ("+++    {:{max_pad}d} {name}    {}    ({} / {})"
+                .format(i, ti, dt, self.name_things,
+                        max_pad=self.nmb_max_pad,
+                        name=self.name_things))
+        print('\r' + text, end="")
+        # increment
+        self.curr_nmb += 1
+        # check if finished
+        if i == self.nmb_max:
+            self._print_end()
+            return 0
+
     def _format_time(self, second):
+        ms = int((second % 1)*1000)
         second = int(second)
         m, s = divmod(second, 60)
         h, m = divmod(m, 60)
         j, h = divmod(h, 24)
+        # only ms
+        if s == 0 and m == 0 and h == 0 and j == 0:
+            repr_time = '{:d}ms'.format(ms)
+            return repr_time
         repr_time = '{:d}s'.format(s)
         if m != 0:
             repr_time = '{:d}mn'.format(m) + repr_time

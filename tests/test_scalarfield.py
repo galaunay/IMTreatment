@@ -441,7 +441,3 @@ class TestScalarField(object):
         fig = plt.figure()
         self.SF1.display('mask')
         return fig
-
-# TEMP
-pytest.main(["test_scalarfield.py"])
-# TEMP - End
