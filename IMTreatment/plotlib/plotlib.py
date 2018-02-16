@@ -26,6 +26,7 @@ from collections import OrderedDict
 from matplotlib.collections import LineCollection
 from os import path
 
+import warnings
 import matplotlib as mpl
 import matplotlib.animation as mplani
 import matplotlib.pyplot as plt
@@ -572,12 +573,11 @@ class ButtonManager(object):
             ind1 = 0
             ind2 = self.ind_max + 1
         # update the display
-        if self.ind == ind2:
+        self.ind += self.incr
+        if self.ind >= ind2:
             self.ind = ind1
         elif self.ind >= self.ind_max:
             self.ind = 0
-        else:
-            self.ind += self.incr
         self.update()
 
     def goto(self):
@@ -684,15 +684,15 @@ class ButtonManager(object):
 
     def keyf(self, event):
         # get directions
-        if event.key in [' ', 'right', '+']:
+        if event.key in [' ', 'right', '+', 'l']:
             self.nextf(None)
-        elif event.key in ['left', 'backspace', '-']:
+        elif event.key in ['left', 'backspace', '-', 'h']:
             self.prevf(None)
-        elif event.key in ['up']:
+        elif event.key in ['up', 'k']:
             self.goto_end(None)
-        elif event.key in ['down']:
+        elif event.key in ['down', 'j']:
             self.goto_beg(None)
-        elif event.key in ['enter']:
+        elif event.key in ['enter', 'g']:
             self.goto()
         elif event.key in ['p', '.']:
             self.playf(None)
@@ -704,9 +704,9 @@ class ButtonManager(object):
             self.close()
         elif event.key in ['s']:
             self.save()
-        elif event.key in ['pagedown']:
+        elif event.key in ['pagedown', 'a']:
             self.set_lims()
-        elif event.key in ['pageup']:
+        elif event.key in ['pageup', 'b']:
             self.goto_lims()
         else:
             pass
@@ -1149,6 +1149,11 @@ class Displayer(object):
 
     def draw(self, i=None, ax=None, cb=False, remove_current=False,
              rescale=True):
+        # Do nothing if I is too big...
+        if i is not None:
+            if i >= len(self.draws):
+                warnings.warn("Indice too big")
+                return self.draws[self.curr_ind]
         self.curr_ind = i
         # check data
         if self.multidim and i is None:
