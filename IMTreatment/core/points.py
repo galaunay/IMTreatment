@@ -1483,6 +1483,7 @@ class Points(object):
             plt.title('Set of points')
         else:
             plt.title(self.name)
+        plt.axis('equal')
         return plot
 
     def display3D(self, kind='plot', xlabel='', ylabel='', zlabel='',

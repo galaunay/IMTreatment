@@ -288,10 +288,10 @@ class TemporalFields(flds.Fields, fld.Field):
         if len(self.fields) == 0:
             raise ValueError("There is no fields in this object")
         result_f = self.fields[0].copy()
-        if self.field_type == sf.ScalarField:
-            value = 0.
-        else:
+        if self.field_type == vf.VectorField:
             value = [0., 0.]
+        else:
+            value = 0.
         result_f.fill(kind='value', value=value, crop=False, inplace=True)
         mask_cum = np.zeros(self.shape, dtype=int)
         mask_cum[np.logical_not(self.fields[0].mask)] += 1
