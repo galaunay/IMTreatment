@@ -18,6 +18,7 @@ core package
    IMTreatment.core.spatialscalarfields
    IMTreatment.core.spatialvectorfields
    IMTreatment.core.temporalfields
+   IMTreatment.core.temporalpoints
    IMTreatment.core.temporalscalarfields
    IMTreatment.core.temporalvectorfields
    IMTreatment.core.vectorfield
