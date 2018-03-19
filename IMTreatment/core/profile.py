@@ -1809,6 +1809,28 @@ class Profile(object):
         if not inplace:
             return tmp_prof
 
+    def remove_marginal_values(self, fact=5, inplace=False):
+        """
+        Remove (mask) the marginal values.
+
+        Parameters
+        ----------
+        fact : positive number
+            Number of standard deviation in the 'acceptable' value range.
+            (default to 5)
+        """
+        if inplace:
+            tmp_p = self
+        else:
+            tmp_p = self.copy()
+        # Mask marginal values based on standard deviation
+        mean = tmp_p.mean
+        std = np.std(tmp_p.y[~tmp_p.mask])
+        tmp_p.mask[tmp_p.y < mean - fact*std] = True
+        tmp_p.mask[tmp_p.y > mean + fact*std] = True
+        # Return
+        return tmp_p
+
     def _display(self, kind='plot', reverse=False, **plotargs):
         """
         Private Displayer.

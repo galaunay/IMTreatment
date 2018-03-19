@@ -49,6 +49,15 @@ def get_color_cycles():
     return mpl.rcParams['axes.prop_cycle'].by_key()['color']
 
 
+def get_color_gradient(cmap='jet', number=10):
+    """
+    Return a gradient of color for plot uses.
+    """
+    cmap = plt.cm.get_cmap(name=cmap)
+    colors = [cmap(i/(number - 1)) for i in range(number)]
+    return colors
+
+
 def make_discrete_cmap(interv_centers, cmap=None):
     """
     Create a discrete map, with intervals centered on the given values.
