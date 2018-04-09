@@ -934,7 +934,7 @@ class Displayer(object):
         if len(self.x) != 0:
             try:
                 tmp_x = np.concatenate(self.x)
-            except:
+            except ValueError:
                 tmp_x = self.x
             self.xlim = [np.min(tmp_x[~np.isnan(tmp_x)]),
                          np.max(tmp_x[~np.isnan(tmp_x)])]

@@ -65,11 +65,11 @@ class ProgressCounter(object):
         self.t0 = None
 
     def _print_init(self):
-        print("+++ {} +++".format(self.init_mess))
+        print("=== {} ===".format(self.init_mess))
 
     def _print_end(self):
         print("")
-        print("+++ {} +++".format(self.end_mess))
+        print("=== {} ===".format(self.end_mess))
 
     def start_chrono(self):
         self.t0 = modtime.time()
@@ -89,7 +89,7 @@ class ProgressCounter(object):
         i = self.curr_nmb
         # check if i sup nmb_max
         if i == self.nmb_max + 1:
-            print("+++ Problem with nmb_max value...", end="")
+            print("=== Problem with nmb_max value...", end="")
         # check if we have to display something
         if i % self.interv == 0 or i == self.nmb_max:
             ti = modtime.time()
@@ -100,7 +100,7 @@ class ProgressCounter(object):
                 tf = self.t0 + dt*self.nmb_max
                 tf = self._format_time(tf - self.t0)
             ti = self._format_time(ti - self.t0)
-            text = ("+++    {:>3.0f} %    {:{max_pad}d}/{} {name}    {}/{}"
+            text = ("===    {:>3.0f} %    {:{max_pad}d}/{} {name}    {}/{}"
                     .format(np.round(i*1./self.nmb_max*100),
                             i, self.nmb_max, ti, tf, max_pad=self.nmb_max_pad,
                             name=self.name_things))
@@ -126,7 +126,7 @@ class ProgressCounter(object):
             dt = (ti - self.t0)/i
         ti = self._format_time(ti - self.t0)
         dt = self._format_time(dt)
-        text = ("+++    {:{max_pad}d} {name}    {}    ({} / {})"
+        text = ("===    {:{max_pad}d} {name}    {}    ({} / {})"
                 .format(i, ti, dt, self.name_things,
                         max_pad=self.nmb_max_pad,
                         name=self.name_things))
