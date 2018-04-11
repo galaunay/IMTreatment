@@ -47,6 +47,7 @@ class ScalarField(fld.Field):
     def __init__(self):
         fld.Field.__init__(self)
         self.__values = np.array([])
+        self._values_dtype = None
         self.__mask = np.array([], dtype=bool)
         self.__unit_values = make_unit("")
 
@@ -315,7 +316,10 @@ class ScalarField(fld.Field):
     @property
     def values(self):
         val = self.__values
-        val[self.mask] = np.nan
+        try:
+            val[self.mask] = np.nan
+        except ValueError:
+            val[self.mask] = 0
         return val
 
     @values.setter
@@ -410,7 +414,8 @@ class ScalarField(fld.Field):
         return np.mean(self.values[np.logical_not(self.mask)])
 
     def import_from_arrays(self, axe_x, axe_y, values, mask=None,
-                           unit_x="", unit_y="", unit_values=""):
+                           unit_x="", unit_y="", unit_values="",
+                           dtype=np.float):
         """
         Set the field from a set of arrays.
 
@@ -428,13 +433,19 @@ class ScalarField(fld.Field):
             Unit for the values of axe_y
         unit_values : String unit, optionnal
             Unit for the scalar field
+        dtype: Numerical type
+            Numerical type to store the data to.
+            Should be a type supported by numpy arrays.
+            Default to 'float'.
+
         """
         # overwrite previous
         self.__clean()
         # Use numpy arrays
+        self._values_dtype = dtype
         axe_x = np.array(axe_x, dtype=float)
         axe_y = np.array(axe_y, dtype=float)
-        values = np.array(values, dtype=float)
+        values = np.array(values, dtype=self._values_dtype)
         if mask is None:
             mask = False
         if not isinstance(mask, bool):
@@ -1423,10 +1434,10 @@ class ScalarField(fld.Field):
         new_shape = tmpsf.shape
         # extend the value ans mask
         if value is None:
-            new_values = np.zeros(new_shape, dtype=float)
+            new_values = np.zeros(new_shape, dtype=self._values_dtype)
             new_mask = np.ones(new_shape, dtype=bool)
         else:
-            new_values = np.ones(new_shape, dtype=float)*value
+            new_values = np.ones(new_shape, dtype=self._values_dtype)*value
             new_mask = np.zeros(new_shape, dtype=bool)
         if nmb_right == 0:
             slice_x = slice(nmb_left, new_values.shape[0] + 2)
@@ -2025,7 +2036,7 @@ class ScalarField(fld.Field):
         X, Y = np.meshgrid(self.axe_y, self.axe_x)
         # getting wanted component
         if component is None or component == 'values':
-            values = self.values.astype(dtype=float)
+            values = self.values.astype(dtype=self._values_dtype)
             mask = self.mask
             values[mask] = np.NaN
         elif component == 'mask':
