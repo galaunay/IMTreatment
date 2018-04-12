@@ -2038,7 +2038,10 @@ class ScalarField(fld.Field):
         if component is None or component == 'values':
             values = self.values.astype(dtype=self._values_dtype)
             mask = self.mask
-            values[mask] = np.NaN
+            try:
+                values[mask] = np.NaN
+            except ValueError:
+                values[mask] = 0
         elif component == 'mask':
             values = self.mask
         else:
