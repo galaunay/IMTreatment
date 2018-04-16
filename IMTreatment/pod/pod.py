@@ -28,7 +28,11 @@ from ..core import ScalarField, VectorField, \
 from ..utils import make_unit
 from ..utils.types import ARRAYTYPES, NUMBERTYPES, STRINGTYPES
 import numpy as np
-import modred
+try:
+    import modred
+    MODRED = True
+except ImportError:
+    MODRED = False
 import matplotlib.pyplot as plt
 from .. import plotlib as pplt
 import scipy.integrate as spint
@@ -46,6 +50,9 @@ class ModalFields(Field):
         """
         Constructor
         """
+        # Check if modred available
+        if not MODRED:
+            raise Exception("This feature need 'modred' to be installed")
         Field.__init__(self)
         # check parameters
         if decomp_type not in ['pod', 'dmd', 'bpod']:
@@ -1007,6 +1014,9 @@ def modal_decomposition(obj, kind='pod', obj2=None, wanted_modes='all',
     If so, the asked values are lineary interpolated before doing the
     decomposition.
     """
+    # check if modred is available
+    if not MODRED:
+        raise Exception("This feature need 'modred' to be installed")
     # Test parameters
     if not isinstance(obj, (TemporalFields)):
         raise TypeError()
