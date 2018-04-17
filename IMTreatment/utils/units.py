@@ -66,6 +66,8 @@ def make_unit(string):
             raise Exception("Unauthorized string: {}".format(f))
     if re.match("[a-zA-Z]+\(.*\)", string):
         raise Exception("No call allowed here")
+    # Replace '^' by '**'
+    string = string.replace('^', '**')
     # exec
     env = {}
     exec("from unum.units import *;res = {}".format(string), env)
