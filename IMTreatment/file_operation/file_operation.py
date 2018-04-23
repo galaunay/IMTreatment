@@ -87,7 +87,6 @@ def check_path(filepath, newfile=False):
             if not path.exists(new_tested_path):
                 err_mess = r"No '{}' directory/file in '{}' path." \
                            .format(new_dir, valid_path)
-                err_mess = str(err_mess).encode("utf-8")
                 raise ValueError(err_mess)
             valid_path = new_tested_path
     # returning
