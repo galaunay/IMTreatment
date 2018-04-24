@@ -1184,7 +1184,7 @@ def VC7_to_imt(vc7_path, imt_path, kind='VF', compressed=True, **kwargs):
         raise ValueError()
 
 def import_from_picture(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
-                        unit_values=''):
+                        unit_values='', dtype=float):
     """
     Import a scalar field from a picture file.
 
@@ -1202,6 +1202,8 @@ def import_from_picture(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
         .
     unit_values :
         .
+    dtype :
+        Type of the stored values (default to float)
 
     Returns
     -------
@@ -1217,6 +1219,7 @@ def import_from_picture(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
                          "(not a {} file)".format(ext))
     # importing from file
     values = spmisc.imread(filepath, flatten=True).transpose()[:, ::-1]
+    values = np.asarray(values, dtype=dtype)
     # set axis
     if axe_x is None:
         axe_x = np.arange(values.shape[0])
@@ -1231,14 +1234,16 @@ def import_from_picture(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
     # create SF
     tmp_sf = ScalarField()
     tmp_sf.import_from_arrays(axe_x, axe_y, values, unit_x=unit_x,
-                              unit_y=unit_y, unit_values=unit_values)
+                              unit_y=unit_y, unit_values=unit_values,
+                              dtype=dtype)
     # return
     return tmp_sf
 
 
 def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='',
                          unit_y='', unit_values='', times=None,
-                         unit_times='', fieldnumbers=None):
+                         unit_times='', dtype=float, fieldnumbers=None, incr=1,
+                         verbose=False):
     """
     Import scalar fields from a bunch of picture files.
 
@@ -1256,8 +1261,12 @@ def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='',
         .
     unit_values :
         .
+    dtype :
+        Type of the stored values (default to float)
     fieldnumbers: 2x1 array
         Interval of fields to import, default is all.
+    incr : integer
+        Increment (incr=2 will load only 1 picture over 2).
 
     Returns
     -------
@@ -1267,6 +1276,7 @@ def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='',
     # get paths
     # filepath = check_path(filepath)
     paths = glob(filepath)
+    paths = sorted(paths)
     tmp_tsf = TemporalScalarFields()
     # check times
     if times is None:
@@ -1278,16 +1288,25 @@ def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='',
         start = 0
         end = len(paths)
     else:
-        if fieldnumbers[0] < 0 or fieldnumbers[1] > len(paths):
+        if fieldnumbers[0] < 0:
             raise ValueError()
+        if fieldnumbers[1] > len(paths):
+            fieldnumbers[1] = len(paths)
         start = fieldnumbers[0]
         end = fieldnumbers[1]
+    if verbose:
+        pg = ProgressCounter("Importing pictures", "Done",
+                             int((end - start + 1)/incr),
+                             "pictures")
     # loop on paths
-    for i in np.arange(start, end):
+    for i in np.arange(start, end, incr):
         tmp_sf = import_from_picture(paths[i], axe_x=axe_x, axe_y=axe_y,
                                      unit_x=unit_x, unit_y=unit_y,
-                                     unit_values=unit_values)
+                                     unit_values=unit_values,
+                                     dtype=dtype)
         tmp_tsf.add_field(tmp_sf, times[i], unit_times=unit_times)
+        if verbose:
+            pg.print_progress()
     # returning
     return tmp_tsf
 
@@ -1310,7 +1329,7 @@ def export_to_picture(SF, filepath):
 
 def export_to_pictures(SFs, filepath):
     """
-    Export a scalar fields to a picture file.
+    Export scalar fields to a picture file.
 
     Parameters
     ----------

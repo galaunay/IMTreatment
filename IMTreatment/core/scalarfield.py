@@ -175,7 +175,7 @@ class ScalarField(fld.Field):
             tmpsf = self.copy()
             mask = np.logical_or(self.mask, obj == 0)
             not_mask = np.logical_not(mask)
-            tmpsf.values[not_mask] /= obj[not_mask]
+            tmpsf.values[not_mask] = tmpsf.values[not_mask] / obj[not_mask]
             tmpsf.mask = mask
             return tmpsf
         elif isinstance(obj, ScalarField):
@@ -1314,6 +1314,14 @@ class ScalarField(fld.Field):
         # returning
         if not inplace:
             return tmp_field
+
+    def change_dtype(self, new_type):
+        """
+        Change the values dtype.
+        """
+        if new_type != self._values_dtype:
+            self.values = np.array(self.values, dtype=new_type)
+            self._values_dtype = new_type
 
     def change_unit(self, axe, new_unit):
         """

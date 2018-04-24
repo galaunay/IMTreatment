@@ -275,7 +275,7 @@ class TemporalFields(flds.Fields, fld.Field):
         if len(self.fields) != 0:
             return self[0].unit_values
 
-    def get_mean_field(self, nmb_min=1):
+    def get_mean_field(self, nmb_min=1, dtype=None):
         """
         Calculate the mean velocity field, from all the fields.
 
@@ -284,14 +284,21 @@ class TemporalFields(flds.Fields, fld.Field):
         nmb_min : integer, optional
             Minimum number of values used to make a mean. else, the value is
             masked
+        dtype : type
+            Specify the output values type (default to the same one as fields).
         """
+        # checks
         if len(self.fields) == 0:
             raise ValueError("There is no fields in this object")
-        result_f = self.fields[0].copy()
         if self.field_type == vf.VectorField:
             value = [0., 0.]
         else:
             value = 0.
+        if not dtype:
+            dtype = self.fields[0]._values_dtype
+        #
+        result_f = self.fields[0].copy()
+        result_f.change_dtype(float)
         result_f.fill(kind='value', value=value, crop=False, inplace=True)
         mask_cum = np.zeros(self.shape, dtype=int)
         mask_cum[np.logical_not(self.fields[0].mask)] += 1
@@ -305,6 +312,7 @@ class TemporalFields(flds.Fields, fld.Field):
             mask_cum[np.logical_not(field.mask)] += 1
         mask = mask_cum <= nmb_min
         result_f.mask = mask
+        result_f.change_dtype(dtype)
         fact = mask_cum
         fact[mask] = 1
         result_f /= fact
@@ -1472,6 +1480,8 @@ class TemporalFields(flds.Fields, fld.Field):
                 else:
                     ind2 = np.where(intervt[1] >= self.times)[0][-1]
                 intervt = [ind1, ind2]
+            else:
+                intervt = [int(intervt[0]), int(intervt[1])]
         # crop
         if inplace:
             cropfield = self
