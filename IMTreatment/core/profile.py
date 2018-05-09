@@ -1831,6 +1831,37 @@ class Profile(object):
         # Return
         return tmp_p
 
+    def remove_local_marginal_values(self, fact=5, neighb=20, inplace=False):
+        """
+        Remove (mask) the local marginal values.
+
+        Parameters
+        ----------
+        fact : positive number
+            Number of standard deviation in the 'acceptable' value range.
+            (default to 5)
+        neighb: positive number
+            Size of the neighbourhood to consider to check if a value
+            if marginal or not.
+        """
+        # check
+        if inplace:
+            tmp_p = self
+        else:
+            tmp_p = self.copy()
+        # get smoothed version
+        prof_smooth = tmp_p.smooth(tos='gaussian', size=neighb, inplace=False)
+        # get difference from smoothed version
+        prof_diff = tmp_p - prof_smooth
+        # get std of diff
+        mean = np.mean(prof_diff.y[~prof_diff.mask])
+        std = np.std(prof_diff.y[~prof_diff.mask])
+        # mask based on the stadard deviation of the diff
+        tmp_p.mask[prof_diff.y < mean - fact*std] = True
+        tmp_p.mask[prof_diff.y > mean + fact*std] = True
+        # return
+        return tmp_p
+
     def _display(self, kind='plot', reverse=False, **plotargs):
         """
         Private Displayer.
