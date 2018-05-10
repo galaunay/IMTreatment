@@ -31,21 +31,23 @@ class ProgressCounter(object):
     Declare wherever you want and execute 'print_progress' at the begining of
     each loop.
     """
-    def __init__(self, init_mess, end_mess, nmb_max, name_things='things',
-                 perc_interv=5):
+    def __init__(self, init_mess, nmb_max, end_mess=None, name_things='things',
+                 perc_interv=5, pgbar_len=15):
         """
         Progress counter.
 
         Parameters
         ----------
         init_mess, end_mess : strings
-            Initial and closure messages
+            Initial and closure messages.
         nmb_max : integer
             Maximum number of things to count
         name_things : string, optional
             Name of the things to count (default to 'things')
-        perc_inerv : number, optional
+        perc_interv : number, optional
             Percentage interval between two displays (default to '5')
+        pgbar_len : integer, optional
+            Length (in caracter) of the progress bar
         """
         self.init_mess = init_mess
         self.end_mess = end_mess
@@ -63,13 +65,15 @@ class ProgressCounter(object):
         if self.interv == 0:
             self.interv = 1
         self.t0 = None
+        self.pgbar_len = 15
 
     def _print_init(self):
         print("=== {} ===".format(self.init_mess))
 
     def _print_end(self):
         print("")
-        print("=== {} ===".format(self.end_mess))
+        if self.end_mess is not None:
+            print("=== {} ===".format(self.end_mess))
 
     def start_chrono(self):
         self.t0 = modtime.time()
@@ -100,9 +104,14 @@ class ProgressCounter(object):
                 tf = self.t0 + dt*self.nmb_max
                 tf = self._format_time(tf - self.t0)
             ti = self._format_time(ti - self.t0)
-            text = ("===    {:>3.0f} %    {:{max_pad}d}/{} {name}    {}/{}"
-                    .format(np.round(i*1./self.nmb_max*100),
-                            i, self.nmb_max, ti, tf, max_pad=self.nmb_max_pad,
+            perc = np.round(i*1./self.nmb_max*100)
+            pgbar_nmb = int(perc/100*self.pgbar_len)
+            pgbar = ("[" + "#"*pgbar_nmb +
+                     "."*(self.pgbar_len - pgbar_nmb) + "]")
+            text = ("===    {} {:>.0f}%    {:{max_pad}d}/{} {name}    {}/{}"
+                    .format(pgbar, perc,
+                            i, self.nmb_max, ti, tf,
+                            max_pad=self.nmb_max_pad,
                             name=self.name_things))
             print('\r' + text, end="")
         # increment
