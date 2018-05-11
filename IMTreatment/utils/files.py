@@ -280,8 +280,10 @@ class Files(object):
         # remove if necessary
         if rep:
             print("")
-            PG = ProgressCounter("Begin cleaning", "Done", nmb_files,
-                                 name_things='files', perc_interv=10)
+            PG = ProgressCounter(init_mess="Begin cleaning",
+                                 nmb_max=nmb_files,
+                                 name_things='files',
+                                 perc_interv=10)
             # remove files
             for i, p in enumerate(np.array(tmp_paths)):
                 if tmp_isdir[i]:
@@ -383,8 +385,10 @@ def remove_files_in_dirs(rootpath, dir_regex, file_regex,
     # remove if necessary
     if rep:
         print("")
-        PG = ProgressCounter("Begin cleaning", "Done", len(file_paths),
-                             name_things='files', perc_interv=10)
+        PG = ProgressCounter(init_mess="Begin cleaning",
+                             nmb_max=len(file_paths),
+                             name_things='files',
+                             perc_interv=10)
         for p in file_paths:
             PG.print_progress()
             os.remove(p)

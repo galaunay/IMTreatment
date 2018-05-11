@@ -779,10 +779,10 @@ class TemporalFields(flds.Fields, fld.Field):
             map_freq.append(np.zeros(self.shape, dtype=float))
             map_freq_quality.append(np.zeros(self.shape, dtype=float))
         if verbose:
-            PG = ProgressCounter("Begin spectrum map computation on {}"
+            PG = ProgressCounter(init_mess="Begin spectrum map computation on {}"
                                  .format(comp),
-                                 "Done", self.shape[0]*self.shape[1],
-                                 "points")
+                                 nmb_max=self.shape[0]*self.shape[1],
+                                 name_things="points")
         # loop on field points
         for i, x in enumerate(self.axe_x):
             for j, y in enumerate(self.axe_y):
@@ -883,8 +883,8 @@ class TemporalFields(flds.Fields, fld.Field):
         length = len(self.fields)
         rec_map = np.zeros((length, length))
         if verbose:
-            pc = ProgressCounter("Begin recurence map computation",
-                                 "Done", int(length**2/2. + length/2.),
+            pc = ProgressCounter(init_mess="Begin recurence map computation",
+                                 nmb_max=int(length**2/2. + length/2.),
                                  name_things='norms', perc_interv=1)
         if self.field_type == vf.VectorField:
             field_type = 0

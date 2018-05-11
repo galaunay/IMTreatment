@@ -131,9 +131,9 @@ class TemporalScalarFields(tf.TemporalFields):
                                                check_spec)
         # get phases
         if verbose:
-            pg = ProgressCounter("Computing phase maps", "Done",
-                                 self.shape[0]*self.shape[1],
-                                 "profiles")
+            pg = ProgressCounter(init_mess="Computing phase maps",
+                                 nmb_max=self.shape[0]*self.shape[1],
+                                 name_things="profiles")
         for i, x in enumerate(self.axe_x):
             for j, y in enumerate(self.axe_y):
                 if verbose:

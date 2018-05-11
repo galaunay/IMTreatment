@@ -1514,8 +1514,9 @@ class CritPoints(object):
             cp_pts = self.node_o
         new_cp_pts = []
         # Loop on time
-        PG = ProgressCounter("Begin '{}' points refinment".format(cp_type),
-                             "Done", nmb_max=len(cp_pts))
+        PG = ProgressCounter(init_mess="Begin '{}' points refinment"
+                             .format(cp_type),
+                             nmb_max=len(cp_pts))
         for i in np.arange(len(times)):
             PG.print_progress()
             # check if there is point to refine

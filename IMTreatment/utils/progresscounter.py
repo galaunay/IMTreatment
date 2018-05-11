@@ -58,7 +58,7 @@ class ProgressCounter(object):
         self.name_things = name_things
         self.perc_interv = perc_interv
         if self.nmb_max == np.inf:
-            self.interv = None
+            self.interv = perc_interv
         else:
             self.interv = int(np.round(nmb_max)*perc_interv/100.)
         # check if there is more wanted interval than actual loop
@@ -128,18 +128,19 @@ class ProgressCounter(object):
         # get current
         i = self.curr_nmb
         # Dsiaplay each time because we cannot do anything else
-        ti = modtime.time()
-        if i == 0:
-            tf = '---'
-        else:
-            dt = (ti - self.t0)/i
-        ti = self._format_time(ti - self.t0)
-        dt = self._format_time(dt)
-        text = ("===    {:{max_pad}d} {name}    {}    ({} / {})"
-                .format(i, ti, dt, self.name_things,
-                        max_pad=self.nmb_max_pad,
-                        name=self.name_things))
-        print('\r' + text, end="")
+        if i % self.interv == 0:
+            ti = modtime.time()
+            if i == 0:
+                tf = '---'
+            else:
+                dt = (ti - self.t0)/i
+            ti = self._format_time(ti - self.t0)
+            dt = self._format_time(dt)
+            text = ("===    {:{max_pad}d} {name}    {}    ({} / {})"
+                    .format(i, ti, dt, self.name_things,
+                            max_pad=self.nmb_max_pad,
+                            name=self.name_things))
+            print('\r' + text, end="")
         # increment
         self.curr_nmb += 1
         # check if finished

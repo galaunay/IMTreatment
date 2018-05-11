@@ -145,8 +145,10 @@ def get_vortex_radius_time_evolution(TVFS, traj, NL_radius=None,
     """
     radii = np.empty((len(traj.xy),))
     if verbose:
-        pg = ProgressCounter("Begin vortex radii detection",
-                             "Done", len(traj.xy), 'fields', perc_interv=1)
+        pg = ProgressCounter(init_mess="Begin vortex radii detection",
+                             nmb_max=len(traj.xy),
+                             name_things='fields',
+                             perc_interv=1)
     # computing with vortex center
     if output_center:
         centers = Points(unit_x=TVFS.unit_x, unit_y=TVFS.unit_y,

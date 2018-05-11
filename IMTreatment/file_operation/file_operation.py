@@ -1055,9 +1055,10 @@ def import_from_VC7s(fieldspath, kind='TVF', fieldnumbers=None, incr=1,
     start = fieldnumbers[0]
     end = fieldnumbers[1]
     nmb_files = int((end - start)/incr)
-    pc = ProgressCounter("Begin importation of {} VC7 files"
+    pc = ProgressCounter(init_mess="Begin importation of {} VC7 files"
                          .format(nmb_files),
-                         "Done", nmb_files, name_things="VC7 files",
+                         nmb_max=nmb_files,
+                         name_things="VC7 files",
                          perc_interv=10)
     # loop on files
     t = 0.
@@ -1295,9 +1296,9 @@ def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='',
         start = fieldnumbers[0]
         end = fieldnumbers[1]
     if verbose:
-        pg = ProgressCounter("Importing pictures", "Done",
-                             int((end - start + 1)/incr),
-                             "pictures")
+        pg = ProgressCounter(init_mess="Importing pictures",
+                             nmb_max=int((end - start + 1)/incr),
+                             name_things="pictures")
     # loop on paths
     for i in np.arange(start, end, incr):
         tmp_sf = import_from_picture(paths[i], axe_x=axe_x, axe_y=axe_y,
