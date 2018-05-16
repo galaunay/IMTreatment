@@ -91,7 +91,8 @@ class ScalarField(fld.Field):
                     np.all(self.axe_y == otherone.axe_y):
                 tmpsf = self.copy()
                 fact = otherone.unit_values/self.unit_values
-                tmpsf.values += otherone.values*fact.asNumber()
+                tmpsf.values += np.array(otherone.values*fact.asNumber(),
+                                         dtype=self._values_dtype)
                 tmpsf.mask = np.logical_or(self.mask, otherone.mask)
             # different shape, partially same axis
             else:

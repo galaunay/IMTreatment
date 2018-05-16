@@ -26,6 +26,13 @@ import gc
 import gzip
 import os
 from glob import glob
+import warnings
+try:
+    import cv2
+    IS_CV2 = True
+except ImportError:
+    IS_CV2 = False
+
 
 import numpy as np
 
@@ -68,11 +75,11 @@ def check_path(filepath, newfile=False):
         path_compos = []
         p = filepath
         while True:
-            p, f = path.split(p)
+            p, f = filepath.split(p)
             if f != "":
                 path_compos.append(f)
             else:
-                if path != "":
+                if filepath != "":
                     path_compos.append(p)
                 break
         # check validity recursively
@@ -1240,7 +1247,6 @@ def import_from_picture(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
     # return
     return tmp_sf
 
-
 def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='',
                          unit_y='', unit_values='', times=None,
                          unit_times='', dtype=float, fieldnumbers=None, incr=1,
@@ -1312,6 +1318,91 @@ def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='',
     return tmp_tsf
 
 
+def import_from_video(filepath, dx=1, dy=1, unit_x='',
+                      unit_y='', unit_values='', dt=1,
+                      unit_times='', dtype=float, frame_inds=None, incr=1,
+                      verbose=False):
+    """
+    Import scalar fields from a video.
+
+    Parameters
+    ----------
+    filepath : string
+        regex matching the files.
+    dx :
+        .
+    dy :
+        .
+    unit_x :
+        .
+    unit_y :
+        .
+    unit_values :
+        .
+    dtype :
+        Type of the stored values (default to float)
+    frame_inds: 2x1 array
+        Interval of fields to import, default is all.
+    incr : integer
+        Increment (incr=2 will load only 1 picture over 2).
+
+    Returns
+    -------
+    tmp_sf :
+        .
+    """
+    # Chheck if cv2 is available
+    if not IS_CV2:
+        raise Exception('This feature needs opencv to be installed')
+    # Check file
+    filepath = check_path(filepath)
+    paths = glob(filepath)
+    paths = sorted(paths)
+    tmp_tsf = TemporalScalarFields()
+    # Open video stream
+    vid = cv2.VideoCapture()
+    vid.open(filepath)
+    max_frame = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+    # filter by field number
+    if frame_inds is None:
+        frame_inds = [0, max_frame]
+    if frame_inds[1] > max_frame:
+        frame_inds[1] = max_frame
+    if verbose:
+        start = frame_inds[0]
+        end = frame_inds[1]
+        pg = ProgressCounter(init_mess="Importing pictures",
+                             nmb_max=int((end - start + 1)/incr),
+                             name_things="pictures")
+    # loop on paths
+    tsf = TemporalScalarFields()
+    t = 0
+    for i in np.arange(0, frame_inds[1], 1):
+        if i < frame_inds[0] or i % incr != 0:
+            t += dt
+            vid.grab()
+            continue
+        success, im = vid.read()
+        if not success:
+            if frame_inds[1] != np.inf:
+                warnings.warn(f"Can't decode frame number {i}")
+            break
+        im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
+        im = im.transpose()[:, ::-1]
+        axe_x = np.arange(0, im.shape[0]*dx - 0.1*dx, dx)
+        axe_y = np.arange(0, im.shape[1]*dy - 0.1*dy, dy)
+        sf = ScalarField()
+        sf.import_from_arrays(axe_x, axe_y, im, mask=False,
+                              unit_x=unit_x, unit_y=unit_y,
+                              dtype=dtype)
+        tsf.add_field(sf, time=t, unit_times=unit_times, copy=False)
+        t += dt
+        if verbose:
+            pg.print_progress()
+    # returning
+    return tsf
+
+
 def export_to_picture(SF, filepath):
     """
     Export a scalar field to a picture file.
@@ -1353,6 +1444,55 @@ def export_to_pictures(SFs, filepath):
     for i, val in enumerate(values):
         spmisc.imsave("{}_{:0>5}.png".format(filepath, i), val)
 
+
+def export_to_video(SFs, filepath, fps=24, colormap=None):
+    """
+    Export scalar fields to a video file.
+
+    Parameters
+    ----------
+    SF :
+        .
+    filename : string
+        Path to the video file.
+    """
+    #check
+    filepath = check_path(filepath, newfile=True)
+    # get
+    values = []
+    if isinstance(SFs, ARRAYTYPES):
+        for i in np.arange(len(SFs)):
+            values.append(SFs[i].values)
+    elif isinstance(SFs, (SpatialScalarFields, TemporalScalarFields)):
+        for i in np.arange(len(SFs.fields)):
+            values.append(SFs.fields[i].values[:, ::-1].transpose())
+    values = np.array(values)
+    # normalize between 0 and 255
+    maxi = np.max(values)
+    mini = np.min(values)
+    values = (values - mini)/(maxi - mini)
+    # save as a video using opencv
+    vid = cv2.VideoWriter(filename=filepath,
+                          fourcc=cv2.VideoWriter_fourcc(*"MJPG"),
+                          fps=fps,
+                          frameSize=(values[0].shape[1],
+                                     values[0].shape[0]))
+    for val in values:
+        if colormap is None:
+            tmpval = cv2.cvtColor((val*255).astype('uint8'),
+                                  cv2.COLOR_GRAY2RGB)
+        else:
+            tmpval = np.array(colormap(val)[:, :, 0:3]*255,
+                              dtype=np.uint8)
+            tmpval = tmpval[:, :, ::-1]
+        # # TEMP
+        # tmpval2 = cv2.cvtColor((val*255).astype('uint8'),
+        #                        cv2.COLOR_GRAY2RGB)
+        # tmpval[:, 0:int(tmpval.shape[1]/2), :] \
+        #     = tmpval2[:, 0:int(tmpval.shape[1]/2), :]
+        # # TEMP - End
+        vid.write(tmpval)
+    vid.release()
 
 def import_profile_from_ascii(filepath, x_col=1, y_col=2,
                               unit_x=make_unit(""), unit_y=make_unit(""),

@@ -71,10 +71,14 @@ class TemporalFields(flds.Fields, fld.Field):
                 for i in np.arange(len(other.fields)):
                     tmp_tf.add_field(other.fields[i])
             return tmp_tf
-
         else:
-            raise TypeError("cannot concatenate {} with"
-                            " {}.".format(self.__class__, type(other)))
+            tmp_TF = self.copy()
+            for i in np.arange(len(tmp_TF.fields)):
+                tmp_TF.fields[i] += other
+            return tmp_TF
+        # else:
+        #     raise TypeError("cannot concatenate {} with"
+        #                     " {}.".format(self.__class__, type(other)))
 
     def __sub__(self, other):
         return self.__add__(-other)

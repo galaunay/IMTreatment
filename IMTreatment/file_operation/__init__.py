@@ -29,4 +29,4 @@ from .file_operation import export_to_file, export_to_matlab, export_to_vtk,\
     IM7_to_imt, VC7_to_imt, imts_to_imt, import_pts_from_ascii,\
     import_from_picture, import_from_pictures, export_to_picture,\
     export_to_pictures, export_to_ascii, import_profile_from_ascii,\
-    check_path, import_from_matlab
+    check_path, import_from_matlab, import_from_video, export_to_video
