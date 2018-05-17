@@ -75,11 +75,11 @@ def check_path(filepath, newfile=False):
         path_compos = []
         p = filepath
         while True:
-            p, f = filepath.split(p)
+            p, f = path.split(p)
             if f != "":
                 path_compos.append(f)
             else:
-                if filepath != "":
+                if p != "":
                     path_compos.append(p)
                 break
         # check validity recursively
@@ -92,9 +92,11 @@ def check_path(filepath, newfile=False):
                 break
             new_tested_path = path.join(valid_path, new_dir)
             if not path.exists(new_tested_path):
-                err_mess = r"No '{}' directory/file in '{}' path." \
+                if valid_path == "":
+                    valid_path = os.getcwd()
+                err_mess = r"'{}' directory/file not found in '{}' directory." \
                            .format(new_dir, valid_path)
-                raise ValueError(err_mess)
+                raise FileNotFoundError(err_mess)
             valid_path = new_tested_path
     # returning
     if newfile:
