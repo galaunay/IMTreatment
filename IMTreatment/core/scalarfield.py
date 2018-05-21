@@ -918,7 +918,8 @@ class ScalarField(fld.Field):
                 axe = self.axe_x
         return prof.Profile(axe, profile, prof_mask, unit_x, unit_y)
 
-    def get_histogram(self, cum=False, normalized=False):
+    def get_histogram(self, cum=False, normalized=False, bins=None,
+                      range=None):
         """
         Return the image histogram.
 
@@ -933,7 +934,8 @@ class ScalarField(fld.Field):
             Histogram.
         """
         hist, xs = np.histogram(self.values.flatten(),
-                                bins=255,
+                                bins=bins,
+                                range=range,
                                 density=normalized)
         xs = xs[0:-1] + np.mean(xs[0:2])
         if cum:
