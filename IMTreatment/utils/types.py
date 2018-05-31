@@ -29,7 +29,8 @@ import re
 ARRAYTYPES = (np.ndarray, list, tuple)
 INTEGERTYPES = (int, np.int, np.int16, np.int32, np.int64, np.int8)
 NUMBERTYPES = (int, float, complex, np.float, np.float16, np.float32,
-               np.float64) + INTEGERTYPES
+               np.float64, np.uint8, np.int8, np.int64, np.int16,
+               np.int32, np.int) + INTEGERTYPES
 STRINGTYPES = (str, str)
 
 
