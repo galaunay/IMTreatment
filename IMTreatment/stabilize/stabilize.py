@@ -28,6 +28,7 @@ import imutils.feature.factories as kp_factory
 from ..core.profile import Profile
 from ..core.temporalscalarfields import TemporalScalarFields
 from ..core.scalarfield import ScalarField
+from ..utils.progresscounter import ProgressCounter
 import numpy as np
 import cv2
 
@@ -53,7 +54,9 @@ class Stabilizer(object):
         """
         # verbose
         if verbose:
-            print("Computing transform...")
+            pg = ProgressCounter(init_mess="Computing transform",
+                                 nmb_max=len(self.obj),
+                                 name_things="frames")
         prev_to_cur_transform = []
         prev_im = self.obj[0].values
         for i in range(len(self.obj)):
@@ -94,6 +97,9 @@ class Stabilizer(object):
             if self.mode == 'continuous':
                 # set current frame to prev frame for use in next iteration
                 prev_im = cur_im
+            # verbose
+            if verbose:
+                pg.print_progress()
         # store resulting traj and transform
         if self.mode == 'continuous':
             self.raw_transform = np.array(prev_to_cur_transform)
@@ -112,7 +118,7 @@ class Stabilizer(object):
         """
         # verbose
         if verbose:
-            print("Smoothing transform...")
+            print("=== Smoothing transform ===")
         self.smoothed_trajectory = self.raw_trajectory.copy()
         for i in range(3):
             tmp_prof = Profile(self.obj.times, self.raw_trajectory[:, i])
@@ -129,7 +135,9 @@ class Stabilizer(object):
         """
         # verbose
         if verbose:
-            print("Applying transform...")
+            pg = ProgressCounter(init_mess="Applying transform",
+                                 nmb_max=len(self.obj),
+                                 name_things="frames")
         # checks
         border_modes = {
             'black': cv2.BORDER_CONSTANT,
@@ -186,6 +194,9 @@ class Stabilizer(object):
                                   dtype=np.uint8)
             res_tsf.add_field(im, time=self.obj.times[i],
                               unit_times=self.obj.unit_times)
+            # verbose
+            if verbose:
+                pg.print_progress()
         self.stabilized_obj = res_tsf
 
     def get_stabilized_obj(self, smooth_size=30, border_type='black',
