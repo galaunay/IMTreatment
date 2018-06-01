@@ -34,7 +34,7 @@ import cv2
 
 class Stabilizer(object):
 
-    def __init__(self, obj, kp_method='ORB', kp_kwargs={}):
+    def __init__(self, obj, kp_method='ORB', kp_kwargs={}, mode='continuous'):
         """
         """
         self.obj = obj
@@ -42,14 +42,18 @@ class Stabilizer(object):
         self.kp_kwargs = kp_kwargs
         self.kp_detector = kp_factory.FeatureDetector_create(
             kp_method, **kp_kwargs)
+        self.mode = mode
         self.raw_transform = None
         self.raw_trajectory = None
         self.smoothed_trajectory = None
         self.stabilized_obj = None
 
-    def compute_transform(self):
+    def compute_transform(self, verbose=False):
         """
         """
+        # verbose
+        if verbose:
+            print("Computing transform...")
         prev_to_cur_transform = []
         prev_im = self.obj[0].values
         for i in range(len(self.obj)):
@@ -87,16 +91,28 @@ class Stabilizer(object):
 
             # store transform
             prev_to_cur_transform.append([dx, dy, da])
-            # set current frame to prev frame for use in next iteration
-            prev_im = cur_im
-        # convert list of transforms to array
-        self.raw_transform = np.array(prev_to_cur_transform)
-        # cumsum of all transforms for trajectory
-        self.raw_trajectory = np.cumsum(prev_to_cur_transform, axis=0)
+            if self.mode == 'continuous':
+                # set current frame to prev frame for use in next iteration
+                prev_im = cur_im
+        # store resulting traj and transform
+        if self.mode == 'continuous':
+            self.raw_transform = np.array(prev_to_cur_transform)
+            self.raw_trajectory = np.cumsum(prev_to_cur_transform, axis=0)
+        elif self.mode == 'from_first':
+            prev_to_cur_transform = np.array(prev_to_cur_transform)
+            self.raw_transform = np.concatenate(([prev_to_cur_transform[0]],
+                                                prev_to_cur_transform[1::] -
+                                                prev_to_cur_transform[0:-1]))
+            self.raw_trajectory = np.array(prev_to_cur_transform)
+        else:
+            raise ValueError()
 
-    def smooth_transform(self, smooth_size=30):
+    def smooth_transform(self, smooth_size=30, verbose=False):
         """
         """
+        # verbose
+        if verbose:
+            print("Smoothing transform...")
         self.smoothed_trajectory = self.raw_trajectory.copy()
         for i in range(3):
             tmp_prof = Profile(self.obj.times, self.raw_trajectory[:, i])
@@ -107,9 +123,13 @@ class Stabilizer(object):
                                    (self.smoothed_trajectory -
                                     self.raw_trajectory))
 
-    def apply_transform(self, border_type='black', border_size=0):
+    def apply_transform(self, border_type='black', border_size=0,
+                        verbose=False):
         """
         """
+        # verbose
+        if verbose:
+            print("Applying transform...")
         # checks
         border_modes = {
             'black': cv2.BORDER_CONSTANT,
@@ -169,10 +189,11 @@ class Stabilizer(object):
         self.stabilized_obj = res_tsf
 
     def get_stabilized_obj(self, smooth_size=30, border_type='black',
-                           border_size=0):
+                           border_size=0, verbose=False):
         """
         """
-        self.compute_transform()
-        self.smooth_transform(smooth_size=smooth_size)
-        self.apply_transform(border_type=border_type, border_size=border_size)
+        self.compute_transform(verbose=verbose)
+        self.smooth_transform(smooth_size=smooth_size, verbose=verbose)
+        self.apply_transform(border_type=border_type, border_size=border_size,
+                             verbose=verbose)
         return self.stabilized_obj
