@@ -448,11 +448,16 @@ class ScalarField(fld.Field):
         axe_y = np.array(axe_y, dtype=float)
         values = np.array(values, dtype=self._values_dtype)
         if mask is None:
-            mask = False
-        if not isinstance(mask, bool):
+            mask = np.zeros(values.shape, dtype=bool)
+        elif isinstance(mask, bool):
+            nmask = np.empty(self.shape, dtype=bool)
+            nmask.fill(mask)
+            mask = nmask
+        else:
             mask = np.array(mask, dtype=bool)
         # Be sure nan values are masked
-        mask = np.logical_or(mask, np.isnan(values))
+        if np.isnan(np.sum(values)):
+            mask = np.logical_or(mask, np.isnan(values))
         # Be sure axes are one-dimensional
         if axe_x.ndim >= 2:
             if np.all(axe_x[0, 0] == axe_x[:, 0]):
@@ -493,8 +498,8 @@ class ScalarField(fld.Field):
         # storing datas
         self.axe_x = axe_x
         self.axe_y = axe_y
-        self.values = values
-        self.mask = mask
+        self.__values = values
+        self.__mask = mask
         self.unit_x = unit_x
         self.unit_y = unit_y
         self.unit_values = unit_values

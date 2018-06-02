@@ -193,7 +193,8 @@ class Stabilizer(object):
                                   unit_values=self.obj.unit_values,
                                   dtype=np.uint8)
             res_tsf.add_field(im, time=self.obj.times[i],
-                              unit_times=self.obj.unit_times)
+                              unit_times=self.obj.unit_times,
+                              copy=False)
             # verbose
             if verbose:
                 pg.print_progress()
