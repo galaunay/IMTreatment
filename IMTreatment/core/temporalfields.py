@@ -1157,6 +1157,29 @@ class TemporalFields(flds.Fields, fld.Field):
             self.__times = np.delete(self.times, nmb)
         flds.Fields.remove_field(self, fieldnumbers)
 
+    def reduce_spatial_resolution(self, fact, inplace=False):
+        """
+        Reduce the spatial resolution of the fields by a factor 'fact'
+
+        Parameters
+        ----------
+        fact : int
+            Reducing factor.
+        inplace : boolean, optional
+            .
+        """
+        if inplace:
+            tmpfs = self
+        else:
+            tmpfs = self.copy()
+        #
+        for f in tmpfs.fields:
+            f.reduce_spatial_resolution(fact=fact, inplace=True)
+        #
+        self.axe_x = self.fields[0].axe_x
+        self.axe_y = self.fields[0].axe_y
+        return tmpfs
+
     def reduce_temporal_resolution(self, nmb_in_interval, mean=True,
                                    inplace=False):
         """
