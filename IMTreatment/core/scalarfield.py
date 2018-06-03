@@ -450,7 +450,7 @@ class ScalarField(fld.Field):
         if mask is None:
             mask = np.zeros(values.shape, dtype=bool)
         elif isinstance(mask, bool):
-            nmask = np.empty(self.shape, dtype=bool)
+            nmask = np.empty(values.shape, dtype=bool)
             nmask.fill(mask)
             mask = nmask
         else:

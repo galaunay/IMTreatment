@@ -1373,9 +1373,9 @@ def import_from_video(filepath, dx=1, dy=1, unit_x='',
     if verbose:
         start = frame_inds[0]
         end = frame_inds[1]
-        pg = ProgressCounter(init_mess="Importing pictures",
+        pg = ProgressCounter(init_mess="Importing video",
                              nmb_max=int((end - start + 1)/incr),
-                             name_things="pictures")
+                             name_things="frames")
     # loop on paths
     tsf = TemporalScalarFields()
     t = 0
