@@ -24,42 +24,71 @@
 
 # This submodule is inspired from https://github.com/galaunay/python_video_stab
 
-import imutils.feature.factories as kp_factory
 from ..core.profile import Profile
 from ..core.temporalscalarfields import TemporalScalarFields
 from ..core.scalarfield import ScalarField
 from ..utils.progresscounter import ProgressCounter
+from ..plotlib import get_color_cycles
 import numpy as np
+import matplotlib.pyplot as plt
 import cv2
 
 
 class Stabilizer(object):
+    """
+    Stabilizer for TemporalFields, based on ORB implementation of opencv.
+    """
 
-    def __init__(self, obj, kp_method='ORB', kp_kwargs={}, mode='continuous'):
+    def __init__(self, obj, orb_kwargs={}, mode='continuous'):
         """
+        Stabilizer for TemporalFields, based on ORB implementation of opencv.
+
+        Parameters
+        ==========
+        obj: TemporalFields object
+            Fields on wich performing the stabilization.
+        orb_kwargs: dic
+            Additional arguments for the ORB feature detectior
+            (See opencv documentation for more information)
+        mode: string in ['continuous', 'from_first']
+            If 'continuous', stabilize each frame in regards of the previous
+            one.
+            If 'from_first', stabilize all frame from the first one.
         """
         self.obj = obj
-        self.kp_method = kp_method
-        self.kp_kwargs = kp_kwargs
-        self.kp_detector = kp_factory.FeatureDetector_create(
-            kp_method, **kp_kwargs)
+        self.kp_kwargs = orb_kwargs
+        self.kp_detector = cv2.ORB_create(**orb_kwargs)
         self.mode = mode
         self.raw_transform = None
+        self.smoothed_transform = None
         self.raw_trajectory = None
         self.smoothed_trajectory = None
         self.stabilized_obj = None
 
-    def compute_transform(self, verbose=False):
+    def _compute_transform(self, dense=False, opt_flow_args={}, verbose=False):
         """
+        Use the feature points to compute the deformation transformation for
+        each frames.
+
+        Parameters
+        ==========
+        dense: boolean
+            If True, use dens optical flow (track every pixel instead
+            of tracking features). This method give better results when the
+            frames don't show well-defined features, but is slower.
+        opt_flow_args: dic
+            Additional arguments for the optical flow functions
+            ('calcOpticalFLowPyrLK' or 'calcOpticalFlowFarneback',
+            see opencv documentation.
         """
         # verbose
         if verbose:
-            pg = ProgressCounter(init_mess="Computing transform",
-                                 nmb_max=len(self.obj),
-                                 name_things="frames")
+            pg = ProgressCounter(init_mess="Computing transforms",
+                                 nmb_max=len(self.obj) - 1,
+                                 name_things="transforms")
         prev_to_cur_transform = []
         prev_im = self.obj[0].values
-        for i in range(len(self.obj)):
+        for i in np.arange(1, len(self.obj)):
             cur_im = self.obj[i].values
             # detect keypoints
             prev_kps = self.kp_detector.detect(prev_im)
@@ -67,30 +96,49 @@ class Stabilizer(object):
                 [kp.pt for kp in prev_kps],
                 dtype='float32').reshape(-1, 1, 2)
             # calc flow of movement
-            cur_kps, status, err = cv2.calcOpticalFlowPyrLK(
-                prev_im,
-                cur_im,
-                prev_kps,
-                None)
-            # storage for keypoints with status 1
-            prev_matched_kp = []
-            cur_matched_kp = []
-            for i, matched in enumerate(status):
-                # store coords of keypoints that appear in both
-                if matched:
-                    prev_matched_kp.append(prev_kps[i])
-                    cur_matched_kp.append(cur_kps[i])
-            # estimate partial transform
-            transform = cv2.estimateRigidTransform(
-                np.array(prev_matched_kp),
-                np.array(cur_matched_kp),
-                False)
-            if transform is not None:
-                dx = transform[0, 2]
-                dy = transform[1, 2]
-                da = np.arctan2(transform[1, 0], transform[0, 0])
+            if dense:
+                raise Exception('Not implemented yet')
+                args = {'pyr_scale': 0.5,
+                        'levels': 3,
+                        'winsize': 15,
+                        'iterations': 3,
+                        'poly_n': 5,
+                        'poly_sigma': 1.2,
+                        'flags': 0}
+                args.update(opt_flow_args)
+                flow = cv2.calcOpticalFlowFarneback(
+                    prev_im,
+                    cur_im,
+                    None, **args)
+                dx = np.mean(flow[..., 0])
+                dy = np.mean(flow[..., 0])
+                da = 0
             else:
-                dx = dy = da = 0
+                cur_kps, status, err = cv2.calcOpticalFlowPyrLK(
+                    prev_im,
+                    cur_im,
+                    prev_kps,
+                    None,
+                    **opt_flow_args)
+                # storage for keypoints with status 1
+                prev_matched_kp = []
+                cur_matched_kp = []
+                for i, matched in enumerate(status):
+                    # store coords of keypoints that appear in both
+                    if matched:
+                        prev_matched_kp.append(prev_kps[i])
+                        cur_matched_kp.append(cur_kps[i])
+                # estimate partial transform
+                transform = cv2.estimateRigidTransform(
+                    np.array(prev_matched_kp),
+                    np.array(cur_matched_kp),
+                    False)
+                if transform is not None:
+                    dx = transform[0, 2]
+                    dy = transform[1, 2]
+                    da = np.arctan2(transform[1, 0], transform[0, 0])
+                else:
+                    dx = dy = da = 0
 
             # store transform
             prev_to_cur_transform.append([dx, dy, da])
@@ -107,37 +155,60 @@ class Stabilizer(object):
         elif self.mode == 'from_first':
             prev_to_cur_transform = np.array(prev_to_cur_transform)
             self.raw_transform = np.concatenate(([prev_to_cur_transform[0]],
-                                                prev_to_cur_transform[1::] -
-                                                prev_to_cur_transform[0:-1]))
+                                                 prev_to_cur_transform[1::] -
+                                                 prev_to_cur_transform[0:-1]))
             self.raw_trajectory = np.array(prev_to_cur_transform)
         else:
             raise ValueError()
 
-    def smooth_transform(self, smooth_size=30, verbose=False):
+    def _smooth_transform(self, smooth_size=30, verbose=False):
         """
+        Smooth the computed transformations to get smoother transitions in the
+        resulting video.
+
+        Parameters
+        ==========
+        smooth_size: integer
+            Size of the smoothing to use (default to 30)
         """
+        # check
+        if self.raw_transform is None:
+            raise Exception('You should compute the transformation first.')
         # verbose
         if verbose:
-            print("=== Smoothing transform ===")
+            print("=== Smoothing transforms ===")
         self.smoothed_trajectory = self.raw_trajectory.copy()
         for i in range(3):
-            tmp_prof = Profile(self.obj.times, self.raw_trajectory[:, i])
+            tmp_prof = Profile(self.obj.times[:-1], self.raw_trajectory[:, i])
             tmp_prof.smooth(tos='gaussian', size=smooth_size,
                             inplace=True)
             self.smoothed_trajectory[:, i] = tmp_prof.y
-        self.smoothed_transform = (self.raw_transform +
-                                   (self.smoothed_trajectory -
-                                    self.raw_trajectory))
+        self.smoothed_transform = (self.raw_transform
+                                   + (self.smoothed_trajectory
+                                      - self.raw_trajectory))
 
-    def apply_transform(self, border_type='black', border_size=0,
-                        verbose=False):
+    def _apply_transform(self, border_type='black', border_size=0,
+                         verbose=False):
         """
+        Apply the computed transformation to the fields.
+
+        Parameters:
+        ===========
+        border_type: string in ['black', 'reflect', 'replicate']
+            Type of borders.
+        border_size: integer
+            Size in pixels of the additional border to use
+            (to avoid loosing part of the frames during the transformation).
         """
+        # checks
+        if self.smoothed_transform is None:
+            raise Exception('You should compute and smooth the transformation'
+                            ' first.')
         # verbose
         if verbose:
             pg = ProgressCounter(init_mess="Applying transform",
                                  nmb_max=len(self.obj),
-                                 name_things="frames")
+                                 name_things="transforms")
         # checks
         border_modes = {
             'black': cv2.BORDER_CONSTANT,
@@ -158,15 +229,16 @@ class Stabilizer(object):
         axe_x = np.arange(x0 - border_size*dx, xf + border_size*dx + dx, dx)
         axe_y = np.arange(y0 - border_size*dy, yf + border_size*dy + dx, dy)
         # main loop
+        transf = np.concatenate(([[0, 0, 0]], self.smoothed_transform))
         for i in range(len(self.obj)):
             # build transformation matrix
             transform = np.zeros((2, 3))
-            transform[0, 0] = np.cos(self.smoothed_transform[i][2])
-            transform[0, 1] = -np.sin(self.smoothed_transform[i][2])
-            transform[1, 0] = np.sin(self.smoothed_transform[i][2])
-            transform[1, 1] = np.cos(self.smoothed_transform[i][2])
-            transform[0, 2] = self.smoothed_transform[i][0]
-            transform[1, 2] = self.smoothed_transform[i][1]
+            transform[0, 0] = np.cos(transf[i][2])
+            transform[0, 1] = -np.sin(transf[i][2])
+            transform[1, 0] = np.sin(transf[i][2])
+            transform[1, 1] = np.cos(transf[i][2])
+            transform[0, 2] = transf[i][0]
+            transform[1, 2] = transf[i][1]
             # apply transform
             bordered_im = cv2.copyMakeBorder(
                 self.obj[i].values,
@@ -181,8 +253,10 @@ class Stabilizer(object):
                 transform,
                 (w + border_size * 2, h + border_size * 2),
                 borderMode=border_mode)
-            transformed_im = transformed_im[border_size:(transformed_im.shape[0] - border_size),
-                                            border_size:(transformed_im.shape[1] - border_size)]
+            transformed_im = transformed_im[border_size:(transformed_im.shape[0]
+                                                         - border_size),
+                                            border_size:(transformed_im.shape[1]
+                                                         - border_size)]
             # store
             im = ScalarField()
             im.import_from_arrays(axe_x=axe_x,
@@ -200,12 +274,108 @@ class Stabilizer(object):
                 pg.print_progress()
         self.stabilized_obj = res_tsf
 
-    def get_stabilized_obj(self, smooth_size=30, border_type='black',
-                           border_size=0, verbose=False):
+    def _apply_transform_to_point(self, pts, from_frame=0, verbose=True):
         """
+        Apply the transformation to pts of the first image.
+
+        Parameters
+        ==========
+        pts: Nx2 array
+            Point of the first array
+        from_frame: integer
+            Frame from wich the tracking should take its source.
         """
-        self.compute_transform(verbose=verbose)
-        self.smooth_transform(smooth_size=smooth_size, verbose=verbose)
-        self.apply_transform(border_type=border_type, border_size=border_size,
-                             verbose=verbose)
+        # checks
+        if self.smoothed_transform is None:
+            raise Exception('You should compute and smooth the transformation'
+                            ' first.')
+        transform = self.raw_transform
+        pts = np.array(pts)
+        if pts.ndim == 1:
+            pts = np.array([pts])
+        if from_frame != 0:
+            raise Exception('Not implemented yet')
+        # verbose
+        if verbose:
+            pg = ProgressCounter(init_mess="Tracking points motion",
+                                 nmb_max=len(self.obj) - 1,
+                                 name_things="transforms")
+            n = 0
+        all_new_pts = []
+        for pt in pts:
+            new_pts = [np.array(pt)]
+            for tr in transform:
+                tr_mat = np.zeros((3, 3))
+                tr_mat[0, 0] = np.cos(tr[2])
+                tr_mat[0, 1] = -np.sin(tr[2])
+                tr_mat[0, 2] = 0
+                tr_mat[1, 0] = np.sin(tr[2])
+                tr_mat[1, 1] = np.cos(tr[2])
+                tr_mat[1, 2] = 0
+                tr_mat[0, 2] = tr[0]
+                tr_mat[1, 2] = tr[1]
+                tr_mat[2, 2] = 1
+                pt = np.array([new_pts[-1][1], new_pts[-1][0]],
+                              dtype=np.float32)
+                pt = np.reshape(pt, (1, 1, 2))
+                tmp_pts = cv2.perspectiveTransform(pt, tr_mat)
+                tmp_pts = tmp_pts[0][0][0:2]
+                tmp_pts = tmp_pts[::-1]
+                new_pts.append(tmp_pts)
+                # verbose
+                if verbose:
+                    n += 1
+                    if n%len(pts) == 0:
+                        pg.print_progress()
+            all_new_pts.append(new_pts)
+        # return
+        return np.array(all_new_pts)
+
+    def get_stabilized_obj(self, dense=False, smooth_size=30,
+                           border_type='black', border_size=0,
+                           verbose=False):
+        """
+        Stabilize the fields.
+
+        Parameters
+        ==========
+        dense: boolean
+            If True, use dens optical flow (track every pixel instead
+            of tracking features).
+        smooth_size: integer
+            Size of the smoothing to use (default to 30)
+        border_type: string in ['black', 'reflect', 'replicate']
+            Type of borders.
+        border_size: integer
+            Size in pixels of the additional border to use
+            (to avoid loosing part of the frames during the transformation).
+        """
+        self._compute_transform(dense=dense, verbose=verbose)
+        self._smooth_transform(smooth_size=smooth_size, verbose=verbose)
+        self._apply_transform(border_type=border_type, border_size=border_size,
+                              verbose=verbose)
         return self.stabilized_obj
+
+    def display_transform(self):
+        """
+        """
+        # colors
+        colors = get_color_cycles()
+        # data
+        data_dic = {'Raw transform': self.raw_transform,
+                    'Raw trajectory': self.raw_trajectory,
+                    'Smoothed trajectory': self.smoothed_trajectory,
+                    'Smoothed transform': self.smoothed_transform}
+        # plot
+        for name, data in data_dic.items():
+            fig, ax = plt.subplots(2, 1, sharex=True)
+            plt.sca(ax[0])
+            plt.plot(data[:, 0], label=f"{name} x",
+                     color=colors[0])
+            plt.plot(data[:, 1], label=f"{name} y",
+                     color=colors[1])
+            plt.legend()
+            plt.sca(ax[1])
+            plt.plot(data[:, 2], label=f"{name} $\\theta$",
+                     color=colors[2])
+            plt.legend()
