@@ -52,10 +52,10 @@ class Field(object):
         if not isinstance(new_axe_x, ARRAYTYPES):
             raise TypeError()
         new_axe_x = np.array(new_axe_x, dtype=float)
-        if new_axe_x.shape == self.__axe_x.shape or len(self.__axe_x) == 0:
-            self.__axe_x = new_axe_x
-        else:
-            raise ValueError()
+        # if new_axe_x.shape == self.__axe_x.shape or len(self.__axe_x) == 0:
+        self.__axe_x = new_axe_x
+        # else:
+        #     raise ValueError()
 
     @axe_x.deleter
     def axe_x(self):
@@ -74,10 +74,10 @@ class Field(object):
         if not isinstance(new_axe_y, ARRAYTYPES):
             raise TypeError()
         new_axe_y = np.array(new_axe_y, dtype=float)
-        if new_axe_y.shape == self.__axe_y.shape or len(self.__axe_y) == 0:
-            self.__axe_y = new_axe_y
-        else:
-            raise ValueError()
+        # if new_axe_y.shape == self.__axe_y.shape or len(self.__axe_y) == 0:
+        self.__axe_y = new_axe_y
+        # else:
+        #     raise ValueError()
 
     @axe_y.deleter
     def axe_y(self):
