@@ -2031,19 +2031,24 @@ class ScalarField(fld.Field):
                     else:
                         new_values[i, j] = np.mean(values[intervx, intervy]
                                                    [~mask[intervx, intervy]])
+        # ensuring right data type
+        new_values = np.array(new_values, dtype=self._values_dtype)
         # returning
         if inplace:
             self.__init__()
             self.import_from_arrays(new_axe_x, new_axe_y, new_values,
                                     mask=new_mask,
                                     unit_x=self.unit_x, unit_y=self.unit_y,
-                                    unit_values=self.unit_values)
+                                    unit_values=self.unit_values,
+                                    dtype=self._values_dtype)
+
         else:
             sf = ScalarField()
             sf.import_from_arrays(new_axe_x, new_axe_y, new_values,
                                   mask=new_mask,
                                   unit_x=self.unit_x, unit_y=self.unit_y,
-                                  unit_values=self.unit_values)
+                                  unit_values=self.unit_values,
+                                  dtype=self._values_dtype)
             return sf
 
     def __clean(self):
