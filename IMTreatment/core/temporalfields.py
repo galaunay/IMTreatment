@@ -1157,7 +1157,7 @@ class TemporalFields(flds.Fields, fld.Field):
             self.__times = np.delete(self.times, nmb)
         flds.Fields.remove_field(self, fieldnumbers)
 
-    def reduce_spatial_resolution(self, fact, inplace=False):
+    def reduce_spatial_resolution(self, fact, inplace=False, verbose=False):
         """
         Reduce the spatial resolution of the fields by a factor 'fact'
 
@@ -1172,9 +1172,14 @@ class TemporalFields(flds.Fields, fld.Field):
             tmpfs = self
         else:
             tmpfs = self.copy()
+        # verbose
+        if verbose:
+            pg = ProgressCounter(f"Reducing resolution by {fact}",
+                                 len(self), name_things='fields')
         #
         for f in tmpfs.fields:
             f.reduce_spatial_resolution(fact=fact, inplace=True)
+            pg.print_progress()
         #
         self.axe_x = self.fields[0].axe_x
         self.axe_y = self.fields[0].axe_y
