@@ -414,6 +414,10 @@ class ScalarField(fld.Field):
     def mean(self):
         return np.mean(self.values[np.logical_not(self.mask)])
 
+    @property
+    def median(self):
+        return np.median(self.values[np.logical_not(self.mask)])
+
     def import_from_arrays(self, axe_x, axe_y, values, mask=None,
                            unit_x="", unit_y="", unit_values="",
                            dtype=np.float):
