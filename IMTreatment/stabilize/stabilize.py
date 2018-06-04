@@ -58,6 +58,7 @@ class Stabilizer(object):
         self.obj = obj
         self.kp_kwargs = orb_kwargs
         self.kp_detector = cv2.ORB_create(**orb_kwargs)
+        self.kp_keypoints = []
         self.mode = mode
         self.raw_transform = None
         self.smoothed_transform = None
@@ -90,14 +91,8 @@ class Stabilizer(object):
         prev_im = self.obj[0].values
         for i in np.arange(1, len(self.obj)):
             cur_im = self.obj[i].values
-            # detect keypoints
-            prev_kps = self.kp_detector.detect(prev_im)
-            prev_kps = np.array(
-                [kp.pt for kp in prev_kps],
-                dtype='float32').reshape(-1, 1, 2)
-            # calc flow of movement
             if dense:
-                raise Exception('Not implemented yet')
+                raise Exception('Not working for drops...')
                 args = {'pyr_scale': 0.5,
                         'levels': 3,
                         'winsize': 15,
@@ -110,10 +105,24 @@ class Stabilizer(object):
                     prev_im,
                     cur_im,
                     None, **args)
-                dx = np.mean(flow[..., 0])
-                dy = np.mean(flow[..., 0])
+                # get mean displacement from dxs, dys
+                dxs = flow[..., 0]
+                dys = flow[..., 1]
+                dx = np.median(dxs)
+                dy = np.median(dys)
                 da = 0
             else:
+                # detect keypoints
+                prev_kps = self.kp_detector.detect(prev_im)
+                self.kp_keypoints.append(prev_kps)
+                if len(prev_kps) == 0:
+                    raise Exception(f'No features found on the {i}th frame, '
+                                    'you should try reducing the '
+                                    '\'fastThreshold\' value.')
+                prev_kps = np.array(
+                    [kp.pt for kp in prev_kps],
+                    dtype='float32').reshape(-1, 1, 2)
+                # calc flow of movement
                 cur_kps, status, err = cv2.calcOpticalFlowPyrLK(
                     prev_im,
                     cur_im,
