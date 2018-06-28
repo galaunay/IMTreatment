@@ -942,6 +942,8 @@ class ScalarField(fld.Field):
         hist: array of numbers
             Histogram.
         """
+        if bins is None:
+            bins = 10
         hist, xs = np.histogram(self.values.flatten(),
                                 bins=bins,
                                 range=range,
