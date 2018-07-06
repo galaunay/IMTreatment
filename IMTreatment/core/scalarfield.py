@@ -444,8 +444,8 @@ class ScalarField(fld.Field):
             Default to 'float'.
 
         """
-        # overwrite previous
-        self.__clean()
+        # # overwrite previous
+        # self.__clean()
         # Use numpy arrays
         self._values_dtype = dtype
         axe_x = np.array(axe_x, dtype=float)
