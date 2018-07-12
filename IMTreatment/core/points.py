@@ -1113,6 +1113,30 @@ class Points(object):
         if not inplace:
             return tmp_pt
 
+    def rotate(self, angle, inplace=False):
+        """
+        Rotate the point set.
+
+        Parameters
+        ----------
+        angle: number
+            Rotation angle in radian.
+        """
+        # Checks
+        if inplace:
+            tmpp = self
+        else:
+            tmpp = self.copy()
+        #
+        x, y = self.xy[:, 0], self.xy[:, 1]
+        new_x = x*np.cos(angle) - y*np.sin(angle)
+        new_y = y*np.cos(angle) + x*np.sin(angle)
+        tmpp.xy[:, 0] = new_x
+        tmpp.xy[:, 1] = new_y
+        # Return
+        return tmpp
+
+
     def remove_doublons(self, method='average', inplace=False, eps_rel=1e-6):
         """
         Replace values associated to the same 'v' by their average.

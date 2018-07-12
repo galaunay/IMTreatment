@@ -1505,6 +1505,30 @@ class Profile(object):
         if not inplace:
             return tmp_prof
 
+    def rotate(self, angle, inplace=False):
+        """
+        Rotate the profile.
+
+        Parameters
+        ----------
+        angle: number
+            Rotation angle in radian.
+        """
+        # Checks
+        if inplace:
+            tmpp = self
+        else:
+            tmpp = self.copy()
+        #
+        x, y = tmpp.x, tmpp.y
+        angle *= -1
+        new_x = x*np.cos(angle) - y*np.sin(angle)
+        new_y = y*np.cos(angle) + x*np.sin(angle)
+        tmpp.y = new_y
+        tmpp.x = new_x
+        #
+        return tmpp
+
     def fill(self, kind='slinear', fill_value=0., inplace=False, crop=False):
         """
         Return a filled profile (no more masked values).
