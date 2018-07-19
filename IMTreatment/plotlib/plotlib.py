@@ -356,6 +356,8 @@ class ButtonManager(object):
         # store Some more informations from displayers
         self.incr = 1
         self.ind = 0
+        if len(displayers) == 0:
+            raise ValueError()
         self.displayers = displayers
         self.ind_max = self._get_indmax_form_displs()
         for displ in self.displayers:
