@@ -1833,6 +1833,23 @@ class Profile(object):
         if not inplace:
             return tmp_prof
 
+    def remove_nans(self, inplace=False):
+        """
+        Remove the NaNs points from the profile.
+        """
+        if inplace:
+            tmp_p = self
+        else:
+            tmp_p = self.copy()
+        #
+        mask = np.isnan(tmp_p.y)
+        if np.any(mask):
+            tmp_p.y = tmp_p.y[~mask]
+            tmp_p.x = tmp_p.x[~mask]
+        #
+        return tmp_p
+
+
     def remove_marginal_values(self, fact=5, inplace=False):
         """
         Remove (mask) the marginal values.
