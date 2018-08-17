@@ -54,13 +54,13 @@ class ScalarField(fld.Field):
     def __eq__(self, another):
         if not isinstance(another, ScalarField):
             return False
-        if not np.all(self.axe_x == another.axe_x):
+        if not np.allclose(self.axe_x, another.axe_x):
             return False
-        if not np.all(self.axe_y == another.axe_y):
+        if not np.allclose(self.axe_y, another.axe_y):
             return False
         if not np.all(self.mask == another.mask):
             return False
-        if not np.all(self.values[~self.mask] ==
+        if not np.allclose(self.values[~self.mask],
                       another.values[~another.mask]):
             return False
         if not np.all(self.unit_x == another.unit_x):
