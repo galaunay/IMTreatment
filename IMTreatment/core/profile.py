@@ -1704,8 +1704,8 @@ class Profile(object):
         """
         # checking if evenly spaced
         dxs = self.x[1::] - self.x[:-1:]
-        dx = self.x[1] - self.x[0]
-        if np.all(np.abs(dxs - dx) < 1e-6*np.max(dxs)):
+        dxi = self.x[1] - self.x[0]
+        if np.all(np.abs(dxs - dxi) < 1e-6*np.max(dxs)):
             return self.copy()
         # getting data
         mask = self.mask
