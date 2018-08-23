@@ -1246,6 +1246,39 @@ class Points(object):
         if not inplace:
             return tmp_pt
 
+    def order_on_line(self, inplace=False):
+        """
+        Re-order the set of points to try to create a line.
+        """
+        if inplace:
+            tmp_pts = self
+        else:
+            tmp_pts = self.copy()
+        #
+        from sklearn.neighbors import NearestNeighbors
+        clf = NearestNeighbors(2).fit(self.xy)
+        G = clf.kneighbors_graph()
+        import networkx as nx
+        T = nx.from_scipy_sparse_matrix(G)
+        order = list(nx.dfs_preorder_nodes(T, 0))
+        paths = [list(nx.dfs_preorder_nodes(T, i)) for i in range(len(self.xy))]
+        mindist = np.inf
+        minidx = 0
+        for i in range(len(self.xy)):
+            p = paths[i]           # order of nodes
+            ordered = self.xy[p]    # ordered nodes
+            # find cost of that order by the sum of euclidean distances between points (i) and (i+1)
+            cost = (((ordered[:-1] - ordered[1:])**2).sum(1)).sum()
+            if cost < mindist:
+                mindist = cost
+                minidx = i
+        opt_order = paths[minidx]
+        new_x = self.xy[:, 0][opt_order]
+        new_y = self.xy[:, 1][opt_order]
+        # return
+        tmp_pts.xy = np.array(list(zip(new_x, new_y)))
+        return tmp_pts
+
     def remove_nans(self, inplace=False):
         """
         Remove the points containing nans values.
