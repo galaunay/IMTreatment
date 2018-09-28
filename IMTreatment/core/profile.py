@@ -1080,7 +1080,7 @@ class Profile(object):
                           unit_y=unit_y)
         return distrib
 
-    def get_extrema_position(self, smoothing=None, ind=False):
+    def get_extrema_position(self, smoothing=None, ind=False, debug=False):
         """
         Return the local extrema of the profile.
 
@@ -1107,6 +1107,10 @@ class Profile(object):
         grad2 = grad.get_gradient()
         tmp_y = grad2.y.copy()
         tmp_y[np.isnan(tmp_y)] = 0
+        # gradient computation reduce the number of available points,
+        # be sure not to mask valid points
+        tmp_y[0:-1] += tmp_y[1::]
+        tmp_y[1::] += tmp_y[0:-1]
         max_filt = tmp_y < 0
         grad_max = grad.copy()
         grad_max.mask = np.logical_or(np.logical_not(max_filt), grad.mask)
@@ -1115,6 +1119,20 @@ class Profile(object):
         # get 0-value positions
         pos_max = grad_max.get_value_position(0, ind=ind)
         pos_min = grad_min.get_value_position(0, ind=ind)
+        # debug
+        if debug:
+            plt.figure()
+            prof.display(marker='o')
+            plt.figure()
+            grad.display(marker='o')
+            plt.figure()
+            grad2.display(marker='o')
+            plt.figure()
+            grad_min.display(marker='o')
+            plt.figure()
+            grad_max.display(marker='o')
+            print(pos_min, pos_max)
+            plt.show()
         # returning
         return pos_min, pos_max
 
