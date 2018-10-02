@@ -511,8 +511,8 @@ class ScalarField(fld.Field):
         self.__values = values
         self.__mask = mask
         if dontcheckunits:
-            self.__unit_x = unit_x
-            self.__unit_y = unit_y
+            self._Field__unit_x = unit_x
+            self._Field__unit_y = unit_y
         else:
             self.unit_x = unit_x
             self.unit_y = unit_y

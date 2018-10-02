@@ -166,7 +166,7 @@ class Points(object):
 
     @xy.setter
     def xy(self, values):
-        values = np.array(values, subok=True, dtype=float)
+        values = np.asarray(values, dtype=float)
         if len(values != 0):
             if not values.ndim == 2:
                 raise ValueError("ndim of xy is {} and should be 2"
