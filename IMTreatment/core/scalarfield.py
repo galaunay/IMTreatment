@@ -420,7 +420,8 @@ class ScalarField(fld.Field):
 
     def import_from_arrays(self, axe_x, axe_y, values, mask=None,
                            unit_x="", unit_y="", unit_values="",
-                           dtype=np.float, nonans=False):
+                           dtype=np.float, dontchecknans=False,
+                           dontcheckunits=False):
         """
         Set the field from a set of arrays.
 
@@ -438,8 +439,10 @@ class ScalarField(fld.Field):
             Unit for the values of axe_y
         unit_values : String unit, optionnal
             Unit for the scalar field
-        nonans: boolean
-            Don't check for nans values
+        dontchecknans: boolean
+            Don't check for nans values (faster)
+        dontcheckunits: boolean
+            Don't check for unit consistency (faster)
         dtype: Numerical type
             Numerical type to store the data to.
             Should be a type supported by numpy arrays.
@@ -462,7 +465,7 @@ class ScalarField(fld.Field):
         else:
             mask = np.array(mask, dtype=bool)
         # Be sure nan values are masked
-        if not nonans:
+        if not dontchecknans:
             if np.isnan(np.sum(values)):
                 mask = np.logical_or(mask, np.isnan(values))
         # Be sure axes are one-dimensional
@@ -507,8 +510,12 @@ class ScalarField(fld.Field):
         self.axe_y = axe_y
         self.__values = values
         self.__mask = mask
-        self.unit_x = unit_x
-        self.unit_y = unit_y
+        if dontcheckunits:
+            self.__unit_x = unit_x
+            self.__unit_y = unit_y
+        else:
+            self.unit_x = unit_x
+            self.unit_y = unit_y
         self.unit_values = unit_values
 
     def get_props(self):
