@@ -149,7 +149,7 @@ def get_gradients(field, raw=False):
         dx = axe_x[1] - axe_x[0]
         mask = tmp_prof.mask
         grad = np.gradient(tmp_prof.y)
-        if raw :
+        if raw:
             return grad
         else:
             unit_y = tmp_prof.unit_y/tmp_prof.unit_x
