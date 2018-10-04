@@ -1,32 +1,32 @@
-image: "python:3.6"
+# image: "python:3.6"
 
-before_script:
-  # - apt-get update
-  # - apt-get install python-tk
-  - pip install -U numpy matplotlib scipy unum modred multiprocess sklearn networkx colorama h5py pyvtk pytest pytest-mpl pytest-coverage
+# before_script:
+#   # - apt-get update
+#   # - apt-get install python-tk
+#   - pip install -U numpy matplotlib scipy unum modred multiprocess sklearn networkx colorama h5py pyvtk pytest pytest-mpl pytest-coverage
 
-pytest:
-  stage: test
-  script:
-    - pytest tests/
+# pytest:
+#   stage: test
+#   script:
+#     - pytest tests/
 
-coverage:
-  stage: test
-  script:
-    - pytest --cov-report html:coverage --cov IMTreatment tests/
-  artifacts:
-    paths:
-      - coverage/
+# coverage:
+#   stage: test
+#   script:
+#     - pytest --cov-report html:coverage --cov IMTreatment tests/
+#   artifacts:
+#     paths:
+#       - coverage/
 
-pages:
-  stage: deploy
-  dependencies:
-    - coverage
-  script:
-    - mv coverage/ public/
-  artifacts:
-    paths:
-      - public
-    expire_in: 30 days
-  only:
-    - master
+# pages:
+#   stage: deploy
+#   dependencies:
+#     - coverage
+#   script:
+#     - mv coverage/ public/
+#   artifacts:
+#     paths:
+#       - public
+#     expire_in: 30 days
+#   only:
+#     - master
