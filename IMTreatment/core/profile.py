@@ -1706,7 +1706,7 @@ class Profile(object):
         else:
             raise ValueError()
 
-    def evenly_space(self, kind_interpolation='linear', dx=None):
+    def evenly_space(self, kind_interpolation='linear', dx=None, inplace=False):
         """
         Return a profile with evenly spaced x values.
         Use interpolation to get missing values.
@@ -1720,6 +1720,10 @@ class Profile(object):
             second or third order) or as an integer specifying the order of
             the spline interpolator to use. Default is 'linear'.
         """
+        if inplace:
+            tmpp = self
+        else:
+            tmpp = self.copy()
         # checking if evenly spaced
         dxs = self.x[1::] - self.x[:-1:]
         dxi = self.x[1] - self.x[0]
@@ -1744,8 +1748,9 @@ class Profile(object):
         new_y = interp(new_x[1:-1])
         new_y = np.concatenate(([self.y[0]], new_y, [self.y[-1]]))
         # return profile
-        return Profile(new_x, new_y, mask=False, unit_x=self.unit_x,
-                       unit_y=self.unit_y, name=self.name)
+        tmpp.__init__(new_x, new_y, mask=False, unit_x=self.unit_x,
+                      unit_y=self.unit_y, name=self.name)
+        return tmpp
 
     def smooth(self, tos='uniform', size=None, direction='y',
                inplace=False, **kw):
