@@ -24,6 +24,7 @@
 
 import gc
 import gzip
+import h5py
 import os
 from glob import glob
 import warnings
@@ -407,7 +408,7 @@ def imts_to_imt(imts_path, imt_path, kind):
     export_to_file(fields, imt_path)
 
 
-def import_from_matlab(filepath, obj, **kwargs):
+def import_from_matlab(filepath, obj, show_struct=False, **kwargs):
     """
     Import data from a matlab (.m) file.
 
@@ -420,6 +421,9 @@ def import_from_matlab(filepath, obj, **kwargs):
     obj : string in ['ScalarField', 'VectorField', 'Profile',
                      'Points']
         Kind of object to import to.
+    show_struct: boolean
+       If True, just show the structure of the file
+       (and return it, so you can play with it)
     kwargs :
        Rest of the keyword arguments should indicate where to find
        the necessary information in the matlab dictionnary.
@@ -435,7 +439,25 @@ def import_from_matlab(filepath, obj, **kwargs):
     """
     filepath = check_path(filepath)
     # Get matlab dictionnary
-    data = spio.loadmat(filepath)
+    try:
+        data = spio.loadmat(filepath)
+        is_h5py = False
+    except NotImplementedError:
+        data = h5py.File(filepath, 'r')
+        is_h5py = True
+    if isinstance(data, np.ndarray):
+        keys = list(data.dtype.fields.keys())
+    else:
+        keys = list(data.keys())
+    # pivmat !
+    dataf = None
+    if 'Data' in keys and 'P' in keys:
+        dataf = data
+        data = dataf['Data']
+        if isinstance(data, np.ndarray):
+            keys = list(data.dtype.fields.keys())
+        else:
+            keys = list(data.keys())
     # Create object
     if obj == 'ScalarField':
         res = ScalarField
@@ -457,9 +479,30 @@ def import_from_matlab(filepath, obj, **kwargs):
                        'unit_y': 'unit_y', 'unit_v': 'unit_v'}
     default_dic.update(kwargs)
     kwargs = default_dic
+    # Just show the structure
+    if show_struct:
+        if is_h5py:
+            print(f"Available keys in {filepath}:\n{keys})")
+        else:
+            print(f"Available keys in {filepath}:"
+                  f"\n{keys}")
+        return data
     # Create building dict
-    build_dic = {key: data[entry]
-                 for key, entry in kwargs.items() if entry in data.keys()}
+    build_dic = {}
+    for key, entry in kwargs.items():
+        if entry in keys:
+            tdata = data[entry]
+            while len(tdata) == 1:
+                tdata = tdata[0]
+            if key in ['unit_x', 'unit_y', 'unit_values']:
+                if isinstance(tdata, str):
+                    build_dic[key] = tdata
+                else:
+                    build_dic[key] = ''.join(chr(n) for n in tdata)
+            else:
+                build_dic[key] = np.array(tdata)
+    if is_h5py and dataf is not None:
+        dataf.close()
     # Fix unities
     for key, item in build_dic.items():
         if len(item) == 1:
