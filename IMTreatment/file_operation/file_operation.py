@@ -1473,7 +1473,8 @@ def export_to_pictures(SFs, filepath):
     SF :
         .
     filename : string
-        Path to the picture file.
+        Path to the picture file. Should include a name for the image
+        (without the extension).
     """
     #check
     filepath = check_path(filepath, newfile=True)
