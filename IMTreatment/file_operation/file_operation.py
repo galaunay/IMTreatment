@@ -24,8 +24,6 @@
 
 import gc
 import gzip
-import h5py
-import os
 from glob import glob
 import warnings
 try:
@@ -33,6 +31,11 @@ try:
     IS_CV2 = True
 except ImportError:
     IS_CV2 = False
+try:
+    import h5py
+    IS_H5PY = True
+except ImportError:
+    IS_H5PY = False
 
 
 import numpy as np
@@ -437,6 +440,8 @@ def import_from_matlab(filepath, obj, show_struct=False, **kwargs):
     ...                         unit_x='x_unit', unit_y='y_unit',
     ...                         comp_x='u', comp_y='v')
     """
+    if not IS_H5PY:
+        raise Exception('h5py needs to be installed to import from matlab.')
     filepath = check_path(filepath)
     # Get matlab dictionnary
     try:
