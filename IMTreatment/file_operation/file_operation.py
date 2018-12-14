@@ -24,6 +24,7 @@
 
 import gc
 import gzip
+import os
 from glob import glob
 import warnings
 try:
