@@ -48,6 +48,9 @@ class TemporalPoints(object):
         for i in np.arange(len(self.point_sets)):
             yield self.times[i], self.point_sets[i]
 
+    def __len__(self):
+        return len(self.point_sets)
+
     @property
     def unit_x(self):
         return self.__unit_x
