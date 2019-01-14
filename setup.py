@@ -24,8 +24,11 @@
 
 from setuptools import setup, find_packages
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(
-    name='IMTreatment',
+    name='IMTreatment-muahah',
     version='1.0',
     description='Tools to analyze scalar and vector fields',
     author='Gaby Launay',
