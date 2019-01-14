@@ -1,4 +1,3 @@
-.. _start-intro:
 ====================================
 IMTreatment - A fields study package
 ====================================
@@ -96,5 +95,3 @@ IMTreatment is documented inline and in ReadTheDocs_.
 you can also use ``build_doc.sh`` to locally build the html doc.
 
 .. _ReadTheDocs: http://imtreatment.readthedocs.io
-
-.. _end-intro:

@@ -4,8 +4,6 @@
    contain the root `toctree` directive.
 
 .. include:: ../README.rst
-    :start-after: .. _start-intro:
-    :end-before: .. _end-intro:
 
 .. toctree::
     :maxdepth: 5
