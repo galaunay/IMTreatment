@@ -23,14 +23,20 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from setuptools import setup, find_packages
+from os import path
 
-with open("README.md", "r") as fh:
+here = path.abspath(path.dirname(__file__))
+
+with open(path.join(here, "README.rst"), "r") as fh:
     long_description = fh.read()
 
 setup(
     name='IMTreatment-muahah',
     version='1.0',
     description='Tools to analyze scalar and vector fields',
+    long_description=long_description,
+    long_description_content_type='text/x-rst',
+    url='https://framagit.org/gabylaunay/IMTreatment',
     author='Gaby Launay',
     author_email='gaby.launay@tutanota.com',
     license='GPLv3',
