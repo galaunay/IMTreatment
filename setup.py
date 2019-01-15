@@ -31,7 +31,7 @@ with open(path.join(here, "README.rst"), "r") as fh:
     long_description = fh.read()
 
 setup(
-    name='IMTreatment-muahah',
+    name='IMTreatment',
     version='1.0',
     description='Tools to analyze scalar and vector fields',
     long_description=long_description,
