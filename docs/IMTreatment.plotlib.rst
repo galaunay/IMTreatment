@@ -1,5 +1,5 @@
 plotlib package
-============================
+===========================
 
 .. automodule:: IMTreatment.plotlib
     :members:

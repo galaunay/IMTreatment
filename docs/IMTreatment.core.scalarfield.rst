@@ -1,5 +1,5 @@
 ScalarField class
-=====================================
+===================================
 
 .. automodule:: IMTreatment.core.scalarfield
     :members:

@@ -1,5 +1,5 @@
 Points class
-================================
+==============================
 
 .. automodule:: IMTreatment.core.points
     :members:

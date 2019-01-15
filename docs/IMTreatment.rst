@@ -19,6 +19,7 @@ Subpackages
     IMTreatment.pod
     IMTreatment.potential_flow
     IMTreatment.protocols
+    IMTreatment.stabilize
     IMTreatment.utils
     IMTreatment.vortex_creation
     IMTreatment.vortex_criterions

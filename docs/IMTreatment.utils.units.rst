@@ -1,5 +1,5 @@
 utils.units module
-================================
+==============================
 
 .. automodule:: IMTreatment.utils.units
     :members:

@@ -1,5 +1,5 @@
 protocols module
-========================================
+======================================
 
 .. automodule:: IMTreatment.protocols.protocols
     :members:

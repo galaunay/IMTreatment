@@ -1,5 +1,5 @@
 boundary\_layer package
-====================================
+===================================
 
 .. automodule:: IMTreatment.boundary_layer
     :members:

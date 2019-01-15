@@ -1,5 +1,5 @@
 potential\_flow package
-====================================
+===================================
 
 .. automodule:: IMTreatment.potential_flow
     :members:

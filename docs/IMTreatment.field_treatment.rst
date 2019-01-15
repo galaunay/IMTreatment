@@ -1,5 +1,5 @@
 field\_treatment package
-=====================================
+====================================
 
 .. automodule:: IMTreatment.field_treatment
     :members:

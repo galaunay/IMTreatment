@@ -1,5 +1,5 @@
 vortex\_creation package
-=====================================
+====================================
 
 .. automodule:: IMTreatment.vortex_creation
     :members:

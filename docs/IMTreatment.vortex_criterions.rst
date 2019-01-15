@@ -1,5 +1,5 @@
 vortex\_criterions package
-=======================================
+======================================
 
 .. automodule:: IMTreatment.vortex_criterions
     :members:

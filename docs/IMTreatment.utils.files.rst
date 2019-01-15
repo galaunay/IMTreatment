@@ -1,5 +1,5 @@
 utils.files module
-================================
+==============================
 
 .. automodule:: IMTreatment.utils.files
     :members:

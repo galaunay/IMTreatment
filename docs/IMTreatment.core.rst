@@ -1,5 +1,5 @@
 core package
-=========================
+========================
 
 .. automodule:: IMTreatment.core
     :members:

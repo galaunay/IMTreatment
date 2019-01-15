@@ -1,5 +1,5 @@
 Profile class
-=================================
+===============================
 
 .. automodule:: IMTreatment.core.profile
     :members:

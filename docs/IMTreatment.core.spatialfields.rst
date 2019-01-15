@@ -1,5 +1,5 @@
 SpatialFields class
-=======================================
+=====================================
 
 .. automodule:: IMTreatment.core.spatialfields
     :members:

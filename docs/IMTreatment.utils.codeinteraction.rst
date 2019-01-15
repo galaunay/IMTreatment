@@ -1,5 +1,5 @@
 utils.codeinteraction module
-==========================================
+========================================
 
 .. automodule:: IMTreatment.utils.codeinteraction
     :members:

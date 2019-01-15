@@ -1,5 +1,5 @@
 TemporalVectorFields class
-==============================================
+============================================
 
 .. automodule:: IMTreatment.core.temporalvectorfields
     :members:

@@ -1,5 +1,5 @@
 utils.types module
-================================
+==============================
 
 .. automodule:: IMTreatment.utils.types
     :members:

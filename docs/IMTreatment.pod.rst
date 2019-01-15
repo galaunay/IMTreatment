@@ -1,5 +1,5 @@
 pod package
-========================
+=======================
 
 .. automodule:: IMTreatment.pod
     :members:

@@ -1,5 +1,5 @@
 vortex\_properties package
-=======================================
+======================================
 
 .. automodule:: IMTreatment.vortex_properties
     :members:

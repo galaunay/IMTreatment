@@ -1,5 +1,5 @@
-IMTreatment\.vortex\_criterions\.FTLE\.ftle module
-==================================================
+IMTreatment.vortex\_criterions.FTLE.ftle module
+===============================================
 
 .. automodule:: IMTreatment.vortex_criterions.FTLE.ftle
     :members:

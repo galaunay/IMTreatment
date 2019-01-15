@@ -1,5 +1,5 @@
 utils.progresscounter module
-==========================================
+========================================
 
 .. automodule:: IMTreatment.utils.progresscounter
     :members:

@@ -1,7 +1,7 @@
-core.temporalpoints module
+stabilize module
 ======================================
 
-.. automodule:: IMTreatment.core.temporalpoints
+.. automodule:: IMTreatment.stabilize.stabilize
     :members:
     :undoc-members:
     :show-inheritance:

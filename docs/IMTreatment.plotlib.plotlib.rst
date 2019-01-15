@@ -1,5 +1,5 @@
 plotlib module
-====================================
+==================================
 
 .. automodule:: IMTreatment.plotlib.plotlib
     :members:

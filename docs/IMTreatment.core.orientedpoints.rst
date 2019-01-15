@@ -1,5 +1,5 @@
 core.orientedpoints module
-========================================
+======================================
 
 .. automodule:: IMTreatment.core.orientedpoints
     :members:

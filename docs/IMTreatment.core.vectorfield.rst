@@ -1,5 +1,5 @@
 VectorField class
-=====================================
+===================================
 
 .. automodule:: IMTreatment.core.vectorfield
     :members:

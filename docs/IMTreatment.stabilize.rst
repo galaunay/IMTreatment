@@ -1,12 +1,12 @@
-protocols package
+stabilize package
 =============================
 
-.. automodule:: IMTreatment.protocols
+.. automodule:: IMTreatment.stabilize
     :members:
     :undoc-members:
     :show-inheritance:
 
 .. toctree::
 
-   IMTreatment.protocols.protocols
+   IMTreatment.stabilize.stabilize
 

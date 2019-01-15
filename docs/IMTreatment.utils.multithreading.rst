@@ -1,5 +1,5 @@
 utils.multithreading module
-=========================================
+=======================================
 
 .. automodule:: IMTreatment.utils.multithreading
     :members:

@@ -1,5 +1,5 @@
 file\_operation package
-====================================
+===================================
 
 .. automodule:: IMTreatment.file_operation
     :members:

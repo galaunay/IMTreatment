@@ -1,5 +1,5 @@
 TemporalScalarFields class
-==============================================
+============================================
 
 .. automodule:: IMTreatment.core.temporalscalarfields
     :members:

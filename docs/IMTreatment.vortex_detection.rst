@@ -1,5 +1,5 @@
 vortex\_detection package
-======================================
+=====================================
 
 .. automodule:: IMTreatment.vortex_detection
     :members:
