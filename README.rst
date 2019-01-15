@@ -82,7 +82,7 @@ Optional:
 
 Installation
 ------------
-You can run ``pip install git+https://framagit.org/gabylaunay/IMTreatment.git#egg=IMTreatment`` from the shell.
+You can run ``pip install 'git+https://framagit.org/gabylaunay/IMTreatment.git#egg=IMTreatment'`` from the shell.
 
 You can try to run the tests with ``run_tests.sh``, but the test suite is not plateform-independent yet, and should fail miserably.
 
