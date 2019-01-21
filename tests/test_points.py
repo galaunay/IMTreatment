@@ -106,6 +106,5 @@ class TestPoints(object):
         self.P1.display(kind='plot', marker=".", color='b', ls=':')
         return fig
 
-# TEMP
-pytest.main(['test_points.py'])
-# TEMP - End
+if __name__ == "__main__":
+    pytest.main(['test_points.py'])
