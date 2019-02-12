@@ -105,7 +105,7 @@ class TemporalFields(flds.Fields, fld.Field):
         elif isinstance(other, (NUMBERTYPES, unum.Unum)):
             final_vfs = self.__class__()
             for field in self.fields:
-                final_vfs.add_field(*other)
+                final_vfs.add_field(field*other)
             return final_vfs
         else:
             raise TypeError("You can only multiply a temporal velocity field "
