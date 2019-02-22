@@ -91,7 +91,10 @@ class TemporalPoints(object):
 
     @property
     def dt(self):
-        return self.times[1] - self.times[0]
+        if len(self.times) > 1:
+            return self.times[1] - self.times[0]
+        else:
+            return None
 
     @property
     def unit_times(self):

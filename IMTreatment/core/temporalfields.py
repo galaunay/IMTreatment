@@ -1208,6 +1208,9 @@ class TemporalFields(flds.Fields, fld.Field):
         # cehck parameters
         if not isinstance(nmb_in_interval, int):
             raise TypeError("'nmb_in_interval' must be an integer")
+        if nmb_in_interval <= 0:
+            raise TypeError("'nmb_in_interval' must be a positive integer")
+
         if nmb_in_interval == 1:
             return self.copy()
         if nmb_in_interval >= len(self):
