@@ -21,14 +21,34 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-"""
-Utlities used by IMTreatment modules
-"""
 
-from .units import make_unit
-from .types import  ARRAYTYPES, INTEGERTYPES, STRINGTYPES, NUMBERTYPES
-from .files import Files, remove_files_in_dirs
-from .progresscounter import ProgressCounter
-from .codeinteraction import RemoveFortranOutput
-from .multithreading import MultiThreading
-from .memoization import memoize_to_file
+import gc
+import gzip
+import pickle
+
+
+def memoize_to_file(file_name):
+    """ Decorator that memoize the function result in a file. """
+
+    def decorator(original_func):
+        gc.disable()
+        try:
+            with gzip.open(file_name, 'rb') as f:
+                cache = pickle.load(f)
+        except (IOError, ValueError):
+            cache = {}
+        gc.enable()
+
+        def new_func(*args, **kwargs):
+            key = pickle.dumps((args, kwargs))
+            if key not in cache:
+                cache[key] = original_func(*args, **kwargs)
+                gc.disable()
+                with gzip.open(file_name, 'wb') as f:
+                    pickle.dump(cache, f, protocol=-1)
+                gc.enable()
+            return cache[key]
+
+        return new_func
+
+    return decorator
