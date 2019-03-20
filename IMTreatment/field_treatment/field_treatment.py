@@ -774,6 +774,11 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
         Method to treat the field boundaries. If 'stop', streamlines are
         stopped when encountering a boundary, If 'hide', streamlines
         that encounter a boundary are not returned.
+
+    Returns
+    -------
+    streamlines: tuple of Points objects
+        Wanted streamlines
     """
 
     #############
