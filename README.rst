@@ -82,11 +82,11 @@ Optional:
 
 Installation
 ------------
-You can run ``pip install 'git+https://framagit.org/gabylaunay/IMTreatment.git#egg=IMTreatment'`` from the shell.
+IMTreatment is now available on Pypi:
+``pip install IMTreatment``
 
-You can try to run the tests with ``run_tests.sh``, but the test suite is not plateform-independent yet, and should fail miserably.
-
-If you intend to modify this package, store it some place safe and install it as a developement package with ``python setup.py develop``.
+Or if you prefer to install it manually from source:
+``pip install 'git+https://framagit.org/gabylaunay/IMTreatment.git#egg=IMTreatment'``
 
 Documentation
 -------------
