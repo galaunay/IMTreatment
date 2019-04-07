@@ -5,7 +5,6 @@
 
 # Author: Gaby Launay  <gaby.launay@tutanota.com>
 # URL: https://framagit.org/gabylaunay/IMTreatment
-# Version: 1.0
 
 # This file is part of IMTreatment.
 
@@ -32,16 +31,16 @@ with open(path.join(here, "README.rst"), "r") as fh:
 
 setup(
     name='IMTreatment',
-    version='1.0',
+    version='1.0.0',
     description='Tools to analyze scalar and vector fields',
     long_description=long_description,
     long_description_content_type='text/x-rst',
     url='https://framagit.org/gabylaunay/IMTreatment',
     author='Gaby Launay',
-    author_email='gaby.launay@tutanota.com',
+    author_email='gaby.launay@protonmail.com',
     license='GPLv3',
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Science/Research',
         'Topic :: Scientific/Engineering',
         'Programming Language :: Python :: 3 :: Only',
