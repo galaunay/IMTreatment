@@ -72,6 +72,8 @@ class ScalarField(fld.Field):
         return True
 
     def __neg__(self):
+        if self._values_dtype == np.uint8:
+            raise Exception('Cannot invert unsigned integers')
         tmpsf = self.copy()
         tmpsf.values = -tmpsf.values
         return tmpsf

@@ -1179,7 +1179,8 @@ class TemporalFields(flds.Fields, fld.Field):
         #
         for f in tmpfs.fields:
             f.reduce_spatial_resolution(fact=fact, inplace=True)
-            pg.print_progress()
+            if verbose:
+                pg.print_progress()
         #
         self.axe_x = self.fields[0].axe_x
         self.axe_y = self.fields[0].axe_y

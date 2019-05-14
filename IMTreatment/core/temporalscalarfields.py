@@ -96,6 +96,25 @@ class TemporalScalarFields(tf.TemporalFields):
         result_f.mask = mask
         return result_f
 
+    def get_background(self):
+        """
+        Return the background image based on the histogram of values
+        at each point
+        """
+        raise Exception("Not really working")
+        if self.fields[0]._values_dtype != np.uint8:
+            raise NotImplementedError()
+        values = np.zeros(self.shape, dtype=np.uint8)
+        for i, j in np.ndindex(self.shape):
+            print(i, j)
+            vals = []
+            for n in range(len(self.fields)):
+                vals.append(self.fields[n].values[i, j])
+            hist, _ = np.histogram(vals, bins=254, range=[0, 254])
+            val = np.argmax(hist)
+            values[i, j] = val
+        return values
+
     def get_phase_map(self, freq, tf=None, check_spec=None, verbose=True):
         """
         Return the phase map of the temporal scalar field for
