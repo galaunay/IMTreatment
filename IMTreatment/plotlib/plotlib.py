@@ -485,6 +485,7 @@ class ButtonManager(object):
         else:
             cb_norm = None
         # return
+        cmap = plt.cm.get_cmap(cmap)
         return cb_norm, cmap
 
     def _get_aspect_from_displs(self):
