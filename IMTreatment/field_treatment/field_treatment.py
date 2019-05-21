@@ -898,6 +898,7 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
         ### solve streamline ODE ###
         ############################
         new_xys = [xy]
+        new_ts = [0]
         with RemoveFortranOutput():
             ODE = spinteg.ode(fun2)
             ODE.set_integrator('vode')
@@ -925,6 +926,7 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
                     if (tmp_xy[0] - res[-1][0])**2 + (tmp_xy[1] - res[-1][1])**2 < min_dxy:
                         break
                 # store
+                new_ts.append(new_ts[-1] + rk_dt)
                 res.append(tmp_xy)
             new_xys = res
 #        warnings.filterwarnings('once')
@@ -933,7 +935,8 @@ def get_streamlines(VF, xys, reverse=False, rel_err=1.e-8,
             new_xys = np.array(new_xys, dtype=float)
             new_xys[:, 0] = VF.axe_x[0] + new_xys[:, 0]*(VF.axe_x[-1] - VF.axe_x[0])
             new_xys[:, 1] = VF.axe_y[0] + new_xys[:, 1]*(VF.axe_y[-1] - VF.axe_y[0])
-        stream = Points(new_xys, unit_x=VF.unit_x, unit_y=VF.unit_y)
+        stream = Points(new_xys, unit_x=VF.unit_x, unit_y=VF.unit_y,
+                        v=new_ts)
         streams.append(stream)
 
     #################
