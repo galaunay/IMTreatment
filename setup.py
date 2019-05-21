@@ -31,7 +31,7 @@ with open(path.join(here, "README.rst"), "r") as fh:
 
 setup(
     name='IMTreatment',
-    version='1.1.0',
+    version='1.1.1',
     description='Tools to analyze scalar and vector fields',
     long_description=long_description,
     long_description_content_type='text/x-rst',
