@@ -5,7 +5,6 @@
 
 # Author: Gaby Launay  <gaby.launay@tutanota.com>
 # URL: https://framagit.org/gabylaunay/IMTreatment
-# Version: 1.0
 
 # This file is part of IMTreatment.
 
