@@ -28,6 +28,7 @@ from matplotlib import pyplot as plt
 from . import scalarfield as sf, temporalfields as tf
 from ..utils.types import ARRAYTYPES, INTEGERTYPES, NUMBERTYPES, STRINGTYPES
 from IMTreatment.utils import ProgressCounter
+from scipy import ndimage
 
 
 class TemporalScalarFields(tf.TemporalFields):
@@ -95,45 +96,112 @@ class TemporalScalarFields(tf.TemporalFields):
         result_f.mask = mask
         return result_f
 
-    def get_background(self, max_std=10):
+    def get_background(self, noise_level=10, verbose=False):
         """
         Return the background image based on the histogram of values
-        at each point
+        at each point.
+
+        Parameters
+        ----------
+        noise_level: integer
+             Level of noise used to differentiate between noise and
+             real perturbation of the background image.
+
+        Returns
+        -------
+        bg: ScalarField object
+             Background image
         """
         # Data
         print("Warning: only works for integer scalarfields")
         min_len = len(self.times)/10
         values = np.zeros(self.shape, dtype=np.uint8)
+        if verbose:
+            pg = ProgressCounter(init_mess="Computing background image",
+                                 nmb_max=self.shape[0]*self.shape[1],
+                                 name_things="Pixels")
+        # Spatial loop
         for i, j in np.ndindex(self.shape):
-            if i % 100 == 0 and j == 1:
-                print(i)
             vals = np.array([self.fields[n]._ScalarField__values[i, j]
                              for n in range(len(self.fields))])
             # # HIST
             # hist = np.bincount(vals)
             # val = np.argmax(hist)
+            # STATS
             std = np.std(vals, dtype=float)
             old_std = 0
             mean = np.mean(vals, dtype=float)
-            # if i == 108 and j == 77:
-            #     import pdb; pdb.set_trace()
             while True:
                 vals = vals[np.logical_and(vals > mean - std,
                                            vals < mean + std)]
                 old_std = std
                 std = np.std(vals)
                 mean = np.mean(vals)
-                if std < max_std or len(vals) <= min_len or old_std == std:
+                if std < noise_level or len(vals) <= min_len or old_std == std:
                     break
             values[i, j] = mean
+            if verbose:
+                pg.print_progress()
         bg = sf.ScalarField()
         bg.import_from_arrays(axe_x=self.axe_x,
                               axe_y=self.axe_y,
                               values=values,
                               unit_x=self.unit_x,
                               unit_y=self.unit_y)
-
         return bg
+
+    def substract_background(self, bg, noise_level=10,
+                             blend=True,
+                             filling_value=None,
+                             verbose=False):
+        """
+        Remove the background without changing the perturbations.
+
+        Parameters
+        ----------
+        bg: ScalarField object
+             Background image
+        noise_level: integer
+             Level of noise used to differentiate between noise and
+             real perturbation of the background image.
+        blend: boolean
+             Blend the foreground in the background.
+        filling_value: integer
+             Value used to fill the background.
+             Default to the background spatial average.
+
+        Returns
+        -------
+        nsf: TemporalScalarFields object
+            substracted fields.
+        """
+        # data
+        ntf = self.copy()
+        bg_mean = bg.mean
+        if filling_value is None:
+            filling_value = bg_mean
+        if verbose:
+            pg = ProgressCounter(init_mess="Substracting background image",
+                                 nmb_max=len(self.fields),
+                                 name_things="Fields")
+        # Spatial loop
+        for n in range(len(ntf)):
+            # Get foreground
+            values = ntf.fields[n].values
+            mask = np.logical_and(values < bg.values + noise_level,
+                                  bg.values - noise_level < values)
+            # get foreground and background avg
+            if blend:
+                fg_mean = np.mean(values[~mask])
+                blend_field = (values - bg_mean)/(fg_mean - bg_mean)
+                blend_field = ndimage.gaussian_filter(blend_field, 1)
+                values = values*blend_field + (1 - blend_field)*filling_value
+            values[mask] = filling_value
+            ntf.fields[n].values = values
+            if verbose:
+                pg.print_progress()
+        #
+        return ntf
 
     def get_phase_map(self, freq, tf=None, check_spec=None, verbose=True):
         """
