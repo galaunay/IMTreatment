@@ -95,24 +95,45 @@ class TemporalScalarFields(tf.TemporalFields):
         result_f.mask = mask
         return result_f
 
-    def get_background(self):
+    def get_background(self, max_std=10):
         """
         Return the background image based on the histogram of values
         at each point
         """
-        raise Exception("Not really working")
-        if self.fields[0]._values_dtype != np.uint8:
-            raise NotImplementedError()
+        # Data
+        print("Warning: only works for integer scalarfields")
+        min_len = len(self.times)/10
         values = np.zeros(self.shape, dtype=np.uint8)
         for i, j in np.ndindex(self.shape):
-            print(i, j)
-            vals = []
-            for n in range(len(self.fields)):
-                vals.append(self.fields[n].values[i, j])
-            hist, _ = np.histogram(vals, bins=254, range=[0, 254])
-            val = np.argmax(hist)
-            values[i, j] = val
-        return values
+            if i % 100 == 0 and j == 1:
+                print(i)
+            vals = np.array([self.fields[n]._ScalarField__values[i, j]
+                             for n in range(len(self.fields))])
+            # # HIST
+            # hist = np.bincount(vals)
+            # val = np.argmax(hist)
+            std = np.std(vals, dtype=float)
+            old_std = 0
+            mean = np.mean(vals, dtype=float)
+            # if i == 108 and j == 77:
+            #     import pdb; pdb.set_trace()
+            while True:
+                vals = vals[np.logical_and(vals > mean - std,
+                                           vals < mean + std)]
+                old_std = std
+                std = np.std(vals)
+                mean = np.mean(vals)
+                if std < max_std or len(vals) <= min_len or old_std == std:
+                    break
+            values[i, j] = mean
+        bg = sf.ScalarField()
+        bg.import_from_arrays(axe_x=self.axe_x,
+                              axe_y=self.axe_y,
+                              values=values,
+                              unit_x=self.unit_x,
+                              unit_y=self.unit_y)
+
+        return bg
 
     def get_phase_map(self, freq, tf=None, check_spec=None, verbose=True):
         """
