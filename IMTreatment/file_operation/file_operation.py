@@ -1369,7 +1369,7 @@ def import_from_pictures(filepath, axe_x=None, axe_y=None, unit_x='',
 
 
 def import_from_video(filepath, dx=1, dy=1, unit_x='',
-                      unit_y='', unit_values='', dt=1,
+                      unit_y='', unit_values='', dt=None,
                       unit_times='', dtype=float, frame_inds=None, incr=1,
                       verbose=False):
     """
@@ -1389,6 +1389,9 @@ def import_from_video(filepath, dx=1, dy=1, unit_x='',
         .
     unit_values :
         .
+    dt: number
+        Time interval between two frames. If not specified, is estimated
+        from the video.
     dtype :
         Type of the stored values (default to float)
     frame_inds: 2x1 array
@@ -1408,11 +1411,16 @@ def import_from_video(filepath, dx=1, dy=1, unit_x='',
     filepath = check_path(filepath)
     paths = glob(filepath)
     paths = sorted(paths)
-    tmp_tsf = TemporalScalarFields()
     # Open video stream
     vid = cv2.VideoCapture()
     vid.open(filepath)
     max_frame = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+    # Get framerate
+    if dt is None:
+        fps = float(vid.get(cv2.CAP_PROP_FPS))
+        if fps == 0:
+            fps = 1
+        dt = 1/fps
     # filter by field number
     if frame_inds is None:
         frame_inds = [0, max_frame]
@@ -1449,6 +1457,8 @@ def import_from_video(filepath, dx=1, dy=1, unit_x='',
         t += dt
         if verbose:
             pg.print_progress()
+    if verbose:
+        pg.finish()
     # returning
     return tsf
 

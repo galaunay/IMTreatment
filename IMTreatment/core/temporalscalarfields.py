@@ -113,13 +113,13 @@ class TemporalScalarFields(tf.TemporalFields):
              Background image
         """
         # Data
-        print("Warning: only works for integer scalarfields")
         min_len = len(self.times)/10
-        values = np.zeros(self.shape, dtype=np.uint8)
+        values = np.zeros(self.shape)
         if verbose:
             pg = ProgressCounter(init_mess="Computing background image",
                                  nmb_max=self.shape[0]*self.shape[1],
-                                 name_things="Pixels")
+                                 name_things="Pixels",
+                                 perc_interv=1)
         # Spatial loop
         for i, j in np.ndindex(self.shape):
             vals = np.array([self.fields[n]._ScalarField__values[i, j]

@@ -84,6 +84,10 @@ class ProgressCounter(object):
         else:
             self._print_progress_full()
 
+    def finish(self):
+        self.curr_nmb = self.nmb_max
+        self.print_progress()
+
     def _print_progress_full(self):
         # start chrono if not
         if self.t0 is None:
