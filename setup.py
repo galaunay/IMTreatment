@@ -50,7 +50,7 @@ setup(
     ],
     keywords='scalarfield vectorfield fluid dynamics PIV vortex',
     packages=find_packages(exclude=['contrib', 'docs', 'tests', 'samples']),
-    install_requires=['numpy', 'matplotlib', 'scipy', 'unum',
+    install_requires=['numpy', 'matplotlib', 'scipy', 'unum', 'imageio',
                       'multiprocess', 'psutil'],
     extras_require={
         'Modal decomposition': 'modred',
@@ -61,5 +61,5 @@ setup(
         'Pivmat format support': 'h5py',
         'Export to VTK format': 'pyvtk'},
     setup_requires=['pytest-runner'],
-    tests_require=['pytest'],
+    tests_require=['pytest', 'pytest-mpl'],
 )

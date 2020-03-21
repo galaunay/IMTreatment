@@ -254,7 +254,13 @@ class Points(object):
             except (ValueError, TypeError):
                 raise Exception()
         else:
-            raise Exception()
+            try:
+                self.__unit_v = make_unit(str(unit))
+            except Exception as msg:
+                print(msg)
+                print(type(unit))
+                print(unit)
+                raise Exception()
 
     @unit_v.deleter
     def unit_v(self):

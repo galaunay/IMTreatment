@@ -368,8 +368,7 @@ class ModalFields(Field):
                 tmp_MF.temp_evo[n].smooth(tos=tos, size=size, inplace=True)
             return tmp_MF
 
-    def smooth_spatial_evolutions(self, tos='uniform', size=None,
-                                  inplace=True):
+    def smooth_spatial_evolutions(self, tos='uniform', size=None, inplace=True):
         """
         Smooth the spatial evolutions (to do before reconstructing)
 

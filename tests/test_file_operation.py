@@ -149,7 +149,7 @@ class TestFileOperation(object):
         assert res_a == res_a2
 
     def test_import_profile_from_ascii(self):
-        imtio.export_to_ascii("Prof1.txt", self.Prof1)
+        imtio.export_to_ascii(self.Prof1, "Prof1.txt")
         res_a = imtio.import_profile_from_ascii("Prof1.txt", x_col=1,
                                                 y_col=2,
                                                 unit_x=self.Prof1.unit_x,
@@ -157,7 +157,7 @@ class TestFileOperation(object):
         assert res_a == self.Prof1
 
     def test_import_sf_from_ascii(self):
-        imtio.export_to_ascii("SF1.txt", self.SF1)
+        imtio.export_to_ascii(self.SF1, "SF1.txt")
         res_a = imtio.import_sf_from_ascii("SF1.txt",
                                            x_col=1,
                                            y_col=2,
@@ -168,7 +168,7 @@ class TestFileOperation(object):
         assert res_a == self.SF1
 
     def test_import_vf_from_ascii(self):
-        imtio.export_to_ascii("VF1.txt", self.VF1)
+        imtio.export_to_ascii(self.VF1, "VF1.txt")
         res_a = imtio.import_vf_from_ascii("VF1.txt",
                                            x_col=1,
                                            y_col=2,
@@ -180,7 +180,7 @@ class TestFileOperation(object):
         assert res_a == self.VF1
 
     def test_import_points_from_ascii(self):
-        imtio.export_to_ascii("P1.txt", self.P1)
+        imtio.export_to_ascii(self.P1, "P1.txt")
         res_a = imtio.import_pts_from_ascii("P1.txt",
                                             x_col=1,
                                             y_col=2,
@@ -190,7 +190,7 @@ class TestFileOperation(object):
                                             unit_v=self.P1.unit_v)
         assert res_a == self.P1
         #
-        imtio.export_to_ascii("P1_b.txt", self.P1)
+        imtio.export_to_ascii(self.P1, "P1_b.txt")
         res_a = imtio.import_pts_from_ascii("P1_b.txt",
                                             x_col=1,
                                             y_col=2,

@@ -54,7 +54,7 @@ try:
 except:
     import pickle
 import scipy.io as spio
-import scipy.misc as spmisc
+import imageio
 from os import path
 import re
 
@@ -316,6 +316,11 @@ def import_from_file(filepath, **kw):
     else:
         raise IOError("File is not readable "
                       "(unknown extension : {})".format(extension))
+    # For backward support
+    attr_name = f"_values_dtype"
+    if isinstance(obj, (VectorField, ScalarField)):
+        if not hasattr(obj, attr_name):
+            setattr(obj, attr_name, float)
     return obj
 
 
@@ -482,6 +487,8 @@ def import_from_matlab(filepath, obj, show_struct=False, **kwargs):
         res = Points
         default_dic = {'xy': 'xy', 'v': 'v', 'unit_x': 'unit_x',
                        'unit_y': 'unit_y', 'unit_v': 'unit_v'}
+    else:
+        raise Exception()
     default_dic.update(kwargs)
     kwargs = default_dic
     # Just show the structure
@@ -497,8 +504,9 @@ def import_from_matlab(filepath, obj, show_struct=False, **kwargs):
     for key, entry in kwargs.items():
         if entry in keys:
             tdata = data[entry]
-            while len(tdata) == 1:
+            while not isinstance(tdata, str) and len(tdata) == 1:
                 tdata = tdata[0]
+            print(tdata)
             if key in ['unit_x', 'unit_y', 'unit_values']:
                 if isinstance(tdata, str):
                     build_dic[key] = tdata
@@ -510,8 +518,11 @@ def import_from_matlab(filepath, obj, show_struct=False, **kwargs):
         dataf.close()
     # Fix unities
     for key, item in build_dic.items():
-        if len(item) == 1:
-            build_dic[key] = build_dic[key][0]
+        try:
+            if len(item) == 1:
+                build_dic[key] = build_dic[key][0]
+        except TypeError:
+            pass
     # Fill the object
     if obj in ['ScalarField', 'VectorField']:
         ress = res()
@@ -1276,7 +1287,7 @@ def import_from_picture(filepath, axe_x=None, axe_y=None, unit_x='', unit_y='',
         raise ValueError("I need the file to be an supported picture file"
                          "(not a {} file)".format(ext))
     # importing from file
-    values = spmisc.imread(filepath, flatten=True).transpose()[:, ::-1]
+    values = imageio.imread(filepath, as_gray=True).transpose()[:, ::-1]
     values = np.asarray(values, dtype=dtype)
     # set axis
     if axe_x is None:
@@ -1476,7 +1487,7 @@ def export_to_picture(SF, filepath):
     """
     filepath = check_path(filepath)
     values = SF.values[:, ::-1].transpose()
-    spmisc.imsave(filepath, values)
+    imageio.imwrite(filepath, values)
 
 
 def export_to_pictures(SFs, filepath):
@@ -1503,7 +1514,7 @@ def export_to_pictures(SFs, filepath):
             values.append(SFs.fields[i].values[:, ::-1].transpose())
     # save
     for i, val in enumerate(values):
-        spmisc.imsave("{}_{:0>5}.png".format(filepath, i), val)
+        imageio.imwrite("{}_{:0>5}.png".format(filepath, i), val)
 
 
 def export_to_video(SFs, filepath, fps=24, colormap=None):
