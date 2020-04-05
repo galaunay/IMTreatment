@@ -47,6 +47,7 @@ class VectorField(field.Field):
         self.__comp_y = np.array([], dtype=float)
         self.__mask = np.array([], dtype=bool)
         self.__unit_values = make_unit('')
+        self._values_dtype = None
 
     def __neg__(self):
         tmpvf = self.copy()
@@ -481,7 +482,7 @@ class VectorField(field.Field):
         return tmp_sf
 
     def import_from_arrays(self, axe_x, axe_y, comp_x, comp_y, mask=False,
-                           unit_x="", unit_y="", unit_values=""):
+                           unit_x="", unit_y="", unit_values="", dtype=float):
         """
         Set the vector field from a set of arrays.
 
@@ -503,14 +504,18 @@ class VectorField(field.Field):
             Unit for the values of axe_y
         unit_values : string, optionnal
             Unit for the field components.
+        dtype: Numerical type
+            Numerical type to store the data to.
+            Should be a type supported by numpy arrays.
+            Default to 'float'.
         """
         # overwrite previous
         self.__clean()
         # Use numpy arrays
         axe_x = np.array(axe_x, dtype=float)
         axe_y = np.array(axe_y, dtype=float)
-        comp_x = np.array(comp_x, dtype=float)
-        comp_y = np.array(comp_y, dtype=float)
+        comp_x = np.array(comp_x, dtype=dtype)
+        comp_y = np.array(comp_y, dtype=dtype)
         if mask is not None and not isinstance(mask, bool):
             mask = np.array(mask, dtype=bool)
         # Be sure nan values are masked
@@ -565,6 +570,7 @@ class VectorField(field.Field):
         self.unit_x = unit_x
         self.unit_y = unit_y
         self.unit_values = unit_values
+        self._values_dtype = dtype
 
     def check_consistency(self):
         """
@@ -785,6 +791,15 @@ class VectorField(field.Field):
         # returning
         if not inplace:
             return tmp_field
+
+    def change_dtype(self, new_type):
+        """
+        Change the values dtype.
+        """
+        if new_type != self._values_dtype:
+            self.comp_x = np.asarray(self.comp_x, dtype=new_type)
+            self.comp_y = np.asarray(self.comp_y, dtype=new_type)
+            self._values_dtype = new_type
 
     def change_unit(self, axe, new_unit):
         """

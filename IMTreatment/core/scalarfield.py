@@ -1345,7 +1345,7 @@ class ScalarField(fld.Field):
         Change the values dtype.
         """
         if new_type != self._values_dtype:
-            self.values = np.array(self.values, dtype=new_type)
+            self.values = np.asarray(self.values, dtype=new_type)
             self._values_dtype = new_type
 
     def change_unit(self, axe, new_unit):

@@ -520,7 +520,7 @@ class ModalFields(Field):
                 tmp_mode = self.modes[n].values
                 tmp_prof = temp_evo[n]
                 for t in ind_times:
-                    coef = tmp_prof.get_interpolated_value(x=times[t])[0]
+                    coef = tmp_prof.get_interpolated_values(x=times[t])[0]
                     tmp_tf[t] += np.real(tmp_mode*coef)
             # returning
             TF = TemporalScalarFields()
@@ -758,7 +758,10 @@ class ModalFields(Field):
         # modes
         fig1 = plt.figure()
         modes = self.modes_as_tf
-        plot1 = modes.display('magnitude')
+        if hasattr(modes, "magnitude"):
+            plot1 = modes.display('magnitude')
+        else:
+            plot1 = modes.display()
         plt.title('POD modes')
         # temporal evolutions
         fig2 = plt.figure()
@@ -788,6 +791,7 @@ class ModalFields(Field):
         bm = pplt.ButtonManager(plot4)
         cum_nrj.display(color='k', ls='-', marker=None)
         plt.xlim(xmin=0)
+        plt.ylim(0, 1)
         plot4.button_manager.link_to_other_graph(plot2)
         plt.title('Modes cumulative energy')
         return plot1, plot2, plot3, plot4
