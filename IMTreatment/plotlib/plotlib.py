@@ -916,7 +916,7 @@ class Displayer(object):
     points_default_args = {"kind": "scatter"}
     profile_default_args = {"kind": "plot"}
     field_1D_default_args = {"kind": "matrix",
-                             "interpolation": "nearest",
+                             # "interpolation": "nearest",
                              "aspect": "equal"}
     field_2D_default_args = {"kind": "quiver",
                              "aspect": "equal"}
